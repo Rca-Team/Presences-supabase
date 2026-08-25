@@ -14,18 +14,24 @@ const extractStorageRef = (raw: string): { bucket: string; path: string } | null
   if (/^https?:\/\//i.test(value)) {
     const storageMatch = value.match(STORAGE_URL_PATTERN);
     if (storageMatch?.[1] && storageMatch?.[2]) {
+      const bucket = unwrapPath(storageMatch[1]);
+      const rawPath = decodeURIComponent(storageMatch[2]);
+      const [cleanPath] = rawPath.split('?');
       return {
-        bucket: unwrapPath(storageMatch[1]),
-        path: decodeURIComponent(storageMatch[2]),
+        bucket,
+        path: unwrapPath(cleanPath),
       };
     }
 
-    const marker = '/face-images/';
-    const markerIndex = value.indexOf(marker);
-    if (markerIndex >= 0) {
-      const pathWithQuery = value.slice(markerIndex + marker.length);
-      const [path] = pathWithQuery.split('?');
-      return { bucket: FACE_BUCKET, path: unwrapPath(path) };
+    const markers = ['/face-images/', '/student-registration-faces/', '/attendance-training-faces/'];
+    for (const marker of markers) {
+      const markerIndex = value.indexOf(marker);
+      if (markerIndex >= 0) {
+        const bucket = marker.replace(/\//g, '');
+        const pathWithQuery = value.slice(markerIndex + marker.length);
+        const [cleanPath] = pathWithQuery.split('?');
+        return { bucket, path: unwrapPath(cleanPath) };
+      }
     }
 
     return null;
@@ -33,16 +39,18 @@ const extractStorageRef = (raw: string): { bucket: string; path: string } | null
 
   const normalized = unwrapPath(value);
   const prefixed = normalized.match(/^([^/]+)\/(.+)$/);
-  if (prefixed?.[1] && prefixed?.[2]) {
+  if (prefixed?.[1] && prefixed?.[2] && ['face-images', 'student-registration-faces', 'attendance-training-faces'].includes(prefixed[1])) {
+    const [cleanPath] = prefixed[2].split('?');
     return {
       bucket: prefixed[1],
-      path: unwrapPath(prefixed[2]),
+      path: unwrapPath(cleanPath),
     };
   }
 
+  const [cleanNormalized] = normalized.split('?');
   return {
     bucket: FACE_BUCKET,
-    path: unwrapPath(normalized.replace(/^face-images\//, '')),
+    path: unwrapPath(cleanNormalized.replace(/^face-images\//, '')),
   };
 };
 
@@ -62,7 +70,13 @@ export const resolveStudentPhotoUrl = async (raw?: string | null): Promise<strin
   if (value.startsWith('data:')) return value;
 
   const storageRef = extractStorageRef(value);
-  if (!storageRef || !storageRef.path) return value;
+  if (!storageRef || !storageRef.path) {
+    // If it's an absolute URL pointing to an old Supabase project, rewrite to current project
+    if (/^https?:\/\//i.test(value)) {
+      return value.replace(/https:\/\/[a-z0-9-]+\.supabase\.co/gi, 'https://cvdcbcsonlianbfeessy.supabase.co').split('?')[0].replace('/storage/v1/object/sign/', '/storage/v1/object/public/');
+    }
+    return value;
+  }
 
   const bucket = storageRef.bucket || FACE_BUCKET;
   const bucketPath = storageRef.path;
@@ -70,15 +84,24 @@ export const resolveStudentPhotoUrl = async (raw?: string | null): Promise<strin
   const cacheKey = `${bucket}:${bucketPath}`;
   if (signedUrlCache.has(cacheKey)) return signedUrlCache.get(cacheKey)!;
 
+  try {
+    const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(bucketPath);
+    if (publicData?.publicUrl) {
+      signedUrlCache.set(cacheKey, publicData.publicUrl);
+      return publicData.publicUrl;
+    }
+  } catch (err) {
+    console.warn('Public URL resolution fallback:', err);
+  }
+
   const { data, error } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(bucketPath, 60 * 60 * 24 * 7);
+    .createSignedUrl(bucketPath, 60 * 60 * 24 * 365);
 
   if (!error && data?.signedUrl) {
     signedUrlCache.set(cacheKey, data.signedUrl);
     return data.signedUrl;
   }
 
-  const publicUrl = supabase.storage.from(bucket).getPublicUrl(bucketPath).data.publicUrl;
-  return publicUrl || value;
+  return `https://cvdcbcsonlianbfeessy.supabase.co/storage/v1/object/public/${bucket}/${bucketPath}`;
 };

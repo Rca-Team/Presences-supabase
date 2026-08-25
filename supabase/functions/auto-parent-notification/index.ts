@@ -256,7 +256,7 @@ serve(async (req) => {
     const alreadySMS = false;
 
     // Emails cannot render base64 data URIs — host the live capture first.
-    const studentRegisteredPhoto = await resolveStudentPhotoUrl(supabaseClient, studentId);
+    const studentRegisteredPhoto = await resolveStudentPhotoUrl(supabaseClient, studentId, studentName);
     const hostedSnapshot = await hostSnapshot(supabaseClient, studentId, imageUrl);
 
     // 1. SEND EMAIL (premium school template with the student's face & live verification snapshot)

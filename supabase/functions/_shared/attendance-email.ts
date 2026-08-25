@@ -88,7 +88,7 @@ function avatarBlock(name: string, photoUrl: string | null | undefined, ring: st
   const hasPhoto = photoUrl && /^https?:\/\//i.test(photoUrl);
 
   const inner = hasPhoto
-    ? `<img src="${esc(photoUrl)}" width="112" height="112" alt="${esc(name)}" style="width:112px;height:112px;border-radius:56px;object-fit:cover;display:block;" />`
+    ? `<img src="${esc(photoUrl)}" width="112" height="112" alt="${esc(name)}" style="width:112px;height:112px;border-radius:56px;object-fit:cover;display:block;margin:0 auto;border:0;outline:none;" />`
     : `<div style="width:112px;height:112px;border-radius:56px;background:#e5e7eb;color:#374151;font:700 38px Arial,sans-serif;line-height:112px;text-align:center;">${esc(initials || '?')}</div>`;
 
   return `
@@ -99,7 +99,7 @@ function avatarBlock(name: string, photoUrl: string | null | undefined, ring: st
             <tr>
               <td style="padding:6px;border-radius:64px;background:${ring};">
                 <table cellpadding="0" cellspacing="0" border="0">
-                  <tr><td style="border-radius:60px;background:#ffffff;padding:4px;">${inner}</td></tr>
+                  <tr><td style="border-radius:60px;background:#ffffff;padding:4px;width:112px;height:112px;overflow:hidden;">${inner}</td></tr>
                 </table>
               </td>
             </tr>
@@ -128,7 +128,7 @@ function snapshotBlock(snapshotUrl?: string | null, time?: string, date?: string
             <img src="${esc(snapshotUrl)}" alt="Live Attendance Verification Snapshot" width="100%" style="max-width:480px;width:100%;height:auto;max-height:260px;object-fit:cover;display:block;margin:0 auto;" />
           </div>
           <div style="font:400 12px Arial,sans-serif;color:#64748b;margin-top:8px;">
-            Verified live at attendance terminal · ${esc(time || '')} · ${esc(date || '')}
+            Captured live at attendance terminal · ${esc(time || '')} · ${esc(date || '')}
           </div>
         </div>
       </td>
@@ -226,43 +226,109 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
   return { subject, html };
 }
 
-/** Resolves a student's registered face photo / ID image from profiles or face_descriptors */
+/** Converts any storage URL or path (including old domain or signed token) into a clean, working public URL. */
+export function normalizeToPublicStorageUrl(raw?: string | null): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  let val = raw.trim();
+  if (!val) return null;
+  if (val.startsWith('data:')) return val;
+
+  const currentProjectUrl = (Deno.env.get('SUPABASE_URL') || 'https://cvdcbcsonlianbfeessy.supabase.co').replace(/\/+$/, '');
+
+  // 1. Rewrite any legacy or mismatched supabase project domain
+  val = val.replace(/https:\/\/[a-z0-9-]+\.supabase\.co/gi, currentProjectUrl);
+
+  // 2. Strip expired tokens and convert private sign endpoints to public
+  if (val.includes('/storage/v1/object/')) {
+    val = val.split('?')[0]; // Remove ?token=...
+    val = val.replace('/storage/v1/object/sign/', '/storage/v1/object/public/');
+    return val;
+  }
+
+  // 3. Handle relative paths
+  const clean = val.replace(/^\/+/, '');
+  const prefixMatch = clean.match(/^([^/]+)\/(.+)$/);
+  if (prefixMatch && ['face-images', 'student-registration-faces', 'attendance-training-faces'].includes(prefixMatch[1])) {
+    return `${currentProjectUrl}/storage/v1/object/public/${prefixMatch[1]}/${prefixMatch[2].split('?')[0]}`;
+  }
+
+  return `${currentProjectUrl}/storage/v1/object/public/face-images/${clean.split('?')[0]}`;
+}
+
+/** Resolves a student's registered face photo / ID image from profiles, face_descriptors, or storage objects. */
 export async function resolveStudentPhotoUrl(
   admin: any,
-  studentId: string
+  studentId?: string | null,
+  studentName?: string | null
 ): Promise<string | null> {
-  if (!studentId) return null;
+  const sid = studentId?.trim() || '';
+  const sname = studentName?.trim() || '';
+  if (!sid && !sname) return null;
 
   try {
-    // 1. Check profiles table (photo_url or avatar_url)
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('photo_url, avatar_url')
-      .or(`user_id.eq.${studentId},id.eq.${studentId}`)
-      .maybeSingle();
-
-    const candidate = profile?.photo_url || profile?.avatar_url;
-    if (candidate) {
-      if (/^https?:\/\//i.test(candidate)) return candidate;
-      const { data } = admin.storage.from('face-images').getPublicUrl(candidate);
-      if (data?.publicUrl) return data.publicUrl;
+    // 1. Check profiles table
+    let profileQuery = admin.from('profiles').select('photo_url, avatar_url');
+    if (sid && /^[0-9a-f-]{36}$/i.test(sid)) {
+      profileQuery = profileQuery.eq('user_id', sid);
+    } else if (sid) {
+      profileQuery = profileQuery.or(`student_id.eq.${sid},roll_number.eq.${sid},employee_id.eq.${sid},admission_number.eq.${sid},display_name.ilike.%${sid}%`);
+    } else {
+      profileQuery = profileQuery.or(`display_name.ilike.%${sname}%,full_name.ilike.%${sname}%`);
+    }
+    const { data: profile } = await profileQuery.limit(1).maybeSingle();
+    const profileCandidate = profile?.photo_url || profile?.avatar_url;
+    if (profileCandidate) {
+      const normalized = normalizeToPublicStorageUrl(profileCandidate);
+      if (normalized) return normalized;
     }
 
-    // 2. Check face_descriptors table (image_url)
-    const { data: descriptor } = await admin
-      .from('face_descriptors')
-      .select('image_url')
-      .or(`user_id.eq.${studentId},student_id.eq.${studentId}`)
-      .not('image_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
+    // 2. Check face_descriptors table
+    let descQuery = admin.from('face_descriptors').select('image_url').not('image_url', 'is', null);
+    if (sid && /^[0-9a-f-]{36}$/i.test(sid)) {
+      descQuery = descQuery.eq('user_id', sid);
+    } else if (sid) {
+      descQuery = descQuery.or(`student_id.eq.${sid},label.ilike.%${sid}%,student_name.ilike.%${sid}%`);
+    } else {
+      descQuery = descQuery.or(`label.ilike.%${sname}%,student_name.ilike.%${sname}%`);
+    }
+    const { data: descriptor } = await descQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (descriptor?.image_url) {
-      const img = descriptor.image_url;
-      if (/^https?:\/\//i.test(img)) return img;
-      const { data } = admin.storage.from('face-images').getPublicUrl(img);
-      if (data?.publicUrl) return data.publicUrl;
+      const normalized = normalizeToPublicStorageUrl(descriptor.image_url);
+      if (normalized) return normalized;
+    }
+
+    // 3. Search storage objects in buckets
+    const searchTerms = [sid, sname].filter(Boolean);
+    for (const term of searchTerms) {
+      const { data: objects } = await admin
+        .from('objects')
+        .select('bucket_id, name')
+        .in('bucket_id', ['student-registration-faces', 'face-images', 'attendance-training-faces'])
+        .ilike('name', `%${term}%`)
+        .ilike('name', '%.jpg')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (objects && objects.length > 0) {
+        const obj = objects[0];
+        const currentProjectUrl = (Deno.env.get('SUPABASE_URL') || 'https://cvdcbcsonlianbfeessy.supabase.co').replace(/\/+$/, '');
+        return `${currentProjectUrl}/storage/v1/object/public/${obj.bucket_id}/${obj.name}`;
+      }
+    }
+
+    // 4. Check attendance_records table for recent registered or recognized record
+    let attQuery = admin.from('attendance_records').select('image_url').not('image_url', 'is', null);
+    if (sid && /^[0-9a-f-]{36}$/i.test(sid)) {
+      attQuery = attQuery.eq('user_id', sid);
+    } else if (sid) {
+      attQuery = attQuery.or(`student_id.eq.${sid},student_name.ilike.%${sid}%`);
+    } else {
+      attQuery = attQuery.ilike('student_name', `%${sname}%`);
+    }
+    const { data: attRecord } = await attQuery.order('timestamp', { ascending: false }).limit(1).maybeSingle();
+    if (attRecord?.image_url) {
+      const normalized = normalizeToPublicStorageUrl(attRecord.image_url);
+      if (normalized) return normalized;
     }
   } catch (err) {
     console.warn('resolveStudentPhotoUrl error:', err);
@@ -278,7 +344,9 @@ export async function hostSnapshot(
   imageUrl?: string | null,
 ): Promise<string | null> {
   if (!imageUrl) return null;
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (/^https?:\/\//i.test(imageUrl)) {
+    return normalizeToPublicStorageUrl(imageUrl);
+  }
   const match = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(imageUrl.trim());
   if (!match) return null;
   try {

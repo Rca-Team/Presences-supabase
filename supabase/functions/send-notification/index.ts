@@ -720,7 +720,7 @@ serve(async (req) => {
     if (recipientEmail) {
       try {
         const studentId = payload.targetUserId || payload.student.id || "student";
-        const studentRegisteredPhoto = await resolveStudentPhotoUrl(dbClient, studentId);
+        const studentRegisteredPhoto = await resolveStudentPhotoUrl(dbClient, studentId, payload.student.name);
         let hostedSnapshot = null;
 
         try {
