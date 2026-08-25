@@ -88,11 +88,17 @@ class EmergencyAlarmService {
       clearInterval(this.vibrationInterval);
       this.vibrationInterval = null;
     }
-    if ('vibrate' in navigator) navigator.vibrate(0);
+    try {
+      if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(0);
+      }
+    } catch {}
 
     // Stop speech
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
     }
     this.speechUtterance = null;
 
@@ -107,9 +113,11 @@ class EmergencyAlarmService {
   previewSiren(type: AlertType) {
     this.stopAlarm();
     this.playSiren(type, 2);
-    if ('vibrate' in navigator) {
-      navigator.vibrate(VIBRATION_PATTERNS[type] || [200, 100, 200]);
-    }
+    try {
+      if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(VIBRATION_PATTERNS[type] || [200, 100, 200]);
+      }
+    } catch {}
     // Auto stop after 2.5s
     setTimeout(() => this.stopAlarm(), 2500);
   }
@@ -117,33 +125,42 @@ class EmergencyAlarmService {
   /** Preview speech announcement */
   previewAnnouncement(type: AlertType, customMessage?: string) {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const text = customMessage || ANNOUNCEMENTS[type] || ANNOUNCEMENTS.custom;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 0.8;
-      utterance.volume = 1;
-      utterance.lang = 'en-US';
-      window.speechSynthesis.speak(utterance);
+      try {
+        window.speechSynthesis.cancel();
+        const text = customMessage || ANNOUNCEMENTS[type] || ANNOUNCEMENTS.custom;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        utterance.pitch = 0.8;
+        utterance.volume = 1;
+        utterance.lang = 'en-US';
+        window.speechSynthesis.speak(utterance);
+      } catch {}
     }
   }
 
-  private getOrCreateAudioCtx(): AudioContext {
-    if (!this.audioCtx || this.audioCtx.state === 'closed') {
-      this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      this.gainNode = this.audioCtx.createGain();
-      this.gainNode.connect(this.audioCtx.destination);
+  private getOrCreateAudioCtx(): AudioContext | null {
+    try {
+      if (!this.audioCtx || this.audioCtx.state === 'closed') {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtxClass) return null;
+        this.audioCtx = new AudioCtxClass();
+        this.gainNode = this.audioCtx.createGain();
+        this.gainNode.connect(this.audioCtx.destination);
+      }
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().catch(() => {});
+      }
+      return this.audioCtx;
+    } catch {
+      return null;
     }
-    if (this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
-    }
-    return this.audioCtx;
   }
 
   private playSiren(type: AlertType, durationSec = 5) {
     try {
       const ctx = this.getOrCreateAudioCtx();
-      const gain = this.gainNode!;
+      if (!ctx || !this.gainNode) return;
+      const gain = this.gainNode;
       const now = ctx.currentTime;
       const end = now + durationSec;
 

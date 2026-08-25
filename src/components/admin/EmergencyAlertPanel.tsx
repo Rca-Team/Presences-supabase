@@ -176,14 +176,22 @@ const EmergencyAlertPanel: React.FC = () => {
   // Fetch active emergency on mount + realtime
   React.useEffect(() => {
     const fetchActive = async () => {
-      const { data } = await supabase
-        .from('emergency_events')
-        .select('id, event_type, description, metadata, created_at, triggered_at')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1);
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) return;
 
-      setActiveEmergency(data && data.length > 0 ? mapEmergencyRow(data[0] as EmergencyEventRow) : null);
+        const { data, error } = await supabase
+          .from('emergency_events')
+          .select('id, event_type, description, metadata, created_at, triggered_at')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) return;
+        setActiveEmergency(data && data.length > 0 ? mapEmergencyRow(data[0] as EmergencyEventRow) : null);
+      } catch {
+        // Silently catch unauthenticated 403 or network errors
+      }
     };
     fetchActive();
 

@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 
 const ADMIN_TAB_MAP: Record<string, string> = {

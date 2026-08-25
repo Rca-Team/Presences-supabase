@@ -90,14 +90,23 @@ const EmergencyAlertListener: React.FC = () => {
   useEffect(() => {
     // Check for active emergency on mount
     const checkActive = async () => {
-      const { data } = await supabase
-        .from('emergency_events')
-        .select('id, event_type, description, status, metadata, created_at, triggered_at')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (data && data.length > 0) {
-        handleIncomingAlert(mapEmergencyAlertRow(data[0] as EmergencyAlertRow));
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) return;
+
+        const { data, error } = await supabase
+          .from('emergency_events')
+          .select('id, event_type, description, status, metadata, created_at, triggered_at')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) return;
+        if (data && data.length > 0) {
+          handleIncomingAlert(mapEmergencyAlertRow(data[0] as EmergencyAlertRow));
+        }
+      } catch {
+        // Silently catch unauthenticated 403 or network failure
       }
     };
     checkActive();
