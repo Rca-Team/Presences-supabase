@@ -68,15 +68,17 @@ const EmergencyAlertListener: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  const handleIncomingAlert = useCallback((alert: EmergencyAlert) => {
+  const handleIncomingAlert = useCallback((alert: EmergencyAlert, playSound = true) => {
     setActiveAlert(alert);
     setElapsedSeconds(0);
 
-    // Start full alarm: siren + voice + vibration
-    emergencyAlarmService.startAlarm(
-      alert.event_type as AlertType,
-      alert.notes || undefined
-    );
+    // Only attempt siren/vibration if requested and after user gesture
+    if (playSound) {
+      emergencyAlarmService.startAlarm(
+        alert.event_type as AlertType,
+        alert.notes || undefined
+      );
+    }
 
     // Push notification via service worker
     triggerServiceWorkerNotification(alert);
@@ -88,7 +90,7 @@ const EmergencyAlertListener: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Check for active emergency on mount
+    // Check for active emergency on mount (visual only, no cold siren blast)
     const checkActive = async () => {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -103,7 +105,7 @@ const EmergencyAlertListener: React.FC = () => {
 
         if (error) return;
         if (data && data.length > 0) {
-          handleIncomingAlert(mapEmergencyAlertRow(data[0] as EmergencyAlertRow));
+          handleIncomingAlert(mapEmergencyAlertRow(data[0] as EmergencyAlertRow), false);
         }
       } catch {
         // Silently catch unauthenticated 403 or network failure
