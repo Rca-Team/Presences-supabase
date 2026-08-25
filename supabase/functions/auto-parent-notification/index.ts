@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { buildAttendanceEmail, hostSnapshot } from '../_shared/attendance-email.ts'
+import { buildAttendanceEmail, hostSnapshot, resolveStudentPhotoUrl } from '../_shared/attendance-email.ts'
 const whatsappAccessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
 const whatsappPhoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
 const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
@@ -256,9 +256,10 @@ serve(async (req) => {
     const alreadySMS = false;
 
     // Emails cannot render base64 data URIs — host the live capture first.
-    const hostedPhoto = await hostSnapshot(supabaseClient, studentId, imageUrl);
+    const studentRegisteredPhoto = await resolveStudentPhotoUrl(supabaseClient, studentId);
+    const hostedSnapshot = await hostSnapshot(supabaseClient, studentId, imageUrl);
 
-    // 1. SEND EMAIL (premium school template with the student's face)
+    // 1. SEND EMAIL (premium school template with the student's face & live verification snapshot)
     if (parentEmail) {
       try {
         const built = buildAttendanceEmail({
@@ -269,7 +270,8 @@ serve(async (req) => {
           date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
           className: (profileData as any)?.class || null,
           section: (profileData as any)?.section || null,
-          photoUrl: hostedPhoto,
+          photoUrl: studentRegisteredPhoto || hostedSnapshot,
+          snapshotUrl: hostedSnapshot,
           method: 'Face ID',
         });
 

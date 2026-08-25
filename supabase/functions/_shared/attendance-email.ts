@@ -68,7 +68,8 @@ export interface AttendanceEmailInput {
   date?: string;
   className?: string | null;
   section?: string | null;
-  photoUrl?: string | null;
+  photoUrl?: string | null;       // Student's registered face photo / ID avatar
+  snapshotUrl?: string | null;    // Live capture snapshot where attendance was marked
   confidence?: number | null;
   method?: string | null;
   schoolName?: string;
@@ -84,7 +85,9 @@ function avatarBlock(name: string, photoUrl: string | null | undefined, ring: st
     .map((p) => p[0]?.toUpperCase() || '')
     .join('');
 
-  const inner = photoUrl && /^https?:\/\//i.test(photoUrl)
+  const hasPhoto = photoUrl && /^https?:\/\//i.test(photoUrl);
+
+  const inner = hasPhoto
     ? `<img src="${esc(photoUrl)}" width="112" height="112" alt="${esc(name)}" style="width:112px;height:112px;border-radius:56px;object-fit:cover;display:block;" />`
     : `<div style="width:112px;height:112px;border-radius:56px;background:#e5e7eb;color:#374151;font:700 38px Arial,sans-serif;line-height:112px;text-align:center;">${esc(initials || '?')}</div>`;
 
@@ -107,6 +110,30 @@ function avatarBlock(name: string, photoUrl: string | null | undefined, ring: st
         </td>
       </tr>
     </table>`;
+}
+
+function snapshotBlock(snapshotUrl?: string | null, time?: string, date?: string) {
+  if (!snapshotUrl || !/^https?:\/\//i.test(snapshotUrl)) {
+    return '';
+  }
+
+  return `
+    <tr>
+      <td style="padding:0 24px 20px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;text-align:center;">
+          <div style="font:700 12px Arial,sans-serif;color:#334155;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:10px;">
+            📸 Live Verification Snapshot (Attendance Point)
+          </div>
+          <div style="display:inline-block;border-radius:10px;overflow:hidden;border:1px solid #cbd5e1;background:#0f172a;max-width:100%;">
+            <img src="${esc(snapshotUrl)}" alt="Live Attendance Verification Snapshot" width="100%" style="max-width:480px;width:100%;height:auto;max-height:260px;object-fit:cover;display:block;margin:0 auto;" />
+          </div>
+          <div style="font:400 12px Arial,sans-serif;color:#64748b;margin-top:8px;">
+            Verified live at attendance terminal · ${esc(time || '')} · ${esc(date || '')}
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
 }
 
 export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: string; html: string } {
@@ -184,6 +211,7 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
             ${t.note ? `<p style="margin:0;padding:12px 14px;background:${t.accentSoft};border-radius:10px;font:400 13px/1.6 Arial,sans-serif;color:#374151;">${esc(t.note)}</p>` : ''}
           </td>
         </tr>
+        ${snapshotBlock(input.snapshotUrl, time, date)}
         <tr>
           <td style="padding:16px 24px 24px;border-top:1px solid #f1f5f9;">
             <p style="margin:0;font:400 12px/1.6 Arial,sans-serif;color:#9ca3af;">This is an automated attendance alert from ${esc(school)}. Please do not reply to this email.</p>
@@ -196,6 +224,51 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
 </html>`;
 
   return { subject, html };
+}
+
+/** Resolves a student's registered face photo / ID image from profiles or face_descriptors */
+export async function resolveStudentPhotoUrl(
+  admin: any,
+  studentId: string
+): Promise<string | null> {
+  if (!studentId) return null;
+
+  try {
+    // 1. Check profiles table (photo_url or avatar_url)
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('photo_url, avatar_url')
+      .or(`user_id.eq.${studentId},id.eq.${studentId}`)
+      .maybeSingle();
+
+    const candidate = profile?.photo_url || profile?.avatar_url;
+    if (candidate) {
+      if (/^https?:\/\//i.test(candidate)) return candidate;
+      const { data } = admin.storage.from('face-images').getPublicUrl(candidate);
+      if (data?.publicUrl) return data.publicUrl;
+    }
+
+    // 2. Check face_descriptors table (image_url)
+    const { data: descriptor } = await admin
+      .from('face_descriptors')
+      .select('image_url')
+      .or(`user_id.eq.${studentId},student_id.eq.${studentId}`)
+      .not('image_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (descriptor?.image_url) {
+      const img = descriptor.image_url;
+      if (/^https?:\/\//i.test(img)) return img;
+      const { data } = admin.storage.from('face-images').getPublicUrl(img);
+      if (data?.publicUrl) return data.publicUrl;
+    }
+  } catch (err) {
+    console.warn('resolveStudentPhotoUrl error:', err);
+  }
+
+  return null;
 }
 
 /** Uploads a base64 data URL snapshot to public storage and returns a hosted URL (emails cannot render data URIs). */
@@ -215,17 +288,20 @@ export async function hostSnapshot(
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const ext = mime.includes('png') ? 'png' : 'jpg';
     const path = `${studentId || 'unknown'}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
-    const { error } = await admin.storage.from('attendance-snapshots').upload(path, bytes, {
+    
+    // Store in public face-images bucket for universal email accessibility
+    const { error } = await admin.storage.from('face-images').upload(path, bytes, {
       contentType: mime,
       upsert: true,
     });
-    if (error) return null;
-    // Bucket is private: hand the email a long-lived signed URL so the photo renders in inboxes.
-    const { data } = await admin.storage
-      .from('attendance-snapshots')
-      .createSignedUrl(path, 60 * 60 * 24 * 365);
-    return data?.signedUrl || null;
-  } catch {
+    if (error) {
+      console.warn('Upload to face-images bucket error:', error);
+      return null;
+    }
+    const { data } = admin.storage.from('face-images').getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch (e) {
+    console.error('hostSnapshot exception:', e);
     return null;
   }
 }

@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { buildAttendanceEmail, hostSnapshot } from "../_shared/attendance-email.ts";
+import { buildAttendanceEmail, hostSnapshot, resolveStudentPhotoUrl } from "../_shared/attendance-email.ts";
 
 const resendApiKey = Deno.env.get("RESEND_API_KEY");
 const googleMailApiKey = Deno.env.get("GOOGLE_MAIL_API_KEY");
@@ -719,13 +719,15 @@ serve(async (req) => {
      */
     if (recipientEmail) {
       try {
-        let photoUrl = null;
+        const studentId = payload.targetUserId || payload.student.id || "student";
+        const studentRegisteredPhoto = await resolveStudentPhotoUrl(dbClient, studentId);
+        let hostedSnapshot = null;
 
         try {
-          photoUrl = await hostSnapshot(
+          hostedSnapshot = await hostSnapshot(
             dbClient,
-            payload.targetUserId || payload.student.id || "student",
-            payload.photoUrl || null,
+            studentId,
+            payload.photoUrl || (payload.metadata as any)?.image_url || null,
           );
         } catch (error) {
           console.error("Photo hosting failed:", error);
@@ -742,7 +744,9 @@ serve(async (req) => {
 
           status: status as any,
 
-          photoUrl,
+          photoUrl: studentRegisteredPhoto || hostedSnapshot,
+
+          snapshotUrl: hostedSnapshot,
 
           bodyOverride: status === "notification" ? payload.body : null,
 
