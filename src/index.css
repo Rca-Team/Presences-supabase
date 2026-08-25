@@ -557,27 +557,27 @@
 
   /* Enhanced Card hover effect */
   .hover-lift {
-    transition: all 0.5s var(--ios-spring);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
   }
   
   .hover-lift:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.18);
   }
 
   /* Enhanced Button hover effect */
   .button-hover {
-    transition: all 0.4s var(--ios-spring);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease, box-shadow 0.2s ease;
   }
   
   .button-hover:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.1);
+    transform: translateY(-1px);
+    filter: brightness(1.06);
   }
   
   .button-hover:active {
-    transform: translateY(0);
-    filter: brightness(0.95);
+    transform: scale(0.98);
+    filter: brightness(0.96);
   }
   
   /* Mobile optimizations */
@@ -1740,4 +1740,16 @@ html.lumina [class*="blur-["] { filter: blur(56px) !important; }
 /* High-refresh rate & GPU acceleration optimizations across devices */
 * {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Accessibility: Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
