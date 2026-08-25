@@ -88,7 +88,9 @@ class EmergencyAlarmService {
       clearInterval(this.vibrationInterval);
       this.vibrationInterval = null;
     }
-    if ('vibrate' in navigator) navigator.vibrate(0);
+    if ('vibrate' in navigator) {
+      try { navigator.vibrate(0); } catch (_) {}
+    }
 
     // Stop speech
     if ('speechSynthesis' in window) {
@@ -314,12 +316,18 @@ class EmergencyAlarmService {
     const pattern = VIBRATION_PATTERNS[type] || VIBRATION_PATTERNS.custom;
     if (!('vibrate' in navigator)) return;
 
-    navigator.vibrate(pattern);
+    try {
+      navigator.vibrate(pattern);
+    } catch (_) {}
 
     if (type !== 'allclear') {
       const patternDuration = pattern.reduce((a, b) => a + b, 0);
       this.vibrationInterval = setInterval(() => {
-        if (this.isPlaying) navigator.vibrate(pattern);
+        if (this.isPlaying) {
+          try {
+            navigator.vibrate(pattern);
+          } catch (_) {}
+        }
       }, patternDuration + 200);
     }
   }
