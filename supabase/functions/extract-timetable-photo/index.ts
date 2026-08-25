@@ -46,65 +46,128 @@ serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI service not configured" }), {
+      return new Response(JSON.stringify({ error: "Gemini API key is not configured in backend secrets." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const systemPrompt = `You extract school class timetables from photos of printed/handwritten timetable grids.
+    const systemPrompt = `You are an expert AI OCR assistant specialized in extracting school class timetables from photos of printed or handwritten timetable grids (e.g. Kendriya Vidyalaya / CBSE school formats).
 
 Return ONLY valid JSON matching this schema:
 {
   "class_label": string,
   "class_teacher": string | null,
   "co_class_teacher": string | null,
-  "periods": [ { "period_number": number, "label": string | null, "start_time": "HH:MM" | null, "end_time": "HH:MM" | null, "is_break": boolean } ],
-  "slots": [ { "day": "Monday"|"Tuesday"|"Wednesday"|"Thursday"|"Friday"|"Saturday", "period_number": number, "subject": string, "subject_short": string | null, "teacher": string | null, "room": string | null, "notes": string | null } ]
+  "periods": [
+    {
+      "period_number": number,
+      "label": string | null,
+      "start_time": "HH:MM" | null,
+      "end_time": "HH:MM" | null,
+      "is_break": boolean
+    }
+  ],
+  "slots": [
+    {
+      "day": "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday",
+      "period_number": number,
+      "subject": string,
+      "subject_short": string | null,
+      "teacher": string | null,
+      "room": string | null,
+      "notes": string | null
+    }
+  ]
 }
 
-Rules:
-- Number periods left-to-right in the grid. Include breaks/recess as periods with is_break=true (subject "RECESS").
-- Roman numerals I,II,III,IV,V,VI,VII,VIII map to 1..8.
-- Preserve short subject codes exactly as written (Eng, Maths, SC, SST, AE, VE, Hindi, Yoga, Games, Comp, SKT, Lib, CLA, etc.) as subject_short; expand subject to a readable name.
-- If a cell shows two subjects like "Lib/Hin", set subject="Library / Hindi" and subject_short="Lib/Hin".
-- Only include slots that have a subject. Skip empty cells.
-- Times may be missing — set null. Do not invent.
-- Do NOT include markdown fences.`;
+Extraction Rules:
+- Number periods left-to-right from Roman numerals I, II, III, IV, V, VI, VII, VIII into 1, 2, 3, 4, 5, 6, 7, 8.
+- If there is a RECESS / BREAK column between periods (e.g. between period IV and V), mark period with is_break=true.
+- Preserve short subject codes exactly (e.g. Eng, Maths, SC, SST, AE, VE, Hindi, Yoga, Games, Comp, SKT, Lib, CLA).
+- Expand abbreviations to full names where obvious:
+  * "Eng" -> "English"
+  * "Maths" -> "Mathematics"
+  * "SC" -> "Science"
+  * "SST" / "S.S.T" -> "Social Studies"
+  * "AE" -> "Art Education"
+  * "VE" -> "Value Education"
+  * "SKT" -> "Sanskrit"
+  * "Comp" -> "Computer Science"
+  * "Lib" -> "Library"
+  * "CLA" -> "Co-Curricular / Activity"
+- Extract days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday.
+- Extract Class Teacher and Co-Class Teacher names if written at top (e.g. "Name of Class Teacher", "Name of Co-Class Teacher").
+- Do NOT include markdown fences, return raw JSON string.`;
 
-    const userText = `Extract the timetable for class ${className || "?"}-${section || "?"}.
-Known subject codes for this class (prefer these short codes when matching): ${(knownSubjects || []).map((s: any) => s.short_name || s.name).join(", ") || "(none)"}.
+    const userText = `Extract the timetable for class ${className || "?"} - section ${section || "?"}.
+Known subject codes for this class: ${(knownSubjects || []).map((s: any) => s.short_name || s.name).join(", ") || "(none)"}.
 Known teachers on staff: ${(knownTeachers || []).map((t: any) => t.name).join(", ") || "(none)"}.`;
 
-    const aiRes = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${GEMINI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: [
-            { type: "text", text: userText },
-            { type: "image_url", image_url: { url: fileData } },
-          ]},
-        ],
-        max_tokens: 4096,
-      }),
-    });
-
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("AI error", aiRes.status, errText);
-      if (aiRes.status === 429) return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (aiRes.status === 402) return new Response(JSON.stringify({ error: "AI credits exhausted" }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      return new Response(JSON.stringify({ error: `AI failed (${aiRes.status})` }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Extract base64 and mime
+    let mimeType = "image/jpeg";
+    let base64Data = fileData;
+    const dataUriMatch = fileData.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
+    if (dataUriMatch) {
+      mimeType = dataUriMatch[1];
+      base64Data = dataUriMatch[2];
     }
 
-    const aiJson = await aiRes.json();
-    let content: string = aiJson.choices?.[0]?.message?.content || "";
-    content = content.trim().replace(/^```json/, "").replace(/^```/, "").replace(/```$/, "").trim();
-    const match = content.match(/\{[\s\S]*\}/);
-    let parsed: any = { periods: [], slots: [] };
-    try { parsed = match ? JSON.parse(match[0]) : parsed; } catch (e) { console.error("parse", e); }
+    // Try Gemini 2.0 Flash first, fallback to Gemini 1.5 Flash
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    let parsed: any = null;
+    let lastError: string | null = null;
+
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: `${systemPrompt}\n\n${userText}` },
+                  {
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: base64Data,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: "application/json",
+              temperature: 0.1,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn(`Gemini model ${model} failed (${response.status}):`, errText);
+          lastError = `Gemini ${model} failed: ${errText}`;
+          continue;
+        }
+
+        const data = await response.json();
+        const rawContent = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const cleanContent = rawContent.trim().replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`Exception calling model ${model}:`, err);
+        lastError = err?.message || "Model call failed";
+      }
+    }
+
+    if (!parsed) {
+      throw new Error(lastError || "Could not parse timetable JSON from image.");
+    }
 
     parsed.periods = Array.isArray(parsed.periods) ? parsed.periods : [];
     parsed.slots = Array.isArray(parsed.slots) ? parsed.slots : [];
@@ -113,8 +176,8 @@ Known teachers on staff: ${(knownTeachers || []).map((t: any) => t.name).join(",
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown";
-    console.error("extract-timetable-photo:", msg);
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.error("extract-timetable-photo exception:", msg);
     return new Response(JSON.stringify({ error: msg }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
