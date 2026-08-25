@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Logo from '@/components/Logo';
 
@@ -9,35 +9,44 @@ interface SplashAnimationProps {
 
 const SplashAnimation: React.FC<SplashAnimationProps> = ({
   onComplete,
-  duration = 2200,
+  duration = 2400,
 }) => {
   const [progress, setProgress] = useState(0);
   const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
-    const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) { clearInterval(progressInterval); return 100; }
-        return prev + 2.5;
-      });
-    }, duration / 50);
+    const startTime = performance.now();
+    let animFrame: number;
 
-    const timer = setTimeout(() => {
-      setIsExiting(true);
-      setTimeout(() => { if (onComplete) onComplete(); }, 440);
-    }, duration);
+    const update = (now: number) => {
+      const elapsed = now - startTime;
+      const linearProgress = Math.min(100, (elapsed / duration) * 100);
+      // Sine easing for ultra-smooth natural progress
+      const easedProgress = Math.min(100, Math.sin((linearProgress / 100) * (Math.PI / 2)) * 100);
+      setProgress(easedProgress);
 
-    return () => {
-      clearTimeout(timer);
-      clearInterval(progressInterval);
+      if (linearProgress < 100) {
+        animFrame = requestAnimationFrame(update);
+      } else {
+        setTimeout(() => {
+          setIsExiting(true);
+          setTimeout(() => {
+            if (onComplete) onComplete();
+          }, 500);
+        }, 150);
+      }
     };
+
+    animFrame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animFrame);
   }, [duration, onComplete]);
 
-  const loadingText =
-    progress < 30 ? 'Initializing presence core' :
-    progress < 60 ? 'Syncing intelligent modules' :
-    progress < 90 ? 'Preparing secure environment' :
-    'Launch ready';
+  const statusMessage = useMemo(() => {
+    if (progress < 25) return 'Calibrating Neural Vision Core...';
+    if (progress < 55) return 'Loading Face Recognition Embeddings...';
+    if (progress < 85) return 'Establishing High-Speed Synapses...';
+    return 'Presence Automation Ready';
+  }, [progress]);
 
   return (
     <AnimatePresence>
@@ -45,140 +54,200 @@ const SplashAnimation: React.FC<SplashAnimationProps> = ({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.45 }}
-          className="fixed inset-0 z-50 overflow-hidden"
+          exit={{ opacity: 0, scale: 1.03 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-slate-950 text-white select-none pointer-events-auto"
         >
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(120% 95% at 82% -10%, hsl(var(--neon-blue) / 0.22) 0%, transparent 62%), radial-gradient(110% 90% at -8% 110%, hsl(var(--neon-pink) / 0.24) 0%, transparent 58%), linear-gradient(142deg, hsl(var(--background)) 0%, hsl(var(--secondary) / 0.96) 48%, hsl(var(--accent) / 0.76) 100%)',
-            }}
-          />
+          {/* Ambient Background Aura */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {/* Radial Glow Centers */}
+            <div 
+              className="absolute -top-[15%] -left-[10%] w-[65vw] h-[65vw] rounded-full blur-[140px] opacity-25"
+              style={{ background: 'radial-gradient(circle, #06b6d4 0%, #3b82f6 50%, transparent 75%)' }}
+            />
+            <div 
+              className="absolute -bottom-[20%] -right-[10%] w-[65vw] h-[65vw] rounded-full blur-[140px] opacity-25"
+              style={{ background: 'radial-gradient(circle, #8b5cf6 0%, #ec4899 50%, transparent 75%)' }}
+            />
 
-          <div
-            className="absolute inset-0 opacity-[0.32]"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(118deg, hsl(var(--foreground) / 0.03) 0 14px, transparent 14px 26px), repeating-linear-gradient(24deg, hsl(var(--neon-blue) / 0.06) 0 18px, transparent 18px 32px)',
-            }}
-          />
-
-          <motion.div
-            initial={{ x: '-130%' }}
-            animate={{ x: '140%' }}
-            transition={{ duration: 1.15, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute inset-y-0 w-[38%]"
-            style={{
-              transform: 'skewX(-28deg)',
-              background:
-                'linear-gradient(95deg, transparent 0%, hsl(var(--neon-cyan) / 0.24) 34%, hsl(var(--neon-pink) / 0.28) 64%, hsl(var(--neon-blue) / 0.24) 100%)',
-              filter: 'blur(8px)',
-            }}
-          />
-
-          {[...Array(10)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute rounded-full"
+            {/* Subtle Grid Matrix */}
+            <div 
+              className="absolute inset-0 opacity-[0.03]"
               style={{
-                width: i % 3 === 0 ? 6 : 4,
-                height: i % 3 === 0 ? 6 : 4,
-                background: i % 2 === 0 ? 'hsl(var(--neon-cyan) / 0.52)' : 'hsl(var(--neon-blue) / 0.48)',
-                boxShadow: i % 2 === 0 ? '0 0 16px hsl(var(--neon-cyan) / 0.42)' : '0 0 16px hsl(var(--neon-blue) / 0.4)',
-              }}
-              initial={{
-                x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 400),
-                y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 800),
-              }}
-              animate={{
-                y: [null, Math.random() * -180 - 80],
-                opacity: [0, 0.75, 0],
-              }}
-              transition={{
-                duration: 2.5 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-                ease: 'easeOut',
+                backgroundImage: `linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)`,
+                backgroundSize: '48px 48px',
               }}
             />
-          ))}
 
-          <div className="relative h-full w-full grid grid-cols-1 md:grid-cols-[1.1fr_0.9fr]">
-            <motion.div
-              initial={{ x: -28, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col items-start justify-center px-8 sm:px-12 md:px-16 pt-20 md:pt-8"
-            >
-              <div className="px-3 py-1 rounded-full border border-border/70 bg-card/70 text-[10px] tracking-[0.24em] uppercase text-muted-foreground mb-5">
-                Presence OS
-              </div>
-              <h1 className="font-bold text-4xl sm:text-5xl md:text-6xl leading-[0.95] tracking-tight text-foreground max-w-xl">
-                Presence
-                <span className="block text-[0.44em] font-normal tracking-[0.26em] uppercase text-muted-foreground mt-2">
-                  Smart School Automation
-                </span>
-              </h1>
-              <p className="mt-4 text-sm sm:text-base text-muted-foreground max-w-md">
-                {loadingText}
-              </p>
-
-              <div className="mt-8 w-full max-w-sm">
-                <div className="relative h-1.5 overflow-hidden rounded-full border border-white/15 bg-black/35">
-                  <motion.div
-                    className="absolute inset-y-0 left-0 rounded-full"
-                    style={{
-                      width: `${progress}%`,
-                      background: 'linear-gradient(90deg, hsl(var(--neon-cyan)) 0%, hsl(var(--neon-blue)) 58%, hsl(var(--neon-pink)) 100%)',
-                    }}
-                  />
-                  <motion.div
-                    animate={{ x: ['-100%', '180%'] }}
-                    transition={{ duration: 1.05, repeat: Infinity, ease: 'linear' }}
-                    className="absolute inset-y-0 w-[36%]"
-                    style={{
-                      background: 'linear-gradient(90deg, transparent 0%, hsl(var(--foreground) / 0.22) 50%, transparent 100%)',
-                    }}
-                  />
-                </div>
-                <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{Math.round(progress)}%</span>
-                  <span className="tracking-[0.2em] uppercase">Booting</span>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ x: 32, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ duration: 0.68, ease: [0.22, 1, 0.36, 1], delay: 0.06 }}
-              className="relative flex items-center justify-center px-8 pb-10 md:pb-0"
-            >
-              <div className="relative w-full max-w-[320px] aspect-square rounded-[28px] border border-border/70 bg-card/80 backdrop-blur-2xl overflow-hidden shadow-[0_28px_80px_-24px_hsl(var(--neon-pink)/0.35)]">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
-                  className="absolute inset-3 rounded-[22px] border border-border/70"
-                  style={{ borderStyle: 'dashed' }}
+            {/* Animated Dynamic Sine Waves */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+              <svg className="w-full h-96" viewBox="0 0 1200 400" preserveAspectRatio="none">
+                <motion.path
+                  d="M0,200 C300,120 600,280 900,140 C1050,70 1150,220 1200,200 L1200,400 L0,400 Z"
+                  fill="url(#sineGradient1)"
+                  animate={{
+                    d: [
+                      "M0,200 C300,120 600,280 900,140 C1050,70 1150,220 1200,200 L1200,400 L0,400 Z",
+                      "M0,200 C300,270 600,130 900,260 C1050,330 1150,180 1200,200 L1200,400 L0,400 Z",
+                      "M0,200 C300,120 600,280 900,140 C1050,70 1150,220 1200,200 L1200,400 L0,400 Z",
+                    ],
+                  }}
+                  transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
                 />
+                <motion.path
+                  d="M0,200 C200,260 500,140 800,260 C1000,340 1100,150 1200,200 L1200,400 L0,400 Z"
+                  fill="url(#sineGradient2)"
+                  animate={{
+                    d: [
+                      "M0,200 C200,260 500,140 800,260 C1000,340 1100,150 1200,200 L1200,400 L0,400 Z",
+                      "M0,200 C200,140 500,260 800,140 C1000,60 1100,250 1200,200 L1200,400 L0,400 Z",
+                      "M0,200 C200,260 500,140 800,260 C1000,340 1100,150 1200,200 L1200,400 L0,400 Z",
+                    ],
+                  }}
+                  transition={{ duration: 7.5, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <defs>
+                  <linearGradient id="sineGradient1" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.4" />
+                    <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.6" />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.3" />
+                  </linearGradient>
+                  <linearGradient id="sineGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#ec4899" stopOpacity="0.2" />
+                    <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.3" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          </div>
+
+          {/* Central Logo & Sine Shine Composition */}
+          <div className="relative z-10 flex flex-col items-center justify-center px-6 max-w-md w-full">
+            {/* Crystalline Glowing Orb Frame */}
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="relative flex items-center justify-center mb-8"
+            >
+              {/* Outer Breathing Sine Ring */}
+              <motion.div
+                animate={{
+                  scale: [1, 1.15, 1],
+                  opacity: [0.35, 0.75, 0.35],
+                  rotate: 360,
+                }}
+                transition={{
+                  scale: { duration: 2.8, repeat: Infinity, ease: 'easeInOut' },
+                  opacity: { duration: 2.8, repeat: Infinity, ease: 'easeInOut' },
+                  rotate: { duration: 18, repeat: Infinity, ease: 'linear' },
+                }}
+                className="absolute -inset-6 rounded-full border border-cyan-500/30"
+                style={{
+                  boxShadow: '0 0 45px rgba(6,182,212,0.25), inset 0 0 25px rgba(59,130,246,0.2)',
+                }}
+              />
+
+              {/* Inner Hex-Glow Container */}
+              <div className="relative p-6 sm:p-7 rounded-3xl bg-slate-900/80 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden">
+                {/* Logo Image with Sine Glow */}
                 <motion.div
-                  animate={{ scale: [1, 1.06, 1], opacity: [0.28, 0.54, 0.28] }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute inset-8 rounded-2xl"
+                  animate={{
+                    y: [0, -4, 0],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                  className="relative z-10 flex items-center justify-center"
+                >
+                  <img
+                    src="/logo.png"
+                    alt="Presence Logo"
+                    className="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow-[0_8px_24px_rgba(6,182,212,0.5)]"
+                  />
+                </motion.div>
+
+                {/* Diagonal Specular Sine Light Shine Sweep */}
+                <motion.div
+                  initial={{ x: '-150%', opacity: 0 }}
+                  animate={{ x: '180%', opacity: [0, 1, 1, 0] }}
+                  transition={{
+                    duration: 1.6,
+                    repeat: Infinity,
+                    repeatDelay: 0.8,
+                    ease: [0.4, 0, 0.2, 1],
+                  }}
+                  className="absolute inset-y-0 w-24 -skew-x-25 pointer-events-none z-20"
                   style={{
-                    background: 'radial-gradient(circle, hsl(var(--neon-cyan) / 0.24) 0%, hsl(var(--neon-blue) / 0.2) 45%, hsl(var(--neon-pink) / 0.18) 100%)',
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.85) 50%, transparent 100%)',
+                    filter: 'blur(3px)',
                   }}
                 />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-2xl border border-border/70 bg-card/85 px-5 py-4 backdrop-blur-xl">
-                    <Logo size="md" className="[&>div>span:last-child]:text-foreground [&>div>span:last-child]:tracking-wide" />
-                  </div>
-                </div>
               </div>
             </motion.div>
+
+            {/* Typography Reveal */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+              className="text-center mb-8"
+            >
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-300 drop-shadow-[0_2px_15px_rgba(6,182,212,0.4)]">
+                PRESENCE
+              </h1>
+              <p className="mt-1.5 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Smart School AI Automation
+              </p>
+            </motion.div>
+
+            {/* Precision Futuristic Progress Bar */}
+            <div className="w-full max-w-xs space-y-3">
+              <div className="relative h-1.5 w-full bg-slate-800/80 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                {/* Progress Fill */}
+                <motion.div
+                  className="absolute top-0 bottom-0 left-0 rounded-full"
+                  style={{
+                    width: `${progress}%`,
+                    background: 'linear-gradient(90deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%)',
+                    boxShadow: '0 0 14px rgba(6,182,212,0.8)',
+                  }}
+                />
+                {/* Traveling Light Pulse */}
+                <motion.div
+                  animate={{ x: ['-100%', '250%'] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                  className="absolute inset-y-0 w-16"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.9) 50%, transparent 100%)',
+                  }}
+                />
+              </div>
+
+              {/* Status & Numeric Telemetry */}
+              <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                <span className="truncate max-w-[210px] text-slate-300 transition-all duration-300">
+                  {statusMessage}
+                </span>
+                <span className="text-cyan-400 font-bold ml-2">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+            </div>
           </div>
+
+          {/* Minimalist Bottom Brand Signature */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.5 }}
+            transition={{ delay: 0.4 }}
+            className="absolute bottom-6 text-[10px] uppercase tracking-[0.25em] text-slate-400"
+          >
+            Encrypted Neural Platform · v2.5
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

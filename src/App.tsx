@@ -445,11 +445,10 @@ function App() {
 
     const failSafeTimer = window.setTimeout(() => {
       setShowSplash(false);
-    }, 2200);
+    }, 2800);
 
     return () => window.clearTimeout(failSafeTimer);
   }, [showSplash]);
-
 
   const handleSplashComplete = () => {
     sessionStorage.setItem('presence:splash-seen', '1');
@@ -470,7 +469,7 @@ function App() {
               <div className="premium-glass-app">
                 <BrowserRouter>
                   {showSplash ? (
-                    <SplashAnimation onComplete={handleSplashComplete} duration={700} />
+                    <SplashAnimation onComplete={handleSplashComplete} duration={2200} />
                   ) : (
 
                     <NotificationPermissionGate>
