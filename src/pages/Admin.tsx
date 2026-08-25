@@ -1,5 +1,49 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
+
+const ADMIN_TAB_MAP: Record<string, string> = {
+  'dashboard': 'dashboard',
+  'overview': 'dashboard',
+  'sections': 'sections',
+  'classes': 'sections',
+  'class': 'sections',
+  'students': 'students',
+  'student': 'students',
+  'calendar': 'calendar',
+  'idcard': 'idcard',
+  'id-extract': 'idcard',
+  'idextract': 'idcard',
+  'idcards': 'idcards',
+  'id-cards': 'idcards',
+  'id_cards': 'idcards',
+  'reports': 'reports',
+  'report': 'reports',
+  'analytics': 'reports',
+  'access': 'access',
+  'users': 'access',
+  'roles': 'access',
+  'notifications': 'notifications',
+  'alerts': 'notifications',
+  'samples': 'samples',
+  'face-samples': 'samples',
+  'face_samples': 'samples',
+  'facesamples': 'samples',
+  'faces': 'samples',
+  'data-backup': 'data-backup',
+  'backup': 'data-backup',
+  'databackup': 'data-backup',
+  'notif-log': 'notif-log',
+  'delivery-log': 'notif-log',
+  'logs': 'notif-log',
+  'inbox': 'inbox',
+  'messages': 'inbox',
+  'emergency': 'emergency',
+  'panic': 'emergency',
+  'timetable': 'timetable',
+  'schedule': 'timetable',
+  'settings': 'settings',
+  'config': 'settings',
+  'teacher': 'teacher',
+};
 
 import { motion, AnimatePresence } from 'framer-motion';
 import PageLayout from '@/components/layouts/PageLayout';
@@ -116,19 +160,19 @@ const Admin = () => {
     lateToday: 0
   });
 
+  const navigate = useNavigate();
+  const { section } = useParams<{ section?: string }>();
   const [searchParams] = useSearchParams();
-  const requestedTab = searchParams.get('tab');
+  const rawParam = section || searchParams.get('tab');
 
   useEffect(() => {
-    if (!isRoleLoading && !activeTab) {
+    if (rawParam) {
+      const canonical = ADMIN_TAB_MAP[rawParam.toLowerCase()] || rawParam;
+      setActiveTab(canonical);
+    } else if (!isRoleLoading && !activeTab) {
       setActiveTab(isTeacher && !isAdminOrPrincipal ? 'teacher' : 'dashboard');
     }
-  }, [isRoleLoading, isTeacher, isAdminOrPrincipal, activeTab]);
-
-  // Deep-link support: /admin?tab=timetable opens that section directly.
-  useEffect(() => {
-    if (requestedTab) setActiveTab(requestedTab);
-  }, [requestedTab]);
+  }, [rawParam, isRoleLoading, isTeacher, isAdminOrPrincipal, activeTab]);
 
 
   const fetchData = useCallback(async () => {
@@ -229,6 +273,7 @@ const Admin = () => {
   const handleTabChange = (tab: string) => {
     haptic('selection');
     setActiveTab(tab);
+    navigate(`/admin/${tab}`, { replace: true });
   };
 
   const handleRefresh = async () => {

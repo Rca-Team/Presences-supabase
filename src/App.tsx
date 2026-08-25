@@ -178,13 +178,9 @@ function SeoHead() {
 // auth screens where a fresh mount is required.
 const KEEP_ALIVE_PATHS = new Set<string>([
   '/',
-  '/features',
   '/contact',
   '/profile',
   '/portfolio',
-  '/parent',
-  '/admin',
-  '/teacher',
   '/notifications',
 ]);
 
@@ -192,11 +188,6 @@ const KEEP_ALIVE_PATHS = new Set<string>([
 // references so React never unmounts them across navigations.
 const keepAliveElements: Record<string, JSX.Element> = {
   '/': <Index />,
-  '/features': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-      <Features />
-    </ProtectedRoute>
-  ),
   '/contact': <Contact />,
   '/profile': (
     <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
@@ -204,17 +195,6 @@ const keepAliveElements: Record<string, JSX.Element> = {
     </ProtectedRoute>
   ),
   '/portfolio': <Portfolio />,
-  '/parent': <ParentPortal />,
-  '/admin': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-      <Admin />
-    </ProtectedRoute>
-  ),
-  '/teacher': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-      <TeacherPortal />
-    </ProtectedRoute>
-  ),
   '/notifications': (
     <ProtectedRoute requireRoles={["admin", "principal"]}>
       <NotificationDemo />
@@ -248,21 +228,20 @@ function AnimatedRoutes() {
     if (isKeepAlive && !visited.includes(path)) {
       setVisited((prev) => (prev.includes(path) ? prev : [...prev, path]));
     }
+  }, [path, isKeepAlive, visited]);
 
+  useEffect(() => {
     if (isKeepAlive) {
       const saved = scrollPositions.current[path] ?? 0;
-      // Two rAFs: first waits for the hidden -> visible swap to paint, second
-      // guarantees layout is settled before we restore the scroll offset.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => window.scrollTo(0, saved));
       });
     }
-  }, [path, isKeepAlive, visited]);
+  }, [path, isKeepAlive]);
 
   return (
     <Suspense fallback={<RouteFallback />}>
-      {/* Keep-alive cache: every visited cacheable route stays mounted;
-          only the active one is visible. */}
+      {/* Keep-alive cache for visited root routes */}
       {visited.map((cachedPath) => {
         const active = cachedPath === path;
         return (
@@ -278,15 +257,20 @@ function AnimatedRoutes() {
         );
       })}
 
-      {/* Fall-through routes render only when the current path is not a
-          keep-alive path, so cached siblings above never render twice. */}
+      {/* Fall-through dynamic and parameterized routes */}
       {!isKeepAlive && (
         <div key={path} className="route-mount">
           <Routes location={location}>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/register/:step" element={<Register />} />
             <Route path="/attendance" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
+                <Attendance />
+              </ProtectedRoute>
+            } />
+            <Route path="/attendance/:section" element={
               <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
                 <Attendance />
               </ProtectedRoute>
@@ -294,6 +278,43 @@ function AnimatedRoutes() {
             <Route path="/user" element={
               <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
                 <Attendance />
+              </ProtectedRoute>
+            } />
+            <Route path="/user/:section" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
+                <Attendance />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+                <Admin />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/:section" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+                <Admin />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+                <TeacherPortal />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher/:section" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+                <TeacherPortal />
+              </ProtectedRoute>
+            } />
+            <Route path="/parent" element={<ParentPortal />} />
+            <Route path="/parent/:section" element={<ParentPortal />} />
+            <Route path="/features" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
+                <Features />
+              </ProtectedRoute>
+            } />
+            <Route path="/features/:section" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
+                <Features />
               </ProtectedRoute>
             } />
             <Route path="/gate" element={
@@ -304,6 +325,11 @@ function AnimatedRoutes() {
             <Route path="/gate/vision" element={
               <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
                 <GateVisionMode />
+              </ProtectedRoute>
+            } />
+            <Route path="/gate/:mode" element={
+              <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+                <GateMode />
               </ProtectedRoute>
             } />
             <Route path="/unsubscribe" element={<Unsubscribe />} />

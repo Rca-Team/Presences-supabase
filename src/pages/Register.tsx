@@ -13,7 +13,7 @@ import { loadRegistrationModels } from '@/services/face-recognition/OptimizedReg
 import { uploadImage } from '@/services/face-recognition/StorageService';
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import Logo from '@/components/Logo';
 import PageTransition from '@/components/PageTransition';
 import Scan3DCapture from '@/components/register/Scan3DCapture';
@@ -100,6 +100,8 @@ const dedupeDrafts = (input: RegistrationDraft[]) => {
 };
 
 const Register = () => {
+  const navigate = useNavigate();
+  const { step } = useParams<{ step?: string }>();
   const { toast } = useToast();
   const [formData, setFormData] = useState<RegisterFormData>(EMPTY_FORM_DATA);
   const [faceImage, setFaceImage] = useState<string | null>(null);
@@ -114,6 +116,23 @@ const Register = () => {
   const [drafts, setDrafts] = useState<RegistrationDraft[]>([]);
   const activeDraftIdRef = useRef<string>(`tmp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
   const lastPersistedFingerprintRef = useRef<string>('');
+
+  useEffect(() => {
+    if (step) {
+      const lower = step.toLowerCase();
+      if (lower === 'step2' || lower === 'face' || lower === 'camera' || lower === '3d-scan') {
+        setRegistrationStep(2);
+      } else if (lower === 'step1' || lower === 'details' || lower === 'form') {
+        setRegistrationStep(1);
+      } else if (lower === '3d') {
+        setRegistrationStep(2);
+        setCaptureMode('3d');
+      } else if (lower === 'auto') {
+        setRegistrationStep(2);
+        setCaptureMode('auto');
+      }
+    }
+  }, [step]);
 
   const getCleanedFormData = () => ({
     name: formData.name.trim(),
@@ -416,6 +435,7 @@ const Register = () => {
     if (parsed.success) {
       persistDraft({ forceStep: 2 });
       setRegistrationStep(2);
+      navigate('/register/step2', { replace: true });
     } else {
       const firstError = Object.values(parsed.error.flatten().fieldErrors).flat()[0] || 'Please fill in all required fields';
       toast({ title: "Incomplete Information", description: firstError, variant: "destructive" });
@@ -766,7 +786,7 @@ const Register = () => {
                       </div>
 
                       <div className="flex gap-4">
-                        <Button type="button" variant="outline" onClick={() => setRegistrationStep(1)} className="flex-1 h-12 border-blue-200 dark:border-blue-800">
+                        <Button type="button" variant="outline" onClick={() => { setRegistrationStep(1); navigate('/register/step1', { replace: true }); }} className="flex-1 h-12 border-blue-200 dark:border-blue-800">
                           <ArrowLeft className="mr-2 h-4 w-4" />Back
                         </Button>
                         <Button type="submit" disabled={!faceCaptured || isSubmitting} className="flex-1 h-12 text-base bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-lg shadow-blue-500/25 disabled:opacity-50">

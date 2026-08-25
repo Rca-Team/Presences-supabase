@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 // Feature components
@@ -42,8 +42,20 @@ import SmartAlertDashboard from '@/components/alerts/SmartAlertDashboard';
 
 const Features = () => {
   const { isAdminOrPrincipal } = useUserRole();
+  const { section } = useParams<{ section?: string }>();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('heatmap');
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const raw = section || searchParams.get('tab');
+    if (raw) setActiveTab(raw.toLowerCase());
+  }, [section, searchParams]);
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    navigate(`/features/${val}`, { replace: true });
+  };
 
   const sampleStudent = {
     id: '1',
@@ -73,7 +85,7 @@ const Features = () => {
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <ScrollArea className="w-full whitespace-nowrap">
           <TabsList className="inline-flex mb-6">
             <TabsTrigger value="heatmap" className="gap-2">

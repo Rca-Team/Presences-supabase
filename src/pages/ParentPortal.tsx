@@ -24,7 +24,7 @@ import {
   UserX,
   Users,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { eachDayOfInterval, format, isSameDay, isToday, isWeekend, startOfMonth, subDays } from 'date-fns';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,11 +86,20 @@ const STORAGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/publ
 
 export default function ParentPortalPage() {
   const { toast } = useToast();
+  const { section } = useParams<{ section?: string }>();
+  const [searchParams] = useSearchParams();
   const [studentId, setStudentId] = useState('');
   const [phoneNo, setPhoneNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [child, setChild] = useState<ChildInfo | null>(null);
+
+  useEffect(() => {
+    const idFromParam = searchParams.get('id') || searchParams.get('student_id') || (section && !['overview', 'attendance', 'badges', 'leaderboard'].includes(section) ? section : null);
+    const phoneFromParam = searchParams.get('phone');
+    if (idFromParam) setStudentId(idFromParam);
+    if (phoneFromParam) setPhoneNo(phoneFromParam);
+  }, [section, searchParams]);
   const [attendance, setAttendance] = useState<AttendancePoint[]>([]);
   const [badges, setBadges] = useState<BadgeItem[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);

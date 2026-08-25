@@ -1,7 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
+
+const ATTENDANCE_PATH_MAP: Record<string, { tab: string; method?: 'face' | 'qr' | 'loop' }> = {
+  'ai-scan': { tab: 'single', method: 'face' },
+  'scan': { tab: 'single', method: 'face' },
+  'face': { tab: 'single', method: 'face' },
+  'single': { tab: 'single', method: 'face' },
+  'qr': { tab: 'single', method: 'qr' },
+  'qr-scan': { tab: 'single', method: 'qr' },
+  'qrcode': { tab: 'single', method: 'qr' },
+  'loop': { tab: 'single', method: 'loop' },
+  'loop-scan': { tab: 'single', method: 'loop' },
+  'continuous': { tab: 'single', method: 'loop' },
+  'stats': { tab: 'stats' },
+  'analytics': { tab: 'stats' },
+  'reports': { tab: 'stats' },
+  'help': { tab: 'help' },
+  'guide': { tab: 'help' },
+  'instructions': { tab: 'help' },
+};
 import PageLayout from '@/components/layouts/PageLayout';
 import PageTransition from '@/components/PageTransition';
 import AttendanceInstructions from '@/components/attendance/AttendanceInstructions';
@@ -82,6 +101,8 @@ const AttendanceLoadingSkeleton = ({ isMobile }: { isMobile: boolean }) => (
 );
 
 const Attendance = () => {
+  const navigate = useNavigate();
+  const { section } = useParams<{ section?: string }>();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('single');
   const [tabDir, setTabDir] = useState(1);
@@ -93,19 +114,26 @@ const Attendance = () => {
   const { liteMode, preference, setPreference, signals } = usePerformanceMode();
   const minimizeMotion = isMobile || prefersReducedMotion || liteMode;
 
+  const isQRKioskMode = searchParams.get('mode') === 'qr' && searchParams.get('autostart') === '1';
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsInitialLoading(false), 520);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const isQRKioskMode = searchParams.get('mode') === 'qr' && searchParams.get('autostart') === '1';
-
   useEffect(() => {
-    if (!isQRKioskMode) return;
-    setActiveTab('single');
-    setAttendanceMethod('qr');
-  }, [isQRKioskMode]);
+    const raw = section || searchParams.get('tab') || searchParams.get('mode');
+    if (raw) {
+      const mapped = ATTENDANCE_PATH_MAP[raw.toLowerCase()];
+      if (mapped) {
+        setActiveTab(mapped.tab);
+        if (mapped.method) setAttendanceMethod(mapped.method);
+      }
+    } else if (isQRKioskMode) {
+      setActiveTab('single');
+      setAttendanceMethod('qr');
+    }
+  }, [section, searchParams, isQRKioskMode]);
 
   const tabConfig = [
     { value: 'single', label: 'AI Scanner', shortLabel: 'Scan', icon: Scan },
@@ -117,6 +145,14 @@ const Attendance = () => {
     const order = ['single', 'stats', 'help'];
     setTabDir(order.indexOf(next) >= order.indexOf(activeTab) ? 1 : -1);
     setActiveTab(next);
+    const slug = next === 'single' ? (attendanceMethod === 'face' ? 'ai-scan' : attendanceMethod) : next;
+    navigate(`/attendance/${slug}`, { replace: true });
+  };
+
+  const handleMethodChange = (method: 'face' | 'qr' | 'loop') => {
+    setAttendanceMethod(method);
+    const slug = method === 'face' ? 'ai-scan' : method;
+    navigate(`/attendance/${slug}`, { replace: true });
   };
 
   const slide = {
@@ -335,7 +371,7 @@ const Attendance = () => {
               >
                 {/* Method toggle */}
                 <div className="rounded-2xl sm:rounded-3xl border border-primary/10 bg-card/55 p-3 backdrop-blur-xl shadow-[0_24px_70px_-30px_hsl(230_50%_3%/0.8)]">
-                  <AttendanceMethodToggle method={attendanceMethod} onChange={setAttendanceMethod} />
+                  <AttendanceMethodToggle method={attendanceMethod} onChange={handleMethodChange} />
                 </div>
 
                 <AnimatePresence mode="wait">
