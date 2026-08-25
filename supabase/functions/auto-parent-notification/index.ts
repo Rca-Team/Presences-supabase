@@ -259,6 +259,45 @@ serve(async (req) => {
     const studentRegisteredPhoto = await resolveStudentPhotoUrl(supabaseClient, studentId, studentName);
     const hostedSnapshot = await hostSnapshot(supabaseClient, studentId, imageUrl);
 
+    // 1. Check "1 Student, 1 Email per Day" rate limit setting
+    let emailRateLimitEnabled = true;
+    try {
+      const { data: limitSetting } = await supabaseClient
+        .from('attendance_settings')
+        .select('value')
+        .eq('key', 'one_student_one_email_per_day')
+        .maybeSingle();
+
+      if (limitSetting && (limitSetting.value === 'false' || limitSetting.value === 'disabled' || limitSetting.value === '0')) {
+        emailRateLimitEnabled = false;
+      }
+    } catch (err) {
+      console.warn('Could not read one_student_one_email_per_day setting:', err);
+    }
+
+    if (emailRateLimitEnabled && parentEmail) {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const { data: todayLogs } = await supabaseClient
+        .from('notification_log')
+        .select('id')
+        .eq('channel', 'email')
+        .eq('status', 'sent')
+        .or(`user_id.eq.${studentId},recipient.eq.${parentEmail}`)
+        .gte('created_at', startOfToday.toISOString())
+        .limit(1);
+
+      if (todayLogs && todayLogs.length > 0) {
+        console.log(`[1 Student 1 Email Limit] Email already sent today for ${studentName} (${studentId}). Skipping duplicate.`);
+        return new Response(JSON.stringify({
+          success: true,
+          skipped: true,
+          message: `Already sent 1 attendance alert email today for ${studentName} (1 student 1 email per day active).`
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     // 1. SEND EMAIL (premium school template with the student's face & live verification snapshot)
     if (parentEmail) {
       try {

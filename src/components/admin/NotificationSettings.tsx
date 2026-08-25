@@ -10,6 +10,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Bell, Mail, MessageSquare, Smartphone, Loader2, ShieldAlert, Save } from 'lucide-react';
 
+import DailyEmailFrequencySetting from '@/components/admin/DailyEmailFrequencySetting';
+
 const KEYS = [
   'cutoff_time',
   'notify_channels',
@@ -132,7 +134,10 @@ const NotificationSettings: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Special 1 Student 1 Mail per Day Realtime Control */}
+      <DailyEmailFrequencySetting />
+
       {/* Cutoff & channels */}
       <Card>
         <CardHeader>

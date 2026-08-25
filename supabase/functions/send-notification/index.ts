@@ -720,66 +720,106 @@ serve(async (req) => {
     if (recipientEmail) {
       try {
         const studentId = payload.targetUserId || payload.student.id || "student";
-        const studentRegisteredPhoto = await resolveStudentPhotoUrl(dbClient, studentId, payload.student.name);
-        let hostedSnapshot = null;
 
+        // Check "1 Student, 1 Email per Day" rate limit setting
+        let emailRateLimitEnabled = true;
         try {
-          hostedSnapshot = await hostSnapshot(
-            dbClient,
-            studentId,
-            payload.photoUrl || (payload.metadata as any)?.image_url || null,
-          );
-        } catch (error) {
-          console.error("Photo hosting failed:", error);
+          const { data: limitSetting } = await dbClient
+            .from('attendance_settings')
+            .select('value')
+            .eq('key', 'one_student_one_email_per_day')
+            .maybeSingle();
+
+          if (limitSetting && (limitSetting.value === 'false' || limitSetting.value === 'disabled' || limitSetting.value === '0')) {
+            emailRateLimitEnabled = false;
+          }
+        } catch (err) {
+          console.warn('Could not read one_student_one_email_per_day setting:', err);
         }
 
-        const status = ["present", "late", "absent"].includes(String(payload.student.status || "").toLowerCase())
-          ? String(payload.student.status).toLowerCase()
-          : "notification";
+        let skipDueToLimit = false;
+        if (emailRateLimitEnabled && !payload.isBroadcast) {
+          const startOfToday = new Date();
+          startOfToday.setHours(0, 0, 0, 0);
 
-        const built = buildAttendanceEmail({
-          studentName: payload.student.name || "Student",
+          const { data: todayLogs } = await dbClient
+            .from('notification_log')
+            .select('id')
+            .eq('channel', 'email')
+            .eq('status', 'sent')
+            .or(`user_id.eq.${studentId},recipient.eq.${recipientEmail}`)
+            .gte('created_at', startOfToday.toISOString())
+            .limit(1);
 
-          parentName: recipientName,
-
-          status: status as any,
-
-          photoUrl: studentRegisteredPhoto || hostedSnapshot,
-
-          snapshotUrl: hostedSnapshot,
-
-          bodyOverride: status === "notification" ? payload.body : null,
-
-          subjectOverride: status === "notification" ? payload.subject : null,
-        });
-
-        const result = await sendEmail(recipientEmail, built.subject, built.html);
-
-        if (result.ok) {
-          emailSent = true;
-          emailId = result.id || null;
-        } else {
-          emailError = result.error || "Email failed";
+          if (todayLogs && todayLogs.length > 0) {
+            skipDueToLimit = true;
+            emailSent = true;
+            console.log(`[1 Student 1 Email Limit] Email already sent today for ${payload.student.name || studentId}. Skipping duplicate.`);
+          }
         }
 
-        await dbClient.from("notification_log").insert({
-          user_id: payload.targetUserId || payload.student.id || null,
+        if (!skipDueToLimit) {
+          const studentRegisteredPhoto = await resolveStudentPhotoUrl(dbClient, studentId, payload.student.name);
+          let hostedSnapshot = null;
 
-          channel: "email",
+          try {
+            hostedSnapshot = await hostSnapshot(
+              dbClient,
+              studentId,
+              payload.photoUrl || (payload.metadata as any)?.image_url || null,
+            );
+          } catch (error) {
+            console.error("Photo hosting failed:", error);
+          }
 
-          status: emailSent ? "sent" : "failed",
+          const status = ["present", "late", "absent"].includes(String(payload.student.status || "").toLowerCase())
+            ? String(payload.student.status).toLowerCase()
+            : "notification";
 
-          subject: built.subject,
+          const built = buildAttendanceEmail({
+            studentName: payload.student.name || "Student",
 
-          message: payload.body,
+            parentName: recipientName,
 
-          recipient: recipientEmail,
+            status: status as any,
 
-          metadata: {
-            id: emailId,
-            error: emailError,
-          },
-        });
+            photoUrl: studentRegisteredPhoto || hostedSnapshot,
+
+            snapshotUrl: hostedSnapshot,
+
+            bodyOverride: status === "notification" ? payload.body : null,
+
+            subjectOverride: status === "notification" ? payload.subject : null,
+          });
+
+          const result = await sendEmail(recipientEmail, built.subject, built.html);
+
+          if (result.ok) {
+            emailSent = true;
+            emailId = result.id || null;
+          } else {
+            emailError = result.error || "Email failed";
+          }
+
+          await dbClient.from("notification_log").insert({
+            user_id: payload.targetUserId || payload.student.id || null,
+
+            channel: "email",
+
+            status: emailSent ? "sent" : "failed",
+
+            subject: built.subject,
+
+            message: payload.body,
+
+            recipient: recipientEmail,
+
+            metadata: {
+              id: emailId,
+              error: emailError,
+            },
+          });
+        }
       } catch (error) {
         emailError = error instanceof Error ? error.message : "Email failed";
 
