@@ -173,6 +173,40 @@ const EmergencyAlertListener: React.FC = () => {
     setElapsedSeconds(0);
   };
 
+  const clearAllEmergencies = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id || null;
+
+      await supabase
+        .from('emergency_events')
+        .update({
+          status: 'resolved',
+          resolved_at: new Date().toISOString(),
+          resolved_by: userId,
+        })
+        .eq('status', 'active');
+
+      await supabase.from('emergency_events').insert({
+        event_type: 'allclear',
+        triggered_by: userId,
+        status: 'resolved',
+        title: 'All Clear - Emergency Requests Cleared',
+        severity: 'normal',
+        description: 'All active emergency requests cleared.',
+        metadata: {
+          notes: 'Emergency requests cleared.',
+          location: 'School-wide',
+          trigger_method: 'alert_listener',
+        },
+      });
+    } catch (e) {
+      console.error('Failed to clear emergencies:', e);
+    } finally {
+      dismissAlert();
+    }
+  };
+
   const toggleMute = () => {
     if (isMuted) {
       emergencyAlarmService.startAlarm(
@@ -281,7 +315,15 @@ const EmergencyAlertListener: React.FC = () => {
             )}
 
             {/* Action buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button
+                onClick={clearAllEmergencies}
+                className="bg-white text-destructive hover:bg-white/90 border border-white/30 gap-2 h-12 px-6 rounded-xl font-bold shadow-lg"
+              >
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                Clear All Emergencies
+              </Button>
+
               <Button
                 onClick={toggleMute}
                 variant="ghost"
