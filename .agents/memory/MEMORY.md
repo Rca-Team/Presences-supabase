@@ -1,0 +1,4 @@
+- [Face Recognition Pipeline Upgrades](face-recognition-pipeline.md) — critical bugs fixed (threshold, distance metric, fake 3D scoring, bad averaging) + alignment + quality gating added.
+- [Gate Mode Professional Rebuild](gate-mode-rebuild.md) — descriptor tracking, adaptive cloud, stability ordering bug, stranger cooldown, non-blocking overlays.
+- [Gate Mode Data Storage](gate-mode-storage.md) — DB-backed session stats, auto-resume, realtime gate_entries sync, persistent auto-marked count.
+- [Admin Data Sources](admin-data-sources.md) — registered users and attendance stats come from face_descriptors + gate_entries, not attendance_records.status='registered'.

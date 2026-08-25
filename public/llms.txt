@@ -1,0 +1,17 @@
+# Presences
+
+> AI-powered smart school automation platform for attendance, security, timetables, and parent communication.
+
+Presences helps schools automate daily operations with face-recognition attendance, gate monitoring, parent updates, and analytics.
+
+## Pages
+
+- [Home](/): Overview of the Presences platform and automation capabilities.
+- [Features](/features): Detailed modules for attendance, timetable, security, and communication.
+- [Parent Portal](/parent): Parent-facing portal for attendance status and notifications.
+- [Contact](/contact): Support and onboarding contact information.
+
+## Optional
+
+- [Login](/login): Account sign-in for staff and administrators.
+- [Signup](/signup): Create a new account for school setup.

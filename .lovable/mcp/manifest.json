@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://cvdcbcsonlianbfeessy.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "presences-mcp",
+      "version": "0.1.0",
+      "title": "Presences MCP"
+    },
+    "tools": [
+      {
+        "name": "get_school_overview",
+        "title": "Get school overview",
+        "description": "Returns key attendance and registration totals from this app.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_recent_gate_entries",
+        "title": "List recent gate entries",
+        "description": "Returns recent gate entry events with recognition status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "limit": {
+              "description": "How many recent gate entries to return (default 20).",
+              "type": "number"
+            }
+          }
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
