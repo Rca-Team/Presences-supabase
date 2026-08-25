@@ -108,7 +108,7 @@ class PushNotificationService {
 
       return this.serializeSubscription(this.subscription);
     } catch (error) {
-      console.error('Push subscription failed:', error);
+      console.warn('Push subscription unavailable in current environment:', error);
       return null;
     }
   }
