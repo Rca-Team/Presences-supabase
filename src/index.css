@@ -1703,3 +1703,41 @@ html.lumina .lumina-glow {
 
 /* Cap runaway blurs so scrolling stays at 60fps on mid-range hardware. */
 html.lumina [class*="blur-["] { filter: blur(56px) !important; }
+
+/* ============================================
+   UNIVERSAL CROSS-DEVICE OPTIMIZATIONS
+   ============================================ */
+
+/* Touch screens (Mobile & Tablet): Disable sticky hover states */
+@media (hover: none) and (pointer: coarse) {
+  .hover\:-translate-y-1:hover,
+  .hover\:-translate-y-2:hover,
+  .hover\:-translate-y-0\.5:hover,
+  .hover\:-translate-y-1:active,
+  .hover\:-translate-y-2:active,
+  .hover\:-translate-y-0\.5:active {
+    transform: none !important;
+  }
+}
+
+/* Safe area padding for notches, dynamic islands, home bars */
+.safe-area-top {
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+}
+
+.safe-area-left {
+  padding-left: max(env(safe-area-inset-left, 0px), 0px);
+}
+
+.safe-area-right {
+  padding-right: max(env(safe-area-inset-right, 0px), 0px);
+}
+
+/* High-refresh rate & GPU acceleration optimizations across devices */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
