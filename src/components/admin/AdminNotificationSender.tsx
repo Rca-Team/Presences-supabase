@@ -45,10 +45,15 @@ const AdminNotificationSender: React.FC<AdminNotificationSenderProps> = ({ avail
   const [searchQuery, setSearchQuery] = useState('');
   const [sendStatus, setSendStatus] = useState<{ success: number; failed: number } | null>(null);
 
-  const filteredFaces = availableFaces.filter(face =>
-    face.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    face.employee_id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const cleanSearch = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const filteredFaces = availableFaces.filter(face => {
+    const q = cleanSearch(searchQuery);
+    if (!q) return true;
+    const n = cleanSearch(face.name);
+    const id = cleanSearch(face.employee_id);
+    return n.includes(q) || id.includes(q) || face.name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
