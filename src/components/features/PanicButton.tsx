@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { backgroundPushService } from '@/services/BackgroundPushService';
 import { 
   AlertTriangle, Shield, Phone, Users, Clock, 
-  CheckCircle, XCircle, Volume2, Bell, Siren, MapPin, Trash2, Loader2
+  CheckCircle, XCircle, Volume2, Bell, Siren, MapPin
 } from 'lucide-react';
 
 interface EmergencyEvent {
@@ -212,54 +212,6 @@ const PanicButton = () => {
     }
   };
 
-  const clearAllEmergencies = async () => {
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id || null;
-
-      const { error } = await supabase
-        .from('emergency_events')
-        .update({
-          status: 'resolved',
-          resolved_at: new Date().toISOString(),
-          resolved_by: userId,
-        })
-        .eq('status', 'active');
-
-      if (error) throw error;
-
-      await supabase.from('emergency_events').insert({
-        event_type: 'allclear',
-        triggered_by: userId,
-        status: 'resolved',
-        title: 'All Clear - Emergency Requests Cleared',
-        severity: 'normal',
-        description: 'All active emergency requests cleared.',
-        metadata: {
-          notes: 'All active emergency requests cleared.',
-          location: 'School-wide',
-          trigger_method: 'button',
-        },
-      });
-
-      void backgroundPushService.broadcastEmergency(
-        'allclear',
-        'All active emergency requests have been cleared.',
-        'School-wide',
-      );
-
-      setActiveEmergency(null);
-      fetchEmergencies();
-      toast({
-        title: '✓ All Emergencies Cleared',
-        description: 'All active emergency requests marked resolved and all-clear broadcasted.',
-      });
-    } catch (error) {
-      console.error('Error clearing all emergencies:', error);
-      toast({ title: 'Error', description: 'Failed to clear all emergencies', variant: 'destructive' });
-    }
-  };
-
   const getEmergencyIcon = (type: string) => {
     switch (type) {
       case 'lockdown': return <Shield className="h-6 w-6" />;
@@ -291,7 +243,7 @@ const PanicButton = () => {
             exit={{ opacity: 0, scale: 0.95 }}
             className={`bg-gradient-to-r ${getEmergencyColor(activeEmergency.event_type)} rounded-xl p-6 border-2 border-white/30`}
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <motion.div
                   animate={{ scale: [1, 1.2, 1] }}
@@ -310,7 +262,7 @@ const PanicButton = () => {
                 </div>
               </div>
               
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2">
                 <Button 
                   variant="outline" 
                   className="bg-white/20 border-white/30 text-white hover:bg-white/30"
@@ -321,10 +273,10 @@ const PanicButton = () => {
                 </Button>
                 <Button 
                   className="bg-white text-red-600 hover:bg-white/90"
-                  onClick={clearAllEmergencies}
+                  onClick={() => resolveEmergency(activeEmergency.id, 'resolved')}
                 >
                   <CheckCircle className="mr-2 h-4 w-4" />
-                  Clear All Emergency Requests
+                  All Clear
                 </Button>
               </div>
             </div>
@@ -449,23 +401,10 @@ const PanicButton = () => {
       {/* Emergency History */}
       <Card className="bg-card/50 backdrop-blur">
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Clock className="h-5 w-5 text-muted-foreground" />
-              Emergency History
-            </CardTitle>
-            {emergencies.some(e => e.status === 'active') && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearAllEmergencies}
-                className="gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Clear All Requests
-              </Button>
-            )}
-          </div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Clock className="h-5 w-5 text-muted-foreground" />
+            Emergency History
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-64">

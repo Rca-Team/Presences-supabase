@@ -11,19 +11,16 @@ type MobileAppShellProps = {
   children: React.ReactNode;
 };
 
-const getRouteTitle = (pathname: string) => {
-  if (pathname.startsWith('/attendance')) return 'AI Attendance';
-  if (pathname.startsWith('/admin')) return 'Admin Management';
-  if (pathname.startsWith('/teacher')) return 'Teacher Portal';
-  if (pathname.startsWith('/parent')) return 'Parent Portal';
-  if (pathname.startsWith('/features')) return 'Advanced Features';
-  if (pathname.startsWith('/register')) return 'Student Register';
-  if (pathname.startsWith('/gate')) return 'Gate Vision';
-  if (pathname.startsWith('/profile')) return 'User Profile';
-  if (pathname.startsWith('/portfolio')) return 'Portfolio';
-  if (pathname.startsWith('/login')) return 'Sign In';
-  if (pathname.startsWith('/signup')) return 'Create Account';
-  return 'Presence AI';
+const routeTitles: Record<string, string> = {
+  "/": "Home",
+  "/register": "Student Register",
+  "/attendance": "Attendance",
+  "/gate": "Gate Control",
+  "/profile": "Profile",
+  "/admin": "Admin",
+  "/teacher": "Teacher",
+  "/features": "Features",
+  "/parent": "Parent Portal",
 };
 
 const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
@@ -61,9 +58,9 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
     <div className="min-h-[100dvh] native-app-shell">
       <header className="fixed inset-x-0 top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-2xl safe-area-top native-app-chrome">
         <div className="flex h-14 items-center justify-between px-4">
-          <Logo size="sm" shine className="gap-1.5 [&>div>span:last-child]:hidden [&>div>span:first-child]:text-sm [&>img]:h-7 [&>img]:w-7" />
+          <Logo size="sm" className="gap-1.5 [&>div>span:last-child]:hidden [&>div>span:first-child]:text-sm [&>img]:h-7 [&>img]:w-7" />
           <h1 className="text-base font-semibold tracking-tight text-foreground">
-            {getRouteTitle(location.pathname)}
+            {routeTitles[location.pathname] ?? "Workspace"}
           </h1>
         </div>
       </header>
@@ -78,7 +75,7 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
         >
           {tabs.map((tab) => {
-            const active = location.pathname === tab.to || (tab.to !== '/' && location.pathname.startsWith(tab.to));
+            const active = location.pathname === tab.to;
 
             return (
               <Link

@@ -68,17 +68,15 @@ const EmergencyAlertListener: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  const handleIncomingAlert = useCallback((alert: EmergencyAlert, playSound = true) => {
+  const handleIncomingAlert = useCallback((alert: EmergencyAlert) => {
     setActiveAlert(alert);
     setElapsedSeconds(0);
 
-    // Only attempt siren/vibration if requested and after user gesture
-    if (playSound) {
-      emergencyAlarmService.startAlarm(
-        alert.event_type as AlertType,
-        alert.notes || undefined
-      );
-    }
+    // Start full alarm: siren + voice + vibration
+    emergencyAlarmService.startAlarm(
+      alert.event_type as AlertType,
+      alert.notes || undefined
+    );
 
     // Push notification via service worker
     triggerServiceWorkerNotification(alert);
@@ -90,25 +88,16 @@ const EmergencyAlertListener: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Check for active emergency on mount (visual only, no cold siren blast)
+    // Check for active emergency on mount
     const checkActive = async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData?.session) return;
-
-        const { data, error } = await supabase
-          .from('emergency_events')
-          .select('id, event_type, description, status, metadata, created_at, triggered_at')
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (error) return;
-        if (data && data.length > 0) {
-          handleIncomingAlert(mapEmergencyAlertRow(data[0] as EmergencyAlertRow), false);
-        }
-      } catch {
-        // Silently catch unauthenticated 403 or network failure
+      const { data } = await supabase
+        .from('emergency_events')
+        .select('id, event_type, description, status, metadata, created_at, triggered_at')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) {
+        handleIncomingAlert(mapEmergencyAlertRow(data[0] as EmergencyAlertRow));
       }
     };
     checkActive();
@@ -182,40 +171,6 @@ const EmergencyAlertListener: React.FC = () => {
     setActiveAlert(null);
     setIsMuted(false);
     setElapsedSeconds(0);
-  };
-
-  const clearAllEmergencies = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id || null;
-
-      await supabase
-        .from('emergency_events')
-        .update({
-          status: 'resolved',
-          resolved_at: new Date().toISOString(),
-          resolved_by: userId,
-        })
-        .eq('status', 'active');
-
-      await supabase.from('emergency_events').insert({
-        event_type: 'allclear',
-        triggered_by: userId,
-        status: 'resolved',
-        title: 'All Clear - Emergency Requests Cleared',
-        severity: 'normal',
-        description: 'All active emergency requests cleared.',
-        metadata: {
-          notes: 'Emergency requests cleared.',
-          location: 'School-wide',
-          trigger_method: 'alert_listener',
-        },
-      });
-    } catch (e) {
-      console.error('Failed to clear emergencies:', e);
-    } finally {
-      dismissAlert();
-    }
   };
 
   const toggleMute = () => {
@@ -326,15 +281,7 @@ const EmergencyAlertListener: React.FC = () => {
             )}
 
             {/* Action buttons */}
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button
-                onClick={clearAllEmergencies}
-                className="bg-white text-destructive hover:bg-white/90 border border-white/30 gap-2 h-12 px-6 rounded-xl font-bold shadow-lg"
-              >
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                Clear All Emergencies
-              </Button>
-
+            <div className="flex gap-3">
               <Button
                 onClick={toggleMute}
                 variant="ghost"

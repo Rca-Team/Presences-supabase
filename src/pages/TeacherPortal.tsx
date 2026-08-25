@@ -1,21 +1,5 @@
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-
-const TEACHER_TAB_MAP: Record<string, string> = {
-  'attendance': 'attendance',
-  'take': 'attendance',
-  'face': 'attendance',
-  'today': 'today',
-  'records': 'today',
-  'timetable': 'timetable',
-  'plan': 'timetable',
-  'schedule': 'timetable',
-  'editplan': 'editPlan',
-  'edit-plan': 'editPlan',
-  'report': 'report',
-  'reports': 'report',
-  'stats': 'stats',
-  'analytics': 'stats',
-};
+import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -43,8 +27,6 @@ interface AttRow { id: string; student_name: string | null; status: string | nul
 
 const TeacherPortal: React.FC = () => {
   const navigate = useNavigate();
-  const { section } = useParams<{ section?: string }>();
-  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { role, userId, isLoading: roleLoading } = useUserRole();
   const db = supabase as any;
@@ -52,26 +34,12 @@ const TeacherPortal: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState<ClassAssignment[]>([]);
   const [activeClass, setActiveClass] = useState<ClassAssignment | null>(null);
-  const [activeTab, setActiveTab] = useState('attendance');
   const [today, setToday] = useState<AttRow[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [subs, setSubs] = useState<Substitution[]>([]);
   const [isRealtimeHealthy, setIsRealtimeHealthy] = useState(true);
   const isRealtimeHealthyRef = useRef(true);
   const [captureMethod, setCaptureMethod] = useState<'face' | 'qr' | 'gate'>('face');
-
-  useEffect(() => {
-    const raw = section || searchParams.get('tab');
-    if (raw) {
-      const canonical = TEACHER_TAB_MAP[raw.toLowerCase()] || raw;
-      setActiveTab(canonical);
-    }
-  }, [section, searchParams]);
-
-  const handleTabChange = (val: string) => {
-    setActiveTab(val);
-    navigate(`/teacher/${val}`, { replace: true });
-  };
 
   const allowedCategories = useMemo(
     () => assignments.map((a) => `${a.class}-${a.section}`),
@@ -344,7 +312,7 @@ const TeacherPortal: React.FC = () => {
               <Card><CardContent className="p-3 text-center"><p className="text-xs text-muted-foreground">Absent</p><p className="text-2xl font-bold text-rose-600">{absentCount}</p></CardContent></Card>
             </div>
 
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <Tabs defaultValue="attendance" className="w-full">
               <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full">
                 <TabsTrigger value="attendance"><Camera className="h-4 w-4 mr-1" />Take</TabsTrigger>
                 <TabsTrigger value="today">Today</TabsTrigger>

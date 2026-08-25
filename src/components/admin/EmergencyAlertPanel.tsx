@@ -176,22 +176,14 @@ const EmergencyAlertPanel: React.FC = () => {
   // Fetch active emergency on mount + realtime
   React.useEffect(() => {
     const fetchActive = async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData?.session) return;
+      const { data } = await supabase
+        .from('emergency_events')
+        .select('id, event_type, description, metadata, created_at, triggered_at')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-        const { data, error } = await supabase
-          .from('emergency_events')
-          .select('id, event_type, description, metadata, created_at, triggered_at')
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (error) return;
-        setActiveEmergency(data && data.length > 0 ? mapEmergencyRow(data[0] as EmergencyEventRow) : null);
-      } catch {
-        // Silently catch unauthenticated 403 or network errors
-      }
+      setActiveEmergency(data && data.length > 0 ? mapEmergencyRow(data[0] as EmergencyEventRow) : null);
     };
     fetchActive();
 
@@ -205,63 +197,57 @@ const EmergencyAlertPanel: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const clearAllEmergencies = async () => {
+  const resolveEmergency = async () => {
+    if (!activeEmergency) return;
     setIsResolving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id || null;
 
-      // Update all active emergency alerts to resolved at once
+      // Update existing alert to resolved
       const { error } = await supabase
         .from('emergency_events')
         .update({
           status: 'resolved',
           resolved_at: new Date().toISOString(),
-          resolved_by: userId,
+          resolved_by: session?.user?.id || null,
         })
-        .eq('status', 'active');
+        .eq('id', activeEmergency.id);
 
       if (error) throw error;
-
-      // Stop local audio sirens / voice
-      emergencyAlarmService.stopAlarm();
-      setIsPreviewPlaying(false);
 
       // Also send an All Clear event
       await supabase.from('emergency_events').insert({
         event_type: 'allclear',
-        triggered_by: userId,
+        triggered_by: session?.user?.id || null,
         status: 'resolved',
-        title: 'All Clear - Requests Cleared',
+        title: 'All Clear',
         severity: 'normal',
-        description: 'All active emergency requests cleared by admin.',
+        description: 'Emergency resolved by admin.',
         metadata: {
-          notes: 'All active emergency requests cleared by admin.',
+          notes: 'Emergency resolved by admin.',
           location: 'School-wide',
           trigger_method: 'admin_panel',
         },
       });
 
-      // Ensure background push is also sent when resolving emergency
+      // Ensure background push is also sent when resolving emergency,
+      // so closed tabs/devices receive the all-clear in real time.
       void backgroundPushService.broadcastEmergency(
         'allclear',
-        'All active emergency requests have been cleared.',
+        'Emergency resolved by admin.',
         'School-wide',
       );
 
       setActiveEmergency(null);
-      setRecentAlerts([]);
       haptic('success');
-      toast({ title: '✅ All Emergencies Cleared', description: 'All active emergency requests have been cleared and All Clear broadcasted.' });
+      toast({ title: '✅ Emergency Resolved', description: 'All Clear signal sent to all devices.' });
     } catch (e) {
-      console.error('Failed to clear all emergencies:', e);
-      toast({ title: 'Failed to clear emergencies', description: 'Please try again.', variant: 'destructive' });
+      console.error('Failed to resolve:', e);
+      toast({ title: 'Failed to resolve', description: 'Please try again.', variant: 'destructive' });
     } finally {
       setIsResolving(false);
     }
   };
-
-  const resolveEmergency = clearAllEmergencies;
 
   const handleAlertSelect = (alert: AlertConfig) => {
     haptic('selection');
@@ -417,33 +403,17 @@ const EmergencyAlertPanel: React.FC = () => {
   return (
     <Card className="bg-card border-border shadow-xl overflow-hidden">
       <CardHeader className="pb-4 border-b border-border bg-gradient-to-r from-red-600 to-orange-600">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-3 text-white">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <Siren className="w-5 h-5" />
-            </div>
-            <div>
-              <span>Emergency Alert System</span>
-              <p className="text-sm font-normal text-white/70">
-                Broadcast alerts to all devices with alarm sounds
-              </p>
-            </div>
-          </CardTitle>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={clearAllEmergencies}
-            disabled={isResolving}
-            className="bg-white/10 hover:bg-white/20 text-white border-white/30 gap-2 shrink-0 shadow-sm"
-          >
-            {isResolving ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Clearing Requests...</>
-            ) : (
-              <><Trash2 className="w-4 h-4" /> Clear All Emergency Requests</>
-            )}
-          </Button>
-        </div>
+        <CardTitle className="flex items-center gap-3 text-white">
+          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+            <Siren className="w-5 h-5" />
+          </div>
+          <div>
+            <span>Emergency Alert System</span>
+            <p className="text-sm font-normal text-white/70">
+              Broadcast alerts to all devices with alarm sounds
+            </p>
+          </div>
+        </CardTitle>
       </CardHeader>
 
       <CardContent className="p-4 sm:p-6 space-y-6">

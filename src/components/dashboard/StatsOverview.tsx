@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { GradientCard } from '@/components/ui/gradient-card';
 import { ProgressRing } from '@/components/ui/progress-ring';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +19,8 @@ interface StatsOverviewProps {
 }
 
 const StatsOverview: React.FC<StatsOverviewProps> = ({ isLoading, data, refetch }) => {
-  const { data: attendanceStats, refetch: refetchStats } = useQuery({
+  const prefersReducedMotion = useReducedMotion();
+  const { data: attendanceStats } = useQuery({
     queryKey: ['attendanceStatsRealtime'],
     queryFn: async () => {
       const result = await fetchUnifiedAttendanceStats();
@@ -52,12 +52,26 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ isLoading, data, refetch 
     );
   }
 
+  const cardVariants = {
+    initial: { opacity: 0, y: 12 },
+    animate: (custom: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: custom * 0.08,
+        duration: 0.35,
+        ease: [0.16, 1, 0.3, 1],
+      },
+    }),
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+        custom={0}
+        variants={prefersReducedMotion ? undefined : cardVariants}
+        initial={prefersReducedMotion ? false : "initial"}
+        animate={prefersReducedMotion ? undefined : "animate"}
       >
         <GradientCard
           title="Total Registered"
@@ -69,11 +83,12 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ isLoading, data, refetch 
       </motion.div>
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        custom={1}
+        variants={prefersReducedMotion ? undefined : cardVariants}
+        initial={prefersReducedMotion ? false : "initial"}
+        animate={prefersReducedMotion ? undefined : "animate"}
       >
-        <div className="relative overflow-hidden rounded-xl border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+        <div className="relative overflow-hidden rounded-xl border bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-xl">
           <div className="absolute inset-0 bg-gradient-to-br from-green-500/20 via-green-400/10 to-transparent opacity-50" />
           <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl opacity-30 bg-green-400" />
           <div className="relative flex items-center justify-between">
@@ -97,9 +112,10 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ isLoading, data, refetch 
       </motion.div>
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        custom={2}
+        variants={prefersReducedMotion ? undefined : cardVariants}
+        initial={prefersReducedMotion ? false : "initial"}
+        animate={prefersReducedMotion ? undefined : "animate"}
       >
         <GradientCard
           title="Weekly Average"

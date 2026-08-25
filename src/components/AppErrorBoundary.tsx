@@ -76,13 +76,6 @@ export class AppErrorBoundary extends React.Component<
   }
 
   private reset = () => {
-    try {
-      sessionStorage.removeItem(CHUNK_KEY);
-      if (this.state.error && isChunkError(this.state.error)) {
-        window.location.reload();
-        return;
-      }
-    } catch {}
     this.setState({ error: null, recovering: false });
   };
 
