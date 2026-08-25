@@ -28,14 +28,14 @@ ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for attendance_records
-CREATE POLICY "Allow public read access to attendance_records"
-  ON public.attendance_records
+DROP POLICY IF EXISTS "Allow public read access to attendance_records" ON public.attendance_records;
+CREATE POLICY "Allow public read access to attendance_records" ON public.attendance_records
   FOR SELECT
   TO anon, authenticated
   USING (true);
 
-CREATE POLICY "Allow public insert for registration"
-  ON public.attendance_records
+DROP POLICY IF EXISTS "Allow public insert for registration" ON public.attendance_records;
+CREATE POLICY "Allow public insert for registration" ON public.attendance_records
   FOR INSERT
   TO anon, authenticated
   WITH CHECK (
@@ -44,33 +44,33 @@ CREATE POLICY "Allow public insert for registration"
     OR (device_info->>'registration')::boolean = true
   );
 
-CREATE POLICY "Allow authenticated update"
-  ON public.attendance_records
+DROP POLICY IF EXISTS "Allow authenticated update" ON public.attendance_records;
+CREATE POLICY "Allow authenticated update" ON public.attendance_records
   FOR UPDATE
   TO authenticated
   USING (true);
 
-CREATE POLICY "Allow authenticated delete"
-  ON public.attendance_records
+DROP POLICY IF EXISTS "Allow authenticated delete" ON public.attendance_records;
+CREATE POLICY "Allow authenticated delete" ON public.attendance_records
   FOR DELETE
   TO authenticated
   USING (true);
 
 -- RLS Policies for profiles
-CREATE POLICY "Allow public read access to profiles"
-  ON public.profiles
+DROP POLICY IF EXISTS "Allow public read access to profiles" ON public.profiles;
+CREATE POLICY "Allow public read access to profiles" ON public.profiles
   FOR SELECT
   TO anon, authenticated
   USING (true);
 
-CREATE POLICY "Allow public insert to profiles"
-  ON public.profiles
+DROP POLICY IF EXISTS "Allow public insert to profiles" ON public.profiles;
+CREATE POLICY "Allow public insert to profiles" ON public.profiles
   FOR INSERT
   TO anon, authenticated
   WITH CHECK (true);
 
-CREATE POLICY "Allow authenticated update to profiles"
-  ON public.profiles
+DROP POLICY IF EXISTS "Allow authenticated update to profiles" ON public.profiles;
+CREATE POLICY "Allow authenticated update to profiles" ON public.profiles
   FOR UPDATE
   TO authenticated
   USING (true);
@@ -87,20 +87,20 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for face-images bucket
-CREATE POLICY "Allow public read access to face images"
-  ON storage.objects
+DROP POLICY IF EXISTS "Allow public read access to face images" ON storage.objects;
+CREATE POLICY "Allow public read access to face images" ON storage.objects
   FOR SELECT
   TO anon, authenticated
   USING (bucket_id = 'face-images');
 
-CREATE POLICY "Allow public upload to face images"
-  ON storage.objects
+DROP POLICY IF EXISTS "Allow public upload to face images" ON storage.objects;
+CREATE POLICY "Allow public upload to face images" ON storage.objects
   FOR INSERT
   TO anon, authenticated
   WITH CHECK (bucket_id = 'face-images');
 
-CREATE POLICY "Allow authenticated delete from face images"
-  ON storage.objects
+DROP POLICY IF EXISTS "Allow authenticated delete from face images" ON storage.objects;
+CREATE POLICY "Allow authenticated delete from face images" ON storage.objects
   FOR DELETE
   TO authenticated
   USING (bucket_id = 'face-images');

@@ -1,5 +1,9 @@
 
-CREATE TABLE public.received_emails (
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN RETURN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role::text = _role); END; $$;
+
+CREATE TABLE IF NOT EXISTS public.received_emails (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   from_email text NOT NULL,
   from_name text,
@@ -16,12 +20,12 @@ CREATE TABLE public.received_emails (
 
 ALTER TABLE public.received_emails ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can manage received emails"
-  ON public.received_emails FOR ALL
-  USING (has_role(auth.uid(), 'admin'::app_role));
+DROP POLICY IF EXISTS "Admins can manage received emails" ON public.received_emails;
+CREATE POLICY "Admins can manage received emails" ON public.received_emails FOR ALL
+  USING (has_role(auth.uid(), 'admin'));
 
-CREATE POLICY "System can insert received emails"
-  ON public.received_emails FOR INSERT
+DROP POLICY IF EXISTS "System can insert received emails" ON public.received_emails;
+CREATE POLICY "System can insert received emails" ON public.received_emails FOR INSERT
   WITH CHECK (true);
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.received_emails;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'received_emails') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.received_emails; END IF; END $$;

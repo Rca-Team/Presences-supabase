@@ -1,3 +1,8 @@
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  role TEXT DEFAULT 'user'
+);
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 -- Fix infinite recursion in users table policies and secure attendance_records
 
 -- First, create a security definer function to get user role safely
@@ -13,14 +18,14 @@ DROP POLICY IF EXISTS "Admins can view all users" ON public.users;
 DROP POLICY IF EXISTS "Users can view their own data" ON public.users;
 
 -- Create new safe policies for users table
-CREATE POLICY "Users can view their own data" 
-ON public.users 
+DROP POLICY IF EXISTS "Users can view their own data" ON public.users;
+CREATE POLICY "Users can view their own data" ON public.users 
 FOR SELECT 
 TO authenticated
 USING (auth.uid() = id);
 
-CREATE POLICY "Admins can view all users" 
-ON public.users 
+DROP POLICY IF EXISTS "Admins can view all users" ON public.users;
+CREATE POLICY "Admins can view all users" ON public.users 
 FOR SELECT 
 TO authenticated
 USING (public.get_user_role(auth.uid()) = 'admin');
@@ -30,52 +35,52 @@ USING (public.get_user_role(auth.uid()) = 'admin');
 DROP POLICY IF EXISTS "Allow all operations on attendance_records" ON public.attendance_records;
 
 -- Create proper RLS policies for attendance_records
-CREATE POLICY "Users can view their own attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Users can view their own attendance records" ON public.attendance_records;
+CREATE POLICY "Users can view their own attendance records" ON public.attendance_records 
 FOR SELECT 
 TO authenticated
 USING (auth.uid() = user_id);
 
-CREATE POLICY "Admins can view all attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Admins can view all attendance records" ON public.attendance_records;
+CREATE POLICY "Admins can view all attendance records" ON public.attendance_records 
 FOR SELECT 
 TO authenticated
 USING (public.get_user_role(auth.uid()) = 'admin');
 
-CREATE POLICY "Users can insert their own attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Users can insert their own attendance records" ON public.attendance_records;
+CREATE POLICY "Users can insert their own attendance records" ON public.attendance_records 
 FOR INSERT 
 TO authenticated
 WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Admins can insert any attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Admins can insert any attendance records" ON public.attendance_records;
+CREATE POLICY "Admins can insert any attendance records" ON public.attendance_records 
 FOR INSERT 
 TO authenticated
 WITH CHECK (public.get_user_role(auth.uid()) = 'admin');
 
-CREATE POLICY "Users can update their own attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Users can update their own attendance records" ON public.attendance_records;
+CREATE POLICY "Users can update their own attendance records" ON public.attendance_records 
 FOR UPDATE 
 TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Admins can update any attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Admins can update any attendance records" ON public.attendance_records;
+CREATE POLICY "Admins can update any attendance records" ON public.attendance_records 
 FOR UPDATE 
 TO authenticated
 USING (public.get_user_role(auth.uid()) = 'admin')
 WITH CHECK (public.get_user_role(auth.uid()) = 'admin');
 
-CREATE POLICY "Users can delete their own attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Users can delete their own attendance records" ON public.attendance_records;
+CREATE POLICY "Users can delete their own attendance records" ON public.attendance_records 
 FOR DELETE 
 TO authenticated
 USING (auth.uid() = user_id);
 
-CREATE POLICY "Admins can delete any attendance records" 
-ON public.attendance_records 
+DROP POLICY IF EXISTS "Admins can delete any attendance records" ON public.attendance_records;
+CREATE POLICY "Admins can delete any attendance records" ON public.attendance_records 
 FOR DELETE 
 TO authenticated
 USING (public.get_user_role(auth.uid()) = 'admin');

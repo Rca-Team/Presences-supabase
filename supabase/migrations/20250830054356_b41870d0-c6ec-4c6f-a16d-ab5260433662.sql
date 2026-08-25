@@ -20,18 +20,18 @@ CREATE TABLE IF NOT EXISTS public.attendance_settings (
 ALTER TABLE public.attendance_settings ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for attendance_settings (allow public read/write for settings)
-CREATE POLICY "Allow public read access to attendance_settings" 
-ON public.attendance_settings 
+DROP POLICY IF EXISTS "Allow public read access to attendance_settings" ON public.attendance_settings;
+CREATE POLICY "Allow public read access to attendance_settings" ON public.attendance_settings 
 FOR SELECT 
 USING (true);
 
-CREATE POLICY "Allow public write access to attendance_settings" 
-ON public.attendance_settings 
+DROP POLICY IF EXISTS "Allow public write access to attendance_settings" ON public.attendance_settings;
+CREATE POLICY "Allow public write access to attendance_settings" ON public.attendance_settings 
 FOR INSERT 
 WITH CHECK (true);
 
-CREATE POLICY "Allow public update access to attendance_settings" 
-ON public.attendance_settings 
+DROP POLICY IF EXISTS "Allow public update access to attendance_settings" ON public.attendance_settings;
+CREATE POLICY "Allow public update access to attendance_settings" ON public.attendance_settings 
 FOR UPDATE 
 USING (true);
 
@@ -41,6 +41,7 @@ VALUES ('attendance_cutoff', '10:00')
 ON CONFLICT (key) DO NOTHING;
 
 -- Create trigger for automatic timestamp updates on attendance_settings
+DROP TRIGGER IF EXISTS update_attendance_settings_updated_at ON public.attendance_settings;
 CREATE TRIGGER update_attendance_settings_updated_at
 BEFORE UPDATE ON public.attendance_settings
 FOR EACH ROW

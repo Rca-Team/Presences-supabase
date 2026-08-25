@@ -1,8 +1,12 @@
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN RETURN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role::text = _role); END; $$;
 -- Create app_role enum for user roles
-CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
+DO $$ BEGIN CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Create profiles table
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   display_name TEXT,
@@ -15,7 +19,7 @@ CREATE TABLE public.profiles (
 );
 
 -- Create user_roles table (separate from profiles for security)
-CREATE TABLE public.user_roles (
+CREATE TABLE IF NOT EXISTS public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   role app_role NOT NULL DEFAULT 'user',
@@ -24,7 +28,7 @@ CREATE TABLE public.user_roles (
 );
 
 -- Create attendance_records table
-CREATE TABLE public.attendance_records (
+CREATE TABLE IF NOT EXISTS public.attendance_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -37,7 +41,7 @@ CREATE TABLE public.attendance_records (
 );
 
 -- Create attendance_settings table
-CREATE TABLE public.attendance_settings (
+CREATE TABLE IF NOT EXISTS public.attendance_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   key TEXT NOT NULL UNIQUE,
   value TEXT,
@@ -46,7 +50,7 @@ CREATE TABLE public.attendance_settings (
 );
 
 -- Create face_descriptors table
-CREATE TABLE public.face_descriptors (
+CREATE TABLE IF NOT EXISTS public.face_descriptors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   descriptor JSONB NOT NULL,
@@ -79,55 +83,71 @@ AS $$
 $$;
 
 -- Profiles RLS policies
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 CREATE POLICY "Users can view their own profile" ON public.profiles
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile" ON public.profiles
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles" ON public.profiles
   FOR SELECT USING (public.has_role(auth.uid(), 'admin'));
 
 -- User roles RLS policies
+DROP POLICY IF EXISTS "Users can view their own roles" ON public.user_roles;
 CREATE POLICY "Users can view their own roles" ON public.user_roles
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can manage all roles" ON public.user_roles;
 CREATE POLICY "Admins can manage all roles" ON public.user_roles
   FOR ALL USING (public.has_role(auth.uid(), 'admin'));
 
 -- Attendance records RLS policies
+DROP POLICY IF EXISTS "Users can view their own attendance" ON public.attendance_records;
 CREATE POLICY "Users can view their own attendance" ON public.attendance_records
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own attendance" ON public.attendance_records;
 CREATE POLICY "Users can insert their own attendance" ON public.attendance_records
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can view all attendance" ON public.attendance_records;
 CREATE POLICY "Admins can view all attendance" ON public.attendance_records
   FOR SELECT USING (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "Admins can manage all attendance" ON public.attendance_records;
 CREATE POLICY "Admins can manage all attendance" ON public.attendance_records
   FOR ALL USING (public.has_role(auth.uid(), 'admin'));
 
 -- Attendance settings RLS policies (admin only)
+DROP POLICY IF EXISTS "Admins can manage settings" ON public.attendance_settings;
 CREATE POLICY "Admins can manage settings" ON public.attendance_settings
   FOR ALL USING (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "Authenticated users can read settings" ON public.attendance_settings;
 CREATE POLICY "Authenticated users can read settings" ON public.attendance_settings
   FOR SELECT TO authenticated USING (true);
 
 -- Face descriptors RLS policies
+DROP POLICY IF EXISTS "Users can view their own face descriptors" ON public.face_descriptors;
 CREATE POLICY "Users can view their own face descriptors" ON public.face_descriptors
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own face descriptors" ON public.face_descriptors;
 CREATE POLICY "Users can insert their own face descriptors" ON public.face_descriptors
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can view all face descriptors" ON public.face_descriptors;
 CREATE POLICY "Admins can view all face descriptors" ON public.face_descriptors
   FOR SELECT USING (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "Admins can manage all face descriptors" ON public.face_descriptors;
 CREATE POLICY "Admins can manage all face descriptors" ON public.face_descriptors
   FOR ALL USING (public.has_role(auth.uid(), 'admin'));
 
@@ -149,6 +169,7 @@ END;
 $$;
 
 -- Create trigger for new user signup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -163,10 +184,12 @@ END;
 $$ LANGUAGE plpgsql SET search_path = public;
 
 -- Create triggers for automatic timestamp updates
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_attendance_settings_updated_at ON public.attendance_settings;
 CREATE TRIGGER update_attendance_settings_updated_at
   BEFORE UPDATE ON public.attendance_settings
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

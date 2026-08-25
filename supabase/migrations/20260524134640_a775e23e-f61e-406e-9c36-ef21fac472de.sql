@@ -1,3 +1,7 @@
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN RETURN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role::text = _role); END; $$;
 create table if not exists public.emotion_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid,
@@ -15,49 +19,49 @@ create table if not exists public.emotion_events (
 
 alter table public.emotion_events enable row level security;
 
-create policy emotion_events_staff_select
-on public.emotion_events
+DROP POLICY IF EXISTS emotion_events_staff_select ON public.emotion_events;
+CREATE POLICY emotion_events_staff_select ON public.emotion_events
 for select
 to authenticated
 using (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  or private.has_role(auth.uid(), 'principal'::app_role)
-  or private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  or private.has_role(auth.uid(), 'principal')
+  or private.has_role(auth.uid(), 'teacher')
 );
 
-create policy emotion_events_staff_insert
-on public.emotion_events
+DROP POLICY IF EXISTS emotion_events_staff_insert ON public.emotion_events;
+CREATE POLICY emotion_events_staff_insert ON public.emotion_events
 for insert
 to authenticated
 with check (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  or private.has_role(auth.uid(), 'principal'::app_role)
-  or private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  or private.has_role(auth.uid(), 'principal')
+  or private.has_role(auth.uid(), 'teacher')
 );
 
-create policy emotion_events_staff_update
-on public.emotion_events
+DROP POLICY IF EXISTS emotion_events_staff_update ON public.emotion_events;
+CREATE POLICY emotion_events_staff_update ON public.emotion_events
 for update
 to authenticated
 using (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  or private.has_role(auth.uid(), 'principal'::app_role)
-  or private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  or private.has_role(auth.uid(), 'principal')
+  or private.has_role(auth.uid(), 'teacher')
 )
 with check (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  or private.has_role(auth.uid(), 'principal'::app_role)
-  or private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  or private.has_role(auth.uid(), 'principal')
+  or private.has_role(auth.uid(), 'teacher')
 );
 
-create policy emotion_events_staff_delete
-on public.emotion_events
+DROP POLICY IF EXISTS emotion_events_staff_delete ON public.emotion_events;
+CREATE POLICY emotion_events_staff_delete ON public.emotion_events
 for delete
 to authenticated
 using (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  or private.has_role(auth.uid(), 'principal'::app_role)
-  or private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  or private.has_role(auth.uid(), 'principal')
+  or private.has_role(auth.uid(), 'teacher')
 );
 
 create index if not exists idx_emotion_events_user_captured_at
@@ -83,10 +87,10 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_update_emotion_events_updated_at on public.emotion_events;
-create trigger trg_update_emotion_events_updated_at
+DROP TRIGGER IF EXISTS trg_update_emotion_events_updated_at ON public.emotion_events;
+CREATE TRIGGER trg_update_emotion_events_updated_at
 before update on public.emotion_events
 for each row
 execute function public.update_emotion_events_updated_at();
 
-alter publication supabase_realtime add table public.emotion_events;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'emotion_events') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.emotion_events; END IF; END $$;

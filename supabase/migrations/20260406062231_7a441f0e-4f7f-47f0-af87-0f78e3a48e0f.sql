@@ -1,3 +1,3 @@
-ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.gate_entries;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'attendance_records') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'gate_entries') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.gate_entries; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'notifications') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications; END IF; END $$;

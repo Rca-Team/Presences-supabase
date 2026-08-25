@@ -1,8 +1,8 @@
 -- Enable real-time for attendance_records
-ALTER PUBLICATION supabase_realtime ADD TABLE attendance_records;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'attendance_records') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records; END IF; END $$;
 
 -- Add real-time support for profiles
-ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'profiles') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles; END IF; END $$;
 
 -- Create AI insights table for storing predictions and analytics
 CREATE TABLE IF NOT EXISTS public.ai_insights (
@@ -16,16 +16,16 @@ CREATE TABLE IF NOT EXISTS public.ai_insights (
 
 ALTER TABLE public.ai_insights ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users view own insights"
-ON public.ai_insights FOR SELECT
+DROP POLICY IF EXISTS "Users view own insights" ON public.ai_insights;
+CREATE POLICY "Users view own insights" ON public.ai_insights FOR SELECT
 USING (auth.uid() = user_id);
 
-CREATE POLICY "Admins view all insights"
-ON public.ai_insights FOR SELECT
+DROP POLICY IF EXISTS "Admins view all insights" ON public.ai_insights;
+CREATE POLICY "Admins view all insights" ON public.ai_insights FOR SELECT
 USING (is_admin());
 
-CREATE POLICY "System can insert insights"
-ON public.ai_insights FOR INSERT
+DROP POLICY IF EXISTS "System can insert insights" ON public.ai_insights;
+CREATE POLICY "System can insert insights" ON public.ai_insights FOR INSERT
 WITH CHECK (true);
 
 -- Create notifications table for smart alerts
@@ -41,17 +41,18 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT false;
 
-CREATE POLICY "Users view own notifications"
-ON public.notifications FOR SELECT
+DROP POLICY IF EXISTS "Users view own notifications" ON public.notifications;
+CREATE POLICY "Users view own notifications" ON public.notifications FOR SELECT
 USING (auth.uid() = user_id);
 
-CREATE POLICY "Users update own notifications"
-ON public.notifications FOR UPDATE
+DROP POLICY IF EXISTS "Users update own notifications" ON public.notifications;
+CREATE POLICY "Users update own notifications" ON public.notifications FOR UPDATE
 USING (auth.uid() = user_id);
 
-CREATE POLICY "System can insert notifications"
-ON public.notifications FOR INSERT
+DROP POLICY IF EXISTS "System can insert notifications" ON public.notifications;
+CREATE POLICY "System can insert notifications" ON public.notifications FOR INSERT
 WITH CHECK (true);
 
 -- Add indices for performance
@@ -72,6 +73,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS attendance_realtime_trigger ON public.attendance_records;
 CREATE TRIGGER attendance_realtime_trigger
 AFTER INSERT OR UPDATE ON public.attendance_records
 FOR EACH ROW EXECUTE FUNCTION public.notify_attendance_change();

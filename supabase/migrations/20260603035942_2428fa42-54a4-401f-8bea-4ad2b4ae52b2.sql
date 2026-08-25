@@ -1,8 +1,11 @@
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN RETURN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role::text = _role); END; $$;
+
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typnamespace = 'public'::regnamespace AND typname = 'attendance_event_status') THEN
-    CREATE TYPE public.attendance_event_status AS ENUM ('detected', 'verified', 'corrected', 'present', 'late', 'absent', 'excused', 'unauthorized');
-  END IF;
+  CREATE TYPE public.attendance_event_status AS ENUM ('detected', 'verified', 'corrected', 'present', 'late', 'absent', 'excused', 'unauthorized');
+EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
 CREATE TABLE IF NOT EXISTS public.class_sessions (
@@ -26,30 +29,28 @@ GRANT ALL ON public.class_sessions TO service_role;
 ALTER TABLE public.class_sessions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "class_sessions_staff_select" ON public.class_sessions;
-CREATE POLICY "class_sessions_staff_select"
-ON public.class_sessions
+CREATE POLICY "class_sessions_staff_select" ON public.class_sessions
 FOR SELECT
 TO authenticated
 USING (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  OR private.has_role(auth.uid(), 'principal'::app_role)
-  OR private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'principal')
+  OR private.has_role(auth.uid(), 'teacher')
 );
 
 DROP POLICY IF EXISTS "class_sessions_staff_write" ON public.class_sessions;
-CREATE POLICY "class_sessions_staff_write"
-ON public.class_sessions
+CREATE POLICY "class_sessions_staff_write" ON public.class_sessions
 FOR ALL
 TO authenticated
 USING (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  OR private.has_role(auth.uid(), 'principal'::app_role)
-  OR private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'principal')
+  OR private.has_role(auth.uid(), 'teacher')
 )
 WITH CHECK (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  OR private.has_role(auth.uid(), 'principal'::app_role)
-  OR private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'principal')
+  OR private.has_role(auth.uid(), 'teacher')
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_class_sessions_active_scope
@@ -82,30 +83,28 @@ GRANT ALL ON public.attendance_session_events TO service_role;
 ALTER TABLE public.attendance_session_events ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "attendance_session_events_staff_select" ON public.attendance_session_events;
-CREATE POLICY "attendance_session_events_staff_select"
-ON public.attendance_session_events
+CREATE POLICY "attendance_session_events_staff_select" ON public.attendance_session_events
 FOR SELECT
 TO authenticated
 USING (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  OR private.has_role(auth.uid(), 'principal'::app_role)
-  OR private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'principal')
+  OR private.has_role(auth.uid(), 'teacher')
 );
 
 DROP POLICY IF EXISTS "attendance_session_events_staff_write" ON public.attendance_session_events;
-CREATE POLICY "attendance_session_events_staff_write"
-ON public.attendance_session_events
+CREATE POLICY "attendance_session_events_staff_write" ON public.attendance_session_events
 FOR ALL
 TO authenticated
 USING (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  OR private.has_role(auth.uid(), 'principal'::app_role)
-  OR private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'principal')
+  OR private.has_role(auth.uid(), 'teacher')
 )
 WITH CHECK (
-  private.has_role(auth.uid(), 'admin'::app_role)
-  OR private.has_role(auth.uid(), 'principal'::app_role)
-  OR private.has_role(auth.uid(), 'teacher'::app_role)
+  private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'principal')
+  OR private.has_role(auth.uid(), 'teacher')
 );
 
 CREATE INDEX IF NOT EXISTS idx_attendance_session_events_session_status

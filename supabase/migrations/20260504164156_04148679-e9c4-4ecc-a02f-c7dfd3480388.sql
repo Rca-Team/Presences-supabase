@@ -12,19 +12,19 @@ do update set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
-create policy "Face images are publicly viewable"
-on storage.objects
+DROP POLICY IF EXISTS "Face images are publicly viewable" ON storage.objects;
+CREATE POLICY "Face images are publicly viewable" ON storage.objects
 for select
 using (bucket_id = 'face-images');
 
-create policy "Authenticated users can upload face images"
-on storage.objects
+DROP POLICY IF EXISTS "Authenticated users can upload face images" ON storage.objects;
+CREATE POLICY "Authenticated users can upload face images" ON storage.objects
 for insert
 to authenticated
 with check (bucket_id = 'face-images');
 
-create policy "Authenticated users can update face images"
-on storage.objects
+DROP POLICY IF EXISTS "Authenticated users can update face images" ON storage.objects;
+CREATE POLICY "Authenticated users can update face images" ON storage.objects
 for update
 to authenticated
 using (bucket_id = 'face-images')

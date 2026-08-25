@@ -1,13 +1,11 @@
-do $$
-begin
-  if not exists (
-    select 1 from pg_type t
-    join pg_namespace n on n.oid = t.typnamespace
-    where t.typname = 'app_role' and n.nspname = 'public'
-  ) then
-    create type public.app_role as enum ('admin', 'principal', 'teacher', 'user');
-  end if;
-end$$;
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN RETURN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role::text = _role); END; $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('admin', 'principal', 'teacher', 'user');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
 
 create table if not exists public.user_roles (
   id uuid primary key default gen_random_uuid(),
@@ -33,35 +31,15 @@ as $$
   )
 $$;
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename = 'user_roles'
-      and policyname = 'Users can view own roles'
-  ) then
-    create policy "Users can view own roles"
-    on public.user_roles
-    for select
-    to authenticated
-    using (auth.uid() = user_id);
-  end if;
-end$$;
+DROP POLICY IF EXISTS "Users can view own roles" ON public.user_roles;
+CREATE POLICY "Users can view own roles" ON public.user_roles
+for select
+to authenticated
+using (auth.uid() = user_id);
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename = 'user_roles'
-      and policyname = 'Admins can manage roles'
-  ) then
-    create policy "Admins can manage roles"
-    on public.user_roles
-    for all
-    to authenticated
-    using (public.has_role(auth.uid(), 'admin'))
-    with check (public.has_role(auth.uid(), 'admin'));
-  end if;
-end$$;
+DROP POLICY IF EXISTS "Admins can manage roles" ON public.user_roles;
+CREATE POLICY "Admins can manage roles" ON public.user_roles
+for all
+to authenticated
+using (public.has_role(auth.uid(), 'admin'))
+with check (public.has_role(auth.uid(), 'admin'));

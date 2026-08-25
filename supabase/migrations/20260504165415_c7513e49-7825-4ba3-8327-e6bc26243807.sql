@@ -7,8 +7,8 @@ DROP POLICY IF EXISTS "Public registration can check face images" ON storage.obj
 DROP POLICY IF EXISTS "Public registration can create face descriptors" ON public.face_descriptors;
 DROP POLICY IF EXISTS "Public can read registration records" ON public.attendance_records;
 
-CREATE POLICY "Public registration can upload face images"
-ON storage.objects
+DROP POLICY IF EXISTS "Public registration can upload face images" ON storage.objects;
+CREATE POLICY "Public registration can upload face images" ON storage.objects
 FOR INSERT
 TO anon, authenticated
 WITH CHECK (
@@ -20,8 +20,8 @@ WITH CHECK (
   )
 );
 
-CREATE POLICY "Public registration can update face images"
-ON storage.objects
+DROP POLICY IF EXISTS "Public registration can update face images" ON storage.objects;
+CREATE POLICY "Public registration can update face images" ON storage.objects
 FOR UPDATE
 TO anon, authenticated
 USING (
@@ -41,8 +41,8 @@ WITH CHECK (
   )
 );
 
-CREATE POLICY "Public registration can check face images"
-ON storage.objects
+DROP POLICY IF EXISTS "Public registration can check face images" ON storage.objects;
+CREATE POLICY "Public registration can check face images" ON storage.objects
 FOR SELECT
 TO anon, authenticated
 USING (
@@ -54,8 +54,8 @@ USING (
   )
 );
 
-CREATE POLICY "Public registration can create face descriptors"
-ON public.face_descriptors
+DROP POLICY IF EXISTS "Public registration can create face descriptors" ON public.face_descriptors;
+CREATE POLICY "Public registration can create face descriptors" ON public.face_descriptors
 FOR INSERT
 TO anon, authenticated
 WITH CHECK (
@@ -63,8 +63,8 @@ WITH CHECK (
   AND descriptor IS NOT NULL
 );
 
-CREATE POLICY "Public can read registration records"
-ON public.attendance_records
+DROP POLICY IF EXISTS "Public can read registration records" ON public.attendance_records;
+CREATE POLICY "Public can read registration records" ON public.attendance_records
 FOR SELECT
 TO anon, authenticated
 USING (

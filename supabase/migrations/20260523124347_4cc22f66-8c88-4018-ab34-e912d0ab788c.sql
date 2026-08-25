@@ -1,3 +1,7 @@
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN RETURN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role::text = _role); END; $$;
 BEGIN;
 
 -- Remove unsafe anonymous/public biometric access
@@ -8,37 +12,37 @@ DROP POLICY IF EXISTS "allow_registration_inserts" ON public.attendance_records;
 -- Attendance settings: expose non-sensitive keys broadly, sensitive keys only to admin/principal
 DROP POLICY IF EXISTS "attendance_settings_read_authenticated" ON public.attendance_settings;
 
-CREATE POLICY "attendance_settings_read_non_sensitive"
-ON public.attendance_settings
+DROP POLICY IF EXISTS "attendance_settings_read_non_sensitive" ON public.attendance_settings;
+CREATE POLICY "attendance_settings_read_non_sensitive" ON public.attendance_settings
 FOR SELECT
 TO authenticated
 USING (
   key <> ALL (ARRAY['twilio_account_sid','twilio_auth_token','twilio_from_number'])
 );
 
-CREATE POLICY "attendance_settings_read_sensitive_admin"
-ON public.attendance_settings
+DROP POLICY IF EXISTS "attendance_settings_read_sensitive_admin" ON public.attendance_settings;
+CREATE POLICY "attendance_settings_read_sensitive_admin" ON public.attendance_settings
 FOR SELECT
 TO authenticated
 USING (
   key = ANY (ARRAY['twilio_account_sid','twilio_auth_token','twilio_from_number'])
   AND (
-    private.has_role(auth.uid(), 'admin'::app_role)
-    OR private.has_role(auth.uid(), 'principal'::app_role)
+    private.has_role(auth.uid(), 'admin')
+    OR private.has_role(auth.uid(), 'principal')
   )
 );
 
 -- Teacher permissions: own row for teacher, full visibility for admin/principal
 DROP POLICY IF EXISTS "teacher_permissions_read_authenticated" ON public.teacher_permissions;
 
-CREATE POLICY "teacher_permissions_read_scoped"
-ON public.teacher_permissions
+DROP POLICY IF EXISTS "teacher_permissions_read_scoped" ON public.teacher_permissions;
+CREATE POLICY "teacher_permissions_read_scoped" ON public.teacher_permissions
 FOR SELECT
 TO authenticated
 USING (
   teacher_id = auth.uid()
-  OR private.has_role(auth.uid(), 'admin'::app_role)
-  OR private.has_role(auth.uid(), 'principal'::app_role)
+  OR private.has_role(auth.uid(), 'admin')
+  OR private.has_role(auth.uid(), 'principal')
 );
 
 -- Storage hardening for biometric face images
@@ -50,8 +54,8 @@ DROP POLICY IF EXISTS "Public registration can upload face images" ON storage.ob
 DROP POLICY IF EXISTS "Public registration can update face images" ON storage.objects;
 DROP POLICY IF EXISTS "Public registration can check face images" ON storage.objects;
 
-CREATE POLICY "Authenticated users can read face images"
-ON storage.objects
+DROP POLICY IF EXISTS "Authenticated users can read face images" ON storage.objects;
+CREATE POLICY "Authenticated users can read face images" ON storage.objects
 FOR SELECT
 TO authenticated
 USING (

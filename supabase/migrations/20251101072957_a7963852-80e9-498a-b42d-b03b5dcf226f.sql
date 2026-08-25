@@ -17,6 +17,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS attendance_realtime_trigger ON public.attendance_records;
 CREATE TRIGGER attendance_realtime_trigger
 AFTER INSERT OR UPDATE ON public.attendance_records
 FOR EACH ROW EXECUTE FUNCTION public.notify_attendance_change();

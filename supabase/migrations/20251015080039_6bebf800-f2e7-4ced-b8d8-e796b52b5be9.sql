@@ -19,23 +19,22 @@ CREATE TABLE IF NOT EXISTS public.attendance_settings (
 ALTER TABLE public.attendance_settings ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for attendance_settings
-CREATE POLICY "Allow public read access to attendance_settings"
-  ON public.attendance_settings
+DROP POLICY IF EXISTS "Allow public read access to attendance_settings" ON public.attendance_settings;
+CREATE POLICY "Allow public read access to attendance_settings" ON public.attendance_settings
   FOR SELECT
   TO anon, authenticated
   USING (true);
 
-CREATE POLICY "Allow authenticated insert to attendance_settings"
-  ON public.attendance_settings
+DROP POLICY IF EXISTS "Allow authenticated insert to attendance_settings" ON public.attendance_settings;
+CREATE POLICY "Allow authenticated insert to attendance_settings" ON public.attendance_settings
   FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
-CREATE POLICY "Allow authenticated update to attendance_settings"
-  ON public.attendance_settings
+DROP POLICY IF EXISTS "Allow authenticated update to attendance_settings" ON public.attendance_settings;
+CREATE POLICY "Allow authenticated update to attendance_settings" ON public.attendance_settings
   FOR UPDATE
   TO authenticated
   USING (true);
 
--- Create index
-CREATE INDEX IF NOT EXISTS idx_attendance_settings_key ON public.attendance_settings(key);
+-- CREATE INDEX IF NOT EXISTS CREATE INDEX IF NOT EXISTS idx_attendance_settings_key ON public.attendance_settings(key);

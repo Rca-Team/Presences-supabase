@@ -3,8 +3,8 @@
 DROP POLICY IF EXISTS "Users can insert own attendance" ON attendance_records;
 
 -- Create a new policy that allows authenticated users to mark attendance for anyone
-CREATE POLICY "Authenticated users can mark attendance"
-ON attendance_records
+DROP POLICY IF EXISTS "Authenticated users can mark attendance" ON attendance_records;
+CREATE POLICY "Authenticated users can mark attendance" ON attendance_records
 FOR INSERT
 TO authenticated
 WITH CHECK (true);

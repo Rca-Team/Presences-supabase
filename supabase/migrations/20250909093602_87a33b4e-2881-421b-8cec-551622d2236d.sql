@@ -25,13 +25,14 @@ CREATE TABLE IF NOT EXISTS public.attendance_settings (
 ALTER TABLE public.attendance_settings ENABLE ROW LEVEL SECURITY;
 
 -- Create policy for attendance_settings
-CREATE POLICY "Allow all operations on attendance_settings" 
-ON public.attendance_settings 
+DROP POLICY IF EXISTS "Allow all operations on attendance_settings" ON public.attendance_settings;
+CREATE POLICY "Allow all operations on attendance_settings" ON public.attendance_settings 
 FOR ALL 
 USING (true)
 WITH CHECK (true);
 
 -- Create trigger for attendance_settings timestamps
+DROP TRIGGER IF EXISTS update_attendance_settings_updated_at ON public.attendance_settings;
 CREATE TRIGGER update_attendance_settings_updated_at
 BEFORE UPDATE ON public.attendance_settings
 FOR EACH ROW

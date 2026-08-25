@@ -1,6 +1,10 @@
 
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN RETURN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role::text = _role); END; $$;
+
 -- Gate sessions (when gate mode is active)
-CREATE TABLE public.gate_sessions (
+CREATE TABLE IF NOT EXISTS public.gate_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   gate_name text NOT NULL DEFAULT 'Main Gate',
   started_at timestamptz NOT NULL DEFAULT now(),
@@ -12,11 +16,13 @@ CREATE TABLE public.gate_sessions (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.gate_sessions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage gate sessions" ON public.gate_sessions FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
-CREATE POLICY "Teachers can manage gate sessions" ON public.gate_sessions FOR ALL TO authenticated USING (has_role(auth.uid(), 'moderator'::app_role));
+DROP POLICY IF EXISTS "Admins can manage gate sessions" ON public.gate_sessions;
+CREATE POLICY "Admins can manage gate sessions" ON public.gate_sessions FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "Teachers can manage gate sessions" ON public.gate_sessions;
+CREATE POLICY "Teachers can manage gate sessions" ON public.gate_sessions FOR ALL TO authenticated USING (has_role(auth.uid(), 'moderator'));
 
 -- Gate entries (every individual scan)
-CREATE TABLE public.gate_entries (
+CREATE TABLE IF NOT EXISTS public.gate_entries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid,
   gate_session_id uuid REFERENCES public.gate_sessions(id) ON DELETE CASCADE,
@@ -30,12 +36,15 @@ CREATE TABLE public.gate_entries (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.gate_entries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage gate entries" ON public.gate_entries FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
+DROP POLICY IF EXISTS "Admins can manage gate entries" ON public.gate_entries;
+CREATE POLICY "Admins can manage gate entries" ON public.gate_entries FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "System can insert gate entries" ON public.gate_entries;
 CREATE POLICY "System can insert gate entries" ON public.gate_entries FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Users can view own gate entries" ON public.gate_entries FOR SELECT TO authenticated USING (auth.uid() = student_id);
+DROP POLICY IF EXISTS "Users can view own gate entries" ON public.gate_entries;
+CREATE POLICY "Users can view own gate entries" ON public.gate_entries FOR SELECT TO authenticated USING (auth.uid()::text = student_id::text);
 
 -- Late entries with reason
-CREATE TABLE public.late_entries (
+CREATE TABLE IF NOT EXISTS public.late_entries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid NOT NULL,
   student_name text,
@@ -48,12 +57,15 @@ CREATE TABLE public.late_entries (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.late_entries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage late entries" ON public.late_entries FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
+DROP POLICY IF EXISTS "Admins can manage late entries" ON public.late_entries;
+CREATE POLICY "Admins can manage late entries" ON public.late_entries FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "System can insert late entries" ON public.late_entries;
 CREATE POLICY "System can insert late entries" ON public.late_entries FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Users can view own late entries" ON public.late_entries FOR SELECT TO authenticated USING (auth.uid() = student_id);
+DROP POLICY IF EXISTS "Users can view own late entries" ON public.late_entries;
+CREATE POLICY "Users can view own late entries" ON public.late_entries FOR SELECT TO authenticated USING (auth.uid()::text = student_id::text);
 
 -- Indian school holidays
-CREATE TABLE public.school_holidays (
+CREATE TABLE IF NOT EXISTS public.school_holidays (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   name_hindi text,
@@ -65,11 +77,13 @@ CREATE TABLE public.school_holidays (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.school_holidays ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage holidays" ON public.school_holidays FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
+DROP POLICY IF EXISTS "Admins can manage holidays" ON public.school_holidays;
+CREATE POLICY "Admins can manage holidays" ON public.school_holidays FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "Everyone can view holidays" ON public.school_holidays;
 CREATE POLICY "Everyone can view holidays" ON public.school_holidays FOR SELECT TO authenticated USING (true);
 
 -- Circulars / diary system
-CREATE TABLE public.circulars (
+CREATE TABLE IF NOT EXISTS public.circulars (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
   content text NOT NULL,
@@ -83,11 +97,13 @@ CREATE TABLE public.circulars (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.circulars ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage circulars" ON public.circulars FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
+DROP POLICY IF EXISTS "Admins can manage circulars" ON public.circulars;
+CREATE POLICY "Admins can manage circulars" ON public.circulars FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "Everyone can view circulars" ON public.circulars;
 CREATE POLICY "Everyone can view circulars" ON public.circulars FOR SELECT TO authenticated USING (true);
 
 -- Notification log for SMS/WhatsApp tracking
-CREATE TABLE public.notification_log (
+CREATE TABLE IF NOT EXISTS public.notification_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   recipient_phone text,
   recipient_id uuid,
@@ -101,11 +117,13 @@ CREATE TABLE public.notification_log (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.notification_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage notification logs" ON public.notification_log FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
+DROP POLICY IF EXISTS "Admins can manage notification logs" ON public.notification_log;
+CREATE POLICY "Admins can manage notification logs" ON public.notification_log FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "System can insert notification logs" ON public.notification_log;
 CREATE POLICY "System can insert notification logs" ON public.notification_log FOR INSERT TO authenticated WITH CHECK (true);
 
 -- Multi-gate configuration
-CREATE TABLE public.school_gates (
+CREATE TABLE IF NOT EXISTS public.school_gates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   location text,
@@ -115,5 +133,7 @@ CREATE TABLE public.school_gates (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.school_gates ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage gates" ON public.school_gates FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
+DROP POLICY IF EXISTS "Admins can manage gates" ON public.school_gates;
+CREATE POLICY "Admins can manage gates" ON public.school_gates FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'));
+DROP POLICY IF EXISTS "Authenticated can view gates" ON public.school_gates;
 CREATE POLICY "Authenticated can view gates" ON public.school_gates FOR SELECT TO authenticated USING (true);

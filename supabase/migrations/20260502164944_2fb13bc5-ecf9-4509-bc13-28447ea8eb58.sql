@@ -21,8 +21,8 @@ BEGIN
       AND tablename = 'objects'
       AND policyname = 'Face images are publicly viewable'
   ) THEN
-    CREATE POLICY "Face images are publicly viewable"
-    ON storage.objects
+    DROP POLICY IF EXISTS "Face images are publicly viewable" ON storage.objects;
+CREATE POLICY "Face images are publicly viewable" ON storage.objects
     FOR SELECT
     USING (bucket_id = 'face-images');
   END IF;
@@ -38,8 +38,8 @@ BEGIN
       AND tablename = 'objects'
       AND policyname = 'Authenticated users can upload face images'
   ) THEN
-    CREATE POLICY "Authenticated users can upload face images"
-    ON storage.objects
+    DROP POLICY IF EXISTS "Authenticated users can upload face images" ON storage.objects;
+CREATE POLICY "Authenticated users can upload face images" ON storage.objects
     FOR INSERT
     TO authenticated
     WITH CHECK (bucket_id = 'face-images');
@@ -56,8 +56,8 @@ BEGIN
       AND tablename = 'objects'
       AND policyname = 'Authenticated users can update face images'
   ) THEN
-    CREATE POLICY "Authenticated users can update face images"
-    ON storage.objects
+    DROP POLICY IF EXISTS "Authenticated users can update face images" ON storage.objects;
+CREATE POLICY "Authenticated users can update face images" ON storage.objects
     FOR UPDATE
     TO authenticated
     USING (bucket_id = 'face-images')
@@ -75,8 +75,8 @@ BEGIN
       AND tablename = 'objects'
       AND policyname = 'Authenticated users can delete face images'
   ) THEN
-    CREATE POLICY "Authenticated users can delete face images"
-    ON storage.objects
+    DROP POLICY IF EXISTS "Authenticated users can delete face images" ON storage.objects;
+CREATE POLICY "Authenticated users can delete face images" ON storage.objects
     FOR DELETE
     TO authenticated
     USING (bucket_id = 'face-images');

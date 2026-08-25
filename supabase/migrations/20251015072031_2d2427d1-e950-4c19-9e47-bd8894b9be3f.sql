@@ -1,7 +1,7 @@
 -- Create RLS policy to allow public face registrations
 -- This allows anyone to register their face without authentication
-CREATE POLICY "Allow public face registration"
-ON public.attendance_records
+DROP POLICY IF EXISTS "Allow public face registration" ON public.attendance_records;
+CREATE POLICY "Allow public face registration" ON public.attendance_records
 FOR INSERT
 TO anon, authenticated
 WITH CHECK (

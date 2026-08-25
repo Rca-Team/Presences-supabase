@@ -1,6 +1,6 @@
 -- Allow admins to create profiles for any user
-CREATE POLICY "Admins can create profiles for users"
-ON public.profiles
+DROP POLICY IF EXISTS "Admins can create profiles for users" ON public.profiles;
+CREATE POLICY "Admins can create profiles for users" ON public.profiles
 FOR INSERT
 TO authenticated
 WITH CHECK (is_admin());
@@ -14,8 +14,8 @@ BEGIN
     WHERE tablename = 'profiles' 
     AND policyname = 'Admins can view all profiles'
   ) THEN
-    CREATE POLICY "Admins can view all profiles" 
-    ON public.profiles 
+    DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
+CREATE POLICY "Admins can view all profiles" ON public.profiles 
     FOR SELECT 
     USING (is_admin());
   END IF;

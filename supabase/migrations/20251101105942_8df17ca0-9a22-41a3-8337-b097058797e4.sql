@@ -4,15 +4,15 @@
 DROP POLICY IF EXISTS "Allow public insert for registration" ON public.attendance_records;
 
 -- Allow authenticated users to insert their own attendance records
-CREATE POLICY "Users can insert own attendance"
-ON public.attendance_records
+DROP POLICY IF EXISTS "Users can insert own attendance" ON public.attendance_records;
+CREATE POLICY "Users can insert own attendance" ON public.attendance_records
 FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = user_id);
 
 -- Allow public (anon) to insert records with null user_id or pending_approval status (for registration flow)
-CREATE POLICY "Public can insert for registration"
-ON public.attendance_records
+DROP POLICY IF EXISTS "Public can insert for registration" ON public.attendance_records;
+CREATE POLICY "Public can insert for registration" ON public.attendance_records
 FOR INSERT
 TO anon
 WITH CHECK (

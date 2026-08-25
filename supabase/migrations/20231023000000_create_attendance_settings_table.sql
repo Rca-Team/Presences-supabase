@@ -17,7 +17,7 @@ BEGIN
   
   IF NOT table_exists THEN
     -- Create the table
-    CREATE TABLE public.attendance_settings (
+    CREATE TABLE IF NOT EXISTS public.attendance_settings (
       id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
       key text NOT NULL UNIQUE,
       value jsonb NOT NULL,
@@ -33,14 +33,14 @@ BEGIN
     GRANT ALL ON TABLE public.attendance_settings TO service_role;
     
     -- Create RLS policies for authenticated users
-    CREATE POLICY "Enable read access for authenticated users"
-      ON public.attendance_settings
+    DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.attendance_settings;
+CREATE POLICY "Enable read access for authenticated users" ON public.attendance_settings
       FOR SELECT
       TO authenticated
       USING (true);
       
-    CREATE POLICY "Enable write access for authenticated users"
-      ON public.attendance_settings
+    DROP POLICY IF EXISTS "Enable write access for authenticated users" ON public.attendance_settings;
+CREATE POLICY "Enable write access for authenticated users" ON public.attendance_settings
       FOR ALL
       TO authenticated
       USING (true);

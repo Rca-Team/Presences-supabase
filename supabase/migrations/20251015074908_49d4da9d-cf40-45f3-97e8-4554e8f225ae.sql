@@ -10,15 +10,15 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Allow public uploads to face-images bucket
-CREATE POLICY "Allow public uploads to face-images"
-ON storage.objects
+DROP POLICY IF EXISTS "Allow public uploads to face-images" ON storage.objects;
+CREATE POLICY "Allow public uploads to face-images" ON storage.objects
 FOR INSERT
 TO anon, authenticated
 WITH CHECK (bucket_id = 'face-images');
 
 -- Allow public reads from face-images bucket
-CREATE POLICY "Allow public reads from face-images"
-ON storage.objects
+DROP POLICY IF EXISTS "Allow public reads from face-images" ON storage.objects;
+CREATE POLICY "Allow public reads from face-images" ON storage.objects
 FOR SELECT
 TO anon, authenticated
 USING (bucket_id = 'face-images');
@@ -27,8 +27,8 @@ USING (bucket_id = 'face-images');
 DROP POLICY IF EXISTS "Allow public face registration" ON public.attendance_records;
 
 -- Recreate the RLS policy to allow public face registrations
-CREATE POLICY "Allow public face registration"
-ON public.attendance_records
+DROP POLICY IF EXISTS "Allow public face registration" ON public.attendance_records;
+CREATE POLICY "Allow public face registration" ON public.attendance_records
 FOR INSERT
 TO anon, authenticated
 WITH CHECK (

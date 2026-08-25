@@ -4,16 +4,16 @@ VALUES ('face-images', 'face-images', true, 5242880, ARRAY['image/jpeg', 'image/
 ON CONFLICT (id) DO NOTHING;
 
 -- Create storage policies for face-images bucket
-CREATE POLICY "Anyone can view face images"
-ON storage.objects FOR SELECT
+DROP POLICY IF EXISTS "Anyone can view face images" ON storage.objects;
+CREATE POLICY "Anyone can view face images" ON storage.objects FOR SELECT
 USING (bucket_id = 'face-images');
 
-CREATE POLICY "Authenticated users can upload face images"
-ON storage.objects FOR INSERT
+DROP POLICY IF EXISTS "Authenticated users can upload face images" ON storage.objects;
+CREATE POLICY "Authenticated users can upload face images" ON storage.objects FOR INSERT
 WITH CHECK (bucket_id = 'face-images' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Admins can delete face images"
-ON storage.objects FOR DELETE
+DROP POLICY IF EXISTS "Admins can delete face images" ON storage.objects;
+CREATE POLICY "Admins can delete face images" ON storage.objects FOR DELETE
 USING (bucket_id = 'face-images' AND EXISTS (
   SELECT 1 FROM public.user_roles 
   WHERE user_id = auth.uid() AND role = 'admin'

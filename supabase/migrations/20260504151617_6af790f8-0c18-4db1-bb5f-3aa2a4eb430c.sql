@@ -286,62 +286,62 @@ alter table public.zone_entries enable row level security;
 
 -- Generic authenticated access policies for app operation
 
-drop policy if exists "authenticated_full_profiles" on public.profiles;
-create policy "authenticated_full_profiles" on public.profiles for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_profiles" ON public.profiles;
+CREATE POLICY "authenticated_full_profiles" ON public.profiles for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_attendance_records" on public.attendance_records;
-create policy "authenticated_full_attendance_records" on public.attendance_records for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_attendance_records" ON public.attendance_records;
+CREATE POLICY "authenticated_full_attendance_records" ON public.attendance_records for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_gate_entries" on public.gate_entries;
-create policy "authenticated_full_gate_entries" on public.gate_entries for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_gate_entries" ON public.gate_entries;
+CREATE POLICY "authenticated_full_gate_entries" ON public.gate_entries for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_face_descriptors" on public.face_descriptors;
-create policy "authenticated_full_face_descriptors" on public.face_descriptors for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_face_descriptors" ON public.face_descriptors;
+CREATE POLICY "authenticated_full_face_descriptors" ON public.face_descriptors for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_late_entries" on public.late_entries;
-create policy "authenticated_full_late_entries" on public.late_entries for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_late_entries" ON public.late_entries;
+CREATE POLICY "authenticated_full_late_entries" ON public.late_entries for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_subjects" on public.subjects;
-create policy "authenticated_full_subjects" on public.subjects for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_subjects" ON public.subjects;
+CREATE POLICY "authenticated_full_subjects" ON public.subjects for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_period_timings" on public.period_timings;
-create policy "authenticated_full_period_timings" on public.period_timings for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_period_timings" ON public.period_timings;
+CREATE POLICY "authenticated_full_period_timings" ON public.period_timings for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_class_teachers" on public.class_teachers;
-create policy "authenticated_full_class_teachers" on public.class_teachers for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_class_teachers" ON public.class_teachers;
+CREATE POLICY "authenticated_full_class_teachers" ON public.class_teachers for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_teacher_permissions" on public.teacher_permissions;
-create policy "authenticated_full_teacher_permissions" on public.teacher_permissions for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_teacher_permissions" ON public.teacher_permissions;
+CREATE POLICY "authenticated_full_teacher_permissions" ON public.teacher_permissions for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_substitutions" on public.substitutions;
-create policy "authenticated_full_substitutions" on public.substitutions for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_substitutions" ON public.substitutions;
+CREATE POLICY "authenticated_full_substitutions" ON public.substitutions for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_attendance_points" on public.attendance_points;
-create policy "authenticated_full_attendance_points" on public.attendance_points for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_attendance_points" ON public.attendance_points;
+CREATE POLICY "authenticated_full_attendance_points" ON public.attendance_points for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_attendance_predictions" on public.attendance_predictions;
-create policy "authenticated_full_attendance_predictions" on public.attendance_predictions for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_attendance_predictions" ON public.attendance_predictions;
+CREATE POLICY "authenticated_full_attendance_predictions" ON public.attendance_predictions for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_class_leaderboard" on public.class_leaderboard;
-create policy "authenticated_full_class_leaderboard" on public.class_leaderboard for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_class_leaderboard" ON public.class_leaderboard;
+CREATE POLICY "authenticated_full_class_leaderboard" ON public.class_leaderboard for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_emergency_events" on public.emergency_events;
-create policy "authenticated_full_emergency_events" on public.emergency_events for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_emergency_events" ON public.emergency_events;
+CREATE POLICY "authenticated_full_emergency_events" ON public.emergency_events for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_notification_log" on public.notification_log;
-create policy "authenticated_full_notification_log" on public.notification_log for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_notification_log" ON public.notification_log;
+CREATE POLICY "authenticated_full_notification_log" ON public.notification_log for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_notifications" on public.notifications;
-create policy "authenticated_full_notifications" on public.notifications for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_notifications" ON public.notifications;
+CREATE POLICY "authenticated_full_notifications" ON public.notifications for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_student_badges" on public.student_badges;
-create policy "authenticated_full_student_badges" on public.student_badges for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_student_badges" ON public.student_badges;
+CREATE POLICY "authenticated_full_student_badges" ON public.student_badges for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_wellness_scores" on public.wellness_scores;
-create policy "authenticated_full_wellness_scores" on public.wellness_scores for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_wellness_scores" ON public.wellness_scores;
+CREATE POLICY "authenticated_full_wellness_scores" ON public.wellness_scores for all to authenticated using (true) with check (true);
 
-drop policy if exists "authenticated_full_zone_entries" on public.zone_entries;
-create policy "authenticated_full_zone_entries" on public.zone_entries for all to authenticated using (true) with check (true);
+DROP POLICY IF EXISTS "authenticated_full_zone_entries" ON public.zone_entries;
+CREATE POLICY "authenticated_full_zone_entries" ON public.zone_entries for all to authenticated using (true) with check (true);
 
 -- helpful indexes for common screens
 create index if not exists idx_attendance_records_status_timestamp on public.attendance_records(status, timestamp desc);
