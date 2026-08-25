@@ -1,26 +1,60 @@
 import React from "react";
 
-// Retry a failed dynamic import once with a small delay before giving up.
-// We deliberately DO NOT call window.location.reload() here — a hard reload
-// on chunk errors causes reload loops when a stale service worker or CDN
-// keeps serving broken references. React's error boundary handles the
-// final failure gracefully instead.
+// Retry a failed dynamic import and auto-recover from stale service workers / CDN hash updates
 export function lazyWithRetry<T extends React.ComponentType<any>>(
   importer: () => Promise<{ default: T }>,
-  _retryKey: string,
+  retryKey: string,
 ) {
   return React.lazy(async () => {
+    const sessionKey = `retry_chunk_${retryKey}`;
     try {
       return await importer();
-    } catch (error) {
-      // One quick retry — handles transient network / chunk hiccups.
-      await new Promise((resolve) => setTimeout(resolve, 400));
+    } catch (error: any) {
+      console.warn(`[lazyWithRetry] Dynamic chunk load failed for ${retryKey}:`, error);
+
+      const hasReloaded = typeof window !== 'undefined' ? sessionStorage.getItem(sessionKey) : null;
+      const errorMsg = String(error?.message || error || '');
+      const isChunkError =
+        errorMsg.includes('dynamically imported module') ||
+        errorMsg.includes('Loading chunk') ||
+        errorMsg.includes('MIME type') ||
+        errorMsg.includes('Failed to fetch') ||
+        error?.name === 'TypeError';
+
+      // If we haven't reloaded yet for this section, clear stale cache and perform a one-time fresh reload
+      if (!hasReloaded && isChunkError && typeof window !== 'undefined') {
+        sessionStorage.setItem(sessionKey, Date.now().toString());
+
+        // Update service workers if active
+        if ('serviceWorker' in navigator) {
+          try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (const reg of regs) {
+              await reg.update();
+            }
+          } catch (_) {}
+        }
+
+        // Cache-busting reload to get current index.html and fresh chunk URLs
+        window.location.reload();
+
+        // Return an unresolved promise while the browser reloads
+        return new Promise<{ default: T }>(() => {});
+      }
+
+      // One quick retry with backoff
+      await new Promise((resolve) => setTimeout(resolve, 500));
       try {
-        return await importer();
+        const res = await importer();
+        if (typeof window !== 'undefined') sessionStorage.removeItem(sessionKey);
+        return res;
       } catch (secondError) {
-        console.error("Lazy chunk failed to load after retry:", secondError);
+        console.error(`[lazyWithRetry] Permanent failure loading chunk ${retryKey}:`, secondError);
+        if (typeof window !== 'undefined') sessionStorage.removeItem(sessionKey);
         throw secondError;
       }
     }
   });
 }
+
+export default lazyWithRetry;

@@ -91,6 +91,67 @@ const TabPanel: React.FC<{ children: React.ReactNode; className?: string }> = ({
   <div className={cn("space-y-4", className)}>{children}</div>
 );
 
+interface SectionErrorBoundaryProps {
+  children: React.ReactNode;
+  tabName: string;
+}
+
+interface SectionErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class SectionErrorBoundary extends React.Component<SectionErrorBoundaryProps, SectionErrorBoundaryState> {
+  constructor(props: SectionErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error(`Admin Section [${this.props.tabName}] error:`, error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card className="p-8 border-primary/20 bg-card text-center space-y-4 shadow-lg">
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+            <Shield className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Section Reload Required</h3>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              {this.state.error?.message || 'New features were deployed. Click refresh to load the latest version.'}
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => this.setState({ hasError: false, error: null })}
+            >
+              Retry
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (typeof window !== 'undefined') window.location.reload();
+              }}
+            >
+              Reload Page
+            </Button>
+          </div>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 
 const Admin = () => {
   const { liteMode } = usePerformanceMode();
@@ -610,7 +671,9 @@ const Admin = () => {
                     {isDataLoading ? (
                       <AdminContentSkeleton />
                     ) : (
-                      <Suspense fallback={<AdminContentSkeleton />}>{renderContent()}</Suspense>
+                      <SectionErrorBoundary tabName={activeTab || 'dashboard'} key={activeTab}>
+                        <Suspense fallback={<AdminContentSkeleton />}>{renderContent()}</Suspense>
+                      </SectionErrorBoundary>
                     )}
                   </motion.div>
                 </AnimatePresence>
