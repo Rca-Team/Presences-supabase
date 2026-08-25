@@ -22,77 +22,55 @@ const PageLayout: React.FC<PageLayoutProps> = ({
   fullWidth = false,
   noFooter = false
 }) => {
-  const [isPageVisible, setIsPageVisible] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const { theme } = useTheme();
-  
-  useEffect(() => {
-    // When component mounts, delay slightly before showing to ensure animation runs
-    const timer = setTimeout(() => {
-      setIsPageVisible(true);
-    }, 50);
-    return () => clearTimeout(timer);
-  }, []);
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       {!isMobile && <Navbar />}
       
-      {/* Animated background orbs — light mode only (dark/Lumina hides them in CSS,
-          so skipping the animations entirely saves constant compositing work) */}
+      {/* Animated background orbs — light mode only */}
       {theme !== 'dark' && (
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none neon-liquid-bg">
         <motion.div 
           initial={false}
           animate={{ 
+            scale: [1, 1.25, 1],
+            x: [0, 20, 0],
+            y: [0, -15, 0]
+          }}
+          transition={{ duration: prefersReducedMotion || isMobile ? 0 : 18, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-20 left-8 w-32 md:w-64 h-32 md:h-64 rounded-full bg-[hsl(var(--neon-orange)/0.18)] blur-[80px]"
+        />
+        <motion.div 
+          initial={false}
+          animate={{ 
+            scale: [1.15, 1, 1.15],
+            x: [0, -30, 0],
+            y: [0, 20, 0]
+          }}
+          transition={{ duration: prefersReducedMotion || isMobile ? 0 : 22, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute bottom-20 right-8 w-40 md:w-80 h-40 md:h-80 rounded-full bg-[hsl(var(--neon-violet)/0.18)] blur-[80px]"
+        />
+        <motion.div 
+          initial={false}
+          animate={{ 
             scale: [1, 1.3, 1],
-            x: [0, 30, 0],
-            y: [0, -20, 0]
+            opacity: [0.25, 0.5, 0.25]
           }}
-          transition={{ duration: prefersReducedMotion || isMobile ? 0 : 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-20 left-8 w-32 md:w-64 h-32 md:h-64 rounded-full bg-[hsl(var(--neon-orange)/0.20)] blur-[80px]"
-        />
-        <motion.div 
-          initial={false}
-          animate={{ 
-            scale: [1.2, 1, 1.2],
-            x: [0, -40, 0],
-            y: [0, 30, 0]
-          }}
-          transition={{ duration: prefersReducedMotion || isMobile ? 0 : 18, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          className="absolute bottom-20 right-8 w-40 md:w-80 h-40 md:h-80 rounded-full bg-[hsl(var(--neon-violet)/0.20)] blur-[80px]"
-        />
-        <motion.div 
-          initial={false}
-          animate={{ 
-            scale: [1, 1.4, 1],
-            opacity: [0.3, 0.6, 0.3]
-          }}
-          transition={{ duration: prefersReducedMotion || isMobile ? 0 : 12, repeat: Infinity, ease: "easeInOut", delay: 4 }}
-          className="absolute top-1/2 right-1/4 w-48 md:w-96 h-48 md:h-96 rounded-full bg-[hsl(var(--neon-pink)/0.16)] blur-[100px]"
-        />
-        <motion.div 
-          initial={false}
-          animate={{ 
-            scale: [1.1, 1, 1.1],
-            y: [0, -50, 0]
-          }}
-          transition={{ duration: prefersReducedMotion || isMobile ? 0 : 20, repeat: Infinity, ease: "easeInOut", delay: 6 }}
-          className="absolute bottom-1/3 left-1/3 w-36 md:w-72 h-36 md:h-72 rounded-full bg-[hsl(var(--neon-amber)/0.16)] blur-[80px]"
+          transition={{ duration: prefersReducedMotion || isMobile ? 0 : 16, repeat: Infinity, ease: "easeInOut", delay: 4 }}
+          className="absolute top-1/2 right-1/4 w-48 md:w-96 h-48 md:h-96 rounded-full bg-[hsl(var(--neon-pink)/0.14)] blur-[100px]"
         />
       </div>
       )}
       
       <motion.main 
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 30 }}
-        animate={{ 
-          opacity: isPageVisible ? 1 : 0, 
-          y: prefersReducedMotion ? 0 : isPageVisible ? 0 : 30 
-        }}
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ 
-          duration: prefersReducedMotion ? 0.15 : 0.6, 
-          ease: [0.34, 1.56, 0.64, 1]
+          duration: prefersReducedMotion ? 0.15 : 0.35, 
+          ease: [0.16, 1, 0.3, 1]
         }}
         className={cn(
           "flex-1 pt-20 md:pt-28 pb-8 md:pb-12 px-4 md:px-6 lg:px-8 premium-glass-main",

@@ -98,13 +98,12 @@ export const GradientCard: React.FC<GradientCardProps> = ({
     return (
       <div
         className={cn(
-          'relative overflow-hidden rounded-3xl bg-gradient-to-br shadow-xl transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 hover:scale-[1.02]',
+          'relative overflow-hidden rounded-3xl bg-gradient-to-br shadow-md transition-[transform,box-shadow] duration-300 hover:shadow-xl hover:-translate-y-1',
           gradientMap[gradient],
           glowMap[gradient],
           className
         )}
         onClick={onClick}
-        style={{ transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
       >
         {children}
       </div>
@@ -116,13 +115,12 @@ export const GradientCard: React.FC<GradientCardProps> = ({
     <div
       className={cn(
         'group relative overflow-hidden rounded-3xl border bg-card p-6 cursor-pointer backdrop-blur-sm',
-        'hover:-translate-y-2 hover:shadow-2xl hover:scale-[1.02]',
+        'transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:shadow-xl',
         borderMap[gradient],
         glowMap[gradient],
         className
       )}
       onClick={onClick}
-      style={{ transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
     >
       {/* Background gradient */}
       <div className={cn(

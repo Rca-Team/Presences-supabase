@@ -54,12 +54,11 @@ const Navbar = () => {
   return (
     <header 
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 px-6 md:px-8 py-4",
+        "fixed top-0 left-0 right-0 z-50 px-6 md:px-8 py-4 transition-[background-color,backdrop-filter,box-shadow,border-color] duration-300 ease-out",
         isScrolled 
           ? "premium-glass-navbar backdrop-blur-3xl shadow-lg border-b" 
           : "bg-transparent backdrop-blur-sm"
       )}
-      style={{ transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="animate-ios-bounce">
@@ -125,8 +124,7 @@ const Navbar = () => {
             pressed={theme === 'dark'} 
             onPressedChange={toggleTheme}
             aria-label="Toggle theme"
-            className="relative w-11 h-11 rounded-full liquid-glass-surface hover:bg-accent/70 hover:scale-110 active:scale-95"
-            style={{ transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            className="relative w-11 h-11 rounded-full liquid-glass-surface hover:bg-accent/70 hover:scale-105 active:scale-95 transition-all duration-200"
           >
             {theme === 'dark' ? (
               <Moon className="h-5 w-5 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-ios-purple" />

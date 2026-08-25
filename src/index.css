@@ -90,9 +90,9 @@
     --school-purple: 271 81% 56%;
 
     /* Animation properties */
-    --animation-timing: cubic-bezier(0.2, 0.8, 0.2, 1);
-    --ios-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-    --ios-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);
+    --animation-timing: cubic-bezier(0.16, 1, 0.3, 1);
+    --ios-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    --ios-smooth: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .dark {
@@ -1090,14 +1090,14 @@
   overscroll-behavior: contain;
 }
 
-/* Mobile card styles with iOS spring */
+/* Mobile card styles with smooth spring */
 .mobile-card {
-  @apply rounded-3xl p-5 bg-card border border-border/50 shadow-lg;
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  @apply rounded-3xl p-5 bg-card border border-border/50 shadow-md;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
 }
 
 .mobile-card:active {
-  transform: scale(0.96);
+  transform: scale(0.98);
 }
 
 /* Responsive grid */
