@@ -7,15 +7,15 @@ interface PageTransitionProps {
 }
 
 /**
- * iOS/macOS Dock-Style App Launch Pop-Out Spring Transition
- * Replaces instant blink with a fluid expansion originating from the navigation dock.
+ * Presence Signature Electric Blue Opening & Dock Pop-Out Transition
+ * Smooth expansion tailored for desktop and mobile with ambient blue aura illumination.
  */
-const dockPopVariants = {
+const presenceBluePopVariants = {
   initial: {
     opacity: 0,
-    scale: 0.93,
-    y: 22,
-    filter: 'blur(3px)',
+    scale: 0.95,
+    y: 18,
+    filter: 'blur(4px)',
   },
   animate: {
     opacity: 1,
@@ -33,8 +33,8 @@ const dockPopVariants = {
   },
   exit: {
     opacity: 0,
-    scale: 0.96,
-    y: 12,
+    scale: 0.97,
+    y: 10,
     filter: 'blur(2px)',
     transition: {
       duration: 0.2,
@@ -46,8 +46,8 @@ const dockPopVariants = {
 const popChildVariants = {
   initial: {
     opacity: 0,
-    scale: 0.95,
-    y: 16,
+    scale: 0.96,
+    y: 14,
   },
   animate: {
     opacity: 1,
@@ -66,16 +66,23 @@ export const PageTransition = ({ children, className = '' }: PageTransitionProps
 
   return (
     <motion.div
-      variants={prefersReducedMotion ? undefined : dockPopVariants}
+      variants={prefersReducedMotion ? undefined : presenceBluePopVariants}
       initial={prefersReducedMotion ? false : 'initial'}
       animate={prefersReducedMotion ? undefined : 'animate'}
       exit={prefersReducedMotion ? undefined : 'exit'}
-      className={className}
+      className={`relative ${className}`}
       style={{
-        transformOrigin: '50% 92%',
+        transformOrigin: '50% 88%',
         willChange: prefersReducedMotion ? 'auto' : 'opacity, transform, filter',
       }}
     >
+      {/* Subtle Electric Blue Ambient Launch Glow for Desktop */}
+      <div
+        className="pointer-events-none fixed inset-0 -z-10 opacity-30 dark:opacity-20"
+        style={{
+          background: 'radial-gradient(ellipse 80% 50% at 50% 10%, rgba(37, 99, 235, 0.15), transparent 75%)',
+        }}
+      />
       {children}
     </motion.div>
   );

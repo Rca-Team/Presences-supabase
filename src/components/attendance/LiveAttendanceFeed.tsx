@@ -168,10 +168,10 @@ const LiveAttendanceFeed: React.FC = () => {
                 transition={{ duration: 0.25, delay: index * 0.02 }}
                 className={`group relative overflow-hidden flex items-center justify-between p-2.5 rounded-2xl border transition-all duration-300 ${
                   isPresent
-                    ? 'bg-gradient-to-r from-emerald-950/20 via-card/80 to-card/60 border-emerald-500/20 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-950/20'
+                    ? 'bg-gradient-to-r from-emerald-50/90 via-white to-white dark:from-emerald-950/20 dark:via-card/80 dark:to-card/60 border-emerald-300/80 dark:border-emerald-500/20 hover:border-emerald-500/50 hover:shadow-md dark:hover:shadow-emerald-950/20'
                     : isLate
-                    ? 'bg-gradient-to-r from-amber-950/20 via-card/80 to-card/60 border-amber-500/20 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-950/20'
-                    : 'bg-gradient-to-r from-rose-950/20 via-card/80 to-card/60 border-rose-500/20'
+                    ? 'bg-gradient-to-r from-amber-50/90 via-white to-white dark:from-amber-950/20 dark:via-card/80 dark:to-card/60 border-amber-300/80 dark:border-amber-500/20 hover:border-amber-500/50 hover:shadow-md dark:hover:shadow-amber-950/20'
+                    : 'bg-gradient-to-r from-rose-50/90 via-white to-white dark:from-rose-950/20 dark:via-card/80 dark:to-card/60 border-rose-300/80 dark:border-rose-500/20'
                 }`}
               >
                 {/* Student Info */}
