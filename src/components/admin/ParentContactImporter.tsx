@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Upload, FileDown, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, FileDown, Loader2, CheckCircle2, AlertTriangle, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -89,6 +89,17 @@ const ParentContactImporter: React.FC<{ onImported?: () => void }> = ({ onImport
     }
   };
 
+  const handleFinish = () => {
+    onImported?.();
+    setOpen(false);
+    toast({
+      title: '✅ Finish & Updated',
+      description: `${summary?.updated || 0} student parent contacts saved and updated successfully.`,
+    });
+    setSummary(null);
+    setResults([]);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -123,24 +134,39 @@ const ParentContactImporter: React.FC<{ onImported?: () => void }> = ({ onImport
         </div>
 
         {summary && (
-          <div className="flex flex-wrap gap-2 text-xs">
-            <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" /> {summary.updated} updated</Badge>
+          <div className="flex flex-wrap gap-2 text-xs pt-1">
+            <Badge variant="default" className="gap-1 bg-emerald-600 text-white"><CheckCircle2 className="h-3 w-3" /> {summary.updated} updated</Badge>
             <Badge variant="secondary">{summary.notFound} unmatched</Badge>
             <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" /> {summary.invalid} invalid</Badge>
           </div>
         )}
 
         {results.length > 0 && (
-          <div className="max-h-48 overflow-auto rounded-md border text-xs">
+          <div className="max-h-52 overflow-auto rounded-xl border text-xs bg-muted/20 p-1">
             {results.map((r, i) => (
-              <div key={i} className="flex items-center justify-between border-b px-3 py-1.5 last:border-0">
-                <span className="truncate">{r.name || '—'}</span>
-                <span className={r.status === 'updated' ? 'text-green-600' : 'text-muted-foreground'}>
+              <div key={i} className="flex items-center justify-between border-b border-border/50 px-3 py-2 last:border-0">
+                <span className="truncate font-medium">{r.name || '—'}</span>
+                <span className={r.status === 'updated' ? 'text-emerald-500 font-semibold truncate ml-2' : 'text-muted-foreground truncate ml-2'}>
                   {r.status}{r.message ? ` · ${r.message}` : ''}
                 </span>
               </div>
             ))}
           </div>
+        )}
+
+        {(summary || results.length > 0) && (
+          <DialogFooter className="pt-3 border-t flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="text-xs text-muted-foreground">
+              {summary?.updated || 0} profile(s) ready
+            </div>
+            <Button
+              onClick={handleFinish}
+              className="w-full sm:w-auto gap-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white font-semibold py-2 px-6 rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Finish & Updated ({summary?.updated || 0})
+            </Button>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>

@@ -40,7 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CLASSES, SECTIONS } from '@/constants/schoolConfig';
 import { fetchTeacherCategories, saveTeacherCategories } from '@/utils/teacherAccess';
 
-type Role = 'user' | 'principal' | 'admin';
+type Role = 'user' | 'principal' | 'admin' | 'teacher' | 'student' | 'staff' | string;
 
 interface RegisteredUser {
   id: string;
@@ -55,10 +55,18 @@ interface RegisteredUser {
   signedUpAt?: string | null;
 }
 
-const ROLE_CONFIG: Record<Role, { label: string; icon: React.ElementType; color: string }> = {
-  admin: { label: 'Admin', icon: Crown, color: 'text-yellow-500 bg-yellow-500/10' },
-  principal: { label: 'Principal', icon: ShieldCheck, color: 'text-purple-500 bg-purple-500/10' },
-  user: { label: 'User', icon: User, color: 'text-muted-foreground bg-muted' },
+const ROLE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  admin: { label: 'Admin', icon: Crown, color: 'text-yellow-600 bg-yellow-500/10 border-yellow-500/30' },
+  principal: { label: 'Principal', icon: ShieldCheck, color: 'text-purple-600 bg-purple-500/10 border-purple-500/30' },
+  teacher: { label: 'Teacher', icon: GraduationCap, color: 'text-blue-600 bg-blue-500/10 border-blue-500/30' },
+  student: { label: 'Student', icon: User, color: 'text-emerald-600 bg-emerald-500/10 border-emerald-500/30' },
+  staff: { label: 'Staff', icon: Shield, color: 'text-amber-600 bg-amber-500/10 border-amber-500/30' },
+  user: { label: 'User', icon: User, color: 'text-muted-foreground bg-muted border-border' },
+};
+
+const getRoleConfig = (role?: string | null) => {
+  const normalized = (role || 'user').toLowerCase();
+  return ROLE_CONFIG[normalized] || ROLE_CONFIG.user;
 };
 
 const UserAccessManager: React.FC = () => {
@@ -424,7 +432,8 @@ const UserAccessManager: React.FC = () => {
               </div>
             ) : (
               filteredUsers.map(user => {
-                const RoleIcon = ROLE_CONFIG[user.role].icon;
+                const roleConfig = getRoleConfig(user.role);
+                const RoleIcon = roleConfig.icon;
                 
                 return (
                   <div 
@@ -443,9 +452,9 @@ const UserAccessManager: React.FC = () => {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium">{user.name}</p>
-                          <Badge variant="outline" className={ROLE_CONFIG[user.role].color}>
+                          <Badge variant="outline" className={roleConfig.color}>
                             <RoleIcon className="h-3 w-3 mr-1" />
-                            {ROLE_CONFIG[user.role].label}
+                            {roleConfig.label}
                           </Badge>
                           {user.isTeacher && user.role !== 'principal' && (
                             <Badge variant="secondary" className="gap-1 bg-blue-500/10 text-blue-500">

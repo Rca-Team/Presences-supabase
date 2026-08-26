@@ -120,6 +120,26 @@ const StudentCSVImporter: React.FC<{ onImported?: () => void }> = ({ onImported 
               ))}
             </div>
           )}
+          {(summary || results.length > 0) && (
+            <div className="pt-3 border-t flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="text-xs text-muted-foreground">
+                {summary?.created || 0} student(s) imported
+              </div>
+              <Button
+                onClick={() => {
+                  onImported?.();
+                  setOpen(false);
+                  toast({ title: '✅ Finish & Updated', description: 'Student records updated.' });
+                  setSummary(null);
+                  setResults([]);
+                }}
+                className="w-full sm:w-auto gap-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white font-semibold py-2 px-6 rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Finish & Updated ({summary?.created || 0})
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
