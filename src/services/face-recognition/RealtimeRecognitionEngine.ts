@@ -340,7 +340,7 @@ export function createRecognitionEngine(
       const det = onnxEmbedding
         ? ({ descriptor: onnxEmbedding } as { descriptor: Float32Array })
         : await faceapi
-            .detectSingleFace(cropCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 }))
+            .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
       stats.embedMs = performance.now() - tEmbed;

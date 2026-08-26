@@ -226,12 +226,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       } catch (e) {
         console.error('Face model load failed:', e);
       }
-      // Pre-load the detector via the shared loader (deduped, retried)
-      try {
-        await loadNet('ssdMobilenetv1');
-      } catch (e) {
-        console.warn('SSD MobileNetV1 pre-load failed, will use TinyFaceDetector', e);
-      }
     };
     initModels();
   }, []);
@@ -273,12 +267,16 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     const drawTracks = (tracks: FaceTrack[]) => {
       const video = webcamRef.current?.video;
       const canvas = canvasRef.current;
-      if (!video || !canvas) return;
+      if (!video || !canvas || video.readyState < 2) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (vw && vh && (canvas.width !== vw || canvas.height !== vh)) {
+        canvas.width = vw;
+        canvas.height = vh;
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       tracks.forEach((track, i) => {
