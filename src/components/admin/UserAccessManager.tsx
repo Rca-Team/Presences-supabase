@@ -149,7 +149,12 @@ const UserAccessManager: React.FC = () => {
     }
     
     if (roleFilter !== 'all') {
-      filtered = filtered.filter(u => u.role === roleFilter || (roleFilter === 'principal' && u.isTeacher));
+      filtered = filtered.filter(u => {
+        if (roleFilter === 'teacher') return u.role === 'teacher' || u.isTeacher;
+        if (roleFilter === 'admin') return u.role === 'admin';
+        if (roleFilter === 'principal') return u.role === 'principal';
+        return u.role === roleFilter;
+      });
     }
     
     setFilteredUsers(filtered);
@@ -192,23 +197,27 @@ const UserAccessManager: React.FC = () => {
         .map((au: any) => {
           const userId = au.user_id;
           const profile: any = profileMap.get(userId) || {};
+          const assignedRole = roleMap.get(userId) as Role | undefined;
+          const hasTeacherPerms = teacherPermsMap.has(userId);
+          const computedRole = assignedRole || (hasTeacherPerms ? 'teacher' : 'user');
+
           return {
             id: profile.id || userId,
             user_id: userId,
             name: profile.display_name || profile.username || (au.email ? au.email.split('@')[0] : 'Unnamed User'),
             email: au.email || profile.parent_email || profile.username || '',
             avatar_url: profile.avatar_url || '',
-            role: (roleMap.get(userId) as Role) || 'user',
-            isTeacher: teacherPermsMap.has(userId),
+            role: computedRole,
+            isTeacher: hasTeacherPerms || computedRole === 'teacher',
             teacherCategories: teacherPermsMap.get(userId) || [],
             lastSignIn: au.last_sign_in_at,
             signedUpAt: au.created_at,
           };
         })
         .sort((a, b) => {
-          const roleOrder: Record<string, number> = { admin: 0, principal: 1, user: 2 };
-          const aOrder = roleOrder[a.role] ?? 2;
-          const bOrder = roleOrder[b.role] ?? 2;
+          const roleOrder: Record<string, number> = { admin: 0, principal: 1, teacher: 2, user: 3 };
+          const aOrder = roleOrder[a.role] ?? 3;
+          const bOrder = roleOrder[b.role] ?? 3;
           if (aOrder !== bOrder) return aOrder - bOrder;
           if (a.isTeacher && !b.isTeacher) return -1;
           if (!a.isTeacher && b.isTeacher) return 1;
@@ -398,6 +407,7 @@ const UserAccessManager: React.FC = () => {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="admin">Admins</SelectItem>
                 <SelectItem value="principal">Principals</SelectItem>
+                <SelectItem value="teacher">Teachers</SelectItem>
                 <SelectItem value="user">Users</SelectItem>
               </SelectContent>
             </Select>
@@ -417,9 +427,9 @@ const UserAccessManager: React.FC = () => {
               <ShieldCheck className="h-3 w-3 mr-1" />
               {users.filter(u => u.role === 'principal').length} Principals
             </Badge>
-            <Badge className="gap-1 bg-blue-500/10 text-blue-500">
-              <GraduationCap className="h-3 w-3" />
-              {users.filter(u => u.isTeacher).length} Teachers
+            <Badge className={ROLE_CONFIG.teacher.color}>
+              <GraduationCap className="h-3 w-3 mr-1" />
+              {users.filter(u => u.role === 'teacher' || u.isTeacher).length} Teachers
             </Badge>
           </div>
 
@@ -456,7 +466,7 @@ const UserAccessManager: React.FC = () => {
                             <RoleIcon className="h-3 w-3 mr-1" />
                             {roleConfig.label}
                           </Badge>
-                          {user.isTeacher && user.role !== 'principal' && (
+                          {user.isTeacher && user.role !== 'principal' && user.role !== 'teacher' && (
                             <Badge variant="secondary" className="gap-1 bg-blue-500/10 text-blue-500">
                               <GraduationCap className="h-3 w-3" />
                               Teacher
@@ -471,40 +481,49 @@ const UserAccessManager: React.FC = () => {
                             </span>
                           )}
                           {user.teacherCategories.length > 0 && (
-                            <span>• Classes: {user.teacherCategories.join(', ')}</span>
+                            <span className="text-blue-600 dark:text-blue-400 font-medium">
+                              • Classes: {user.teacherCategories.join(', ')}
+                            </span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {user.role !== 'admin' && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => quickPromote(user, 'admin')}
-                          className="text-yellow-600 border-yellow-500/30 hover:bg-yellow-500/10"
+                          className="text-yellow-600 border-yellow-500/30 hover:bg-yellow-500/10 text-xs h-8"
                         >
-                          <Crown className="h-4 w-4 mr-1" />
-                          Make Admin
+                          <Crown className="h-3.5 w-3.5 mr-1" />
+                          Admin
                         </Button>
                       )}
-                      {user.role === 'admin' && (
+                      {user.role !== 'teacher' && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => quickPromote(user, 'user')}
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setNewRole('teacher');
+                            setSelectedCategories(user.teacherCategories);
+                            setDialogOpen(true);
+                          }}
+                          className="text-blue-600 border-blue-500/30 hover:bg-blue-500/10 text-xs h-8"
                         >
-                          <Zap className="h-4 w-4 mr-1" />
-                          Revoke
+                          <GraduationCap className="h-3.5 w-3.5 mr-1" />
+                          Assign Class
                         </Button>
                       )}
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openEditDialog(user)}
+                        className="text-xs h-8"
                       >
-                        <Edit className="h-4 w-4 mr-1" />
+                        <Edit className="h-3.5 w-3.5 mr-1" />
                         Edit
                       </Button>
                     </div>
@@ -518,36 +537,36 @@ const UserAccessManager: React.FC = () => {
 
       {/* Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
-              Edit User Access
+              Edit User Access & Class Assignment
             </DialogTitle>
             <DialogDescription>
-              Update {selectedUser?.name}'s role and permissions
+              Update {selectedUser?.name}'s role and class assignment
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="space-y-5 py-3">
             {/* User Info */}
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Avatar className="h-12 w-12">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border">
+              <Avatar className="h-11 w-11">
                 {selectedUser?.avatar_url ? (
                   <AvatarImage src={selectedUser.avatar_url} alt={selectedUser?.name} />
                 ) : null}
                 <AvatarFallback>
-                  <User className="h-6 w-6" />
+                  <User className="h-5 w-5" />
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className="font-semibold">{selectedUser?.name}</p>
-                <p className="text-sm text-muted-foreground">{selectedUser?.email}</p>
+                <p className="font-semibold text-sm">{selectedUser?.name}</p>
+                <p className="text-xs text-muted-foreground">{selectedUser?.email}</p>
               </div>
             </div>
 
             {/* Role Selection */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               <p className="text-sm font-medium">System Role:</p>
               <Select value={newRole} onValueChange={(v) => setNewRole(v as Role)}>
                 <SelectTrigger>
@@ -557,32 +576,77 @@ const UserAccessManager: React.FC = () => {
                   <SelectItem value="user">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      User (Default)
+                      User (Standard / Student)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="teacher">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="h-4 w-4 text-blue-500" />
+                      Teacher (Class Attendance & Portal)
                     </div>
                   </SelectItem>
                   <SelectItem value="principal">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-purple-500" />
-                      Principal
+                      Principal (School-wide View)
                     </div>
                   </SelectItem>
                   <SelectItem value="admin">
                     <div className="flex items-center gap-2">
                       <Crown className="h-4 w-4 text-yellow-500" />
-                      Admin
+                      Admin (Full System Access)
                     </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Teacher Categories */}
-            <div className="space-y-3">
-              <p className="text-sm font-medium">Teacher Permissions (Optional):</p>
-              <p className="text-xs text-muted-foreground">
-                Assign class-sections this user can manage as a teacher
-              </p>
-              <div className="max-h-[250px] overflow-y-auto space-y-2">
+            {/* Teacher Class Assignment */}
+            <div className={`space-y-3 p-3 rounded-xl border ${newRole === 'teacher' ? 'bg-blue-500/5 border-blue-500/30' : 'bg-muted/30'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    <GraduationCap className="h-4 w-4 text-blue-500" />
+                    Class Assignments {newRole === 'teacher' ? '(Required)' : '(Optional)'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Assign classes this teacher can take attendance and manage
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-xs bg-background">
+                  {selectedCategories.length} selected
+                </Badge>
+              </div>
+
+              {/* Quick helper buttons */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => {
+                    const all: string[] = [];
+                    CLASSES.forEach(cls => SECTIONS.forEach(s => all.push(`${cls}-${s}`)));
+                    setSelectedCategories(all);
+                  }}
+                >
+                  Select All Classes
+                </Button>
+                {selectedCategories.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 text-destructive"
+                    onClick={() => setSelectedCategories([])}
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+
+              <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
                 {CLASSES.map(cls => {
                   const classCats = SECTIONS.map(s => `${cls}-${s}`);
                   const selectedInClass = classCats.filter(c => selectedCategories.includes(c)).length;

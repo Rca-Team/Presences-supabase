@@ -47,7 +47,7 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
       { key: "register", label: "Register", to: "/register", icon: UserPlus, show: isSignedIn },
       { key: "attendance", label: "Attend", to: "/attendance", icon: ScanLine, show: isSignedIn },
       { key: "gate", label: "Gate", to: "/gate", icon: ShieldCheck, show: canUseGate },
-      { key: "admin", label: "Admin", to: "/admin", icon: LayoutDashboard, show: canUseAdmin },
+      { key: "admin", label: isTeacher && !isAdminOrPrincipal ? "Class" : "Admin", to: isTeacher && !isAdminOrPrincipal ? "/teacher" : "/admin", icon: isTeacher && !isAdminOrPrincipal ? GraduationCap : LayoutDashboard, show: canUseAdmin },
       { key: "profile", label: isSignedIn ? "Profile" : "Login", to: isSignedIn ? "/profile" : "/login", icon: UserCircle, show: true },
     ].filter((item) => item.show);
   }, [isAdminOrPrincipal, isRoleLoading, isSignedIn, isTeacher]);
