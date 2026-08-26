@@ -190,15 +190,26 @@ const Index = () => {
         <section className="pt-2 pb-10 sm:pb-14">
           <div className="grid grid-cols-12 gap-6">
             <motion.div
-              className="liquid-glass-surface liquid-glass-highlight col-span-12 rounded-3xl p-8 md:p-14 lg:col-span-7"
+              className="liquid-glass-surface liquid-glass-highlight col-span-12 rounded-3xl p-8 md:p-14 lg:col-span-7 border border-white/10 shadow-2xl backdrop-blur-2xl"
               {...cardTilt}
             >
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/55 px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-primary">
-                <Sparkles className="h-3.5 w-3.5" /> Complete School Automation
+              {/* Collaboration Badge */}
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-primary backdrop-blur-md">
+                  <Building2 className="h-3.5 w-3.5" />
+                  PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                  AI Campus Active
+                </span>
               </div>
 
               <h1
-                className="mt-6 text-5xl font-extrabold leading-[1.05] text-foreground md:text-7xl"
+                className="mt-2 text-5xl font-extrabold leading-[1.05] text-foreground md:text-7xl"
                 style={{ fontFamily: 'Sora, sans-serif' }}
               >
                 Your School,
@@ -208,32 +219,32 @@ const Index = () => {
                 </span>
               </h1>
 
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground md:text-xl">
-                Face-recognition attendance, timetable, gate security, parent portal & AI analytics — one platform.
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground md:text-xl font-medium">
+                Face-recognition attendance, timetable, gate security, parent portal & AI analytics — all in one unified, intelligent platform.
               </p>
 
               <div className="mt-10 flex flex-wrap gap-4">
-                <Link to="/signup">
-                  <Button className="h-14 rounded-2xl bg-primary px-8 text-base font-bold text-primary-foreground shadow-xl shadow-primary/30 hover:bg-primary/90">
-                    Get Started Free <ArrowRight className="ml-2 h-5 w-5" />
+                <Link to="/attendance">
+                  <Button className="h-14 rounded-2xl bg-primary px-8 text-base font-bold text-primary-foreground shadow-xl shadow-primary/30 hover:bg-primary/90 btn-spring">
+                    Launch Attendance <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
                 <Link to="/parent">
-                  <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-8 text-base font-bold text-foreground hover:bg-card/80">
+                  <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-8 text-base font-bold text-foreground hover:bg-card/80 btn-spring">
                     Parent Portal
                   </Button>
                 </Link>
-                <ThemeToggle className="h-14 w-14 rounded-2xl border-border/70 bg-card/55 hover:bg-card/80" />
+                <ThemeToggle className="h-14 w-14 rounded-2xl border-border/70 bg-card/55 hover:bg-card/80 btn-spring" />
               </div>
             </motion.div>
 
             <div className="col-span-12 grid grid-cols-2 gap-6 lg:col-span-5 lg:grid-rows-2">
               <motion.div
-                className="liquid-glass-surface col-span-2 rounded-3xl p-8"
+                className="liquid-glass-surface col-span-2 rounded-3xl p-8 border border-white/10 shadow-2xl backdrop-blur-2xl"
                 {...cardTilt}
               >
                 <div className="mb-8 flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">System Modules</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.25em] text-muted-foreground">System Modules</span>
                   <div className="flex gap-1.5">
                     <div className="h-2 w-2 rounded-full bg-warning/70" />
                     <div className="h-2 w-2 rounded-full bg-accent/70" />
@@ -247,7 +258,7 @@ const Index = () => {
                       type="button"
                       onClick={() => navigate(mod.to)}
                       aria-label={`Open ${mod.label}`}
-                      className="rounded-2xl border border-border/60 bg-card/55 p-4 text-center transition-colors hover:border-primary/50 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                      className="rounded-2xl border border-border/60 bg-card/55 p-4 text-center transition-all hover:border-primary/50 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 card-hover-pop btn-spring"
                       whileHover={{ y: -3 }}
                       whileTap={{ scale: 0.97 }}
                       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}

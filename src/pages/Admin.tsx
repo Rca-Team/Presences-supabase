@@ -579,18 +579,26 @@ const Admin = () => {
           }
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {/* Top Bar - Compact on mobile */}
-            <div className="border-b border-border bg-card px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2">
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background/50">
+            {/* Top Bar - Premium Glassmorphism */}
+            <div className="border-b border-border/60 bg-card/70 backdrop-blur-2xl px-3 sm:px-5 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 shadow-sm">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <div className="min-w-0">
-                  <h1 className="text-sm sm:text-lg font-semibold truncate">
-                    {navItems.find((n) => n.id === activeTab)?.label || 'Dashboard'}
-                  </h1>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block truncate">
-                    {activeTab === 'dashboard' && 'Overview of attendance and registered students'}
-                    {activeTab === 'students' && 'View and manage all registered students'}
-                    {activeTab === 'reports' && 'Generate and export attendance reports'}
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-sm sm:text-lg font-bold tracking-tight text-foreground truncate">
+                      {navItems.find((n) => n.id === activeTab)?.label || 'Dashboard'}
+                    </h1>
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-semibold">
+                      PM Shri Kendriya Vidyalaya
+                    </span>
+                  </div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block truncate mt-0.5">
+                    {activeTab === 'dashboard' && 'School-wide attendance command center and analytics'}
+                    {activeTab === 'students' && 'Manage registered student biometric profiles and class assignments'}
+                    {activeTab === 'reports' && 'Generate and export official attendance reports and daily logs'}
+                    {activeTab === 'access' && 'Manage system roles, permissions, and teacher class assignments'}
+                    {activeTab === 'emergency' && 'Instant safety alerts, campus lockdown, and fire emergency broadcasting'}
+                    {activeTab === 'timetable' && 'Class timetables, schedules, and automatic teacher substitutions'}
                   </p>
                 </div>
               </div>
@@ -598,21 +606,30 @@ const Admin = () => {
                 <Suspense fallback={null}>
                   <AdminTutorial onNavigate={handleTabChange} />
                 </Suspense>
-                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={handleRefresh}>
-                  <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <Button variant="outline" size="sm" className="h-8 px-2.5 rounded-xl border-border/60 bg-card/60 hover:bg-muted text-xs font-semibold btn-spring" onClick={handleRefresh}>
+                  <RefreshCw className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Refresh</span>
                 </Button>
                 {isMobile && <ThemeToggle />}
               </div>
             </div>
 
-            {/* Stats Bar - Scrollable on mobile */}
-            <div className="border-b border-border bg-card/50 px-3 sm:px-4 py-1.5 sm:py-2">
-              <div className="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
+            {/* Stats Bar - Premium SaaS Metric Strip */}
+            <div className="border-b border-border/60 bg-card/40 backdrop-blur-xl px-3 sm:px-5 py-2">
+              <div className="flex gap-3 sm:gap-6 overflow-x-auto no-scrollbar items-center">
                 {statsCards.map((stat, i) =>
-                <div key={i} className="flex items-center gap-1.5 py-0.5 min-w-fit">
-                    <stat.icon className={cn("w-3.5 h-3.5", stat.color)} />
-                    <span className="text-sm sm:text-lg font-bold tabular-nums">{stat.value}</span>
-                    <span className="text-[9px] sm:text-xs text-muted-foreground">{stat.label}</span>
+                  <div key={i} className="flex items-center gap-2 py-0.5 min-w-fit px-2.5 py-1 rounded-xl bg-card/50 border border-border/40 shadow-xs hover:border-primary/30 transition-all card-hover-pop">
+                    <div className="p-1.5 rounded-lg bg-muted/60">
+                      <stat.icon className={cn("w-3.5 h-3.5", stat.color)} />
+                    </div>
+                    <div>
+                      <div className="text-xs sm:text-sm font-extrabold tabular-nums tracking-tight text-foreground">
+                        {stat.value}
+                      </div>
+                      <div className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        {stat.label}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

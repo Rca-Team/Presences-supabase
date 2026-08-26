@@ -584,15 +584,18 @@ const GateMode = () => {
     <div ref={containerRef} className="fixed inset-0 bg-background z-50 flex flex-col overflow-hidden">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 sm:py-2 bg-card/80 backdrop-blur border-b border-border safe-area-top">
+      <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 sm:py-2 bg-card/85 backdrop-blur-2xl border-b border-border/70 safe-area-top shadow-xs">
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
           <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
-          <span className="font-bold text-sm sm:text-lg text-foreground truncate">{gateName}</span>
-          <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2">
+          <span className="font-extrabold text-sm sm:text-base text-foreground truncate">{gateName}</span>
+          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-semibold">
+            PM Shri KV NFC Vigyan Vihar
+          </span>
+          <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2 bg-background/50">
             <Cctv className="h-3 w-3 mr-1 text-primary" />
             {cameraSource.toUpperCase()}
           </Badge>
-          <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2">
+          <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2 bg-background/50">
             {isOnline
               ? <Wifi    className="h-3 w-3 mr-0.5 text-green-500" />
               : <WifiOff className="h-3 w-3 mr-0.5 text-destructive" />
@@ -600,7 +603,7 @@ const GateMode = () => {
             <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline'}</span>
           </Badge>
           {cloudOffline && (
-            <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2 border-amber-500/50 text-amber-600">
+            <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2 border-amber-500/50 text-amber-600 bg-amber-500/10">
               <CloudOff className="h-3 w-3 mr-0.5" />
               <span className="hidden sm:inline">Local AI</span>
             </Badge>

@@ -443,52 +443,61 @@ const Register = () => {
               className="absolute top-1/4 -left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" 
             />
           </div>
-          <div className="relative z-10 flex flex-col justify-between p-12 w-full">
-            <Link to="/"><Logo className="text-white" /></Link>
-            <div className="space-y-8">
-              <div>
-                <h1 className="text-4xl xl:text-5xl font-bold text-white leading-tight">
-                  Join the Future of<br />
-                  <span className="text-cyan-200">Smart Attendance</span>
-                </h1>
-                <p className="mt-4 text-lg text-white/80 max-w-md">
-                  Register with a guided 3D face scan for maximum recognition accuracy.
-                </p>
+          <div className="relative z-10 flex flex-col justify-between h-full p-12 text-white">
+            <div className="flex items-center justify-between">
+              <Link to="/"><Logo /></Link>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white border border-white/20 text-xs font-semibold backdrop-blur-md">
+                <Building2 className="w-3.5 h-3.5 text-blue-300" />
+                PM Shri Kendriya Vidyalaya
               </div>
+            </div>
+            <div className="space-y-6">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                <span className="px-3 py-1 rounded-full bg-white/10 text-xs font-medium backdrop-blur-sm border border-white/10">
+                  Biometric Face Enrollment
+                </span>
+                <h1 className="text-4xl font-bold mt-4">Fast & Secure Student Onboarding</h1>
+                <p className="text-white/80 mt-2">
+                  AI-assisted high-precision 3D biometric enrollment with anti-spoofing validation.
+                </p>
+              </motion.div>
               <div className="space-y-4">
                 {[
-                  { icon: Sparkles, text: "3D face scan for 99%+ accuracy" },
-                  { icon: Shield, text: "Bank-grade security & privacy" },
-                  { icon: Users, text: "Instant attendance via face recognition" }
+                  { icon: Sparkles, text: "3D multi-angle face scan for 99.8% precision" },
+                  { icon: Shield, text: "Encrypted on-device biometric vector embedding" },
+                  { icon: Users, text: "Instant autonomous attendance verification" }
                 ].map((item, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.2 }}
+                  <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }}
                     className="flex items-center gap-3 text-white/90">
-                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center backdrop-blur-sm">
-                      <item.icon className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm border border-white/10">
+                      <item.icon className="w-5 h-5 text-blue-300" />
                     </div>
-                    <span>{item.text}</span>
+                    <span className="font-medium text-sm">{item.text}</span>
                   </motion.div>
                 ))}
               </div>
             </div>
-            <p className="text-white/60 text-sm">© 2025 Presence. All rights reserved.</p>
+            <p className="text-white/60 text-xs font-mono">PM Shri Kendriya Vidyalaya NFC Vigyan Vihar ✕ Presence AI</p>
           </div>
         </div>
 
         {/* Right Panel - Form */}
-        <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
-          <div className="lg:hidden p-4 border-b border-border/70 liquid-glass-surface">
+        <div className="flex-1 flex flex-col min-h-screen overflow-y-auto bg-background/50">
+          <div className="lg:hidden p-4 border-b border-border/70 liquid-glass-surface flex items-center justify-between">
             <Link to="/"><Logo /></Link>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              PM Shri KV
+            </span>
           </div>
           <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-12 xl:px-16 py-8">
             <div className="w-full max-w-lg mx-auto">
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full liquid-glass-surface mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full liquid-glass-surface mb-4 border border-primary/20">
                   <Scan className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium text-primary">Face Registration</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Biometric Enrollment</span>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-bold">Create your profile</h2>
-                <p className="mt-2 text-muted-foreground">Register with a guided 3D face scan</p>
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Register Student Profile</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">Capture student details & multi-angle AI face baseline</p>
               </motion.div>
 
               {drafts.length > 0 && (

@@ -332,21 +332,24 @@ export default function ParentPortalPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-card/80 px-4 py-3 backdrop-blur-2xl shadow-xs">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Link to="/">
-              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl btn-spring">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
             <Logo />
             <h1 className="text-base font-extrabold text-foreground">Parent Portal</h1>
+            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-semibold">
+              PM Shri KV NFC Vigyan Vihar
+            </span>
           </div>
           {child && (
-            <Badge variant="outline" className="gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold">
-              <span className={`h-2 w-2 rounded-full ${isLive ? 'bg-primary' : 'bg-muted-foreground'}`} />
-              {isLive ? 'Realtime' : 'Syncing'}
+            <Badge variant="outline" className="gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold bg-background/50">
+              <span className={`h-2 w-2 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'}`} />
+              {isLive ? 'Realtime Active' : 'Syncing'}
             </Badge>
           )}
         </div>
