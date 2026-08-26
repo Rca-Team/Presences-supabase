@@ -257,7 +257,7 @@ serve(async (req) => {
 
     // Emails cannot render base64 data URIs — host the live capture first.
     const studentRegisteredPhoto = await resolveStudentPhotoUrl(supabaseClient, studentId, studentName);
-    const hostedSnapshot = await hostSnapshot(supabaseClient, studentId, imageUrl);
+    const photoForMetadata = hostedSnapshot || studentRegisteredPhoto || null;
 
     // 1. Check "1 Student, 1 Email per Day" rate limit setting
     let emailRateLimitEnabled = true;
@@ -279,9 +279,10 @@ serve(async (req) => {
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
+      // Check if ANY email was already sent today for this student or this parent email
       const { data: todayLogs } = await supabaseClient
         .from('notification_log')
-        .select('id')
+        .select('id, created_at')
         .eq('channel', 'email')
         .eq('status', 'sent')
         .or(`user_id.eq.${studentId},recipient.eq.${parentEmail}`)
@@ -289,12 +290,13 @@ serve(async (req) => {
         .limit(1);
 
       if (todayLogs && todayLogs.length > 0) {
-        console.log(`[1 Student 1 Email Limit] Email already sent today for ${studentName} (${studentId}). Skipping duplicate.`);
+        console.log(`[1 Student 1 Email Limit Active] Email already sent today for ${studentName} (${studentId}). Skipping duplicate send.`);
         return new Response(JSON.stringify({
           success: true,
           skipped: true,
-          message: `Already sent 1 attendance alert email today for ${studentName} (1 student 1 email per day active).`
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          emailSent: false,
+          message: `Already sent 1 attendance email today for ${studentName} (1 student 1 email per day is active).`
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
     }
 
@@ -322,6 +324,7 @@ serve(async (req) => {
           results.emailSent = true;
         }
 
+        // Always log result to notification_log (crucial for 1 student 1 email rate limiting)
         await supabaseClient.from('notification_log').insert({
           user_id: studentId,
           channel: 'email',
@@ -329,9 +332,17 @@ serve(async (req) => {
           subject: built.subject,
           message: `${studentName} marked ${status}`,
           recipient: parentEmail,
-          metadata: { provider: emailResult.provider || null, id: emailResult.id || null, error: emailResult.error || null, photo: hostedPhoto },
+          metadata: {
+            provider: emailResult.provider || null,
+            id: emailResult.id || null,
+            error: emailResult.error || null,
+            photo: photoForMetadata
+          },
         });
-      } catch (err: any) { results.errors.push(`Email: ${err.message}`); }
+      } catch (err: any) {
+        console.error('Email send/log error in edge function:', err);
+        results.errors.push(`Email: ${err.message}`);
+      }
     } else {
       results.errors.push('Email: no parent email on file for this student');
     }
@@ -387,7 +398,7 @@ serve(async (req) => {
       message: `Your attendance was marked as ${status} at ${time}`,
       type: 'attendance',
       is_read: false,
-      metadata: { photo: hostedPhoto, emailed: results.emailSent, recipient: parentEmail },
+      metadata: { photo: photoForMetadata, emailed: results.emailSent, recipient: parentEmail },
     });
 
     const channels = [results.emailSent && 'Email', results.whatsappSent && 'WhatsApp', results.smsSent && 'SMS', 'In-app'].filter(Boolean);
