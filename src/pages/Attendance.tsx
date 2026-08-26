@@ -95,10 +95,10 @@ const Attendance: React.FC = () => {
   }, [isQRKioskMode]);
 
   const tabs = [
-    { id: 'kiosk', label: 'Face ID Terminal', shortLabel: 'Face ID', icon: Scan },
-    { id: 'qr', label: 'QR ID Scanner', shortLabel: 'QR Scan', icon: QrCode },
-    { id: 'analytics', label: 'Analytics & Insights', shortLabel: 'Analytics', icon: BarChart3 },
-    { id: 'help', label: 'Guide & Help', shortLabel: 'Guide', icon: Info },
+    { id: 'kiosk', label: 'Autonomous Face Terminal', shortLabel: 'Face Terminal', icon: Scan },
+    { id: 'qr', label: 'Digital ID Scanner', shortLabel: 'QR ID', icon: QrCode },
+    { id: 'analytics', label: 'Attendance Analytics', shortLabel: 'Analytics', icon: BarChart3 },
+    { id: 'help', label: 'Operational Guide', shortLabel: 'Guide', icon: Info },
   ];
 
   const handleTabChange = (nextTab: 'kiosk' | 'qr' | 'analytics' | 'help') => {
@@ -164,14 +164,14 @@ const Attendance: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-white">
-                      Smart Attendance Terminal
+                      Smart Attendance Automation
                     </h1>
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-semibold backdrop-blur-md">
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                       </span>
-                      100% Hands-Free AI Active
+                      Autonomous Hands-Free Active
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-300/90 mt-1 flex-wrap font-medium">
