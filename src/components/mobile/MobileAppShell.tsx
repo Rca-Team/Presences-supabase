@@ -82,7 +82,7 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
                 key={tab.key}
                 to={tab.to}
                 className={cn(
-                  "macbook-dock-item group flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-1",
+                  "macbook-dock-item dock-item-pop group flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-1 active:scale-90 transition-transform duration-200",
                   active ? "macbook-dock-item-active text-foreground" : "text-muted-foreground",
                 )}
                 aria-current={active ? "page" : undefined}
