@@ -59,12 +59,44 @@ export async function storeFaceSample(
   confidence:     number
 ): Promise<boolean> {
   try {
-    // Allow confidence === 1.0 (explicit registration capture) to bypass gate
-    if (confidence < MIN_CONFIDENCE_FOR_TRAINING && confidence !== 1.0) {
+    // 1. Strict confidence gate (0.88+) for progressive training
+    if (confidence < 0.88 && confidence !== 1.0) {
       console.log(
-        `Skipping training sample — confidence ${confidence.toFixed(2)} < ${MIN_CONFIDENCE_FOR_TRAINING}`
+        `Skipping training sample — confidence ${confidence.toFixed(2)} < 0.88`
       );
       return false;
+    }
+
+    // 2. Anti-Contamination Gate: Verify distance against the user's existing enrolled descriptors
+    const { data: existingSamples } = await supabase
+      .from('face_descriptors')
+      .select('descriptor')
+      .eq('user_id', userId)
+      .limit(5);
+
+    if (existingSamples && existingSamples.length > 0) {
+      let minDistanceToBaseline = Infinity;
+      for (const sample of existingSamples) {
+        if (!sample.descriptor) continue;
+        const enrolledVec = stringToDescriptor(sample.descriptor);
+        if (enrolledVec.length === faceDescriptor.length) {
+          let sum = 0;
+          for (let i = 0; i < enrolledVec.length; i++) {
+            const diff = enrolledVec[i] - faceDescriptor[i];
+            sum += diff * diff;
+          }
+          const dist = Math.sqrt(sum);
+          if (dist < minDistanceToBaseline) minDistanceToBaseline = dist;
+        }
+      }
+
+      // If the new capture is further than 0.35 from verified baseline, reject to prevent gallery contamination!
+      if (minDistanceToBaseline > 0.35 && confidence !== 1.0) {
+        console.warn(
+          `Rejecting training sample: distance ${minDistanceToBaseline.toFixed(3)} > 0.35 from baseline`
+        );
+        return false;
+      }
     }
 
     // Enforce per-user sample cap (FIFO eviction of oldest)

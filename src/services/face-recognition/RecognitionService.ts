@@ -95,19 +95,19 @@ interface DeviceInfo {
  * For a school with 300–1000 students we use a stricter value so that
  * no two students are ever confused:
  */
-const MATCH_THRESHOLD = 0.45;
+const MATCH_THRESHOLD = 0.41;
 
 /**
  * If best and second-best distances are within this ratio the match is
  * ambiguous and will be rejected.
  * ratio = bestDist / secondBestDist; reject when ratio > AMBIGUITY_RATIO
  */
-const AMBIGUITY_RATIO = 0.82;
+const AMBIGUITY_RATIO = 0.80;
 
 /**
  * Auto-mark without manual confirmation only when confidence is this high.
  */
-const AUTO_MARK_CONFIDENCE = 0.62;
+const AUTO_MARK_CONFIDENCE = 0.70;
 
 // ─── caches ───────────────────────────────────────────────────────────────────
 

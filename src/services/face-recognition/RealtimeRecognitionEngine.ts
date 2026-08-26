@@ -134,22 +134,19 @@ function distanceToConfidence(distance: number, threshold: number): number {
  */
 export async function matchDescriptorIndexed(
   descriptor: Float32Array,
-  matchThreshold = 0.45,
-  shortlist = 16,
+  matchThreshold = 0.41,
+  shortlist = 64,
 ): Promise<{ userId: string; name: string; distance: number; confidence: number } | null> {
   await ensureGalleryIndex();
   if (gallery.size === 0) return null;
 
-  const hits = searchVectorIndex(descriptor, shortlist);
-  const candidateIds = hits.length > 0 ? hits.map(h => h.ownerId) : Array.from(gallery.keys());
-
-  // Exact re-scoring over the shortlist — accuracy identical to a full scan
+  // Exact re-scoring over all registered students to guarantee no ambiguity blind spots
   const ranked: Array<{ userId: string; name: string; distance: number }> = [];
-  for (const userId of candidateIds) {
-    const entry = gallery.get(userId);
+  for (const [userId, entry] of gallery.entries()) {
     if (!entry) continue;
     let best = euclidean(descriptor, entry.averagedDescriptor);
     for (const d of entry.descriptors) {
+      if (d.length !== descriptor.length) continue;
       const dist = euclidean(descriptor, d);
       if (dist < best) best = dist;
     }
@@ -161,9 +158,16 @@ export async function matchDescriptorIndexed(
   const best = ranked[0];
   if (!best || best.distance > matchThreshold) return null;
 
-  // Ambiguity guard between different people (preserves existing accuracy rules)
-  const second = ranked.find(r => r.name.trim().toLowerCase() !== best.name.trim().toLowerCase());
-  if (second && best.distance / second.distance > 0.85) return null;
+  // Strict Ambiguity Guard:
+  // If the best match distance is within 80% of the second best match (different student),
+  // reject to prevent lookalikes from misidentifying!
+  const second = ranked.find(
+    r => r.userId !== best.userId && r.name.trim().toLowerCase() !== best.name.trim().toLowerCase()
+  );
+  if (second && (best.distance / second.distance) > 0.80) {
+    console.log(`Rejecting ambiguous real-time match: best=${best.name} (${best.distance.toFixed(3)}) vs second=${second.name} (${second.distance.toFixed(3)})`);
+    return null;
+  }
 
   return {
     userId: best.userId,

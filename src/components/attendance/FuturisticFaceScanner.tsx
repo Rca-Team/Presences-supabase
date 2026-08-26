@@ -200,10 +200,10 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         console.warn('Auto notification follow-up failed:', err);
       }
 
-      // 3 — high-quality face sample for progressive training
+      // 3 — high-quality face sample for progressive training (strict 0.88+ confidence gate)
       try {
         const isHighQuality =
-          job.confidence >= 0.8 && !!job.crop && job.crop.blurScore >= AUTO_SAMPLE_MIN_SHARPNESS;
+          job.confidence >= 0.88 && !!job.crop && job.crop.blurScore >= AUTO_SAMPLE_MIN_SHARPNESS;
         if (job.descriptor && isHighQuality && job.crop) {
           const blob = await (await fetch(job.crop.dataUrl)).blob();
           const stored = await storeFaceSample(job.userId, job.descriptor, blob, job.name, job.confidence);
