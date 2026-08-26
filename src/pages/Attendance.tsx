@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { useToast } from '@/components/ui/use-toast';
 import { useSearchParams } from 'react-router-dom';
 import PageLayout from '@/components/layouts/PageLayout';
 import PageTransition from '@/components/PageTransition';
@@ -8,160 +7,125 @@ import AttendanceInstructions from '@/components/attendance/AttendanceInstructio
 import AttendanceStats from '@/components/attendance/AttendanceStats';
 import FuturisticFaceScanner from '@/components/attendance/FuturisticFaceScanner';
 import QRCodeScanner from '@/components/attendance/QRCodeScanner';
-import LoopFaceScanMode from '@/components/attendance/LoopFaceScanMode';
-import NeuralConsole from '@/components/attendance/NeuralConsole';
 import LiveAttendanceFeed from '@/components/attendance/LiveAttendanceFeed';
-import QuickStatsPanel from '@/components/attendance/QuickStatsPanel';
 import VoiceCommands from '@/components/attendance/VoiceCommands';
-import AttendanceMethodToggle from '@/components/attendance/AttendanceMethodToggle';
-import { BarChart3, Info, Scan, Sparkles, Zap, Activity, QrCode, Feather } from 'lucide-react';
+import {
+  BarChart3,
+  Info,
+  Scan,
+  Sparkles,
+  Zap,
+  Activity,
+  QrCode,
+  Users,
+  CheckCircle2,
+  Clock,
+  Percent,
+  Feather,
+  ShieldCheck,
+  Radio,
+} from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
+import { useToast } from '@/hooks/use-toast';
 import LiteAttendanceMode from '@/components/attendance/LiteAttendanceMode';
-import { useTheme } from '@/hooks/use-theme';
+import { fetchUnifiedAttendanceStats, type UnifiedAttendanceStats } from '@/utils/attendanceStatsHelper';
+import { supabase } from '@/integrations/supabase/client';
 
-/** Lumina NeuralConsole is a dark-mode experience; light mode keeps the classic layout. */
-const ScanShell: React.FC<React.ComponentProps<typeof NeuralConsole>> = ({ children, ...props }) => {
-  const { theme } = useTheme();
-  if (theme === 'dark') return <NeuralConsole {...props}>{children}</NeuralConsole>;
-
-  return (
-    <div className="space-y-4 lg:grid lg:grid-cols-3 lg:gap-5 lg:space-y-0">
-      <div className="lg:col-span-2 bg-card/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-border/50 shadow-lg overflow-hidden">
-        <div
-          className="p-3 sm:p-4 flex items-center gap-3"
-          style={{ background: 'linear-gradient(135deg, hsl(var(--ios-blue)), hsl(var(--neon-violet)))' }}
-        >
-          <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            <Scan className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-white text-sm sm:text-base truncate">{props.title}</h3>
-            <p className="text-xs text-white/70 truncate">{props.subtitle}</p>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-white">Live</span>
-          </div>
-        </div>
-        <div className="p-2 sm:p-4">{children}</div>
-        <div className="border-t border-border/50 px-3 py-2 sm:px-4">
-          <span className="text-[11px] text-muted-foreground">
-            Status: <span className="font-semibold text-primary">{props.statusText}</span>
-          </span>
-        </div>
-      </div>
-      <div className="rounded-2xl sm:rounded-3xl border border-border/50 bg-card/80 backdrop-blur-xl shadow-lg overflow-hidden">
-        <div
-          className="p-2.5 sm:p-3 flex items-center gap-2"
-          style={{ background: 'linear-gradient(135deg, hsl(var(--ios-green)), hsl(var(--emerald)))' }}
-        >
-          <Activity className="w-4 h-4 text-white" />
-          <span className="text-sm font-semibold text-white">Live Feed</span>
-        </div>
-        <div className="p-2.5 sm:p-3 max-h-[420px] overflow-auto">
-          <LiveAttendanceFeed />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-const AttendanceLoadingSkeleton = ({ isMobile }: { isMobile: boolean }) => (
-  <div className="space-y-4 sm:space-y-6 animate-fade-in">
-    <div className="premium-skeleton h-8 w-52 sm:w-72 mx-auto" />
-    <div className="premium-skeleton h-10 w-full rounded-2xl" />
-    <div className="premium-skeleton h-20 w-full rounded-2xl" />
-    <div className="grid gap-4 lg:grid-cols-3">
-      <div className="lg:col-span-2 premium-skeleton rounded-3xl h-[360px] sm:h-[420px]" />
-      <div className="premium-skeleton rounded-3xl h-[260px] sm:h-[420px]" />
-    </div>
-    {isMobile && <div className="premium-skeleton h-16 rounded-2xl" />}
-  </div>
-);
-
-const Attendance = () => {
+const Attendance: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState('single');
-  const [tabDir, setTabDir] = useState(1);
-  const [attendanceMethod, setAttendanceMethod] = useState<'face' | 'qr' | 'loop'>('face');
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const prefersReducedMotion = useReducedMotion();
   const { liteMode, preference, setPreference, signals } = usePerformanceMode();
   const minimizeMotion = isMobile || prefersReducedMotion || liteMode;
 
+  const [activeTab, setActiveTab] = useState<'kiosk' | 'qr' | 'analytics' | 'help'>('kiosk');
+  const [tabDirection, setTabDirection] = useState(1);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Live Synchronized Stats
+  const [stats, setStats] = useState<UnifiedAttendanceStats>({
+    totalRegistered: 0,
+    presentToday: 0,
+    lateToday: 0,
+    absentToday: 0,
+    attendanceRate: 0,
+  });
+
+  const refreshStats = async () => {
+    try {
+      const data = await fetchUnifiedAttendanceStats();
+      setStats(data);
+    } catch (e) {
+      console.warn('Stats refresh error:', e);
+    }
+  };
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsInitialLoading(false), 520);
-    return () => window.clearTimeout(timer);
+    refreshStats();
+    const timer = window.setTimeout(() => setIsInitialLoading(false), 300);
+
+    // Supabase Realtime channel for live attendance stats sync
+    const channel = supabase
+      .channel('attendance-page-live-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
+        refreshStats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, () => {
+        refreshStats();
+      })
+      .subscribe();
+
+    return () => {
+      window.clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const isQRKioskMode = searchParams.get('mode') === 'qr' && searchParams.get('autostart') === '1';
 
   useEffect(() => {
-    if (!isQRKioskMode) return;
-    setActiveTab('single');
-    setAttendanceMethod('qr');
+    if (isQRKioskMode) {
+      setActiveTab('qr');
+    }
   }, [isQRKioskMode]);
 
-  const tabConfig = [
-    { value: 'single', label: 'AI Scanner', shortLabel: 'Scan', icon: Scan },
-    { value: 'stats', label: 'Analytics', shortLabel: 'Stats', icon: BarChart3 },
-    { value: 'help', label: 'Help', shortLabel: 'Help', icon: Info },
+  const tabs = [
+    { id: 'kiosk', label: 'Face ID Station (Hands-Free)', shortLabel: 'Face ID', icon: Scan },
+    { id: 'qr', label: 'QR Code Scanner', shortLabel: 'QR Scan', icon: QrCode },
+    { id: 'analytics', label: 'Analytics & Insights', shortLabel: 'Stats', icon: BarChart3 },
+    { id: 'help', label: 'Instructions', shortLabel: 'Help', icon: Info },
   ];
 
-  const switchTab = (next: string) => {
-    const order = ['single', 'stats', 'help'];
-    setTabDir(order.indexOf(next) >= order.indexOf(activeTab) ? 1 : -1);
-    setActiveTab(next);
+  const handleTabChange = (nextTab: 'kiosk' | 'qr' | 'analytics' | 'help') => {
+    const order = ['kiosk', 'qr', 'analytics', 'help'];
+    setTabDirection(order.indexOf(nextTab) >= order.indexOf(activeTab) ? 1 : -1);
+    setActiveTab(nextTab);
   };
 
-  const slide = {
-    initial: { opacity: 0, x: tabDir * 42 },
+  const slideAnimation = {
+    initial: { opacity: 0, x: tabDirection * 24 },
     animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: tabDir * -42 },
-    transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] as const },
+    exit: { opacity: 0, x: tabDirection * -24 },
+    transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const },
   };
-
-  const handleVoiceCommand = (command: string) => {
-    const tabMap: Record<string, string> = {
-      'scan': 'single', 'stats': 'stats', 'help': 'help'
-    };
-    if (tabMap[command]) switchTab(tabMap[command]);
-  };
-
-  const ModeToggle = () => (
-    <div className="flex items-center justify-center">
-      <div className="inline-flex rounded-xl border border-border overflow-hidden text-xs">
-        <button
-          onClick={() => setPreference('off')}
-          className={`px-3 py-1.5 font-medium ${!liteMode ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'}`}
-        >
-          Original mode
-        </button>
-        <button
-          onClick={() => setPreference('on')}
-          className={`px-3 py-1.5 font-medium inline-flex items-center gap-1 ${liteMode ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'}`}
-        >
-          <Feather className="w-3 h-3" /> Lite mode
-        </button>
-      </div>
-    </div>
-  );
 
   if (liteMode) {
     return (
       <PageTransition>
-        <PageLayout className="min-h-[100dvh] bg-background">
-          <div className="relative px-3 sm:px-4 py-4 max-w-3xl mx-auto space-y-3">
+        <PageLayout className="min-h-screen bg-background">
+          <div className="px-3 sm:px-4 py-4 max-w-4xl mx-auto space-y-4">
             <div className="text-center">
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Attendance</h1>
-              <p className="text-xs text-muted-foreground">Simple mode · optimized for this device</p>
+              <h1 className="text-xl font-bold text-foreground">Smart Attendance (Lite)</h1>
+              <p className="text-xs text-muted-foreground">High efficiency mode for low-latency devices</p>
+              <button
+                onClick={() => setPreference('off')}
+                className="mt-2 text-xs text-primary underline underline-offset-2"
+              >
+                Switch to Full Experience
+              </button>
             </div>
-            <ModeToggle />
             <LiteAttendanceMode />
           </div>
         </PageLayout>
@@ -169,297 +133,225 @@ const Attendance = () => {
     );
   }
 
-
   return (
     <PageTransition>
-      <PageLayout className="min-h-[100dvh] bg-background">
-
-        {/* Soft animated background */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          {minimizeMotion ? (
-            <>
-              <div
-                className="absolute -top-20 -right-20 w-60 sm:w-[28rem] h-60 sm:h-[28rem] rounded-full blur-[100px]"
-                style={{ background: 'hsl(var(--ios-blue) / 0.16)' }}
-              />
-              <div
-                className="absolute -bottom-20 -left-20 w-60 sm:w-[28rem] h-60 sm:h-[28rem] rounded-full blur-[100px]"
-                style={{ background: 'hsl(var(--ios-purple) / 0.14)' }}
-              />
-            </>
-          ) : (
-            <>
-              <motion.div
-                animate={{ scale: [1, 1.3, 1], opacity: [0.12, 0.25, 0.12] }}
-                transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute -top-20 -right-20 w-60 sm:w-[28rem] h-60 sm:h-[28rem] rounded-full blur-[100px]"
-                style={{ background: 'hsl(var(--ios-blue) / 0.2)' }}
-              />
-              <motion.div
-                animate={{ scale: [1.2, 1, 1.2], opacity: [0.1, 0.2, 0.1] }}
-                transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-                className="absolute -bottom-20 -left-20 w-60 sm:w-[28rem] h-60 sm:h-[28rem] rounded-full blur-[100px]"
-                style={{ background: 'hsl(var(--ios-purple) / 0.15)' }}
-              />
-            </>
-          )}
+      <PageLayout className="min-h-screen bg-background pb-12">
+        {/* Ambient background glow */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div
+            className="absolute -top-32 -right-32 w-96 h-96 rounded-full blur-[120px] opacity-20"
+            style={{ background: 'hsl(var(--ios-blue))' }}
+          />
+          <div
+            className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full blur-[120px] opacity-15"
+            style={{ background: 'hsl(var(--ios-purple))' }}
+          />
         </div>
 
-        <div className="relative px-4 sm:px-4 md:px-6 py-4 sm:py-8 max-w-7xl mx-auto">
-          {/* Header - Compact on mobile */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-3 sm:mb-6"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 }}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-2 sm:mb-4"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: 'hsl(var(--ios-green))' }} />
-                <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: 'hsl(var(--ios-green))' }} />
-              </span>
-              <span className="text-xs font-medium text-primary">Recognition Active</span>
-            </motion.div>
-
-            <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-1 sm:mb-3 text-foreground">
-              Smart Attendance
-            </h1>
-            <p className="text-muted-foreground text-xs sm:text-base max-w-lg mx-auto">
-              AI-powered face recognition & QR code attendance
-            </p>
-
-            <div className="mt-3">
-              <ModeToggle />
-            </div>
-
-            {(signals.slowNetwork || signals.lowMemory || signals.saveData) && preference !== 'off' && (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs">
-                <Feather className="w-3.5 h-3.5 text-amber-600" />
-                <span className="text-amber-700 dark:text-amber-400 font-medium">Slow device / network detected</span>
-                <button
-                  onClick={() => setPreference('on')}
-                  className="ml-1 font-semibold text-primary underline underline-offset-2"
-                >
-                  Switch to Lite
-                </button>
+        <div className="relative max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-5">
+          {/* Header Banner */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card/60 border border-border/60 backdrop-blur-xl shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
+                <Scan className="h-6 w-6" />
               </div>
-            )}
-
-
-
-            {/* Feature pills */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex flex-wrap justify-center gap-1.5 sm:gap-3 mt-2 sm:mt-5"
-            >
-              {[
-                { icon: Zap, text: '<1-2s', color: '--ios-orange' },
-                { icon: Sparkles, text: '99.8%', color: '--ios-blue' },
-                { icon: Activity, text: 'Live', color: '--ios-green' },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm"
-                >
-                  <item.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" style={{ color: `hsl(var(${item.color}))` }} />
-                  <span className="text-[10px] sm:text-xs font-semibold" style={{ color: `hsl(var(${item.color}))` }}>{item.text}</span>
-                </div>
-              ))}
-            </motion.div>
-          </motion.div>
-
-          {/* Tab Bar - MOVED ABOVE Quick Stats for mobile accessibility */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="mb-3 sm:mb-5"
-          >
-            <div className="flex gap-1 p-1 bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl shadow-sm">
-              {tabConfig.map((tab) => {
-                const isActive = activeTab === tab.value;
-                return (
-                  <button
-                    key={tab.value}
-                    onClick={() => switchTab(tab.value)}
-                    className={`relative flex items-center justify-center gap-1.5 flex-1 px-2 py-3 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 active:scale-95 ${
-                      isActive
-                        ? 'text-primary-foreground shadow-md'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeAttendanceTab"
-                        className="absolute inset-0 bg-primary rounded-xl"
-                        transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-                      />
-                    )}
-                    <span className="relative flex items-center gap-1.5">
-                      <tab.icon className="w-4 h-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                      <span className="sm:hidden">{tab.shortLabel}</span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                    Smart Attendance Terminal
+                  </h1>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
                     </span>
-                  </button>
-                );
-              })}
+                    Live Hands-Free Engine
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  PM Shri Kendriya Vidyalaya NFC Vigyan Vihar ✕ Presence AI
+                </p>
+              </div>
             </div>
-          </motion.div>
 
-          {/* Quick Stats - now below tab bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mb-4 sm:mb-6"
-          >
-            <QuickStatsPanel />
-          </motion.div>
+            {/* Micro Feature Indicators */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-muted/60 border border-border/50">
+                <Zap className="h-3.5 w-3.5 text-amber-500" /> &lt;1s Recognition
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-muted/60 border border-border/50">
+                <Sparkles className="h-3.5 w-3.5 text-blue-500" /> 99.8% Accuracy
+              </span>
+            </div>
+          </div>
 
-          {/* Tab Content */}
-          {isInitialLoading ? (
-            <AttendanceLoadingSkeleton isMobile={isMobile} />
-          ) : (
+          {/* Real-time Synchronized Stats Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card className="bg-card/70 border-border/60 backdrop-blur-lg shadow-sm">
+              <div className="p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">Total Registered</p>
+                  <p className="text-2xl font-bold text-foreground mt-0.5">{stats.totalRegistered}</p>
+                </div>
+                <div className="h-9 w-9 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center">
+                  <Users className="h-4 w-4" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="bg-emerald-500/5 border-emerald-500/20 shadow-sm">
+              <div className="p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Present Today</p>
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{stats.presentToday}</p>
+                </div>
+                <div className="h-9 w-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                  <CheckCircle2 className="h-4 w-4" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="bg-amber-500/5 border-amber-500/20 shadow-sm">
+              <div className="p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Late Arrivals</p>
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{stats.lateToday}</p>
+                </div>
+                <div className="h-9 w-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Clock className="h-4 w-4" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="bg-blue-500/5 border-blue-500/20 shadow-sm">
+              <div className="p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Attendance Rate</p>
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{stats.attendanceRate}%</p>
+                </div>
+                <div className="h-9 w-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                  <Percent className="h-4 w-4" />
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Navigation Tab Bar */}
+          <div className="flex p-1 bg-card/70 backdrop-blur-xl border border-border/60 rounded-2xl shadow-sm overflow-x-auto">
+            {tabs.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id as any)}
+                  className={`relative flex items-center justify-center gap-2 flex-1 min-w-[100px] px-3 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 ${
+                    isActive ? 'text-white font-semibold shadow-md' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeAttendancePill"
+                      className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl"
+                      transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+                    />
+                  )}
+                  <span className="relative flex items-center gap-1.5 truncate">
+                    <tab.icon className="h-4 w-4 shrink-0" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span className="sm:hidden">{tab.shortLabel}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tab Views */}
           <AnimatePresence mode="wait">
-            {activeTab === 'single' && (
-              <motion.div
-                key="single"
-                {...slide}
-                className="space-y-4"
-              >
-                {/* Method toggle */}
-                <div className="rounded-2xl sm:rounded-3xl border border-primary/10 bg-card/55 p-3 backdrop-blur-xl shadow-[0_24px_70px_-30px_hsl(230_50%_3%/0.8)]">
-                  <AttendanceMethodToggle method={attendanceMethod} onChange={setAttendanceMethod} />
+            {activeTab === 'kiosk' && (
+              <motion.div key="kiosk" {...slideAnimation} className="space-y-4">
+                {/* 2-Column Responsive High-Performance Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                  {/* Left Column: Hands-Free AI Face Scanner (2/3 width) */}
+                  <div className="lg:col-span-2 rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-3 sm:p-5 shadow-xl">
+                    <FuturisticFaceScanner />
+                  </div>
+
+                  {/* Right Column: Real-time Live Attendance Feed (1/3 width) */}
+                  <div className="rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-4 shadow-xl space-y-3 sticky top-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-emerald-500" />
+                        <h3 className="font-bold text-sm text-foreground">Live Check-in Feed</h3>
+                      </div>
+                      <span className="text-[11px] font-mono text-muted-foreground">Realtime Sync</span>
+                    </div>
+                    <div className="max-h-[500px] overflow-y-auto pr-1">
+                      <LiveAttendanceFeed />
+                    </div>
+                  </div>
                 </div>
 
-                <AnimatePresence mode="wait">
-                  {attendanceMethod === 'face' ? (
-                    <motion.div key="face" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}>
-                      <ScanShell
-                        title="Recognition"
-                        subtitle="Live neural inference"
-                        cameraLabel="CAM-01 · FACE STATION"
-                        statusText="Analyzing…"
-                        badge="REC · FACE ID"
-                      >
-                        <FuturisticFaceScanner />
-                      </ScanShell>
-                    </motion.div>
-                  ) : attendanceMethod === 'loop' ? (
-                    <motion.div key="loop" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}>
-                      <ScanShell
-                        title="Loop inference"
-                        subtitle="Batch capture · deferred matching"
-                        cameraLabel="CAM-02 · LOOP STATION"
-                        statusText="Capturing best shots"
-                        badge="REC · LOOP"
-                      >
-                        <LoopFaceScanMode />
-                      </ScanShell>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="qr"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                      className="space-y-4 lg:grid lg:grid-cols-3 lg:gap-5 lg:space-y-0"
-                    >
-                      <div className="lg:col-span-2 rounded-2xl sm:rounded-3xl border border-primary/10 bg-card/55 p-2 backdrop-blur-xl sm:p-4">
-                        <QRCodeScanner autoStart={isQRKioskMode} hideManualControls={isQRKioskMode} />
-                      </div>
-                      <div className="rounded-2xl sm:rounded-3xl border border-primary/10 bg-card/55 p-3 backdrop-blur-xl">
-                        <div className="mb-2 flex items-center gap-2">
-                          <Activity className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-semibold text-foreground">Live feed</span>
-                        </div>
-                        <div className="max-h-[420px] overflow-auto">
-                          <LiveAttendanceFeed />
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Voice Commands */}
+                {/* Voice Commands Helper */}
                 <div className="hidden sm:block">
                   <VoiceCommands
-                    onCommand={handleVoiceCommand}
-                    onStartScan={() => toast({ title: 'Starting Scan', description: 'Voice command activated face scanning' })}
-                    onStopScan={() => toast({ title: 'Scan Stopped', description: 'Voice command stopped the scanner' })}
-                    onConfirmAttendance={() => toast({ title: 'Attendance Confirmed', description: 'Voice command confirmed attendance' })}
+                    onCommand={cmd => {
+                      if (cmd === 'stats') setActiveTab('analytics');
+                      if (cmd === 'help') setActiveTab('help');
+                    }}
+                    onStartScan={() => toast({ title: 'Voice Activated', description: 'Autonomous Face Recognition Active' })}
+                    onStopScan={() => toast({ title: 'Standby', description: 'Scanner on Standby' })}
+                    onConfirmAttendance={() => toast({ title: 'Confirmed', description: 'Attendance Recorded' })}
                   />
                 </div>
               </motion.div>
             )}
 
-
-            {activeTab === 'stats' && (
-              <motion.div key="stats" {...slide}
-                className="space-y-4 lg:grid lg:grid-cols-3 lg:gap-5 lg:space-y-0"
-              >
-                <div className="lg:col-span-2">
-                  <div className="bg-card/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-border/50 shadow-lg overflow-hidden">
-                    <div className="p-3 sm:p-4 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, hsl(var(--ios-green)), hsl(var(--emerald)))' }}>
-                      <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                        <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-white text-sm sm:text-base">Analytics Dashboard</h3>
-                        <p className="text-xs text-white/70">Insights and metrics</p>
-                      </div>
+            {activeTab === 'qr' && (
+              <motion.div key="qr" {...slideAnimation} className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                  <div className="lg:col-span-2 rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-4 sm:p-6 shadow-xl">
+                    <QRCodeScanner autoStart={true} hideManualControls={isQRKioskMode} />
+                  </div>
+                  <div className="rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-4 shadow-xl space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+                      <Activity className="h-4 w-4 text-emerald-500" />
+                      <h3 className="font-bold text-sm text-foreground">Live Feed</h3>
                     </div>
-                    <div className="p-3 sm:p-5">
-                      <AttendanceStats />
+                    <div className="max-h-[480px] overflow-y-auto">
+                      <LiveAttendanceFeed />
                     </div>
                   </div>
                 </div>
-                <div>
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-card/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-border/50 shadow-lg overflow-hidden h-72 sm:h-80"
-                  >
-                    <div className="p-2.5 sm:p-3 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, hsl(var(--ios-green)), hsl(var(--emerald)))' }}>
-                      <Activity className="w-4 h-4 text-white" />
-                      <span className="text-sm font-semibold text-white">Live Feed</span>
+              </motion.div>
+            )}
+
+            {activeTab === 'analytics' && (
+              <motion.div key="analytics" {...slideAnimation} className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                  <div className="lg:col-span-2 rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-4 sm:p-6 shadow-xl">
+                    <AttendanceStats />
+                  </div>
+                  <div className="rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-4 shadow-xl space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+                      <Activity className="h-4 w-4 text-emerald-500" />
+                      <h3 className="font-bold text-sm text-foreground">Live Check-ins</h3>
                     </div>
-                    <div className="p-2.5 sm:p-3 h-[calc(100%-40px)] sm:h-[calc(100%-44px)]">
+                    <div className="max-h-[480px] overflow-y-auto">
                       <LiveAttendanceFeed />
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
               </motion.div>
             )}
 
             {activeTab === 'help' && (
-              <motion.div key="help" {...slide}>
-                <div className="bg-card/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-border/50 shadow-lg overflow-hidden">
-                  <div className="p-3 sm:p-4 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, hsl(var(--ios-orange)), hsl(var(--ios-red)))' }}>
-                    <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                      <Info className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white text-sm sm:text-base">Help & Instructions</h3>
-                      <p className="text-xs text-white/70">How to use the system</p>
-                    </div>
-                  </div>
-                  <div className="p-3 sm:p-5">
-                    <AttendanceInstructions />
-                  </div>
+              <motion.div key="help" {...slideAnimation} className="max-w-3xl mx-auto">
+                <div className="rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-5 sm:p-7 shadow-xl">
+                  <AttendanceInstructions />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
-          )}
         </div>
       </PageLayout>
     </PageTransition>
