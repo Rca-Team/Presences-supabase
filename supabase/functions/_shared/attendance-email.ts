@@ -139,7 +139,7 @@ function snapshotBlock(snapshotUrl?: string | null, time?: string, date?: string
 export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: string; html: string } {
   const status = (['present', 'late', 'absent'].includes(String(input.status)) ? input.status : 'notification') as AttendanceStatus;
   const t = THEME[status];
-  const school = input.schoolName || 'Presence AI · School Attendance';
+  const school = input.schoolName || 'PM Shri Kendriya Vidyalaya NFC Vigyan Vihar';
   const name = input.studentName || 'Student';
   const parent = input.parentName || 'Parent/Guardian';
   const now = new Date();
@@ -149,7 +149,7 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
 
   const subject = input.subjectOverride
     || (status === 'notification'
-      ? `School Notice · ${name}`
+      ? `School Notice · ${name} · PM Shri KV NFC Vigyan Vihar`
       : `${t.emoji} ${t.label} · ${name} · ${date}`);
 
   const rows: Array<[string, string]> = [
@@ -178,20 +178,40 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
     ? `<p style="margin:0;font:400 15px/1.7 Arial,sans-serif;color:#374151;">${esc(input.bodyOverride).replace(/\n/g, '<br />')}</p>`
     : `<p style="margin:0;font:400 15px/1.7 Arial,sans-serif;color:#374151;">${t.line(esc(name), time, date)}</p>`;
 
+  const kvsLogoUrl = 'https://cvdcbcsonlianbfeessy.supabase.co/storage/v1/object/public/face-images/kvs-emblem.png';
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:#f1f5f9;">
-  <div style="display:none;max-height:0;overflow:hidden;">${esc(name)} · ${esc(t.label)} · ${esc(date)}</div>
+  <div style="display:none;max-height:0;overflow:hidden;">${esc(name)} · ${esc(t.label)} · ${esc(date)} · PM Shri KV NFC Vigyan Vihar</div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;padding:24px 12px;">
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.08);">
+        <!-- COLLABORATION HEADER: PM SHRI KV NFC VIGYAN VIHAR ✕ PRESENCE AI -->
         <tr>
-          <td style="background:${t.accent};padding:20px 24px;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-              <td style="font:700 17px Arial,sans-serif;color:#ffffff;">${esc(school)}</td>
-              <td align="right" style="font:700 12px Arial,sans-serif;color:#ffffff;opacity:.9;">${esc(date)}</td>
-            </tr></table>
+          <td style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);padding:18px 24px;border-bottom:3px solid ${t.accent};">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="52" valign="middle" style="width:52px;padding-right:14px;">
+                  <img src="${kvsLogoUrl}" width="52" height="52" alt="KVS Emblem Logo" style="width:52px;height:52px;border-radius:26px;display:block;border:2px solid #ffffff;background:#ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.25);" />
+                </td>
+                <td valign="middle">
+                  <div style="font:700 15px/1.3 Arial,sans-serif;color:#ffffff;letter-spacing:0.3px;">
+                    PM SHRI KENDRIYA VIDYALAYA
+                  </div>
+                  <div style="font:600 12px/1.3 Arial,sans-serif;color:#cbd5e1;margin-top:2px;">
+                    NFC VIGYAN VIHAR SHIFT-1
+                  </div>
+                  <div style="font:500 11px/1.3 Arial,sans-serif;color:#94a3b8;margin-top:4px;">
+                    In Collaboration with <strong style="color:#38bdf8;font-weight:700;">Presence AI</strong> · Smart School Attendance
+                  </div>
+                </td>
+                <td align="right" valign="middle" style="white-space:nowrap;font:600 12px Arial,sans-serif;color:#cbd5e1;">
+                  ${esc(date)}
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
         <tr>
@@ -212,9 +232,17 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
           </td>
         </tr>
         ${snapshotBlock(input.snapshotUrl, time, date)}
+        <!-- FOOTER BRANDING -->
         <tr>
-          <td style="padding:16px 24px 24px;border-top:1px solid #f1f5f9;">
-            <p style="margin:0;font:400 12px/1.6 Arial,sans-serif;color:#9ca3af;">This is an automated attendance alert from ${esc(school)}. Please do not reply to this email.</p>
+          <td style="padding:18px 24px 24px;border-top:1px solid #f1f5f9;background:#fafafa;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font:400 12px/1.6 Arial,sans-serif;color:#64748b;">
+                  Official Automated Attendance Notification<br />
+                  <strong>PM Shri Kendriya Vidyalaya NFC Vigyan Vihar</strong> &bull; Powered by <strong>Presence AI Engine</strong>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
       </table>
