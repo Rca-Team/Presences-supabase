@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Search,
   User,
+  Users,
   Scissors,
   RefreshCw,
   ImageIcon,
