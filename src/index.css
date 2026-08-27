@@ -219,7 +219,11 @@
     scroll-behavior: auto !important;
   }
 
-  .lenis.lenis-smooth [data-lenis-prevent] {
+  .lenis.lenis-smooth [data-lenis-prevent],
+  .lenis.lenis-smooth .overflow-y-auto,
+  .lenis.lenis-smooth .overflow-x-auto,
+  .lenis.lenis-smooth .overflow-auto,
+  .lenis.lenis-smooth [data-radix-scroll-area-viewport] {
     overscroll-behavior: contain;
   }
 

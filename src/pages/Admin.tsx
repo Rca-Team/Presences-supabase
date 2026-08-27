@@ -87,7 +87,7 @@ const AdminContentSkeleton = () => (
 // Plain wrapper — the single AnimatePresence in the content area owns the
 // transition, so panels must not animate a second time (double animation = jank).
 const TabPanel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div className={cn("space-y-4", className)}>{children}</div>
+  <div data-lenis-prevent="true" className={cn("space-y-4 min-w-0 overscroll-contain pb-6", className)}>{children}</div>
 );
 
 interface SectionErrorBoundaryProps {
