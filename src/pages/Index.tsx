@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
 import LiteHome from '@/components/lite/LiteHome';
 import gauravPhoto from '@/assets/gaurav-photo.png';
@@ -8,7 +8,6 @@ import teamRcaPhoto from '@/assets/team-rca.jpg.asset.json';
 import { usePortfolioData } from '@/hooks/usePortfolioData';
 import { PublicPortfolioView } from '@/pages/Portfolio';
 import { MemberAvatar } from '@/components/portfolio/MemberAvatar';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -49,9 +48,11 @@ import {
   Globe,
   FileText,
   Building2,
+  CheckCircle2,
+  ShieldCheck,
+  Cpu,
 } from 'lucide-react';
 
-// Professional, restrained card motion: a calm lift instead of a 3D tilt.
 const cardTilt = {
   whileHover: { y: -4 },
   transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
@@ -67,6 +68,8 @@ const Index = () => {
     details?: string;
   }>(null);
 
+  const navigate = useNavigate();
+
   const modules = [
     { icon: Scan, label: 'Attendance', tone: 'bg-primary/20 text-primary', to: '/attendance' },
     { icon: BookOpen, label: 'Timetable', tone: 'bg-accent/30 text-accent-foreground', to: '/admin?tab=timetable' },
@@ -74,7 +77,6 @@ const Index = () => {
     { icon: Bell, label: 'Alerts', tone: 'bg-success/20 text-success', to: '/admin?tab=emergency' },
     { icon: BarChart3, label: 'Analytics', tone: 'bg-primary/20 text-primary', to: '/admin?tab=reports' },
     { icon: Bus, label: 'Transport', tone: 'bg-accent/30 text-accent-foreground', to: '/features' },
-
   ];
 
   const stats = [
@@ -154,7 +156,6 @@ const Index = () => {
   ];
 
   const { data: portfolio } = usePortfolioData();
-  const navigate = useNavigate();
 
   // Fallback (used until portfolio JSON loads, or if a member has no image)
   const fallbackImages: Record<string, string> = {
@@ -176,245 +177,328 @@ const Index = () => {
     [portfolio.members],
   );
 
-
   if (liteMode) return <LiteHome />;
 
   return (
     <PageTransition>
       <PageLayout className="neon-liquid-bg overflow-hidden has-bottom-nav md:pb-0">
+        
+        {/* ========================================================================= */}
+        {/* HERO SECTION — Optimized for Desktop & Mobile Balance                     */}
+        {/* ========================================================================= */}
         <section className="pt-2 pb-10 sm:pb-14">
-          <div className="grid grid-cols-12 gap-6">
+          <div className="grid grid-cols-12 gap-6 items-stretch">
+            
+            {/* Left Hero Main Card */}
             <RoyalReveal
               effect="fade-up"
-              className="liquid-glass-surface liquid-glass-highlight col-span-12 rounded-3xl p-8 md:p-14 lg:col-span-7 border border-white/10 shadow-2xl backdrop-blur-2xl"
+              className="liquid-glass-surface liquid-glass-highlight col-span-12 lg:col-span-7 rounded-3xl p-6 sm:p-10 md:p-12 lg:p-14 border border-white/10 shadow-2xl backdrop-blur-2xl flex flex-col justify-between"
             >
-              {/* Collaboration Badge */}
-              <div className="flex flex-wrap items-center gap-2 mb-6">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-primary backdrop-blur-md">
-                  <Building2 className="h-3.5 w-3.5" />
-                  PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
-                </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              <div>
+                {/* Collaboration & Active Status Badges */}
+                <div className="flex flex-wrap items-center gap-2.5 mb-6">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-primary backdrop-blur-md">
+                    <Building2 className="h-3.5 w-3.5" />
+                    PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </span>
+                    AI Campus Active
                   </span>
-                  AI Campus Active
-                </span>
+                </div>
+
+                {/* Hero Title */}
+                <h1
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.06] text-foreground tracking-tight"
+                  style={{ fontFamily: 'Sora, sans-serif' }}
+                >
+                  Your School,
+                  <br />
+                  <span className="text-gradient-neon">
+                    Fully Automated
+                  </span>
+                </h1>
+
+                <p className="mt-6 max-w-xl text-base sm:text-lg md:text-xl leading-relaxed text-muted-foreground font-medium">
+                  Face-recognition attendance, intelligent timetable substitution, kiosk security, parent portal & AI analytics — all in one unified, intelligent platform.
+                </p>
+
+                {/* Action CTAs */}
+                <div className="mt-8 sm:mt-10 flex flex-wrap gap-4 items-center">
+                  <Link to="/attendance">
+                    <Button className="h-14 rounded-2xl bg-primary px-8 text-base font-bold text-primary-foreground shadow-xl shadow-primary/30 hover:bg-primary/90 btn-spring">
+                      Launch Attendance <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                  <Link to="/parent">
+                    <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-8 text-base font-bold text-foreground hover:bg-card/80 btn-spring">
+                      Parent Portal
+                    </Button>
+                  </Link>
+                  <Link to="/gate">
+                    <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-6 text-base font-bold text-foreground hover:bg-card/80 btn-spring gap-2">
+                      <DoorOpen className="h-5 w-5 text-warning" /> Gate Kiosk
+                    </Button>
+                  </Link>
+                  <ThemeToggle className="h-14 w-14 rounded-2xl border-border/70 bg-card/55 hover:bg-card/80 btn-spring" />
+                </div>
               </div>
 
-              <h1
-                className="mt-2 text-5xl font-extrabold leading-[1.05] text-foreground md:text-7xl"
-                style={{ fontFamily: 'Sora, sans-serif' }}
-              >
-                Your School,
-                <br />
-                <span className="text-gradient-neon">
-                  Fully Automated
-                </span>
-              </h1>
-
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground md:text-xl font-medium">
-                Face-recognition attendance, timetable, gate security, parent portal & AI analytics — all in one unified, intelligent platform.
-              </p>
-
-              <div className="mt-10 flex flex-wrap gap-4">
-                <Link to="/attendance">
-                  <Button className="h-14 rounded-2xl bg-primary px-8 text-base font-bold text-primary-foreground shadow-xl shadow-primary/30 hover:bg-primary/90 btn-spring">
-                    Launch Attendance <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link to="/parent">
-                  <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-8 text-base font-bold text-foreground hover:bg-card/80 btn-spring">
-                    Parent Portal
-                  </Button>
-                </Link>
-                <ThemeToggle className="h-14 w-14 rounded-2xl border-border/70 bg-card/55 hover:bg-card/80 btn-spring" />
+              {/* Desktop Live Speed & Trust Bar */}
+              <div className="mt-10 pt-6 border-t border-white/10 grid grid-cols-3 gap-3">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span className="text-xs font-semibold text-muted-foreground">99.9% Recognition</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Zap className="h-4 w-4 text-amber-400 shrink-0" />
+                  <span className="text-xs font-semibold text-muted-foreground">&lt;120ms Fast Scan</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                  <span className="text-xs font-semibold text-muted-foreground">Offline AI Sync</span>
+                </div>
               </div>
             </RoyalReveal>
 
-            <div className="col-span-12 grid grid-cols-2 gap-6 lg:col-span-5 lg:grid-rows-2">
-              <RoyalReveal
-                effect="fade-up"
-                delay={0.1}
-                className="liquid-glass-surface col-span-2 rounded-3xl p-8 border border-white/10 shadow-2xl backdrop-blur-2xl"
-              >
-                <div className="mb-8 flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase tracking-[0.25em] text-muted-foreground">System Modules</span>
-                  <div className="flex gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-warning/70" />
-                    <div className="h-2 w-2 rounded-full bg-accent/70" />
-                    <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.9)]" />
-                  </div>
-                </div>
-                <RoyalStaggerGroup className="grid grid-cols-3 gap-4" stagger={0.06}>
-                  {modules.map((mod) => (
-                    <RoyalStaggerItem key={mod.label}>
-                      <motion.button
-                        type="button"
-                        onClick={() => navigate(mod.to)}
-                        aria-label={`Open ${mod.label}`}
-                        className="w-full rounded-2xl border border-border/60 bg-card/55 p-4 text-center transition-all hover:border-primary/50 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 card-hover-pop btn-spring"
-                        whileHover={{ y: -3 }}
-                        whileTap={{ scale: 0.97 }}
-                        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                      >
-                        <div className={`mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${mod.tone}`}>
-                          <mod.icon className="h-5 w-5" />
-                        </div>
-                        <p className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">{mod.label}</p>
-                      </motion.button>
-                    </RoyalStaggerItem>
-                  ))}
-                </RoyalStaggerGroup>
-
-                <p className="mt-8 text-center text-xs font-bold tracking-widest text-primary">ALL SYSTEMS OPERATIONAL</p>
-              </RoyalReveal>
-
-              <RoyalReveal effect="fade-up" delay={0.15} className="col-span-2">
+            {/* Right Hero Duo (Neural Orb & Quick Modules) */}
+            <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
+              
+              {/* Neural Orb Panel */}
+              <RoyalReveal effect="fade-up" delay={0.1} className="w-full">
                 <NeuralOrbPanel />
               </RoyalReveal>
 
+              {/* System Modules Quick Launch */}
+              <RoyalReveal
+                effect="fade-up"
+                delay={0.15}
+                className="liquid-glass-surface rounded-3xl p-6 sm:p-7 border border-white/10 shadow-2xl backdrop-blur-2xl flex-1 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="mb-5 flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase tracking-[0.25em] text-muted-foreground flex items-center gap-2">
+                      <Cpu className="h-3.5 w-3.5 text-primary" /> System Modules
+                    </span>
+                    <div className="flex gap-1.5 items-center">
+                      <span className="text-[10px] font-bold text-emerald-400 font-mono">LIVE</span>
+                      <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse" />
+                    </div>
+                  </div>
 
+                  <RoyalStaggerGroup className="grid grid-cols-3 gap-3" stagger={0.05}>
+                    {modules.map((mod) => (
+                      <RoyalStaggerItem key={mod.label}>
+                        <motion.button
+                          type="button"
+                          onClick={() => navigate(mod.to)}
+                          aria-label={`Open ${mod.label}`}
+                          className="w-full rounded-2xl border border-border/60 bg-card/55 p-3.5 text-center transition-all hover:border-primary/50 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 card-hover-pop btn-spring"
+                          whileHover={{ y: -3 }}
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                          <div className={`mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl ${mod.tone}`}>
+                            <mod.icon className="h-4 w-4" />
+                          </div>
+                          <p className="text-[10px] font-bold uppercase tracking-tight text-foreground truncate">{mod.label}</p>
+                        </motion.button>
+                      </RoyalStaggerItem>
+                    ))}
+                  </RoyalStaggerGroup>
+                </div>
+
+                <p className="mt-5 text-center text-[10px] font-black tracking-widest text-primary uppercase">
+                  All Systems Fully Operational
+                </p>
+              </RoyalReveal>
+
+            </div>
+
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* PRESTIGIOUS TEAM RCA & LEADERSHIP SPOTLIGHT (Desktop Balanced Showcase)   */}
+        {/* ========================================================================= */}
+        <section className="pb-14">
+          <RoyalReveal effect="fade-up">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              
+              {/* Left: Team RCA Cinematic Photo Card */}
               <motion.div
-                className="group relative overflow-hidden rounded-3xl p-0"
+                className="lg:col-span-6 group relative overflow-hidden rounded-3xl border border-amber-300/30 bg-card/60 shadow-2xl backdrop-blur-2xl flex flex-col justify-between"
                 {...cardTilt}
               >
-                {/* Cinematic team photo */}
                 <button
                   type="button"
                   onClick={() => creatorMembers[0] && setActiveProfile(creatorMembers[0])}
-                  className="relative block w-full text-left"
+                  className="relative block w-full h-full text-left"
                   aria-label="Open Team RCA portfolio"
                 >
-                  <div className="relative aspect-[4/3] w-full overflow-hidden">
+                  <div className="relative min-h-[300px] h-full w-full overflow-hidden">
                     <img
                       src={teamRcaPhoto.url}
                       alt="Team RCA — Presences AI creators"
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                       loading="lazy"
                     />
-                    {/* Golden glow accents */}
                     <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.28),transparent_55%)]" />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent" />
 
                     {/* Top badge */}
-                    <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-amber-300/40 bg-black/50 px-3 py-1.5 backdrop-blur-md">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">Team RCA</span>
+                    <div className="absolute left-6 top-6 flex items-center gap-2 rounded-full border border-amber-300/40 bg-black/60 px-3.5 py-1.5 backdrop-blur-md">
+                      <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
+                      <span className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Team RCA</span>
                     </div>
 
                     {/* Bottom title lockup */}
-                    <div className="absolute inset-x-0 bottom-0 p-5">
-                      <p className="text-[10px] font-black uppercase tracking-[0.32em] text-amber-200/90">Presences · AI</p>
-                      <p
-                        className="mt-1 bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-2xl font-black leading-none text-transparent"
+                    <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
+                      <p className="text-xs font-black uppercase tracking-[0.32em] text-amber-200/90">Presences · AI Architecture</p>
+                      <h2
+                        className="mt-1.5 bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-3xl md:text-4xl font-black leading-tight text-transparent"
                         style={{ fontFamily: 'Sora, sans-serif' }}
                       >
                         Built by Team RCA
-                      </p>
-                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                      </h2>
+                      <p className="mt-2 text-xs md:text-sm font-semibold uppercase tracking-[0.18em] text-white/80">
                         Together in mind · United in purpose
                       </p>
                     </div>
                   </div>
                 </button>
+              </motion.div>
 
-                {/* Members strip */}
-                <div className="space-y-2 bg-card/60 p-4 backdrop-blur-xl">
+              {/* Right: Team Leadership & Members Grid */}
+              <div className="lg:col-span-6 flex flex-col justify-between gap-3 bg-card/60 p-6 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-2xl">
+                <div>
+                  <div className="flex items-center justify-between pb-3 mb-2 border-b border-border/40">
+                    <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-300" /> Creators & Core Architects
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/portfolio')}
+                      className="text-xs font-bold text-amber-300 hover:text-amber-200 hover:bg-amber-300/10 rounded-xl"
+                    >
+                      View Studio <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {/* Lead Creator Spotlight Card */}
                   <button
                     type="button"
                     onClick={() => creatorMembers[0] && setActiveProfile(creatorMembers[0])}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-300/25 bg-gradient-to-r from-amber-500/10 via-transparent to-transparent px-3 py-2.5 text-left transition-colors hover:border-amber-300/60"
+                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent p-4 text-left transition-all hover:border-amber-300/60 hover:shadow-lg hover:shadow-amber-500/5 mb-3"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3.5">
                       <img
                         src={portfolio.profileImage || creatorMembers[0]?.image || gauravPhoto}
                         alt={creatorMembers[0]?.name || 'Gaurav'}
-                        className="h-9 w-9 rounded-full border border-amber-300/40 object-cover"
+                        className="h-12 w-12 rounded-2xl border-2 border-amber-300/50 object-cover shadow-md"
                         loading="lazy"
                       />
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-300/90">Lead · Creator</p>
-                        <p className="text-sm font-bold text-foreground">{creatorMembers[0]?.name || 'Gaurav'}</p>
+                        <span className="inline-block text-[9px] font-black uppercase tracking-[0.2em] text-amber-300">Lead · Architect</span>
+                        <p className="text-base font-extrabold text-foreground">{creatorMembers[0]?.name || 'Gaurav'}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{creatorMembers[0]?.role || 'Full-Stack & AI Engineer'}</p>
                       </div>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-amber-300/80" />
+                    <ArrowRight className="h-5 w-5 text-amber-300 shrink-0" />
                   </button>
 
-                  {creatorMembers.slice(1).map((member) => (
-                    <button
-                      key={member.name}
-                      type="button"
-                      onClick={() => setActiveProfile(member)}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card/45 px-3 py-2 text-left transition-colors hover:border-amber-300/40"
-                      aria-label={`Open ${member.name} profile`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <MemberAvatar
-                          name={member.name}
-                          image={member.image}
-                          className="h-8 w-8 rounded-full border border-border/60"
-                          fallbackClassName="text-[10px]"
-                        />
-                        <div>
-                          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">Team Member</p>
-                          <p className="text-sm font-semibold text-foreground">{member.name}</p>
+                  {/* Team Members List */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {creatorMembers.slice(1).map((member) => (
+                      <button
+                        key={member.name}
+                        type="button"
+                        onClick={() => setActiveProfile(member)}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3 text-left transition-all hover:border-amber-300/50 hover:bg-card/80"
+                        aria-label={`Open ${member.name} profile`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <MemberAvatar
+                            name={member.name}
+                            image={member.image}
+                            className="h-9 w-9 rounded-xl border border-border/70 shrink-0"
+                            fallbackClassName="text-xs"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Team Member</p>
+                            <p className="text-xs font-bold text-foreground truncate">{member.name}</p>
+                          </div>
                         </div>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  ))}
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Framing border */}
-                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-amber-300/20" />
-              </motion.div>
+                <div className="pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Presences AI Engine</span>
+                  <span className="font-mono text-primary font-bold">KV NFC Vigyan Vihar</span>
+                </div>
+              </div>
+
             </div>
-          </div>
+          </RoyalReveal>
         </section>
 
+        {/* ========================================================================= */}
+        {/* PWA INSTALL CARD                                                          */}
+        {/* ========================================================================= */}
         <RoyalReveal effect="fade-up">
           <HomeInstallCard />
         </RoyalReveal>
 
+        {/* ========================================================================= */}
+        {/* METRICS & ACCURACY STATS                                                 */}
+        {/* ========================================================================= */}
         <section className="pb-14">
-          <RoyalStaggerGroup className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6" stagger={0.08}>
+          <RoyalStaggerGroup className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6" stagger={0.08}>
             {stats.map((stat) => (
               <RoyalStaggerItem key={stat.label}>
-                <div
-                  className="liquid-glass-surface rounded-2xl p-5 text-center card-hover-pop transition-transform duration-300 hover:-translate-y-1"
-                >
-                  <p className="text-gradient-neon text-3xl font-black md:text-5xl" style={{ fontFamily: 'Sora, sans-serif' }}>
+                <div className="liquid-glass-surface rounded-3xl p-6 text-center card-hover-pop transition-transform duration-300 hover:-translate-y-1.5 border border-white/10 shadow-xl backdrop-blur-2xl">
+                  <p className="text-gradient-neon text-3xl md:text-5xl font-black" style={{ fontFamily: 'Sora, sans-serif' }}>
                     {stat.value}
                   </p>
-                  <p className="mt-2 text-xs font-semibold text-muted-foreground md:text-sm">{stat.label}</p>
+                  <p className="mt-2 text-xs md:text-sm font-bold text-muted-foreground">{stat.label}</p>
                 </div>
               </RoyalStaggerItem>
             ))}
           </RoyalStaggerGroup>
         </section>
 
+        {/* ========================================================================= */}
+        {/* FEATURE CATEGORIES (Desktop Grid with Neon Glow)                         */}
+        {/* ========================================================================= */}
         {featureCategories.map((cat, idx) => (
           <RoyalReveal key={cat.category} effect="fade-up" delay={0.05 * (idx % 2)} className="pb-14">
             <div className="mb-6 flex items-center gap-3">
               <div className="inline-flex rounded-2xl bg-primary/15 p-3 text-primary shadow-sm shadow-primary/20">
                 <cat.icon className="h-5 w-5" />
               </div>
-              <h2 className="text-3xl font-bold text-foreground md:text-4xl" style={{ fontFamily: 'Sora, sans-serif' }}>{cat.category}</h2>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
+                {cat.category}
+              </h2>
             </div>
-            <RoyalStaggerGroup className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6" stagger={0.05}>
+            <RoyalStaggerGroup className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6" stagger={0.05}>
               {cat.features.map((feature) => (
                 <RoyalStaggerItem key={feature.title}>
-                  <div
-                    className="liquid-glass-surface liquid-glass-highlight group relative overflow-hidden rounded-2xl p-5 h-full transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/10"
-                  >
-                    <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-primary via-accent to-warning" />
-                    <div className="mb-4 inline-flex rounded-2xl bg-primary/15 p-3 text-primary">
-                      <feature.icon className="h-5 w-5" />
+                  <div className="liquid-glass-surface liquid-glass-highlight group relative overflow-hidden rounded-3xl p-6 h-full transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-primary/15 border border-white/10 flex flex-col justify-between">
+                    <div>
+                      <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-primary via-accent to-warning" />
+                      <div className="mb-4 inline-flex rounded-2xl bg-primary/15 p-3 text-primary">
+                        <feature.icon className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-base font-bold text-foreground">{feature.title}</h3>
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{feature.desc}</p>
                     </div>
-                    <h3 className="text-sm font-bold text-foreground md:text-base">{feature.title}</h3>
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground md:text-sm">{feature.desc}</p>
                   </div>
                 </RoyalStaggerItem>
               ))}
@@ -422,7 +506,9 @@ const Index = () => {
           </RoyalReveal>
         ))}
 
-        {/* Full developer portfolio — profile, projects, gallery, achievements, skills, socials */}
+        {/* ========================================================================= */}
+        {/* DEVELOPER PORTFOLIO SHOWCASE                                              */}
+        {/* ========================================================================= */}
         <RoyalReveal effect="fade-up" className="pb-14 min-w-0">
           <section id="developer-portfolio">
             <div className="mb-6 flex items-end justify-between gap-4">
@@ -445,22 +531,25 @@ const Index = () => {
           </section>
         </RoyalReveal>
 
+        {/* ========================================================================= */}
+        {/* BOTTOM CTA BANNER                                                         */}
+        {/* ========================================================================= */}
         <RoyalReveal effect="card-lift" className="pb-10">
           <section>
-            <div
-              className="liquid-glass-surface relative overflow-hidden rounded-3xl p-8 md:p-14"
-            >
-              <div className="relative z-10 text-center">
-                <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/15 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            <div className="liquid-glass-surface relative overflow-hidden rounded-3xl p-8 sm:p-12 md:p-16 border border-white/15 shadow-2xl backdrop-blur-2xl text-center">
+              <div className="relative z-10 max-w-3xl mx-auto">
+                <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/15 px-4 py-2 text-xs font-bold uppercase tracking-wider text-primary">
                   <Smartphone className="h-4 w-4" /> Smart School Platform
                 </p>
-                <h2 className="text-3xl font-black text-foreground md:text-5xl" style={{ fontFamily: 'Sora, sans-serif' }}>Ready to Automate Your School?</h2>
-                <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground md:text-lg">
-                  Attendance, timetable, security, communication and analytics in one bright, powerful system.
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
+                  Ready to Automate Your School?
+                </h2>
+                <p className="mx-auto mt-4 text-sm sm:text-base md:text-lg text-muted-foreground leading-relaxed">
+                  Attendance, timetable substitution, kiosk security, communication and analytics in one bright, powerful system.
                 </p>
-                <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+                <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
                   <Link to="/signup">
-                    <Button className="h-14 rounded-2xl bg-primary px-8 text-base font-bold text-primary-foreground hover:bg-primary/90 btn-spring">
+                    <Button className="h-14 rounded-2xl bg-primary px-8 text-base font-bold text-primary-foreground shadow-xl shadow-primary/25 hover:bg-primary/90 btn-spring">
                       Get Started — It's Free <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
                   </Link>
@@ -475,8 +564,9 @@ const Index = () => {
           </section>
         </RoyalReveal>
 
+        {/* Member Detail Dialog */}
         <Dialog open={Boolean(activeProfile)} onOpenChange={(open) => !open && setActiveProfile(null)}>
-          <DialogContent className="max-w-md rounded-2xl border-border/70 bg-card/95 p-0 backdrop-blur-xl">
+          <DialogContent className="max-w-md rounded-3xl border border-border/70 bg-card/95 p-0 backdrop-blur-xl">
             {activeProfile && (
               <div className="p-6">
                 <DialogHeader className="space-y-3 text-left">
@@ -484,12 +574,12 @@ const Index = () => {
                     <MemberAvatar
                       name={activeProfile.name}
                       image={activeProfile.image}
-                      className="h-16 w-16 rounded-xl border border-border/60"
+                      className="h-16 w-16 rounded-2xl border border-border/60"
                       fallbackClassName="text-lg"
                     />
 
                     <div>
-                      <DialogTitle className="text-xl">{activeProfile.name}</DialogTitle>
+                      <DialogTitle className="text-xl font-bold">{activeProfile.name}</DialogTitle>
                       <p className="text-sm text-muted-foreground">{activeProfile.role}</p>
                     </div>
                   </div>
@@ -502,7 +592,7 @@ const Index = () => {
                   {activeProfile.name === 'Gaurav' ? (
                     <Link
                       to="/portfolio"
-                      className="inline-flex w-fit items-center gap-2 rounded-lg border border-border/60 bg-card/55 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-card"
+                      className="inline-flex w-fit items-center gap-2 rounded-xl border border-border/60 bg-card/55 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-card"
                     >
                       Open secure portfolio
                       <ArrowRight className="h-3.5 w-3.5" />
@@ -513,6 +603,7 @@ const Index = () => {
             )}
           </DialogContent>
         </Dialog>
+
       </PageLayout>
     </PageTransition>
   );
