@@ -234,9 +234,29 @@ export function PublicPortfolioView({ data, onUnlock }: { data: PortfolioData; o
 
       {/* Members */}
       {data.members.length > 0 && (
-        <div>
-          <h2 className="mb-3 md:mb-4 text-lg md:text-xl font-bold">Team</h2>
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="space-y-4">
+          <div className="relative overflow-hidden rounded-3xl border border-amber-300/30 bg-card/60 shadow-xl backdrop-blur-xl">
+            <div className="relative h-48 sm:h-64 md:h-80 w-full overflow-hidden">
+              <img
+                src="/team-rca.jpg"
+                alt="Team RCA Creators"
+                className="h-full w-full object-cover object-center"
+                loading="lazy"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+              <div className="absolute left-4 bottom-4 sm:left-6 sm:bottom-6">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-black/60 px-3 py-1 text-xs font-black uppercase tracking-widest text-amber-300 backdrop-blur-md">
+                  <Sparkles className="h-3 w-3" /> Team RCA
+                </span>
+                <h2 className="mt-1.5 text-xl sm:text-2xl md:text-3xl font-extrabold text-white" style={{ fontFamily: 'Sora, sans-serif' }}>
+                  The Minds Behind Presences AI
+                </h2>
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-base sm:text-lg font-bold text-foreground">Core Team Members</h3>
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
 
             {data.members.map((m) => (
               <div key={m.id} className="rounded-2xl border bg-card/70 p-4 backdrop-blur">

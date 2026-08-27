@@ -341,7 +341,7 @@ const Index = () => {
                 >
                   <div className="relative min-h-[300px] h-full w-full overflow-hidden">
                     <img
-                      src={teamRcaPhoto.url}
+                      src={(teamRcaPhoto as any)?.url || (typeof teamRcaPhoto === 'string' ? teamRcaPhoto : '/team-rca.jpg')}
                       alt="Team RCA — Presences AI creators"
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                       loading="lazy"
