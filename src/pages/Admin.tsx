@@ -33,7 +33,6 @@ const AdminInbox = lazyWithRetry(() => import('@/components/admin/AdminInbox'), 
 const StudentFaceSamplesManager = lazyWithRetry(() => import('@/components/admin/StudentFaceSamplesManager'), 'admin-samples');
 const FaceSamplesDiagnosticsPanel = lazyWithRetry(() => import('@/components/admin/FaceSamplesDiagnosticsPanel'), 'admin-samples-diag');
 const TimetableManager = lazyWithRetry(() => import('@/components/admin/TimetableManager'), 'admin-timetable');
-const DataBackup = lazyWithRetry(() => import('@/pages/DataBackup'), 'admin-backup');
 const LiteAdmin = lazyWithRetry(() => import('@/components/lite/LiteAdmin'), 'admin-lite');
 
 // Sidebar utilities — small, but they drag in xlsx/notification helpers, so keep
@@ -334,7 +333,6 @@ const Admin = () => {
   { id: 'access', icon: UserCog, label: 'Access', group: 'Management' },
   { id: 'notifications', icon: Bell, label: 'Notifications', group: 'Management', count: notificationCount },
   { id: 'samples', icon: Activity, label: 'Face Samples', group: 'Management' },
-  { id: 'data-backup', icon: DatabaseBackup, label: 'Data Backup', group: 'Management' },
   { id: 'notif-log', icon: MessageSquareText, label: 'Delivery Log', group: 'Management' },
   { id: 'inbox', icon: Mail, label: 'Inbox', group: 'Management' },
   { id: 'emergency', icon: Siren, label: 'Emergency', group: 'Management' },
@@ -422,12 +420,6 @@ const Admin = () => {
           <TabPanel>
             <FaceSamplesDiagnosticsPanel />
             <StudentFaceSamplesManager />
-          </TabPanel>
-        );
-      case 'data-backup':
-        return (
-          <TabPanel>
-            <DataBackup embedded />
           </TabPanel>
         );
       case 'notif-log':

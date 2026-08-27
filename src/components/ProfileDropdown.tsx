@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { User, LogOut, Settings, UserCircle } from 'lucide-react';
+import { User, LogOut, Settings, UserCircle, DatabaseBackup } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -107,6 +107,10 @@ const ProfileDropdown = () => {
         <DropdownMenuItem onClick={() => navigate('/profile')}>
           <User className="mr-2 h-4 w-4" />
           <span>My Profile</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/backup')}>
+          <DatabaseBackup className="mr-2 h-4 w-4 text-primary" />
+          <span>Cloud Backup</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut}>

@@ -20,7 +20,6 @@ import EmotionAnalytics from '@/components/features/EmotionAnalytics';
 import ParentPortal from '@/components/features/ParentPortal';
 import CustomReportBuilder from '@/components/features/CustomReportBuilder';
 import EmergencyLockdown from '@/components/features/EmergencyLockdown';
-import BackupRestore from '@/components/features/BackupRestore';
 import WhatsAppIntegration from '@/components/features/WhatsAppIntegration';
 
 // Phase 2-4 components
@@ -135,9 +134,6 @@ const Features = () => {
                 <TabsTrigger value="whatsapp" className="gap-2">
                   <MessageCircle className="h-4 w-4" /> WhatsApp
                 </TabsTrigger>
-                <TabsTrigger value="backup" className="gap-2">
-                  <Database className="h-4 w-4" /> Backup
-                </TabsTrigger>
               </>
             )}
           </TabsList>
@@ -163,7 +159,6 @@ const Features = () => {
         <TabsContent value="sms"><SMSNotificationConfig /></TabsContent>
         <TabsContent value="reports"><CustomReportBuilder /></TabsContent>
         <TabsContent value="whatsapp"><WhatsAppIntegration /></TabsContent>
-        <TabsContent value="backup"><BackupRestore /></TabsContent>
       </Tabs>
     </PageLayout>
   );

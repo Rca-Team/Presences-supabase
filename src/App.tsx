@@ -26,7 +26,7 @@ const GateMode = lazyWithRetry(() => import('./pages/GateMode'), 'gate-mode');
 const GateVisionMode = lazyWithRetry(() => import('./pages/GateVisionMode'), 'gate-vision-mode');
 const ParentPortal = lazyWithRetry(() => import('./pages/ParentPortal'), 'parent-portal');
 const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'), 'unsubscribe');
-const DataBackup = lazyWithRetry(() => import('./pages/DataBackup'), 'data-backup');
+const Backup = lazyWithRetry(() => import('./pages/Backup'), 'backup');
 const FaceModelValidator = lazyWithRetry(() => import('./pages/FaceModelValidator'), 'face-model-validator');
 const TeacherPortal = lazyWithRetry(() => import('./pages/TeacherPortal'), 'teacher-portal');
 const Portfolio = lazyWithRetry(() => import('./pages/Portfolio'), 'portfolio');
@@ -109,6 +109,16 @@ const ROUTE_SEO: Record<string, { title: string; description: string }> = {
     title: "Unsubscribe | Presences Notifications",
     description:
       "Manage and unsubscribe from Presences school notification emails.",
+  },
+  "/backup": {
+    title: "Cloud Backup & Restore | Presences",
+    description:
+      "1-Click full cloud backup and restore engine for Database tables, Auth accounts, and Storage files in a standalone ZIP package.",
+  },
+  "/data": {
+    title: "Data Backup | Presences",
+    description:
+      "1-Click full cloud backup and restore engine for Database tables, Auth accounts, and Storage files.",
   },
 };
 
@@ -308,9 +318,14 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             } />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
+            <Route path="/backup" element={
+              <ProtectedRoute requireRoles={["admin", "principal"]}>
+                <Backup />
+              </ProtectedRoute>
+            } />
             <Route path="/data" element={
-              <ProtectedRoute requireRoles={["admin"]}>
-                <DataBackup />
+              <ProtectedRoute requireRoles={["admin", "principal"]}>
+                <Backup />
               </ProtectedRoute>
             } />
             <Route path="/__admin/face-model-validator" element={
