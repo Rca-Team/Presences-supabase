@@ -12,20 +12,29 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "relative inline-flex items-center justify-center gap-0.5",
-      "rounded-2xl p-1",
-      "bg-white/40 dark:bg-white/[0.06]",
-      "backdrop-blur-2xl backdrop-saturate-[1.6]",
-      "border border-white/30 dark:border-white/10",
-      "shadow-[0_2px_16px_-4px_rgba(0,0,0,0.1),inset_0_0.5px_0_rgba(255,255,255,0.4)]",
-      "dark:shadow-[0_2px_16px_-4px_rgba(0,0,0,0.4),inset_0_0.5px_0_rgba(255,255,255,0.06)]",
+      "relative inline-flex items-center justify-center gap-1",
+      "rounded-2xl p-1.5",
+      "bg-card/75 dark:bg-card/60",
+      "backdrop-blur-2xl backdrop-saturate-[1.8]",
+      "border border-white/20 dark:border-white/10",
+      "shadow-[0_12px_32px_-10px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(255,255,255,0.25)]",
+      "dark:shadow-[0_12px_32px_-10px_rgba(0,0,0,0.65),inset_0_1px_1px_rgba(255,255,255,0.08)]",
       "text-muted-foreground overflow-hidden",
       className
     )}
     {...props}
   >
-    {/* Top edge highlight */}
-    <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 dark:via-white/10 to-transparent" />
+    {/* Micro diagonal neon texture layer */}
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 opacity-40"
+      style={{
+        background:
+          "repeating-linear-gradient(125deg, transparent 0px, transparent 12px, rgba(255,255,255,0.04) 12px, rgba(255,255,255,0.04) 13px)",
+      }}
+    />
+    {/* Top edge neon highlight */}
+    <span className="pointer-events-none absolute inset-x-3 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-primary/70 dark:via-primary/90 to-transparent" />
     {props.children}
   </TabsPrimitive.List>
 ))
@@ -38,26 +47,25 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "relative inline-flex items-center justify-center whitespace-nowrap",
+      "relative z-10 inline-flex items-center justify-center whitespace-nowrap",
       "rounded-xl px-4 py-2 text-sm font-semibold",
       "ring-offset-background transition-all duration-200 ease-out",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       "disabled:pointer-events-none disabled:opacity-50",
       // Inactive state
-      "text-muted-foreground/70 hover:text-foreground/90",
-      // Active state - glass pill
-      "data-[state=active]:text-foreground",
-      "data-[state=active]:bg-white/70 dark:data-[state=active]:bg-white/[0.12]",
+      "text-muted-foreground hover:text-foreground hover:bg-white/5 dark:hover:bg-white/[0.04]",
+      // Active state - Royal Neon Glass Pill
+      "data-[state=active]:text-foreground data-[state=active]:font-bold",
+      "data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:via-card/90 data-[state=active]:to-accent/20",
       "data-[state=active]:backdrop-blur-xl",
-      "data-[state=active]:shadow-[0_1px_8px_-2px_rgba(0,0,0,0.1),inset_0_0.5px_0_rgba(255,255,255,0.5)]",
-      "dark:data-[state=active]:shadow-[0_1px_8px_-2px_rgba(0,0,0,0.3),inset_0_0.5px_0_rgba(255,255,255,0.08)]",
-      "data-[state=active]:border data-[state=active]:border-white/40 dark:data-[state=active]:border-white/10",
+      "data-[state=active]:shadow-[0_0_18px_-2px_hsl(var(--primary)/0.6),0_6px_16px_-4px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.5)]",
+      "data-[state=active]:border data-[state=active]:border-primary/50 dark:data-[state=active]:border-primary/60",
       // Tap scale
-      "active:scale-[0.98]",
+      "active:scale-[0.97]",
       className
     )}
     style={{
-      transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+      transition: "all 0.24s cubic-bezier(0.16, 1, 0.3, 1)",
       ...style,
     }}
     {...props}

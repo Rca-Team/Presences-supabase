@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { motion, LayoutGroup } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import Logo from './Logo';
@@ -12,14 +11,17 @@ import { useTheme } from '@/hooks/use-theme';
 import { supabase } from '@/integrations/supabase/client';
 import ProfileDropdown from './ProfileDropdown';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const location = useLocation();
   const isMobile = useIsMobile();
   const { theme, setTheme } = useTheme();
-  const { isAdminOrPrincipal, isTeacher, isLoading: isRoleLoading } = useUserRole();
+  const { isAdminOrPrincipal, isTeacher } = useUserRole();
+  const { trigger: haptic } = useHapticFeedback();
   
   useEffect(() => {
     let ticking = false;
@@ -58,8 +60,19 @@ const Navbar = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const toggleTheme = () => {
+    haptic('selection');
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
+
+  const navLinks = [
+    { text: 'Home', path: '/', show: true },
+    { text: 'Parent Portal', path: '/parent', show: !isAuthenticated },
+    { text: 'Profile', path: '/profile', show: isAuthenticated },
+    { text: 'Register', path: '/register', show: isAuthenticated },
+    { text: 'Attendance', path: '/attendance', show: isAuthenticated },
+    { text: 'Gate Mode', path: '/gate', show: isAdminOrPrincipal || isTeacher },
+    { text: 'Admin', path: '/admin', show: isAdminOrPrincipal || isTeacher },
+  ].filter((item) => item.show);
 
   return (
     <header 
@@ -72,60 +85,79 @@ const Navbar = () => {
       style={{ transition: 'background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease' }}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <Link to="/" className="animate-ios-bounce">
+        <Link to="/" className="animate-ios-bounce" onClick={() => haptic('selection')}>
           <Logo />
         </Link>
         
-        {/* Desktop Navigation - Hidden on Mobile */}
-        <LayoutGroup>
-          <nav className="hidden md:flex items-center gap-1 animate-fade-in macbook-dock rounded-full p-1.5">
-            {[
-              { text: 'Home', path: '/', show: true },
-              { text: 'Parent Portal', path: '/parent', show: !isAuthenticated },
-              { text: 'Profile', path: '/profile', show: isAuthenticated },
-              { text: 'Register', path: '/register', show: isAuthenticated },
-              { text: 'Attendance', path: '/attendance', show: isAuthenticated },
-              { text: 'Gate Mode', path: '/gate', show: isAdminOrPrincipal || isTeacher },
-              { text: 'Admin', path: '/admin', show: isAdminOrPrincipal || isTeacher },
-            ].filter(item => item.show).map((item) => (
-              <motion.div
-                key={item.path}
-                whileHover={{ y: -1, scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.7 }}
-                className="relative"
-              >
-                <Link
-                  to={item.path}
-                  onMouseEnter={() => import('@/lib/preloadRoute').then(m => m.preloadRoute(item.path)).catch(() => undefined)}
-                  onFocus={() => import('@/lib/preloadRoute').then(m => m.preloadRoute(item.path)).catch(() => undefined)}
-                  className={cn(
-                    "relative block px-5 py-2.5 rounded-full text-sm font-medium mobile-touch-target",
-                    isActive(item.path)
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  style={{ transition: 'color 0.28s cubic-bezier(0.4,0,0.2,1)' }}
-                >
-                  {isActive(item.path) && (
-                      <motion.div
-                      layoutId="navbar-active-pill"
-                        className="absolute inset-0 rounded-full"
-                        style={{
-                          background: 'linear-gradient(150deg, hsl(var(--card) / 0.8), hsl(var(--card) / 0.45))',
-                          border: '1px solid hsl(var(--primary) / 0.22)',
-                          boxShadow: '0 10px 20px -14px hsl(var(--primary) / 0.55), inset 0 1px 0 hsl(var(--foreground) / 0.14)'
-                        }}
-                      transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.9 }}
-                    />
-                  )}
-                  <span className="relative z-10">
-                    {item.text === 'Admin' && isTeacher && !isAdminOrPrincipal ? 'Teacher' : item.text}
-                  </span>
-                </Link>
-              </motion.div>
-            ))}
+        {/* Desktop Navigation Dock with Royal Neon Sliding Tabs */}
+        <LayoutGroup id="navbar-dock-tabs">
+          <nav
+            onMouseLeave={() => setHoveredPath(null)}
+            className="hidden md:flex items-center gap-1.5 animate-fade-in royal-neon-dock rounded-full p-1.5 shadow-2xl"
+          >
+            {navLinks.map((item) => {
+              const active = isActive(item.path);
+              const hovered = hoveredPath === item.path;
 
+              return (
+                <motion.div
+                  key={item.path}
+                  onMouseEnter={() => {
+                    setHoveredPath(item.path);
+                    import('@/lib/preloadRoute').then((m) => m.preloadRoute(item.path)).catch(() => undefined);
+                  }}
+                  onFocus={() => {
+                    setHoveredPath(item.path);
+                    import('@/lib/preloadRoute').then((m) => m.preloadRoute(item.path)).catch(() => undefined);
+                  }}
+                  whileHover={{ y: -1, scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ type: 'spring', stiffness: 450, damping: 28, mass: 0.6 }}
+                  className="relative select-none"
+                >
+                  <Link
+                    to={item.path}
+                    onClick={() => haptic('selection')}
+                    className={cn(
+                      "relative block px-5 py-2.5 rounded-full text-sm font-semibold mobile-touch-target transition-colors duration-200",
+                      active
+                        ? "text-foreground font-bold drop-shadow-[0_0_12px_hsl(var(--primary)/0.65)]"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {/* Hover ghost highlight */}
+                    {hovered && !active && (
+                      <motion.div
+                        layoutId="navbar-hover-pill"
+                        className="absolute inset-0 rounded-full bg-white/10 dark:bg-white/[0.08] backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm"
+                        transition={{ type: "spring", stiffness: 450, damping: 30, mass: 0.5 }}
+                      />
+                    )}
+
+                    {/* Royal Active Neon Sliding Pill */}
+                    {active && (
+                      <motion.div
+                        layoutId="navbar-active-pill"
+                        className="absolute inset-0 rounded-full royal-neon-active-pill"
+                        transition={{
+                          type: "spring",
+                          stiffness: 380,
+                          damping: 28,
+                          mass: 0.6,
+                        }}
+                      >
+                        {/* Radiant micro top beam */}
+                        <span className="pointer-events-none absolute inset-x-3 top-0 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-white/80 dark:via-primary/90 to-transparent" />
+                      </motion.div>
+                    )}
+
+                    <span className="relative z-10 flex items-center gap-1.5">
+                      {item.text === 'Admin' && isTeacher && !isAdminOrPrincipal ? 'Teacher' : item.text}
+                    </span>
+                  </Link>
+                </motion.div>
+              );
+            })}
           </nav>
         </LayoutGroup>
         
@@ -148,12 +180,12 @@ const Navbar = () => {
             <ProfileDropdown />
           ) : (
             <div className="flex items-center gap-2">
-              <Link to="/login">
+              <Link to="/login" onClick={() => haptic('selection')}>
                 <Button variant="ghost" size="sm" className="rounded-full px-5">
                   Sign In
                 </Button>
               </Link>
-              <Link to="/signup">
+              <Link to="/signup" onClick={() => haptic('selection')}>
                 <Button
                   size="sm"
                   className="rounded-full px-5 text-foreground liquid-glass-surface border-border/70 hover:brightness-105"
