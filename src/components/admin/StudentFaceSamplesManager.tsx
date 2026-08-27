@@ -1427,7 +1427,10 @@ const StudentFaceSamplesManager: React.FC = () => {
                   setMergingStudent(false);
                 }
               }}
-                  {mergingStudent ? 'Merging...' : 'Confirm Merge'}
+              disabled={!mergeTargetUserId || mergingStudent}
+              className="rounded-xl font-bold"
+            >
+              {mergingStudent ? 'Merging...' : 'Confirm Merge'}
             </Button>
           </DialogFooter>
         </DialogContent>
