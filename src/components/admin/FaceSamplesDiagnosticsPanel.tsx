@@ -1,11 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Activity, RefreshCw, Trash2, Users, Database, AlertTriangle, ClipboardList } from 'lucide-react';
+import {
+  Activity,
+  RefreshCw,
+  Trash2,
+  Users,
+  Database,
+  AlertTriangle,
+  ClipboardList,
+  Sparkles,
+  CheckCircle2,
+  Cpu,
+} from 'lucide-react';
+import { syncFromSupabase as syncDescriptorCache } from '@/services/face-recognition/DescriptorCacheService';
 
 type Diagnostics = {
   active_students: number;
@@ -29,6 +41,7 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
+  const [syncingCache, setSyncingCache] = useState(false);
   const [data, setData] = useState<Diagnostics | null>(null);
 
   const fetchDiagnosticsFallback = async (): Promise<Diagnostics> => {
@@ -79,7 +92,7 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
     };
   };
 
-  const fetchDiagnostics = async () => {
+  const fetchDiagnostics = useCallback(async () => {
     setLoading(true);
     try {
       const { data: rows, error } = await (supabase as any).rpc('face_samples_diagnostics');
@@ -101,18 +114,26 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
           return next;
         } catch (fallbackError: any) {
           console.error('Diagnostics fallback failed:', fallbackError);
-          toast({ title: 'Diagnostics failed', description: fallbackError.message || 'Could not load diagnostics.', variant: 'destructive' });
+          toast({
+            title: 'Diagnostics Error',
+            description: fallbackError.message || 'Could not load face diagnostics.',
+            variant: 'destructive',
+          });
           return null;
         }
       }
 
       console.error('Diagnostics failed:', e);
-      toast({ title: 'Diagnostics failed', description: e.message || 'Could not load diagnostics.', variant: 'destructive' });
+      toast({
+        title: 'Diagnostics Error',
+        description: e.message || 'Could not load face diagnostics.',
+        variant: 'destructive',
+      });
       return null;
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const runCleanup = async () => {
     setCleaning(true);
@@ -120,79 +141,162 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
       const { data: deleted, error } = await (supabase as any).rpc('cleanup_orphan_face_descriptors');
       if (error) throw error;
       const count = Number(deleted ?? 0);
-      toast({ title: 'Cleanup complete', description: `Removed ${count} orphan descriptor row${count === 1 ? '' : 's'}.` });
+      toast({
+        title: 'Cleanup Completed',
+        description: `Successfully pruned ${count} orphan face descriptor row${count === 1 ? '' : 's'}.`,
+      });
       await fetchDiagnostics();
+      await syncDescriptorCache().catch(() => {});
     } catch (e: any) {
       if (isMissingRpc(e, 'cleanup_orphan_face_descriptors')) {
         toast({
-          title: 'Cleanup unavailable',
-          description: 'This workspace is missing the cleanup function. Diagnostics still works in compatibility mode.',
+          title: 'Cleanup Unavailable',
+          description: 'Database RPC function not found. Diagnostics is running in compatibility mode.',
           variant: 'destructive',
         });
         return;
       }
       console.error('Cleanup failed:', e);
-      toast({ title: 'Cleanup failed', description: e.message || 'Could not run cleanup.', variant: 'destructive' });
+      toast({
+        title: 'Cleanup Failed',
+        description: e.message || 'Could not complete orphan cleanup.',
+        variant: 'destructive',
+      });
     } finally {
       setCleaning(false);
     }
   };
 
+  const handleSyncModelCache = async () => {
+    setSyncingCache(true);
+    try {
+      const count = await syncDescriptorCache();
+      toast({
+        title: 'AI Model Index Synced',
+        description: `Successfully indexed ${count} face descriptors into the in-memory recognition tree.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Sync Failed',
+        description: err.message || 'Could not sync model index.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncingCache(false);
+    }
+  };
+
   useEffect(() => {
     fetchDiagnostics();
-  }, []);
+  }, [fetchDiagnostics]);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Activity className="w-4 h-4 text-primary" /> Face Samples Diagnostics
-        </CardTitle>
-        <CardDescription>
-          Live counts from Lovable Cloud. Orphans are auto-cleaned daily; run manually anytime.
-        </CardDescription>
+    <Card className="rounded-3xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card/70 to-accent/10 backdrop-blur-2xl shadow-xl overflow-hidden mb-6">
+      <CardHeader className="pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-primary">
+              <Sparkles className="h-3 w-3" />
+              AI Model & Diagnostics
+            </div>
+            <CardTitle className="text-xl md:text-2xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+              Face Recognition Diagnostics
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm text-muted-foreground">
+              Live statistics from Cloud database & active face recognition model weights.
+            </CardDescription>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSyncModelCache}
+              disabled={syncingCache}
+              className="rounded-2xl border-border/70 bg-card/60 gap-1.5 text-xs font-semibold hover:bg-card/90"
+            >
+              <Cpu className={`w-3.5 h-3.5 text-primary ${syncingCache ? 'animate-spin' : ''}`} />
+              {syncingCache ? 'Syncing...' : 'Sync AI Cache'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={fetchDiagnostics}
+              disabled={loading}
+              className="rounded-2xl border-border/70 bg-card/60 gap-1.5 text-xs font-semibold hover:bg-card/90"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={runCleanup}
+              disabled={cleaning || (data?.orphan_descriptors ?? 0) === 0}
+              className="rounded-2xl gap-1.5 text-xs font-bold"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {cleaning ? 'Cleaning...' : `Clean Orphans (${data?.orphan_descriptors ?? 0})`}
+            </Button>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+
+      <CardContent className="space-y-4">
         {loading || !data ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-lg border p-3 bg-card">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="w-3.5 h-3.5" /> Active Students</div>
-              <div className="text-2xl font-semibold mt-1">{data.active_students}</div>
+            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                <Users className="w-3.5 h-3.5 text-primary" /> Active Students
+              </div>
+              <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                {data.active_students.toLocaleString()}
+              </div>
             </div>
-            <div className="rounded-lg border p-3 bg-card">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><Database className="w-3.5 h-3.5" /> Descriptor Rows</div>
-              <div className="text-2xl font-semibold mt-1">{data.descriptor_rows}</div>
+
+            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                <Database className="w-3.5 h-3.5 text-emerald-500" /> Model Slots
+              </div>
+              <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                {data.descriptor_rows.toLocaleString()}
+              </div>
             </div>
-            <div className="rounded-lg border p-3 bg-card">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><ClipboardList className="w-3.5 h-3.5" /> Attendance Records</div>
-              <div className="text-2xl font-semibold mt-1">{data.attendance_records}</div>
+
+            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                <ClipboardList className="w-3.5 h-3.5 text-blue-500" /> Attendance Records
+              </div>
+              <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                {data.attendance_records.toLocaleString()}
+              </div>
             </div>
-            <div className="rounded-lg border p-3 bg-card">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><AlertTriangle className="w-3.5 h-3.5" /> Orphan Descriptors</div>
-              <div className="text-2xl font-semibold mt-1 flex items-center gap-2">
+
+            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Orphan Descriptors
+              </div>
+              <div className="text-2xl font-extrabold mt-2 flex items-center gap-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
                 {data.orphan_descriptors}
-                {data.orphan_descriptors > 0 && <Badge variant="destructive" className="text-[10px]">Skipped</Badge>}
+                {data.orphan_descriptors > 0 ? (
+                  <Badge variant="destructive" className="rounded-full text-[10px] uppercase font-bold">
+                    Cleanable
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="rounded-full text-[10px] uppercase font-bold text-emerald-500 bg-emerald-500/10">
+                    Clean
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
         )}
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={fetchDiagnostics} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Refresh
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={runCleanup}
-            disabled={cleaning || (data?.orphan_descriptors ?? 0) === 0}
-          >
-            <Trash2 className="w-3.5 h-3.5 mr-1" /> {cleaning ? 'Cleaning…' : 'Clean Orphans Now'}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
