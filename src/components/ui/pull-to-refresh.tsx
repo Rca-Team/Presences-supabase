@@ -29,7 +29,11 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   } = usePullToRefresh({ onRefresh, threshold, enabled });
 
   return (
-    <div ref={containerRef} className={cn('relative overflow-auto', className)}>
+    <div
+      ref={containerRef}
+      data-lenis-prevent="true"
+      className={cn('relative overflow-auto overscroll-contain', className)}
+    >
       {/* Pull indicator */}
       <motion.div
         initial={{ opacity: 0, y: -40 }}

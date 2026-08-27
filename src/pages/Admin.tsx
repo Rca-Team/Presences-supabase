@@ -574,7 +574,7 @@ const Admin = () => {
           }
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background/50">
+          <main data-lenis-prevent="true" className="flex-1 flex flex-col min-w-0 h-full min-h-0 overflow-hidden bg-background/50">
             {/* Top Bar - Premium Glassmorphism */}
             <div className="border-b border-border/60 bg-card/70 backdrop-blur-2xl px-3 sm:px-5 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 shadow-sm">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -669,7 +669,7 @@ const Admin = () => {
             )}
 
             {/* Content Area */}
-            <PullToRefresh onRefresh={handleRefresh} enabled={isMobile} className="flex-1 overflow-auto">
+            <PullToRefresh onRefresh={handleRefresh} enabled={isMobile} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               <div className="p-2.5 sm:p-4 md:p-6 pb-6">
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
