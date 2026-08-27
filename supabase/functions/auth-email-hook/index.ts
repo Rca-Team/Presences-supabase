@@ -34,10 +34,10 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "Presences smart automation"
+const SITE_NAME = "PM Shri KV NFC Vigyan Vihar"
 const SENDER_DOMAIN = "rca.presences.dev"
 const ROOT_DOMAIN = "presences.dev"
-const FROM_DOMAIN = "presences.dev" // Domain shown in From address (may be root or sender subdomain)
+const FROM_DOMAIN = "presences.dev"
 
 // Sample data for preview mode ONLY (not used in actual email sending).
 // URLs are baked in at scaffold time from the project's real data.

@@ -74,35 +74,41 @@ function normalizeEmail(email?: string | null): string | null {
   return EMAIL_RE.test(clean) ? clean : null;
 }
 
-const FROM_ADDRESS = Deno.env.get('RESEND_FROM') || 'School Alerts <noreply@presences.dev>';
+const FROM_ADDRESS = Deno.env.get('RESEND_FROM') || 'PM Shri KV NFC Vigyan Vihar <noreply@presences.dev>';
+const FALLBACK_FROM_ADDRESS = 'PM Shri KV NFC Vigyan Vihar <onboarding@resend.dev>';
 
 async function sendEmailResendThenGmail(rawTo: string, rawSubject: string, rawHtml: string): Promise<{ success: boolean; provider?: 'resend' | 'gmail'; id?: string | null; error?: string }> {
   const to = normalizeEmail(rawTo);
   if (!to) return { success: false, error: `Invalid recipient email address: "${rawTo}"` };
-  const subject = (rawSubject || '').trim() || 'School Notification';
+  const subject = (rawSubject || '').trim() || 'PM Shri KV NFC Vigyan Vihar Attendance Notice';
   const html = (rawHtml || '').trim() || '<p>School notification</p>';
 
   if (resendApiKey) {
     try {
+      const fromCandidates = [FROM_ADDRESS, FALLBACK_FROM_ADDRESS];
 
       if (resendApiKey.startsWith('re_')) {
-        const resendResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: FROM_ADDRESS,
-            to: [to],
-            subject,
-            html,
-          }),
-        });
+        let lastErrorMsg = '';
+        for (const senderFrom of fromCandidates) {
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: senderFrom,
+              to: [to],
+              subject,
+              html,
+            }),
+          });
 
-        const resendData = await resendResponse.json().catch(() => ({}));
-        if (resendResponse.ok) {
-          return { success: true, provider: 'resend', id: resendData?.id || null };
+          const resendData = await resendResponse.json().catch(() => ({}));
+          if (resendResponse.ok) {
+            return { success: true, provider: 'resend', id: resendData?.id || null };
+          }
+          lastErrorMsg = resendData?.message || `Resend HTTP ${resendResponse.status}`;
         }
 
         const gmailFallback = await sendEmailViaGmail(to, subject, html);
@@ -112,29 +118,33 @@ async function sendEmailResendThenGmail(rawTo: string, rawSubject: string, rawHt
 
         return {
           success: false,
-          error: `Resend failed: ${resendData?.message || 'unknown error'} | Gmail fallback failed: ${gmailFallback.error || 'unknown error'}`,
+          error: `Resend failed: ${lastErrorMsg} | Gmail fallback failed: ${gmailFallback.error || 'unknown error'}`,
         };
       }
 
       if (lovableApiKey) {
-        const resendResponse = await fetch('https://connector-gateway.lovable.dev/resend/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${lovableApiKey}`,
-            'X-Connection-Api-Key': resendApiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: FROM_ADDRESS,
-            to: [to],
-            subject,
-            html,
-          }),
-        });
+        let lastErrorMsg = '';
+        for (const senderFrom of fromCandidates) {
+          const resendResponse = await fetch('https://connector-gateway.lovable.dev/resend/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${lovableApiKey}`,
+              'X-Connection-Api-Key': resendApiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: senderFrom,
+              to: [to],
+              subject,
+              html,
+            }),
+          });
 
-        const resendData = await resendResponse.json().catch(() => ({}));
-        if (resendResponse.ok) {
-          return { success: true, provider: 'resend', id: resendData?.id || null };
+          const resendData = await resendResponse.json().catch(() => ({}));
+          if (resendResponse.ok) {
+            return { success: true, provider: 'resend', id: resendData?.id || null };
+          }
+          lastErrorMsg = resendData?.error?.message || resendData?.message || `Resend HTTP ${resendResponse.status}`;
         }
 
         const gmailFallback = await sendEmailViaGmail(to, subject, html);
@@ -144,7 +154,7 @@ async function sendEmailResendThenGmail(rawTo: string, rawSubject: string, rawHt
 
         return {
           success: false,
-          error: `Resend failed: ${resendData?.error?.message || resendData?.message || 'unknown error'} | Gmail fallback failed: ${gmailFallback.error || 'unknown error'}`,
+          error: `Resend failed: ${lastErrorMsg} | Gmail fallback failed: ${gmailFallback.error || 'unknown error'}`,
         };
       }
     } catch (err: any) {

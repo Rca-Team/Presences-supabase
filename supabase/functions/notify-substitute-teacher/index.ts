@@ -121,7 +121,7 @@ Automated message from Presence Smart School</td></tr>
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              from: "School Substitution <noreply@presences.dev>",
+              from: "PM Shri KV NFC Vigyan Vihar - Timetable <noreply@presences.dev>",
               to: [contact.email],
               subject: `📚 Substitution Assigned — ${subs.length} period(s) on ${dateStr}`,
               html,

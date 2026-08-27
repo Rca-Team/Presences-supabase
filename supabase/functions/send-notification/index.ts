@@ -16,7 +16,7 @@ const cronSecret = Deno.env.get("CRON_SECRET");
 
 const fallbackEmail = Deno.env.get("NOTIFY_FALLBACK_EMAIL");
 
-const FROM_ADDRESS = Deno.env.get("RESEND_FROM") || "School Alerts <noreply@presences.dev>";
+const FROM_ADDRESS = Deno.env.get("RESEND_FROM") || "PM Shri KV NFC Vigyan Vihar <noreply@presences.dev>";
 
 function normalizePhone(phone?: string | null): string | null {
   if (!phone) return null;
@@ -85,7 +85,7 @@ async function sendEmail(to: string, subject: string, html: string) {
         };
 
     if (direct || lovableApiKey) {
-      const fromCandidates = [FROM_ADDRESS, "School Alerts <onboarding@resend.dev>"];
+      const fromCandidates = [FROM_ADDRESS, "PM Shri KV NFC Vigyan Vihar <onboarding@resend.dev>"];
 
       for (const from of fromCandidates) {
         try {

@@ -19,7 +19,7 @@ interface AttendanceAbsentCutoffParentProps {
   cutoffLabel?: string
 }
 
-const LOGO_URL = 'https://presences.dev/logo.png'
+const LOGO_URL = 'https://cvdcbcsonlianbfeessy.supabase.co/storage/v1/object/public/face-images/kvs-emblem.png'
 
 const AttendanceAbsentCutoffParentEmail = ({
   parentName,
@@ -30,12 +30,15 @@ const AttendanceAbsentCutoffParentEmail = ({
   return (
     <Html lang="en" dir="ltr">
       <Head />
-      <Preview>{`${studentName || 'Student'} marked absent after cutoff`}</Preview>
+      <Preview>{`${studentName || 'Student'} marked absent after cutoff · PM Shri KV NFC Vigyan Vihar`}</Preview>
       <Body style={main}>
         <Container style={container}>
           <Section style={topLine} />
-          <Img src={LOGO_URL} alt="Presence Logo" width="140" height="40" style={logo} />
-          <Heading style={h1}>Attendance Cutoff Alert</Heading>
+          <Img src={LOGO_URL} alt="PM Shri KV Logo" width="56" height="56" style={logo} />
+          <Heading style={h1}>PM Shri Kendriya Vidyalaya</Heading>
+          <Text style={{ ...muted, marginTop: '-10px', marginBottom: '16px', color: '#94a3b8' }}>
+            NFC Vigyan Vihar, Delhi · Attendance Cutoff Alert
+          </Text>
           <Text style={text}>Hello {parentName || 'Parent/Guardian'},</Text>
 
           <Section style={alertCard}>

@@ -5,7 +5,7 @@ import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
 
 // Configuration baked in at scaffold time — do NOT change these manually.
 // To update, re-run the email domain setup flow.
-const SITE_NAME = "Presences smart automation"
+const SITE_NAME = "PM Shri KV NFC Vigyan Vihar"
 // SENDER_DOMAIN is the verified sender subdomain FQDN (e.g., "notify.example.com").
 // It MUST match the verified sender subdomain — never the root domain.
 // The email API looks up this exact domain; a mismatch causes "No email domain record found".
