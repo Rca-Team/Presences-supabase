@@ -48,6 +48,7 @@ import SplashAnimation from './components/SplashAnimation';
 
 import NotificationPermissionGate from './components/NotificationPermissionGate';
 import LuminaScope from './components/LuminaScope';
+import RoyalScrollProvider from './components/RoyalScrollProvider';
 
 
 const queryClient = new QueryClient();
@@ -251,11 +252,11 @@ function AnimatedRoutes() {
 
     if (isKeepAlive) {
       const saved = scrollPositions.current[path] ?? 0;
-      // Two rAFs: first waits for the hidden -> visible swap to paint, second
-      // guarantees layout is settled before we restore the scroll offset.
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => window.scrollTo(0, saved));
+        window.scrollTo(0, saved);
       });
+    } else {
+      window.scrollTo(0, 0);
     }
   }, [path, isKeepAlive, visited]);
 
@@ -446,22 +447,23 @@ function App() {
                   {showSplash ? (
                     <SplashAnimation onComplete={handleSplashComplete} duration={700} />
                   ) : (
-
-                    <NotificationPermissionGate>
-                      <MobileAppShell>
-                        <SeoHead />
-                        <LuminaScope />
-                        <AppErrorBoundary><AnimatedRoutes /></AppErrorBoundary>
-                      </MobileAppShell>
-                      {mountNonCritical && (
-                        <>
-                          <AppExperienceLayer />
-                          <PWAInstallPrompt />
-                        </>
-                      )}
-                      <EmergencyAlertListener />
-                      <RealtimeNotificationListener />
-                    </NotificationPermissionGate>
+                    <RoyalScrollProvider>
+                      <NotificationPermissionGate>
+                        <MobileAppShell>
+                          <SeoHead />
+                          <LuminaScope />
+                          <AppErrorBoundary><AnimatedRoutes /></AppErrorBoundary>
+                        </MobileAppShell>
+                        {mountNonCritical && (
+                          <>
+                            <AppExperienceLayer />
+                            <PWAInstallPrompt />
+                          </>
+                        )}
+                        <EmergencyAlertListener />
+                        <RealtimeNotificationListener />
+                      </NotificationPermissionGate>
+                    </RoyalScrollProvider>
                   )}
                 </BrowserRouter>
               </div>

@@ -22,12 +22,22 @@ const Navbar = () => {
   const { isAdminOrPrincipal, isTeacher, isLoading: isRoleLoading } = useUserRole();
   
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      const offset = window.scrollY;
-      setIsScrolled(offset > 10);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const offset = window.scrollY;
+          setIsScrolled((prev) => {
+            const next = offset > 14;
+            return prev !== next ? next : prev;
+          });
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
     
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -59,7 +69,7 @@ const Navbar = () => {
           ? "premium-glass-navbar backdrop-blur-3xl shadow-lg border-b" 
           : "bg-transparent backdrop-blur-sm"
       )}
-      style={{ transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      style={{ transition: 'background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease' }}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="animate-ios-bounce">

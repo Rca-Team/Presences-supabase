@@ -1,0 +1,135 @@
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import Lenis from 'lenis';
+import { useLocation } from 'react-router-dom';
+import { useReducedMotion } from 'framer-motion';
+import { usePerformanceMode } from '@/hooks/usePerformanceMode';
+
+interface RoyalScrollContextType {
+  lenis: Lenis | null;
+  scrollTo: (target: string | HTMLElement | number, options?: Parameters<Lenis['scrollTo']>[1]) => void;
+}
+
+const RoyalScrollContext = createContext<RoyalScrollContextType>({
+  lenis: null,
+  scrollTo: () => {},
+});
+
+export const useRoyalScroll = () => useContext(RoyalScrollContext);
+
+interface RoyalScrollProviderProps {
+  children: React.ReactNode;
+}
+
+export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ children }) => {
+  const [lenisInstance, setLenisInstance] = useState<Lenis | null>(null);
+  const lenisRef = useRef<Lenis | null>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const prefersReducedMotion = useReducedMotion();
+  const { liteMode } = usePerformanceMode();
+
+  // Initialize Lenis smooth scroll engine
+  useEffect(() => {
+    // If user prefers reduced motion or is in low-power/lite mode, use native scrolling
+    if (prefersReducedMotion || liteMode) {
+      if (lenisRef.current) {
+        lenisRef.current.destroy();
+        lenisRef.current = null;
+        setLenisInstance(null);
+      }
+      return;
+    }
+
+    const lenis = new Lenis({
+      duration: 1.15, // Royal luxury glide duration
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Exponential ease-out for silky royal inertia
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 0.95,
+      touchMultiplier: 1.2,
+      infinite: false,
+    });
+
+    lenisRef.current = lenis;
+    setLenisInstance(lenis);
+
+    // Synchronize scroll progress bar with Lenis
+    lenis.on('scroll', (e: { progress: number; scroll: number; limit: number }) => {
+      if (progressBarRef.current) {
+        const pct = Math.max(0, Math.min(1, e.progress || 0));
+        progressBarRef.current.style.transform = `scaleX(${pct})`;
+        progressBarRef.current.style.opacity = pct > 0.005 ? '1' : '0';
+      }
+    });
+
+    let rafId: number;
+    function raf(time: number) {
+      lenis.raf(time);
+      rafId = requestAnimationFrame(raf);
+    }
+    rafId = requestAnimationFrame(raf);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      lenis.destroy();
+      lenisRef.current = null;
+      setLenisInstance(null);
+    };
+  }, [prefersReducedMotion, liteMode]);
+
+  // Handle route changes: notify Lenis to recalibrate document scroll dimensions
+  useEffect(() => {
+    if (lenisRef.current) {
+      // Recalculate dimensions on route change after DOM update
+      requestAnimationFrame(() => {
+        lenisRef.current?.resize();
+      });
+    }
+  }, [location.pathname]);
+
+  const scrollTo = (target: string | HTMLElement | number, options?: Parameters<Lenis['scrollTo']>[1]) => {
+    if (lenisRef.current) {
+      lenisRef.current.scrollTo(target, {
+        offset: 0,
+        immediate: false,
+        duration: 1.2,
+        ...options,
+      });
+    } else {
+      if (typeof target === 'number') {
+        window.scrollTo({ top: target, behavior: 'smooth' });
+      } else if (typeof target === 'string') {
+        const el = document.querySelector(target);
+        el?.scrollIntoView({ behavior: 'smooth' });
+      } else if (target instanceof HTMLElement) {
+        target.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  };
+
+  return (
+    <RoyalScrollContext.Provider value={{ lenis: lenisInstance, scrollTo }}>
+      {/* Royal Top Scroll Luminescence Bar */}
+      <div
+        className="pointer-events-none fixed top-0 left-0 right-0 z-[9999] h-[3px] bg-transparent overflow-hidden"
+        aria-hidden="true"
+      >
+        <div
+          ref={progressBarRef}
+          className="h-full w-full origin-left transition-opacity duration-300 ease-out"
+          style={{
+            transform: 'scaleX(0)',
+            opacity: 0,
+            background:
+              'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--neon-cyan, 191 82% 60%)) 40%, hsl(var(--neon-pink, 318 70% 64%)) 75%, hsl(38 96% 58%) 100%)',
+            boxShadow: '0 0 12px hsl(var(--primary) / 0.8), 0 0 24px hsl(var(--neon-cyan, 191 82% 60%) / 0.5)',
+          }}
+        />
+      </div>
+      {children}
+    </RoyalScrollContext.Provider>
+  );
+};
+
+export default RoyalScrollProvider;
