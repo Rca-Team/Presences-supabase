@@ -37,6 +37,9 @@ import {
   X,
   FileArchive,
   GraduationCap,
+  Eye,
+  Maximize2,
+  ZoomIn,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import ImageCropper from './ImageCropper';
@@ -45,6 +48,11 @@ import {
   syncFromSupabase as syncDescriptorCache,
 } from '@/services/face-recognition/DescriptorCacheService';
 import FaceSampleDeduplicationModal from './FaceSampleDeduplicationModal';
+import { resolveStudentPhotoUrl } from '@/utils/studentPhotoResolver';
+import {
+  scanDuplicateFaceSamples,
+  executeDeduplication,
+} from '@/services/face-recognition/FaceSampleDeduplicationService';
 
 // ---------- Types ----------
 export type FaceSample = {
@@ -70,7 +78,7 @@ export type StudentGroup = {
 };
 
 export type FaceSamplesZipManifest = {
-  version: number;
+  version: 2;
   exportedAt: string;
   app: string;
   students: Array<{
@@ -119,7 +127,7 @@ type OperationProgress = {
   total: number;
 };
 
-const FACE_SAMPLE_BUCKETS = ['face-images', 'attendance-training-faces', 'student-registration-faces'] as const;
+const FACE_SAMPLE_BUCKETS = ['face-images', 'attendance-training-faces', 'student-registration-faces', 'public'] as const;
 
 // Global URL cache to eliminate duplicate network calls
 const GLOBAL_SIGNED_URL_CACHE = new Map<string, string | null>();
@@ -159,7 +167,7 @@ const toPersistentImageReference = (rawValue: string | null | undefined): string
   return normalized;
 };
 
-// High-speed signed URL resolver
+// High-speed robust URL resolver with multi-bucket & public URL fallback
 const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promise<string | null> => {
   if (!rawValue) return null;
   const value = rawValue.trim();
@@ -169,16 +177,30 @@ const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promis
     return value;
   }
 
-  const isStorageObjectUrl = /\/storage\/v1\/object\/(?:public|sign)\//.test(value);
-  if (/^https?:\/\//i.test(value) && !isStorageObjectUrl) {
+  const cacheKey = value;
+  if (GLOBAL_SIGNED_URL_CACHE.has(cacheKey)) {
+    const cached = GLOBAL_SIGNED_URL_CACHE.get(cacheKey);
+    if (cached) return cached;
+  }
+
+  // 1. Try unified student photo resolver
+  try {
+    const resolved = await resolveStudentPhotoUrl(value);
+    if (resolved && resolved !== value) {
+      GLOBAL_SIGNED_URL_CACHE.set(cacheKey, resolved);
+      return resolved;
+    }
+  } catch (err) {
+    console.warn('resolveStudentPhotoUrl error:', err);
+  }
+
+  // 2. If it's already an HTTP URL (and not expired signed), use it directly
+  if (/^https?:\/\//i.test(value) && !value.includes('/storage/v1/object/sign/')) {
+    GLOBAL_SIGNED_URL_CACHE.set(cacheKey, value);
     return value;
   }
 
-  const cacheKey = value;
-  if (GLOBAL_SIGNED_URL_CACHE.has(cacheKey)) {
-    return GLOBAL_SIGNED_URL_CACHE.get(cacheKey) || null;
-  }
-
+  // 3. Multi-bucket candidate generation
   const candidates: Array<{ bucket: string; path: string }> = [];
   for (const bucket of FACE_SAMPLE_BUCKETS) {
     const extracted = parseStoragePathFromUrl(value, bucket);
@@ -191,11 +213,28 @@ const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promis
     if (prefixed) {
       candidates.push({ bucket: prefixed, path: normalized.slice(prefixed.length + 1) });
     }
+    const cleanPath = normalized.replace(/^(?:faces|face-images|student-registration-faces|attendance-training-faces)\//, '');
+    candidates.push({ bucket: 'face-images', path: `faces/${cleanPath}` });
+    candidates.push({ bucket: 'face-images', path: cleanPath });
     for (const b of FACE_SAMPLE_BUCKETS) {
       candidates.push({ bucket: b, path: normalized });
     }
   }
 
+  // Try public URL
+  for (const cand of candidates) {
+    try {
+      const { data } = supabase.storage.from(cand.bucket).getPublicUrl(cand.path);
+      if (data?.publicUrl) {
+        GLOBAL_SIGNED_URL_CACHE.set(cacheKey, data.publicUrl);
+        return data.publicUrl;
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  // Try signed URL
   for (const cand of candidates) {
     try {
       const { data, error } = await supabase.storage.from(cand.bucket).createSignedUrl(cand.path, 3600);
@@ -204,12 +243,12 @@ const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promis
         return data.signedUrl;
       }
     } catch {
-      // Continue to next bucket candidate
+      // Continue
     }
   }
 
-  GLOBAL_SIGNED_URL_CACHE.set(cacheKey, null);
-  return null;
+  GLOBAL_SIGNED_URL_CACHE.set(cacheKey, value);
+  return value;
 };
 
 // ---------- Component ----------
@@ -257,6 +296,11 @@ const StudentFaceSamplesManager: React.FC = () => {
   // AI Deduplication states
   const [dedupModalOpen, setDedupModalOpen] = useState(false);
   const [dedupTargetUserId, setDedupTargetUserId] = useState<string | undefined>(undefined);
+  const [quickDeduplicating, setQuickDeduplicating] = useState(false);
+
+  // Full-Screen Image Preview Modal states
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState<string>('');
 
   // Cache of resolved image URLs for active view
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
@@ -706,6 +750,50 @@ const StudentFaceSamplesManager: React.FC = () => {
     }
   };
 
+  // Direct 1-Click Action to scan & remove all duplicate face photos
+  const handleQuickRemoveAllDuplicates = async () => {
+    setQuickDeduplicating(true);
+    try {
+      const scan = await scanDuplicateFaceSamples();
+      if (scan.totalDuplicatesFound === 0) {
+        toast({
+          title: 'No Duplicates Found',
+          description: 'Your database has zero duplicate face photo waste.',
+        });
+        return;
+      }
+
+      const kbSaved = Math.round(scan.estimatedBytesSaved / 1024);
+      const confirm = window.confirm(
+        `⚡ Remove All Duplicates:\n\nFound ${scan.totalDuplicatesFound} duplicate photos across ${scan.studentsWithDuplicates} students.\n\nRemove all duplicates now to safely reclaim ~${kbSaved} KB of Supabase storage?`
+      );
+      if (!confirm) return;
+
+      const result = await executeDeduplication();
+      if (result.success) {
+        toast({
+          title: '⚡ All Duplicates Removed',
+          description: `Successfully pruned ${result.totalDuplicatesRemoved} duplicate photo records and reclaimed storage!`,
+        });
+        fetchSamples({ silent: true });
+      } else {
+        toast({
+          title: 'Deduplication Result',
+          description: result.errors[0] || 'Cleaned available duplicates.',
+        });
+        fetchSamples({ silent: true });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Deduplication Failed',
+        description: err.message || 'Could not remove duplicates.',
+        variant: 'destructive',
+      });
+    } finally {
+      setQuickDeduplicating(false);
+    }
+  };
+
   const totalSamplesCount = useMemo(() => groups.reduce((sum, g) => sum + g.samples.length, 0), [groups]);
   const totalModelSlots = useMemo(() => groups.reduce((sum, g) => sum + g.samples.filter((s) => s.source_table === 'face_descriptors').length, 0), [groups]);
 
@@ -741,6 +829,17 @@ const StudentFaceSamplesManager: React.FC = () => {
               <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-bold gap-1.5">
                 <Camera className="h-3.5 w-3.5 text-blue-500" /> {totalSamplesCount} Total Photos
               </Badge>
+
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleQuickRemoveAllDuplicates}
+                disabled={loading || quickDeduplicating || groups.length === 0}
+                className="rounded-2xl bg-gradient-to-r from-red-500 to-amber-600 hover:from-red-600 hover:to-amber-700 text-white font-bold text-xs gap-1.5 shadow-md shadow-red-500/20 active:scale-95 transition-all"
+              >
+                <Trash2 className={`h-3.5 w-3.5 ${quickDeduplicating ? 'animate-spin' : ''}`} />
+                {quickDeduplicating ? 'Cleaning...' : 'Remove All Duplicates'}
+              </Button>
 
               <Button
                 variant="outline"
@@ -1026,6 +1125,13 @@ const StudentFaceSamplesManager: React.FC = () => {
                               return next;
                             });
                           }}
+                          onPreview={() => {
+                            const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
+                            if (url) {
+                              setPreviewImageUrl(url);
+                              setPreviewTitle(`${selectedGroup.name} · Trained Model Slot`);
+                            }
+                          }}
                           onCrop={() => openCropper(sample)}
                           onSetIdPhoto={() => handleSetAsIdPhoto(sample)}
                           onDelete={() => handleDeleteSample(sample)}
@@ -1076,6 +1182,13 @@ const StudentFaceSamplesManager: React.FC = () => {
                               else next.add(sample.id);
                               return next;
                             });
+                          }}
+                          onPreview={() => {
+                            const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
+                            if (url) {
+                              setPreviewImageUrl(url);
+                              setPreviewTitle(`${selectedGroup.name} · Captured Photo`);
+                            }
                           }}
                           onCrop={() => openCropper(sample)}
                           onSetIdPhoto={() => handleSetAsIdPhoto(sample)}
@@ -1241,12 +1354,12 @@ const StudentFaceSamplesManager: React.FC = () => {
                   setMergingStudent(false);
                 }
               }}
-              disabled={!mergeTargetUserId || mergingStudent}
-              className="rounded-xl font-bold"
-            >
-              {mergingStudent ? 'Merging...' : 'Confirm Merge'}
+                  {mergingStudent ? 'Merging...' : 'Confirm Merge'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* AI Deduplication & Cloud Storage Reclaim Modal */}
       <FaceSampleDeduplicationModal
         open={dedupModalOpen}
@@ -1254,6 +1367,39 @@ const StudentFaceSamplesManager: React.FC = () => {
         targetUserId={dedupTargetUserId}
         onCompleted={() => fetchSamples({ silent: true })}
       />
+
+      {/* Full-Screen Image Preview Modal */}
+      <Dialog open={!!previewImageUrl} onOpenChange={(open) => !open && setPreviewImageUrl(null)}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden bg-card/95 backdrop-blur-2xl border border-primary/20 shadow-2xl rounded-3xl">
+          <div className="p-4 border-b border-border/60 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                <Camera className="w-4 h-4" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground truncate">
+                {previewTitle || 'Face Sample Preview'}
+              </h3>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPreviewImageUrl(null)}
+              className="h-7 w-7 rounded-full"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="p-4 bg-black/40 flex items-center justify-center min-h-[300px] max-h-[70vh] overflow-hidden">
+            {previewImageUrl && (
+              <img
+                src={previewImageUrl}
+                alt="Full preview"
+                className="max-h-[65vh] max-w-full object-contain rounded-xl shadow-lg"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
@@ -1265,6 +1411,7 @@ interface PhotoCardProps {
   imageUrl: string | null;
   isSelected: boolean;
   onToggleSelect: () => void;
+  onPreview: () => void;
   onCrop: () => void;
   onSetIdPhoto: () => void;
   onDelete: () => void;
@@ -1276,6 +1423,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
   imageUrl,
   isSelected,
   onToggleSelect,
+  onPreview,
   onCrop,
   onSetIdPhoto,
   onDelete,
@@ -1312,16 +1460,29 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
         </Badge>
       </div>
 
-      {/* Image Display */}
-      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-muted/40 border border-border/40 flex items-center justify-center mb-3">
+      {/* Image Display & Zoom Click */}
+      <div
+        onClick={imageUrl ? onPreview : undefined}
+        className={cn(
+          "relative aspect-square w-full rounded-xl overflow-hidden bg-muted/40 border border-border/40 flex items-center justify-center mb-3",
+          imageUrl && "cursor-pointer group/img"
+        )}
+      >
         {imageUrl && !imgError ? (
-          <img
-            src={imageUrl}
-            alt="Face sample"
-            onError={() => setImgError(true)}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
-          />
+          <>
+            <img
+              src={imageUrl}
+              alt="Face sample"
+              onError={() => setImgError(true)}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+              <span className="p-2 rounded-full bg-black/70 text-white shadow-md">
+                <ZoomIn className="w-4 h-4" />
+              </span>
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center p-3 text-muted-foreground text-center space-y-1">
             <ImageIcon className="h-6 w-6 opacity-40" />
@@ -1369,6 +1530,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           size="sm"
           variant="outline"
           onClick={onTransfer}
+          disabled={!imageUrl}
           className="rounded-xl h-8 text-[11px] font-bold px-2 gap-1"
         >
           <ArrowRightLeft className="h-3 w-3 text-blue-500" /> Move
