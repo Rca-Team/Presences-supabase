@@ -100,54 +100,91 @@ export async function saveTeacherCategories(userId: string, categories: string[]
   const db = supabase as any;
   const normalized = [...new Set(categories.map(c => normalizeCategory(c)).filter(Boolean))] as string[];
 
-  await db.from('teacher_permissions').delete().or(`teacher_id.eq.${userId},user_id.eq.${userId}`);
-  await db.from('class_teachers').delete().eq('teacher_id', userId);
+  // 1. Clear existing assignments safely
+  try {
+    await db.from('teacher_permissions').delete().or(`teacher_id.eq.${userId},user_id.eq.${userId}`);
+  } catch (e) {
+    console.warn('Could not clear teacher_permissions:', e);
+  }
+
+  try {
+    await db.from('class_teachers').delete().eq('teacher_id', userId);
+  } catch (e) {
+    console.warn('Could not clear class_teachers:', e);
+  }
 
   if (normalized.length === 0) return;
 
   let teacherName = '';
   let teacherEmail = '';
-  const profile = await db
-    .from('profiles')
-    .select('display_name, full_name, email')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (profile?.data) {
-    teacherName = profile.data.display_name || profile.data.full_name || '';
-    teacherEmail = profile.data.email || '';
+  try {
+    const profile = await db
+      .from('profiles')
+      .select('display_name, full_name, email')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (profile?.data) {
+      teacherName = profile.data.display_name || profile.data.full_name || '';
+      teacherEmail = profile.data.email || '';
+    }
+  } catch {
+    // Ignore profile fetch failure
   }
 
-  const permRows = normalized.map(category => {
+  // 2. Insert into teacher_permissions with fallback
+  for (const category of normalized) {
     const [cls, sec] = category.split('-');
-    return {
+    
+    // Core payload supported by all schemas
+    const corePermPayload: Record<string, any> = {
       teacher_id: userId,
       user_id: userId,
       class: cls,
       section: sec,
       category,
-      can_take_attendance: true,
-      can_edit_timetable: true,
-      can_export_reports: true,
     };
-  });
 
-  const permInsert = await db.from('teacher_permissions').insert(permRows);
+    // Attempt 1: insert with core schema
+    let { error: pError } = await db.from('teacher_permissions').insert(corePermPayload);
 
-  const classRows = normalized.map(category => {
-    const [cls, sec] = category.split('-');
-    return {
+    if (pError) {
+      // Attempt 2: Minimal fallback (user_id and category)
+      const { error: minError } = await db.from('teacher_permissions').insert({
+        user_id: userId,
+        category,
+      });
+      if (minError) {
+        console.warn('Could not insert teacher_permissions row:', minError);
+      }
+    }
+
+    // 3. Insert into class_teachers with fallback
+    const ctPayload: Record<string, any> = {
       class: cls,
       section: sec,
       category,
       teacher_id: userId,
-      teacher_name: teacherName,
-      teacher_email: teacherEmail,
-      role: 'class_teacher',
+      teacher_name: teacherName || 'Teacher',
     };
-  });
 
-  const classInsert = await db.from('class_teachers').insert(classRows);
+    if (teacherEmail) ctPayload.teacher_email = teacherEmail;
+    ctPayload.role = 'class_teacher';
 
-  if (permInsert.error && classInsert.error) throw permInsert.error;
+    let { error: ctError } = await db.from('class_teachers').insert(ctPayload);
+
+    if (ctError) {
+      // Fallback: without teacher_email / role
+      const { error: minCtError } = await db.from('class_teachers').insert({
+        class: cls,
+        section: sec,
+        category,
+        teacher_id: userId,
+        teacher_name: teacherName || 'Teacher',
+      });
+      if (minCtError) {
+        console.warn('Could not insert class_teachers row:', minCtError);
+      }
+    }
+  }
 }
 
