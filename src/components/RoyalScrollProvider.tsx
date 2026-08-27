@@ -28,10 +28,13 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
   const prefersReducedMotion = useReducedMotion();
   const { liteMode } = usePerformanceMode();
 
+  // Full-screen / heavy camera routes that shouldn't bind global wheel interception
+  const isExcludedRoute = location.pathname.startsWith('/gate') || location.pathname.startsWith('/__admin');
+
   // Initialize Lenis smooth scroll engine
   useEffect(() => {
-    // If user prefers reduced motion or is in low-power/lite mode, use native scrolling
-    if (prefersReducedMotion || liteMode) {
+    // If user prefers reduced motion, low-power mode, or is on full-screen gate mode, bypass Lenis
+    if (prefersReducedMotion || liteMode || isExcludedRoute) {
       if (lenisRef.current) {
         lenisRef.current.destroy();
         lenisRef.current = null;
@@ -41,13 +44,13 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
     }
 
     const lenis = new Lenis({
-      duration: 1.15, // Royal luxury glide duration
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Exponential ease-out for silky royal inertia
+      duration: 0.85,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -8 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
-      wheelMultiplier: 0.95,
-      touchMultiplier: 1.2,
+      wheelMultiplier: 1.0,
+      touchMultiplier: 1.1,
       infinite: false,
     });
 
@@ -64,29 +67,43 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
     });
 
     let rafId: number;
+    let isRunning = true;
+
     function raf(time: number) {
-      lenis.raf(time);
+      if (!isRunning) return;
+      if (document.visibilityState === 'visible') {
+        lenis.raf(time);
+      }
       rafId = requestAnimationFrame(raf);
     }
     rafId = requestAnimationFrame(raf);
 
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !isRunning) {
+        isRunning = true;
+        rafId = requestAnimationFrame(raf);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
+      isRunning = false;
+      document.removeEventListener('visibilitychange', onVisibility);
       cancelAnimationFrame(rafId);
       lenis.destroy();
       lenisRef.current = null;
       setLenisInstance(null);
     };
-  }, [prefersReducedMotion, liteMode]);
+  }, [prefersReducedMotion, liteMode, isExcludedRoute]);
 
   // Handle route changes: notify Lenis to recalibrate document scroll dimensions
   useEffect(() => {
-    if (lenisRef.current) {
-      // Recalculate dimensions on route change after DOM update
+    if (lenisRef.current && !isExcludedRoute) {
       requestAnimationFrame(() => {
         lenisRef.current?.resize();
       });
     }
-  }, [location.pathname]);
+  }, [location.pathname, isExcludedRoute]);
 
   const scrollTo = (target: string | HTMLElement | number, options?: Parameters<Lenis['scrollTo']>[1]) => {
     if (lenisRef.current) {

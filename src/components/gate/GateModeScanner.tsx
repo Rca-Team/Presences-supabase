@@ -434,6 +434,7 @@ const GateModeScanner = ({
       mounted = false;
       if (videoRef.current?.srcObject) {
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+        videoRef.current.srcObject = null;
       }
     };
   }, [isActive, facingMode, cameraRetryNonce, activeSource, cctvStreamUrl]);
@@ -996,8 +997,13 @@ const GateModeScanner = ({
     let stopped = false;
     const tick = async () => {
       if (stopped) return;
-      await detectLoop();
-      if (!stopped) intervalRef.current = setTimeout(tick, detectionIntervalRef.current);
+      if (document.visibilityState === 'visible') {
+        await detectLoop();
+      }
+      if (!stopped) {
+        const delay = document.visibilityState === 'visible' ? detectionIntervalRef.current : 1200;
+        intervalRef.current = setTimeout(tick, delay);
+      }
     };
     intervalRef.current = setTimeout(tick, detectionIntervalRef.current);
     return () => { stopped = true; if (intervalRef.current) clearTimeout(intervalRef.current); };

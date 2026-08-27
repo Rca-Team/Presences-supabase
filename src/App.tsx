@@ -185,7 +185,8 @@ function SeoHead() {
 }
 
 // Routes that should preserve their state and scroll position when the user
-// navigates away and back. Excludes auth screens or one-time flows where a fresh mount is required.
+// navigates away and back. Excludes auth screens, one-time flows, and heavy camera/AI
+// routes (which must clean up hardware resources when navigated away).
 const KEEP_ALIVE_PATHS = new Set<string>([
   '/',
   '/features',
@@ -196,10 +197,6 @@ const KEEP_ALIVE_PATHS = new Set<string>([
   '/admin',
   '/teacher',
   '/notifications',
-  '/register',
-  '/attendance',
-  '/user',
-  '/gate',
 ]);
 
 // Elements rendered when a keep-alive path is visited. Kept as stable node
@@ -232,22 +229,6 @@ const keepAliveElements: Record<string, JSX.Element> = {
   '/notifications': (
     <ProtectedRoute requireRoles={["admin", "principal"]}>
       <NotificationDemo />
-    </ProtectedRoute>
-  ),
-  '/register': <Register />,
-  '/attendance': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-      <Attendance />
-    </ProtectedRoute>
-  ),
-  '/user': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-      <Attendance />
-    </ProtectedRoute>
-  ),
-  '/gate': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-      <GateMode />
     </ProtectedRoute>
   ),
 };
