@@ -93,13 +93,13 @@ const GateMode = () => {
   const navigate   = useNavigate();
   const isMobile   = useIsMobile();
 
-  const [isSetup,          setIsSetup]          = useState(true);
-  const [isBootstrapping,  setIsBootstrapping]  = useState(true);
+  const [isSetup,          setIsSetup]          = useState(false);
+  const [isBootstrapping,  setIsBootstrapping]  = useState(false);
   const [isStartingSession,setIsStartingSession]= useState(false);
   const [confirmEnd,       setConfirmEnd]       = useState(false);
 
   const [gateName,         setGateName]         = useState('Main Gate');
-  const [cameraSource,     setCameraSource]     = useState<'webcam' | 'cctv' | 'both'>('both');
+  const [cameraSource,     setCameraSource]     = useState<'webcam' | 'cctv' | 'both'>('webcam');
   const [cctvStreamUrl,    setCctvStreamUrl]    = useState<string | undefined>(undefined);
   const [sessionId,        setSessionId]        = useState<string | null>(null);
   const [isFullscreen,     setIsFullscreen]     = useState(false);
@@ -178,15 +178,6 @@ const GateMode = () => {
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
   }, []);
 
-  // ── Wake lock (prevent screen sleep during gate session) ───────────────────
-  useEffect(() => {
-    let lock: any = null;
-    if (!isSetup && 'wakeLock' in navigator) {
-      (navigator as any).wakeLock.request('screen').then((l: any) => { lock = l; }).catch(() => {});
-    }
-    return () => { lock?.release(); };
-  }, [isSetup]);
-
   // ── Fullscreen ─────────────────────────────────────────────────────────────
   const toggleFullscreen = useCallback(async () => {
     if (!document.fullscreenElement) {
@@ -204,63 +195,46 @@ const GateMode = () => {
       const start = new Date(); start.setHours(0, 0, 0, 0);
       const end   = new Date(start); end.setDate(end.getDate() + 1);
 
-      const [registeredRes, descriptorRes, attRes] = await Promise.all([
-        // Canonical registered student source
+      const [profilesRes, registeredRes, descriptorRes, attRes] = await Promise.all([
+        supabase.from('profiles').select('user_id, employee_id, roll_number, full_name, display_name'),
         supabase
           .from('attendance_records')
           .select('user_id, student_id, device_info')
           .eq('status', 'registered'),
-        // Descriptor-only registrations (fallback when attendance registration row is missing)
         supabase
           .from('face_descriptors')
           .select('user_id, student_id'),
-        // Attendance today via gate-mode
         supabase.from('attendance_records')
-          .select('user_id, status').eq('source', 'gate-mode')
-          .in('status', ['present', 'late']).not('user_id', 'is', null)
+          .select('user_id, status, student_id, student_name')
           .gte('timestamp', start.toISOString()).lt('timestamp', end.toISOString()),
       ]);
 
-      const registeredRows = (registeredRes.data || []).filter((row: any) => {
-        if (!className && !section) return true;
-        const metadata = (row.device_info as any)?.metadata || {};
-        const rowClass = metadata.class || null;
-        const rowSection = metadata.section || null;
-        const classMatches = !className || !rowClass || rowClass === className;
-        const sectionMatches = !section || !rowSection || rowSection === section;
-        return classMatches && sectionMatches;
+      const uniqueIds = new Set<string>();
+      (profilesRes.data || []).forEach((p) => {
+        if (p.user_id) uniqueIds.add(p.user_id);
+      });
+      (registeredRes.data || []).forEach((r) => {
+        if (r.user_id) uniqueIds.add(r.user_id);
+      });
+      (descriptorRes.data || []).forEach((d) => {
+        if (d.user_id) uniqueIds.add(d.user_id);
       });
 
-      const registeredIds = new Set(
-        registeredRows
-          .map((row: any) => {
-            const metadata = (row.device_info as any)?.metadata || {};
-            return (
-              row.student_id ||
-              metadata.employee_id ||
-              metadata.roll_number ||
-              row.user_id ||
-              (row.device_info as any)?.employee_id ||
-              row.id
-            );
-          })
-          .filter(Boolean),
+      const rows = attRes.data || [];
+      const present = new Set(
+        rows.filter((r) => r.status === 'present' || r.status === 'late').map((r) => r.user_id || r.student_id || r.student_name).filter(Boolean)
+      );
+      const late = new Set(
+        rows.filter((r) => r.status === 'late').map((r) => r.user_id || r.student_id || r.student_name).filter(Boolean)
       );
 
-      (descriptorRes.data || []).forEach((row: any) => {
-        const id = row.user_id || row.student_id;
-        if (id) registeredIds.add(id);
-      });
-
-      const rows    = attRes.data || [];
-      const present = new Set(rows.map(r => r.user_id).filter(Boolean));
-      const late    = new Set(rows.filter(r => r.status === 'late').map(r => r.user_id).filter(Boolean));
-
-      setTotalStudents(registeredIds.size);
+      setTotalStudents(Math.max(uniqueIds.size, present.size));
       setTotalPresentToday(present.size);
       setLateCount(late.size);
-    } catch {}
-  }, [className, section]);
+    } catch (err) {
+      console.warn('fetchGateStats error:', err);
+    }
+  }, []);
 
   // ── Session persistence ────────────────────────────────────────────────────
   const loadSessionEntries = useCallback(async (sid: string) => {
@@ -271,21 +245,23 @@ const GateMode = () => {
         .eq('gate_session_id', sid)
         .order('entry_time', { ascending: false });
       if (error) throw error;
-      const mapped: GateEntry[] = (data || []).map(row => ({
+      const mapped: GateEntry[] = (data || []).map((row) => ({
         id:          row.id,
         studentId:   row.student_id,
         studentName: row.student_name || 'Unknown',
         isRecognized: row.is_recognized,
         confidence:  row.confidence_score || 0,
         photoUrl:    row.snapshot_url || undefined,
-        time:        new Date(row.entry_time || row.created_at),
+        time:        new Date(row.entry_time || (row as any).created_at),
         className:   row.class || undefined,
         section:     row.section || undefined,
         periodKey:   (row.metadata as any)?.periodKey || undefined,
       }));
       setSessionEntries(mapped);
       setEntries(mapped);
-    } catch (e) { console.warn('[Gate] Could not load session entries:', e); }
+    } catch (e) {
+      console.warn('[Gate] Could not load session entries:', e);
+    }
   }, []);
 
   const resumeActiveSession = useCallback(async () => {
@@ -308,21 +284,20 @@ const GateMode = () => {
       setClassName(meta.class || undefined);
       setSection(meta.section || undefined);
       setSubject(meta.subject || undefined);
-      setCameraSource(meta.cameraSource || 'both');
+      setCameraSource(meta.cameraSource || 'webcam');
       setCctvStreamUrl(meta.cctvStreamUrl || undefined);
       if (meta.periodKey) setActivePeriodKey(meta.periodKey);
-      setIsSetup(false);
       await loadSessionEntries(data.id);
       return true;
-    } catch (e) { console.warn('[Gate] Could not resume active session:', e); return false; }
+    } catch (e) {
+      console.warn('[Gate] Could not resume active session:', e);
+      return false;
+    }
   }, [loadSessionEntries]);
 
-  // Bootstrap: fetch settings + stats, resume any active session.
-  // Every step is guarded so a single failed query can never leave the
-  // page stuck on the loading skeleton.
+  // Bootstrap
   useEffect(() => {
     let statsInterval: any = null;
-    let cancelled = false;
 
     const safe = async <T,>(fn: () => Promise<T>): Promise<T | null> => {
       try { return await fn(); } catch (e) { console.warn('[Gate] bootstrap step failed:', e); return null; }
@@ -339,44 +314,18 @@ const GateMode = () => {
         }
       });
 
-      // Active period
-      await safe(async () => {
-        const now        = new Date();
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        const { data: periods } = await supabase
-          .from('period_timings').select('period_name, start_time, end_time').order('start_time');
-        const current = (periods || []).find(p => {
-          const [sh, sm] = String(p.start_time || '00:00').split(':').map(Number);
-          const [eh, em] = String(p.end_time   || '23:59').split(':').map(Number);
-          return nowMinutes >= sh * 60 + sm && nowMinutes <= eh * 60 + em;
-        });
-        if (current?.period_name) {
-          setActivePeriodKey(`period-${now.toISOString().slice(0, 10)}-${current.period_name.replace(/\s+/g, '-').toLowerCase()}`);
-        }
-      });
-
       await safe(() => fetchGateStats());
       await safe(() => resumeActiveSession());
 
-      if (cancelled) return;
-      statsInterval = setInterval(() => { void safe(() => fetchGateStats()); }, 15_000);
-      setIsBootstrapping(false);
-    })().catch((e) => {
-      console.warn('[Gate] bootstrap crashed, showing setup anyway:', e);
-      setIsBootstrapping(false);
-    });
-
-    // Safety net: never stay on the loading skeleton longer than 4s.
-    const fallbackTimer = setTimeout(() => setIsBootstrapping(false), 4000);
+      statsInterval = setInterval(() => { void safe(() => fetchGateStats()); }, 10_000);
+    })();
 
     return () => {
-      cancelled = true;
-      clearTimeout(fallbackTimer);
       if (statsInterval) clearInterval(statsInterval);
     };
   }, [fetchGateStats, resumeActiveSession]);
 
-  // Realtime subscription: keep session entries synced whenever sessionId changes
+  // Realtime subscription
   useEffect(() => {
     if (!sessionId) return;
     const channel = supabase
@@ -409,10 +358,9 @@ const GateMode = () => {
 
   // ── Persist a single gate entry to Supabase ─────────────────────────────────
   const persistGateEntry = useCallback(async (entry: GateEntry) => {
-    if (!sessionIdRef.current) return null;
     try {
       const { data, error } = await supabase.from('gate_entries').insert({
-        gate_session_id:  sessionIdRef.current,
+        gate_session_id:  sessionIdRef.current || null,
         student_id:       entry.studentId,
         student_name:     entry.studentName,
         is_recognized:    entry.isRecognized,
@@ -432,102 +380,37 @@ const GateMode = () => {
       return data?.id || null;
     } catch (err) {
       console.error('[Gate] Failed to persist gate entry:', err);
-      toast.error('Could not save gate entry');
       return null;
     }
   }, [gateName]);
 
-  // ── Session management ─────────────────────────────────────────────────────
-  const startSession = useCallback(async (config: GateSessionStartConfig) => {
-    if (isStartingSession) return;
-    setIsStartingSession(true);
-    setGateName(config.gateName);
-    setCameraSource(config.cameraSource);
-    setCctvStreamUrl(config.cctvStreamUrl);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) throw new Error('Not signed in. Please sign in and retry.');
-
-      const { data, error } = await supabase.from('gate_sessions').insert({
-        gate_name:   config.gateName,
-        started_by:  session.user.id,
-        device_info: { userAgent: navigator.userAgent, screen: `${screen.width}x${screen.height}` },
-        metadata:    {
-          periodKey: activePeriodKey,
-          class: className,
-          section,
-          subject,
-          cameraSource: config.cameraSource,
-          cctvStreamUrl: config.cctvStreamUrl,
-        },
-      }).select('id').single();
-
-      if (error) throw error;
-      sessionIdRef.current = data.id;
-      setSessionId(data.id);
-      setSessionEntries([]);
-      setEntries([]);
-      setSmartEvents([]);
-      setIsSetup(false);
-      toast.success(`Gate Mode started — ${config.gateName}`);
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to start gate session');
-    } finally {
-      setIsStartingSession(false);
-    }
-  }, [isStartingSession, activePeriodKey, className, section, subject]);
-
-  const endSession = useCallback(async () => {
-    if (sessionId) {
-      const recognized = sessionEntries.filter(e => e.isRecognized).length;
-      const unknown    = sessionEntries.filter(e => !e.isRecognized).length;
-      await supabase.from('gate_sessions').update({
-        ended_at:       new Date().toISOString(),
-        total_entries:  recognized,
-        unknown_entries: unknown,
-      }).eq('id', sessionId);
-    }
-    sessionIdRef.current = null;
-    setSessionId(null);
-    navigate('/admin');
-  }, [sessionId, sessionEntries, navigate]);
-
   // ── Face detected callback ─────────────────────────────────────────────────
   const handleFaceDetected = useCallback(async (entry: GateEntry) => {
-    // Optimistically show the entry in the UI and include it in session stats
-    // before the DB round-trip completes. The realtime subscription will later
-    // confirm it (idempotent by id) so stats remain accurate after refresh.
     setSessionEntries(prev => prev.some(e => e.id === entry.id) ? prev : [entry, ...prev]);
     setEntries(prev => [entry, ...prev]);
     setLastEntry(entry);
 
     if (entry.isRecognized) {
       playSound(entry.isLate ? 'late' : 'success');
-
-      // Late form (non-blocking corner panel)
       if (entry.isLate) {
         setLateStudent(entry);
         setShowLateForm(true);
       }
-
     } else {
       playSound('alert');
       setStrangerEntry(entry);
       setShowStrangerAlert(true);
     }
 
-    // Persist to gate_entries (awaited so errors surface)
     await persistGateEntry(entry);
     fetchGateStats();
   }, [playSound, fetchGateStats, persistGateEntry]);
 
   // ── Derived stats ──────────────────────────────────────────────────────────
-  // Use DB-backed sessionEntries for the current gate session so stats survive refresh
   const { autoMarkedCount, unknownCount, uniqueStudents } = useMemo(() => {
     const recognized = sessionEntries.filter(e => e.isRecognized);
     const unk  = sessionEntries.length - recognized.length;
-    const uniq = new Set(recognized.map(e => e.studentId).filter(Boolean)).size;
+    const uniq = new Set(recognized.map(e => e.studentId || e.studentName).filter(Boolean)).size;
     return { autoMarkedCount: recognized.length, unknownCount: unk, uniqueStudents: uniq };
   }, [sessionEntries]);
 
@@ -550,115 +433,109 @@ const GateMode = () => {
     playSound('alert');
     addSmartEvent(`Crowd hotspot: ${event.count} students gathered near one zone`, 'warning');
     toast.warning(`Crowd hotspot detected (${event.count} students in one area)`);
-
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Gate Crowd Hotspot Alert', {
-        body: `${event.count} students detected at one place.`,
-      });
-    }
   }, [addSmartEvent, playSound]);
-
-  // ── Loading skeleton ───────────────────────────────────────────────────────
-  if (isSetup && isBootstrapping) {
-    return (
-      <div className="fixed inset-0 bg-background z-50 p-4 sm:p-6">
-        <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
-          <div className="premium-skeleton h-10 w-56 mx-auto" />
-          <div className="premium-skeleton h-12 w-full rounded-2xl" />
-          <div className="premium-skeleton h-[56vh] w-full rounded-3xl" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="premium-skeleton h-12 rounded-xl" />
-            <div className="premium-skeleton h-12 rounded-xl" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isSetup) {
-    return <GateModeSetup onStart={startSession} onCancel={() => navigate('/admin')} isStarting={isStartingSession} />;
-  }
 
   // ── Active gate session ────────────────────────────────────────────────────
   return (
-    <div ref={containerRef} className="fixed inset-0 bg-background z-50 flex flex-col overflow-hidden">
+    <div ref={containerRef} className="fixed inset-0 bg-[#070b14] z-40 flex flex-col overflow-hidden text-foreground pt-16 md:pt-20">
 
-      {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-2 sm:px-4 py-1.5 sm:py-2 bg-card/85 backdrop-blur-2xl border-b border-border/70 safe-area-top shadow-xs">
-        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+      {/* ── Top Command Bar ── */}
+      <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-card/80 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
-          <span className="font-extrabold text-sm sm:text-base text-foreground truncate">{gateName}</span>
-          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-semibold">
-            PM Shri KV NFC Vigyan Vihar
-          </span>
-          <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2 bg-background/50">
-            <Cctv className="h-3 w-3 mr-1 text-primary" />
-            {cameraSource.toUpperCase()}
+          
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 border border-primary/20">
+            <DoorOpen className="h-4 w-4 text-primary" />
+            <select
+              value={gateName}
+              onChange={(e) => setGateName(e.target.value)}
+              className="bg-transparent text-xs font-extrabold text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="Main Gate" className="bg-card text-foreground">Main Gate</option>
+              <option value="Gate 1 (North)" className="bg-card text-foreground">Gate 1 (North)</option>
+              <option value="Gate 2 (South)" className="bg-card text-foreground">Gate 2 (South)</option>
+              <option value="Bus Terminal Gate" className="bg-card text-foreground">Bus Terminal Gate</option>
+            </select>
+          </div>
+
+          <Badge variant="outline" className="hidden sm:inline-flex text-xs px-2 py-0.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-bold">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />
+            AI Gate Live
           </Badge>
-          <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2 bg-background/50">
+
+          <Badge variant="outline" className="text-xs px-2 py-0.5 border-border/60 bg-background/50 font-medium">
+            <Cctv className="h-3.5 w-3.5 mr-1 text-primary" />
+            <select
+              value={cameraSource}
+              onChange={(e) => setCameraSource(e.target.value as any)}
+              className="bg-transparent text-[11px] font-bold text-foreground focus:outline-none cursor-pointer"
+            >
+              <option value="webcam" className="bg-card text-foreground">Webcam</option>
+              <option value="cctv" className="bg-card text-foreground">CCTV Stream</option>
+              <option value="both" className="bg-card text-foreground">Dual Hybrid</option>
+            </select>
+          </Badge>
+
+          <Badge variant="outline" className="hidden md:inline-flex text-xs px-2 py-0.5 border-border/60 bg-background/50">
             {isOnline
-              ? <Wifi    className="h-3 w-3 mr-0.5 text-green-500" />
-              : <WifiOff className="h-3 w-3 mr-0.5 text-destructive" />
+              ? <Wifi className="h-3.5 w-3.5 mr-1 text-green-500" />
+              : <WifiOff className="h-3.5 w-3.5 mr-1 text-destructive" />
             }
-            <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline'}</span>
+            <span>{isOnline ? 'Online' : 'Offline'}</span>
           </Badge>
-          {cloudOffline && (
-            <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0 px-1.5 sm:px-2 border-amber-500/50 text-amber-600 bg-amber-500/10">
-              <CloudOff className="h-3 w-3 mr-0.5" />
-              <span className="hidden sm:inline">Local AI</span>
-            </Badge>
-          )}
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => setSoundEnabled(v => !v)}>
-            {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-          </Button>
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <Button
-            variant={aiEnhancerEnabled ? 'default' : 'ghost'}
+            variant="ghost"
             size="sm"
-            className="h-8 sm:h-9 text-xs px-2 sm:px-3"
+            className="h-8 px-2.5 text-xs rounded-xl font-semibold text-muted-foreground hover:text-foreground"
+            onClick={() => setSoundEnabled(v => !v)}
+          >
+            {soundEnabled ? <Volume2 className="h-4 w-4 text-emerald-400 mr-1" /> : <VolumeX className="h-4 w-4 mr-1" />}
+            <span className="hidden sm:inline">{soundEnabled ? 'Audio On' : 'Muted'}</span>
+          </Button>
+
+          <Button
+            variant={aiEnhancerEnabled ? 'default' : 'outline'}
+            size="sm"
+            className={`h-8 px-2.5 text-xs rounded-xl font-bold gap-1 ${
+              aiEnhancerEnabled ? 'bg-primary/20 text-primary border border-primary/40' : ''
+            }`}
             onClick={() => setAiEnhancerEnabled(v => !v)}
           >
-            <Wand2 className="h-3.5 w-3.5 mr-1" />
-            <span className="hidden sm:inline">Enhance {aiEnhancerEnabled ? 'On' : 'Off'}</span>
+            <Wand2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">AI Enhance</span>
           </Button>
-          <Link to="/gate/vision" className="hidden sm:inline-flex">
-            <Button variant="outline" size="sm" className="h-8 sm:h-9 text-xs px-2 sm:px-3 gap-1 border-primary/50 text-primary hover:bg-primary/10">
-              <Cctv className="h-3.5 w-3.5" />
-              Vision 2.0
-            </Button>
-          </Link>
+
           {!isMobile && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={toggleFullscreen}>
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={toggleFullscreen}>
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </Button>
           )}
+
           <Button
             variant="destructive"
             size="sm"
-            className="h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3"
-            onClick={() => setConfirmEnd(true)}
+            className="h-8 text-xs px-3 rounded-xl font-bold gap-1 shadow-md shadow-destructive/20"
+            onClick={() => navigate('/admin')}
           >
-            <X className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-0.5 sm:mr-1" />
-            <span className="hidden sm:inline">End Session</span>
-            <span className="sm:hidden">End</span>
+            <X className="h-3.5 w-3.5" />
+            <span>Exit</span>
           </Button>
         </div>
       </div>
 
-      {/* ── Main layout ── */}
-      <div className={`flex-1 flex relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
+      {/* ── Main Layout Split (70% Video HUD / 30% Stats & Live Feed) ── */}
+      <div className={`flex-1 flex min-h-0 relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
 
-        {/* Mobile mini stats moved to bottom floating bar — top overlay removed to avoid covering scanner status pills */}
-
-        {/* Camera */}
-        <div className={isMobile ? 'flex-1 relative' : 'flex-[7] relative'}>
+        {/* Left: Camera Feed & AI Recognition Box */}
+        <div className={isMobile ? 'flex-1 relative min-h-0' : 'flex-[68] relative min-h-0 bg-black/80 flex flex-col'}>
           <GateModeScanner
             onFaceDetected={handleFaceDetected}
             onSmartMonitoringUpdate={handleSmartMonitoringUpdate}
             onCrowdHotspot={handleCrowdHotspot}
-            isActive={!isSetup}
+            isActive={true}
             onPendingCountChange={setPendingCount}
             onCloudStatusChange={setCloudOffline}
             markedCount={autoMarkedCount}
@@ -673,7 +550,7 @@ const GateMode = () => {
             cctvStreamUrl={cctvStreamUrl}
           />
 
-          {/* Entry feedback */}
+          {/* Entry feedback notification card */}
           <AnimatePresence mode="wait">
             {lastEntry && (
               <GateEntryFeedback
@@ -684,111 +561,77 @@ const GateMode = () => {
             )}
           </AnimatePresence>
 
-          {/* Mobile: floating bottom bar — present / late / unknown + Details */}
+          {/* Mobile Bottom Bar */}
           {isMobile && !mobileStatsOpen && (
-            <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between z-10">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <div className="bg-card/90 backdrop-blur rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-lg">
+            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-20">
+              <div className="flex items-center gap-1.5">
+                <div className="bg-card/95 backdrop-blur-xl border border-border/70 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-xl">
                   <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                  <span className="text-xs font-bold text-foreground">{autoMarkedCount} marked</span>
-                </div>
-                <div className="bg-card/90 backdrop-blur rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-lg">
-                  <Users className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-xs font-bold text-foreground">{uniqueStudents}/{totalStudents}</span>
+                  <span className="text-xs font-extrabold text-foreground">{totalPresentToday} Marked</span>
                 </div>
                 {unknownCount > 0 && (
-                  <div className="bg-destructive/90 backdrop-blur rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-lg">
-                    <AlertTriangle className="h-3.5 w-3.5 text-destructive-foreground" />
-                    <span className="text-xs font-bold text-destructive-foreground">{unknownCount}</span>
+                  <div className="bg-destructive/90 backdrop-blur-xl rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-xl text-white">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span className="text-xs font-bold">{unknownCount}</span>
                   </div>
                 )}
               </div>
-              <Button variant="secondary" size="sm" className="h-8 rounded-full shadow-lg text-xs flex-shrink-0"
-                onClick={() => setMobileStatsOpen(true)}>
-                <ChevronUp className="h-3.5 w-3.5 mr-1" /> Details
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 rounded-full shadow-xl text-xs font-bold gap-1 bg-primary/20 border border-primary/40 text-primary"
+                onClick={() => setMobileStatsOpen(true)}
+              >
+                <ChevronUp className="h-3.5 w-3.5" /> Live Stats
               </Button>
             </div>
           )}
         </div>
 
-        {/* Stats sidebar — desktop */}
+        {/* Right: Stats & Intelligence Sidebar (Desktop) */}
         {!isMobile && (
-          <div className="flex-[3] border-l border-border overflow-y-auto">
-            <div className="p-3 border-b border-border space-y-3 bg-card/70">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">Smart Live Tracking</h3>
-                <Badge variant="secondary" className="text-[10px]">Expert AI</Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg border border-border p-2">
-                  <div className="flex items-center gap-1 text-muted-foreground"><Shirt className="h-3.5 w-3.5" /> Uniform</div>
-                  <p className="font-semibold text-foreground mt-1">{smartMonitoring.uniformCompliant} compliant / {smartMonitoring.uniformNonCompliant} mismatch</p>
-                </div>
-                <div className="rounded-lg border border-border p-2">
-                  <div className="flex items-center gap-1 text-muted-foreground"><Navigation className="h-3.5 w-3.5" /> Movement</div>
-                  <p className="font-semibold text-foreground mt-1">IN {smartMonitoring.entryFlow} · OUT {smartMonitoring.exitFlow}</p>
-                </div>
-              </div>
-
-              <div className="max-h-28 overflow-y-auto space-y-1.5">
-                {smartMonitoring.people.slice(0, 5).map((p) => (
-                  <div key={p.trackId} className="rounded-md border border-border px-2 py-1.5 text-[11px] flex items-center justify-between gap-2">
-                    <span className="truncate text-foreground font-medium">{p.name}</span>
-                    <span className="text-muted-foreground">{Math.round(p.confidence * 100)}%</span>
-                    <span className={p.uniformStatus === 'non-compliant' ? 'text-rose-500' : p.uniformStatus === 'compliant' ? 'text-emerald-500' : 'text-muted-foreground'}>{p.uniformStatus}</span>
-                    <span className="text-primary">{p.heading}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="max-h-24 overflow-y-auto space-y-1">
-                {smartEvents.slice(0, 4).map((e) => (
-                  <div key={e.id} className={`rounded-md px-2 py-1.5 text-[11px] border ${e.tone === 'warning' ? 'border-amber-500/40 text-amber-300 bg-amber-500/10' : 'border-border text-muted-foreground bg-background/60'}`}>
-                    {e.message}
-                  </div>
-                ))}
-              </div>
-            </div>
-
+          <div className="flex-[32] min-h-0 h-full border-l border-border/70 flex flex-col">
             <GateStatsOverlay
-              autoMarkedCount={autoMarkedCount}
               totalStudents={totalStudents}
               uniqueStudents={uniqueStudents}
+              autoMarkedCount={autoMarkedCount}
               totalPresentToday={totalPresentToday}
               lateCount={lateCount}
               pendingCount={pendingCount}
               unknownCount={unknownCount}
-              recentEntries={sessionEntries.slice(0, 30)}
+              recentEntries={sessionEntries}
+              smartMonitoring={smartMonitoring}
             />
           </div>
         )}
 
-        {/* Mobile stats bottom sheet */}
+        {/* Mobile Stats Drawer */}
         <AnimatePresence>
           {isMobile && mobileStatsOpen && (
             <motion.div
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'tween', duration: 0.28 }}
-              className="absolute bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl rounded-t-2xl border-t border-border shadow-2xl z-20"
-              style={{ maxHeight: '60vh' }}
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+              className="absolute inset-x-0 bottom-0 top-16 bg-card/98 backdrop-blur-3xl rounded-t-3xl border-t border-border/80 shadow-2xl z-50 flex flex-col"
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <h3 className="font-semibold text-sm text-foreground">Gate Stats</h3>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMobileStatsOpen(false)}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+                <h3 className="font-extrabold text-sm text-foreground">Gate Intelligence & Live Feed</h3>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setMobileStatsOpen(false)}>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="overflow-y-auto" style={{ maxHeight: 'calc(60vh - 48px)' }}>
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <GateStatsOverlay
-                  autoMarkedCount={autoMarkedCount}
                   totalStudents={totalStudents}
                   uniqueStudents={uniqueStudents}
+                  autoMarkedCount={autoMarkedCount}
                   totalPresentToday={totalPresentToday}
                   lateCount={lateCount}
                   pendingCount={pendingCount}
                   unknownCount={unknownCount}
-                  recentEntries={sessionEntries.slice(0, 30)}
+                  recentEntries={sessionEntries}
+                  smartMonitoring={smartMonitoring}
                 />
               </div>
             </motion.div>
