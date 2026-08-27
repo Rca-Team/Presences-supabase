@@ -35,7 +35,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Server,
-  CloudCheck,
+  Cloud,
 } from 'lucide-react';
 import {
   deleteSnapshot,
@@ -909,7 +909,7 @@ const Backup = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
-                  <CloudCheck className="h-3.5 w-3.5" />
+                  <Cloud className="h-3.5 w-3.5" />
                   Cloud Infrastructure Hub
                 </div>
                 <h1 className="text-3xl md:text-4xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
