@@ -40,6 +40,9 @@ import {
   Eye,
   Maximize2,
   ZoomIn,
+  Brain,
+  Wand2,
+  Merge,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import ImageCropper from './ImageCropper';
@@ -47,6 +50,12 @@ import { uploadImage } from '@/services/face-recognition/StorageService';
 import {
   syncFromSupabase as syncDescriptorCache,
 } from '@/services/face-recognition/DescriptorCacheService';
+import {
+  loadModels,
+  getFaceDescriptor,
+  descriptorToString,
+  stringToDescriptor,
+} from '@/services/face-recognition/ModelService';
 import FaceSampleDeduplicationModal from './FaceSampleDeduplicationModal';
 import { resolveStudentPhotoUrl } from '@/utils/studentPhotoResolver';
 import {
@@ -298,6 +307,14 @@ const StudentFaceSamplesManager: React.FC = () => {
   const [dedupTargetUserId, setDedupTargetUserId] = useState<string | undefined>(undefined);
   const [quickDeduplicating, setQuickDeduplicating] = useState(false);
 
+  // Database Root-Cause Duplicate Merger states
+  const [mergingAllDuplicates, setMergingAllDuplicates] = useState(false);
+
+  // Train from All Photos states
+  const [trainingStudent, setTrainingStudent] = useState(false);
+  const [trainingAllStudents, setTrainingAllStudents] = useState(false);
+  const [trainingProgress, setTrainingProgress] = useState<OperationProgress | null>(null);
+
   // Full-Screen Image Preview Modal states
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState<string>('');
@@ -377,37 +394,47 @@ const StudentFaceSamplesManager: React.FC = () => {
 
       const studentGroupsMap = new Map<string, StudentGroup>();
 
-      // Helper to get or create student group with case-insensitive name matching
+      // Robust helper to consolidate duplicate profiles into a single canonical group
       const getOrCreateGroup = (userId: string, empId: string, fallbackName: string): StudentGroup => {
         const normName = normalizeNameKey(fallbackName);
+        const normEmpId = empId ? String(empId).trim().toLowerCase() : '';
 
-        // Multi-tier profile match:
-        // 1) By userId
-        // 2) By employeeId / rollNumber / admissionNumber
-        // 3) By case-insensitive normalized Name (matches ARYAN CHAUHAN <=> Aryan Chauhan)
+        // Check if we ALREADY have a group indexed by userId, empId, or normalized name
+        let existing: StudentGroup | undefined;
+        if (userId && studentGroupsMap.has(userId)) existing = studentGroupsMap.get(userId);
+        else if (normEmpId && studentGroupsMap.has(`emp:${normEmpId}`)) existing = studentGroupsMap.get(`emp:${normEmpId}`);
+        else if (normName && studentGroupsMap.has(`name:${normName}`)) existing = studentGroupsMap.get(`name:${normName}`);
+
         const profile =
           (userId ? profileMapByUserId.get(userId) : null) ||
-          (empId ? profileMapByEmpId.get(empId.toLowerCase()) : null) ||
+          (normEmpId ? profileMapByEmpId.get(normEmpId) : null) ||
           (normName ? profileMapByName.get(normName) : null);
 
         const regMeta = normName ? regMetaByName.get(normName) : null;
 
-        const finalUserId = userId || profile?.user_id || regMeta?.userId || '';
-        const finalEmpId = profile?.employee_id || profile?.roll_number || profile?.admission_number || empId || regMeta?.employeeId || '';
-        const rawName = profile?.full_name || profile?.display_name || (fallbackName && fallbackName !== 'Student' && fallbackName !== 'Unknown' ? fallbackName : regMeta?.name || 'Student');
+        const finalUserId = existing?.userId || profile?.user_id || regMeta?.userId || userId || '';
+        const finalEmpId = existing?.employeeId || profile?.employee_id || profile?.roll_number || profile?.admission_number || empId || regMeta?.employeeId || '';
+        const rawName = (existing?.name && existing.name !== 'Student')
+          ? existing.name
+          : (profile?.full_name || profile?.display_name || (fallbackName && fallbackName !== 'Student' && fallbackName !== 'Unknown' ? fallbackName : regMeta?.name || 'Student'));
         const name = rawName || 'Student';
-        const classSec = profile?.class ? `${profile.class}${profile?.section ? `-${profile.section}` : ''}` : regMeta?.classSection || undefined;
-        const avatar = profile?.avatar_url || regMeta?.imageUrl || null;
+        const classSec = existing?.classSection || (profile?.class ? `${profile.class}${profile?.section ? `-${profile.section}` : ''}` : regMeta?.classSection || undefined);
+        const avatar = existing?.avatarUrl || profile?.avatar_url || regMeta?.imageUrl || null;
 
-        // Unified primary key
-        const key = finalUserId || (finalEmpId ? `emp:${finalEmpId.toLowerCase()}` : (normName ? `name:${normName}` : name.toLowerCase()));
-
-        if (studentGroupsMap.has(key)) {
-          const existing = studentGroupsMap.get(key)!;
+        if (existing) {
+          if (!existing.userId && finalUserId) existing.userId = finalUserId;
           if (!existing.employeeId && finalEmpId) existing.employeeId = finalEmpId;
           if (!existing.classSection && classSec) existing.classSection = classSec;
           if (!existing.avatarUrl && avatar) existing.avatarUrl = avatar;
           if ((!existing.name || existing.name === 'Student') && name !== 'Student') existing.name = name;
+
+          // Cross-index all aliases
+          if (finalUserId) studentGroupsMap.set(finalUserId, existing);
+          if (userId) studentGroupsMap.set(userId, existing);
+          if (finalEmpId) studentGroupsMap.set(`emp:${finalEmpId.toLowerCase()}`, existing);
+          if (normEmpId) studentGroupsMap.set(`emp:${normEmpId}`, existing);
+          if (normName) studentGroupsMap.set(`name:${normName}`, existing);
+
           return existing;
         }
 
@@ -421,10 +448,13 @@ const StudentFaceSamplesManager: React.FC = () => {
           samples: [],
         };
 
-        studentGroupsMap.set(key, newGroup);
-        if (normName) studentGroupsMap.set(`name:${normName}`, newGroup);
-        if (finalEmpId) studentGroupsMap.set(`emp:${finalEmpId.toLowerCase()}`, newGroup);
+        const primaryKey = finalUserId || (finalEmpId ? `emp:${finalEmpId.toLowerCase()}` : `name:${normName}`);
+        studentGroupsMap.set(primaryKey, newGroup);
         if (finalUserId) studentGroupsMap.set(finalUserId, newGroup);
+        if (userId) studentGroupsMap.set(userId, newGroup);
+        if (finalEmpId) studentGroupsMap.set(`emp:${finalEmpId.toLowerCase()}`, newGroup);
+        if (normEmpId) studentGroupsMap.set(`emp:${normEmpId}`, newGroup);
+        if (normName) studentGroupsMap.set(`name:${normName}`, newGroup);
 
         return newGroup;
       };
@@ -432,15 +462,17 @@ const StudentFaceSamplesManager: React.FC = () => {
       // 1. Process Descriptors (Live Model Slots)
       descriptorRows.forEach((row: any) => {
         const group = getOrCreateGroup(row.user_id, row.student_id, row.label || 'Trained Student');
-        group.samples.push({
-          id: row.id,
-          user_id: row.user_id,
-          label: row.label,
-          image_url: row.image_url,
-          created_at: row.created_at,
-          source: 'descriptor_registration',
-          source_table: 'face_descriptors',
-        });
+        if (!group.samples.some(s => s.id === row.id)) {
+          group.samples.push({
+            id: row.id,
+            user_id: row.user_id,
+            label: row.label,
+            image_url: row.image_url,
+            created_at: row.created_at,
+            source: 'descriptor_registration',
+            source_table: 'face_descriptors',
+          });
+        }
       });
 
       // 2. Process Attendance Records (Captured Photos)
@@ -457,17 +489,19 @@ const StudentFaceSamplesManager: React.FC = () => {
         if (row.status === 'registered') source = 'record_registration';
         else if (di.mode === 'gate' || di.gate) source = 'recognition_gate';
 
-        group.samples.push({
-          id: row.id,
-          user_id: row.user_id || group.userId,
-          label: name,
-          image_url: row.image_url,
-          created_at: row.timestamp || new Date().toISOString(),
-          source,
-          source_table: 'attendance_records',
-          confidence_score: row.confidence_score,
-          status: row.status,
-        });
+        if (!group.samples.some(s => s.id === row.id || (s.image_url && s.image_url === row.image_url))) {
+          group.samples.push({
+            id: row.id,
+            user_id: row.user_id || group.userId,
+            label: name,
+            image_url: row.image_url,
+            created_at: row.timestamp || new Date().toISOString(),
+            source,
+            source_table: 'attendance_records',
+            confidence_score: row.confidence_score,
+            status: row.status,
+          });
+        }
       });
 
       // 3. Ensure profiles with no samples are also listed
@@ -490,8 +524,8 @@ const StudentFaceSamplesManager: React.FC = () => {
       setGroups(uniqueGroups);
 
       // Auto-select first student if none selected
-      if (list.length > 0 && !selectedUserId) {
-        setSelectedUserId(list[0].userId || list[0].employeeId);
+      if (uniqueGroups.length > 0 && !selectedUserId) {
+        setSelectedUserId(uniqueGroups[0].userId || uniqueGroups[0].employeeId);
       }
     } catch (err: any) {
       console.error('Failed fetching face samples:', err);
@@ -867,6 +901,305 @@ const StudentFaceSamplesManager: React.FC = () => {
     }
   };
 
+  // 1-Click Root-Cause Database Profile Merging
+  const handleMergeAllDatabaseDuplicates = async () => {
+    setMergingAllDuplicates(true);
+    try {
+      const [profilesRes, descriptorsRes, attendanceRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('face_descriptors').select('id, user_id, student_id, label, image_url, descriptor'),
+        supabase.from('attendance_records').select('id, user_id, student_id, student_name, image_url'),
+      ]);
+
+      const profiles = profilesRes.data || [];
+      const descriptors = descriptorsRes.data || [];
+      const attendance = attendanceRes.data || [];
+
+      const normalizeName = (raw?: string | null) => {
+        if (!raw) return '';
+        return raw.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/gi, '');
+      };
+
+      // Group profiles by normalized name or roll number
+      const nameGroups = new Map<string, any[]>();
+      profiles.forEach((p) => {
+        const norm = normalizeName(p.full_name || p.display_name);
+        const emp = p.employee_id || p.roll_number || p.admission_number ? `emp:${String(p.employee_id || p.roll_number || p.admission_number).toLowerCase().trim()}` : '';
+        const key = norm || emp || p.user_id;
+        if (!nameGroups.has(key)) nameGroups.set(key, []);
+        nameGroups.get(key)!.push(p);
+      });
+
+      let mergedCount = 0;
+      let profilesDeleted = 0;
+
+      for (const [, groupList] of nameGroups.entries()) {
+        if (groupList.length > 1) {
+          // Select canonical primary profile: one with avatar, roll number, or email
+          const canonical = groupList.find((p) => p.avatar_url && p.roll_number) ||
+                            groupList.find((p) => p.avatar_url) ||
+                            groupList.find((p) => p.roll_number) ||
+                            groupList[0];
+
+          const duplicateProfiles = groupList.filter((p) => p.user_id !== canonical.user_id);
+          const duplicateUserIds = duplicateProfiles.map((p) => p.user_id).filter(Boolean);
+
+          if (duplicateUserIds.length > 0) {
+            // 1. Reassign descriptors to canonical user_id
+            await supabase
+              .from('face_descriptors')
+              .update({
+                user_id: canonical.user_id,
+                student_id: canonical.employee_id || canonical.roll_number || canonical.admission_number || null,
+                label: canonical.full_name || canonical.display_name,
+              })
+              .in('user_id', duplicateUserIds);
+
+            // 2. Reassign attendance records to canonical user_id
+            await supabase
+              .from('attendance_records')
+              .update({
+                user_id: canonical.user_id,
+                student_id: canonical.employee_id || canonical.roll_number || canonical.admission_number || null,
+                student_name: canonical.full_name || canonical.display_name,
+              })
+              .in('user_id', duplicateUserIds);
+
+            // 3. Delete secondary duplicate profile records from DB
+            await supabase.from('profiles').delete().in('user_id', duplicateUserIds);
+            profilesDeleted += duplicateUserIds.length;
+            mergedCount++;
+          }
+        }
+      }
+
+      // Also clean duplicate photo slots
+      const dedupResult = await executeDeduplication();
+
+      await syncDescriptorCache(true);
+      await fetchSamples({ silent: true });
+
+      toast({
+        title: '⚡ Root Cause Database Cleaned',
+        description: `Successfully consolidated ${mergedCount} duplicate student profiles in DB (${profilesDeleted} duplicate profile records removed, ${dedupResult.totalDuplicatesRemoved} redundant photo slots pruned).`,
+      });
+    } catch (err: any) {
+      console.error('Merge DB duplicates error:', err);
+      toast({
+        title: 'Database Merge Failed',
+        description: err.message || 'Could not complete database profile merge.',
+        variant: 'destructive',
+      });
+    } finally {
+      setMergingAllDuplicates(false);
+    }
+  };
+
+  // Train a single student from ALL their photos
+  const handleTrainStudentFromAllPhotos = async (group: StudentGroup) => {
+    if (!group) return;
+    setTrainingStudent(true);
+    try {
+      await loadModels();
+
+      const uniquePhotoUrls = Array.from(
+        new Set(
+          [group.avatarUrl, ...group.samples.map((s) => s.image_url)].filter(Boolean) as string[]
+        )
+      );
+
+      if (uniquePhotoUrls.length === 0) {
+        toast({
+          title: 'No Photos Available',
+          description: 'This student does not have any photo samples to train from.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      let trainedCount = 0;
+      const extractedDescriptors: Float32Array[] = [];
+
+      for (let i = 0; i < uniquePhotoUrls.length; i++) {
+        const rawUrl = uniquePhotoUrls[i];
+        const resolved = resolvedUrls[rawUrl] || (await resolveFaceSampleUrl(rawUrl));
+        if (!resolved) continue;
+
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject();
+            img.src = resolved;
+          });
+
+          const descriptor = await getFaceDescriptor(img, 40);
+          if (descriptor) {
+            extractedDescriptors.push(descriptor);
+
+            const alreadyExists = group.samples.some(
+              (s) => s.source_table === 'face_descriptors' && s.image_url === rawUrl
+            );
+
+            if (!alreadyExists) {
+              await supabase.from('face_descriptors').insert({
+                user_id: group.userId,
+                student_id: group.employeeId || null,
+                label: group.name,
+                image_url: rawUrl,
+                descriptor: descriptorToString(descriptor),
+              });
+              trainedCount++;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not extract descriptor from photo:', e);
+        }
+      }
+
+      // If multiple descriptors were extracted, compute master ensemble average
+      if (extractedDescriptors.length > 1) {
+        const dim = extractedDescriptors[0].length;
+        const avg = new Float32Array(dim);
+        for (const desc of extractedDescriptors) {
+          for (let d = 0; d < dim; d++) {
+            avg[d] += desc[d] / extractedDescriptors.length;
+          }
+        }
+
+        await supabase.from('face_descriptors').upsert(
+          {
+            user_id: group.userId,
+            student_id: group.employeeId || null,
+            label: `${group.name} (Calibrated Ensemble)`,
+            image_url: group.avatarUrl || uniquePhotoUrls[0],
+            descriptor: descriptorToString(avg),
+          },
+          { onConflict: 'user_id, label' }
+        );
+      }
+
+      await syncDescriptorCache(true);
+      await fetchSamples({ silent: true });
+
+      toast({
+        title: '🧠 Neural Model Calibrated',
+        description: `Successfully trained ${group.name} from ${extractedDescriptors.length} photos (${trainedCount} new descriptor vectors indexed)!`,
+      });
+    } catch (err: any) {
+      console.error('Train student error:', err);
+      toast({
+        title: 'Training Failed',
+        description: err.message || 'Could not complete face training.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTrainingStudent(false);
+    }
+  };
+
+  // Batch Train ALL Students from ALL their photos
+  const handleTrainAllStudentsFromAllPhotos = async () => {
+    if (groups.length === 0) return;
+    setTrainingAllStudents(true);
+    setTrainingProgress({ label: 'Initializing neural models...', current: 0, total: groups.length });
+
+    try {
+      await loadModels();
+      let totalNewSlots = 0;
+
+      for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        setTrainingProgress({
+          label: `Training ${group.name} (${i + 1}/${groups.length})...`,
+          current: i + 1,
+          total: groups.length,
+        });
+
+        const uniquePhotoUrls = Array.from(
+          new Set(
+            [group.avatarUrl, ...group.samples.map((s) => s.image_url)].filter(Boolean) as string[]
+          )
+        );
+
+        const extractedDescriptors: Float32Array[] = [];
+
+        for (const rawUrl of uniquePhotoUrls) {
+          try {
+            const resolved = resolvedUrls[rawUrl] || (await resolveFaceSampleUrl(rawUrl));
+            if (!resolved) continue;
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = () => reject();
+              img.src = resolved;
+            });
+
+            const descriptor = await getFaceDescriptor(img, 40);
+            if (descriptor) {
+              extractedDescriptors.push(descriptor);
+              const alreadyExists = group.samples.some(
+                (s) => s.source_table === 'face_descriptors' && s.image_url === rawUrl
+              );
+              if (!alreadyExists) {
+                await supabase.from('face_descriptors').insert({
+                  user_id: group.userId,
+                  student_id: group.employeeId || null,
+                  label: group.name,
+                  image_url: rawUrl,
+                  descriptor: descriptorToString(descriptor),
+                });
+                totalNewSlots++;
+              }
+            }
+          } catch {
+            // Skip unprocessable photo
+          }
+        }
+
+        if (extractedDescriptors.length > 1) {
+          const dim = extractedDescriptors[0].length;
+          const avg = new Float32Array(dim);
+          for (const desc of extractedDescriptors) {
+            for (let d = 0; d < dim; d++) {
+              avg[d] += desc[d] / extractedDescriptors.length;
+            }
+          }
+          await supabase.from('face_descriptors').upsert(
+            {
+              user_id: group.userId,
+              student_id: group.employeeId || null,
+              label: `${group.name} (Calibrated Ensemble)`,
+              image_url: group.avatarUrl || uniquePhotoUrls[0],
+              descriptor: descriptorToString(avg),
+            },
+            { onConflict: 'user_id, label' }
+          );
+        }
+      }
+
+      await syncDescriptorCache(true);
+      await fetchSamples({ silent: true });
+
+      toast({
+        title: '🧠 Neural Models Trained',
+        description: `Trained all ${groups.length} students across all photo captures (+${totalNewSlots} new descriptor vectors indexed)!`,
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Batch Training Failed',
+        description: err.message || 'Could not complete batch training.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTrainingAllStudents(false);
+      setTrainingProgress(null);
+    }
+  };
+
   const totalSamplesCount = useMemo(() => groups.reduce((sum, g) => sum + g.samples.length, 0), [groups]);
   const totalModelSlots = useMemo(() => groups.reduce((sum, g) => sum + g.samples.filter((s) => s.source_table === 'face_descriptors').length, 0), [groups]);
 
@@ -906,12 +1239,34 @@ const StudentFaceSamplesManager: React.FC = () => {
               <Button
                 variant="default"
                 size="sm"
+                onClick={handleMergeAllDatabaseDuplicates}
+                disabled={loading || mergingAllDuplicates || groups.length === 0}
+                className="rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs gap-1.5 shadow-md shadow-purple-500/20 active:scale-95 transition-all"
+              >
+                <Merge className={`h-3.5 w-3.5 ${mergingAllDuplicates ? 'animate-spin' : ''}`} />
+                {mergingAllDuplicates ? 'Merging DB...' : '⚡ Merge DB Duplicates'}
+              </Button>
+
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleTrainAllStudentsFromAllPhotos}
+                disabled={loading || trainingAllStudents || groups.length === 0}
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+              >
+                <Brain className={`h-3.5 w-3.5 ${trainingAllStudents ? 'animate-spin' : ''}`} />
+                {trainingAllStudents ? 'Training All...' : '🧠 Train All from All Photos'}
+              </Button>
+
+              <Button
+                variant="default"
+                size="sm"
                 onClick={handleQuickRemoveAllDuplicates}
                 disabled={loading || quickDeduplicating || groups.length === 0}
                 className="rounded-2xl bg-gradient-to-r from-red-500 to-amber-600 hover:from-red-600 hover:to-amber-700 text-white font-bold text-xs gap-1.5 shadow-md shadow-red-500/20 active:scale-95 transition-all"
               >
                 <Trash2 className={`h-3.5 w-3.5 ${quickDeduplicating ? 'animate-spin' : ''}`} />
-                {quickDeduplicating ? 'Cleaning...' : 'Remove All Duplicates'}
+                {quickDeduplicating ? 'Cleaning...' : 'Remove Duplicate Photos'}
               </Button>
 
               <Button
@@ -952,19 +1307,26 @@ const StudentFaceSamplesManager: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress bar during export */}
-          {exportProgress && (
+          {/* Progress bar during training or export */}
+          {(trainingProgress || exportProgress) && (
             <div className="mt-4 pt-4 border-t border-border/40 space-y-2">
               <div className="flex items-center justify-between text-xs font-medium">
                 <span className="flex items-center gap-2 text-foreground">
                   <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
-                  {exportProgress.label}
+                  {(trainingProgress || exportProgress)?.label}
                 </span>
-                <span className="tabular-nums text-muted-foreground">
-                  {exportProgress.current} / {exportProgress.total}
+                <span className="tabular-nums text-muted-foreground font-mono">
+                  {(trainingProgress || exportProgress)?.current} / {(trainingProgress || exportProgress)?.total}
                 </span>
               </div>
-              <Progress value={Math.round((exportProgress.current / Math.max(1, exportProgress.total)) * 100)} className="h-2 rounded-full" />
+              <Progress
+                value={Math.round(
+                  (((trainingProgress || exportProgress)?.current || 0) /
+                    Math.max(1, (trainingProgress || exportProgress)?.total || 1)) *
+                    100
+                )}
+                className="h-2.5 rounded-full"
+              />
             </div>
           )}
         </CardContent>
@@ -1128,6 +1490,17 @@ const StudentFaceSamplesManager: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => handleTrainStudentFromAllPhotos(selectedGroup)}
+                    disabled={trainingStudent || selectedGroup.samples.length === 0}
+                    className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                  >
+                    <Brain className={`h-3.5 w-3.5 ${trainingStudent ? 'animate-spin' : ''}`} />
+                    {trainingStudent ? 'Calibrating Model...' : `Train from All Photos (${selectedGroup.samples.length})`}
+                  </Button>
+
                   <Button
                     size="sm"
                     variant="outline"
