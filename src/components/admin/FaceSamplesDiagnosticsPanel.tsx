@@ -18,6 +18,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { syncFromSupabase as syncDescriptorCache } from '@/services/face-recognition/DescriptorCacheService';
+import FaceSampleDeduplicationModal from './FaceSampleDeduplicationModal';
 
 type Diagnostics = {
   active_students: number;
@@ -42,6 +43,7 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
   const [syncingCache, setSyncingCache] = useState(false);
+  const [dedupOpen, setDedupOpen] = useState(false);
   const [data, setData] = useState<Diagnostics | null>(null);
 
   const fetchDiagnosticsFallback = async (): Promise<Diagnostics> => {
@@ -149,17 +151,57 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
       await syncDescriptorCache().catch(() => {});
     } catch (e: any) {
       if (isMissingRpc(e, 'cleanup_orphan_face_descriptors')) {
-        toast({
-          title: 'Cleanup Unavailable',
-          description: 'Database RPC function not found. Diagnostics is running in compatibility mode.',
-          variant: 'destructive',
-        });
-        return;
+        try {
+          const { data: allDescriptors, error: fetchErr } = await supabase
+            .from('face_descriptors')
+            .select('id, user_id');
+          if (fetchErr) throw fetchErr;
+
+          const { data: allAttendance, error: attErr } = await supabase
+            .from('attendance_records')
+            .select('user_id')
+            .neq('status', 'unauthorized');
+          if (attErr) throw attErr;
+
+          const knownUsers = new Set((allAttendance || []).map((r: any) => (r.user_id || '').toString().trim()).filter(Boolean));
+          const orphanIds = (allDescriptors || [])
+            .filter((d: any) => !d.user_id || !knownUsers.has((d.user_id || '').toString().trim()))
+            .map((d: any) => d.id);
+
+          if (orphanIds.length === 0) {
+            toast({
+              title: 'No Orphans Found',
+              description: 'All face descriptors are actively mapped to valid student records.',
+            });
+            return;
+          }
+
+          const { error: delErr } = await supabase
+            .from('face_descriptors')
+            .delete()
+            .in('id', orphanIds);
+          if (delErr) throw delErr;
+
+          toast({
+            title: 'Cleanup Completed',
+            description: `Successfully pruned ${orphanIds.length} orphan face descriptor row${orphanIds.length === 1 ? '' : 's'}.`,
+          });
+          await fetchDiagnostics();
+          await syncDescriptorCache().catch(() => {});
+          return;
+        } catch (fbErr: any) {
+          toast({
+            title: 'Cleanup Failed',
+            description: fbErr.message || 'Could not clean orphan descriptors.',
+            variant: 'destructive',
+          });
+          return;
+        }
       }
-      console.error('Cleanup failed:', e);
+
       toast({
         title: 'Cleanup Failed',
-        description: e.message || 'Could not complete orphan cleanup.',
+        description: e.message || 'Could not clean orphan descriptors.',
         variant: 'destructive',
       });
     } finally {
@@ -170,11 +212,12 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
   const handleSyncModelCache = async () => {
     setSyncingCache(true);
     try {
-      const count = await syncDescriptorCache();
+      await syncDescriptorCache();
       toast({
-        title: 'AI Model Index Synced',
-        description: `Successfully indexed ${count} face descriptors into the in-memory recognition tree.`,
+        title: 'AI Cache Synchronized',
+        description: 'Latest face descriptor embeddings successfully loaded into high-speed memory cache.',
       });
+      await fetchDiagnostics();
     } catch (err: any) {
       toast({
         title: 'Sync Failed',
@@ -191,114 +234,131 @@ const FaceSamplesDiagnosticsPanel: React.FC = () => {
   }, [fetchDiagnostics]);
 
   return (
-    <Card className="rounded-3xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card/70 to-accent/10 backdrop-blur-2xl shadow-xl overflow-hidden mb-6">
-      <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3 w-3" />
-              AI Model & Diagnostics
-            </div>
-            <CardTitle className="text-xl md:text-2xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
-              Face Recognition Diagnostics
-            </CardTitle>
-            <CardDescription className="text-xs md:text-sm text-muted-foreground">
-              Live statistics from Cloud database & active face recognition model weights.
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleSyncModelCache}
-              disabled={syncingCache}
-              className="rounded-2xl border-border/70 bg-card/60 gap-1.5 text-xs font-semibold hover:bg-card/90"
-            >
-              <Cpu className={`w-3.5 h-3.5 text-primary ${syncingCache ? 'animate-spin' : ''}`} />
-              {syncingCache ? 'Syncing...' : 'Sync AI Cache'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={fetchDiagnostics}
-              disabled={loading}
-              className="rounded-2xl border-border/70 bg-card/60 gap-1.5 text-xs font-semibold hover:bg-card/90"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={runCleanup}
-              disabled={cleaning || (data?.orphan_descriptors ?? 0) === 0}
-              className="rounded-2xl gap-1.5 text-xs font-bold"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              {cleaning ? 'Cleaning...' : `Clean Orphans (${data?.orphan_descriptors ?? 0})`}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        {loading || !data ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
-                <Users className="w-3.5 h-3.5 text-primary" /> Active Students
+    <>
+      <Card className="rounded-3xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card/70 to-accent/10 backdrop-blur-2xl shadow-xl overflow-hidden mb-6">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-primary">
+                <Sparkles className="h-3 w-3" />
+                AI Model & Diagnostics
               </div>
-              <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
-                {data.active_students.toLocaleString()}
-              </div>
+              <CardTitle className="text-xl md:text-2xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                Face Recognition Diagnostics
+              </CardTitle>
+              <CardDescription className="text-xs md:text-sm text-muted-foreground">
+                Live statistics from Cloud database & active face recognition model weights.
+              </CardDescription>
             </div>
 
-            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
-                <Database className="w-3.5 h-3.5 text-emerald-500" /> Model Slots
-              </div>
-              <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
-                {data.descriptor_rows.toLocaleString()}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
-                <ClipboardList className="w-3.5 h-3.5 text-blue-500" /> Attendance Records
-              </div>
-              <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
-                {data.attendance_records.toLocaleString()}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Orphan Descriptors
-              </div>
-              <div className="text-2xl font-extrabold mt-2 flex items-center gap-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
-                {data.orphan_descriptors}
-                {data.orphan_descriptors > 0 ? (
-                  <Badge variant="destructive" className="rounded-full text-[10px] uppercase font-bold">
-                    Cleanable
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="rounded-full text-[10px] uppercase font-bold text-emerald-500 bg-emerald-500/10">
-                    Clean
-                  </Badge>
-                )}
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDedupOpen(true)}
+                className="rounded-2xl border-primary/40 bg-primary/10 gap-1.5 text-xs font-bold text-primary hover:bg-primary/20 shadow-sm"
+              >
+                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                AI Storage Optimizer
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSyncModelCache}
+                disabled={syncingCache}
+                className="rounded-2xl border-border/70 bg-card/60 gap-1.5 text-xs font-semibold hover:bg-card/90"
+              >
+                <Cpu className={`w-3.5 h-3.5 text-primary ${syncingCache ? 'animate-spin' : ''}`} />
+                {syncingCache ? 'Syncing...' : 'Sync AI Cache'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={fetchDiagnostics}
+                disabled={loading}
+                className="rounded-2xl border-border/70 bg-card/60 gap-1.5 text-xs font-semibold hover:bg-card/90"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={runCleanup}
+                disabled={cleaning || (data?.orphan_descriptors ?? 0) === 0}
+                className="rounded-2xl gap-1.5 text-xs font-bold"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {cleaning ? 'Cleaning...' : `Clean Orphans (${data?.orphan_descriptors ?? 0})`}
+              </Button>
             </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {loading || !data ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                  <Users className="w-3.5 h-3.5 text-primary" /> Active Students
+                </div>
+                <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                  {data.active_students.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                  <Database className="w-3.5 h-3.5 text-emerald-500" /> Model Slots
+                </div>
+                <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                  {data.descriptor_rows.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                  <ClipboardList className="w-3.5 h-3.5 text-blue-500" /> Attendance Records
+                </div>
+                <div className="text-2xl font-extrabold mt-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                  {data.attendance_records.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md transition-all hover:border-primary/40">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Orphan Descriptors
+                </div>
+                <div className="text-2xl font-extrabold mt-2 flex items-center gap-2 text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                  {data.orphan_descriptors}
+                  {data.orphan_descriptors > 0 ? (
+                    <Badge variant="destructive" className="rounded-full text-[10px] uppercase font-bold">
+                      Cleanable
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="rounded-full text-[10px] uppercase font-bold text-emerald-500 bg-emerald-500/10">
+                      Clean
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <FaceSampleDeduplicationModal
+        open={dedupOpen}
+        onOpenChange={setDedupOpen}
+        onCompleted={() => fetchDiagnostics()}
+      />
+    </>
   );
 };
 

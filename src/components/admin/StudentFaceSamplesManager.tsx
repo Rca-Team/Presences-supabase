@@ -44,6 +44,7 @@ import { uploadImage } from '@/services/face-recognition/StorageService';
 import {
   syncFromSupabase as syncDescriptorCache,
 } from '@/services/face-recognition/DescriptorCacheService';
+import FaceSampleDeduplicationModal from './FaceSampleDeduplicationModal';
 
 // ---------- Types ----------
 export type FaceSample = {
@@ -252,6 +253,10 @@ const StudentFaceSamplesManager: React.FC = () => {
   const [selectedImportKeys, setSelectedImportKeys] = useState<Set<string>>(new Set());
   const [conflictMode, setConflictMode] = useState<'overwrite' | 'skip'>('skip');
   const importZipInputRef = useRef<HTMLInputElement | null>(null);
+
+  // AI Deduplication states
+  const [dedupModalOpen, setDedupModalOpen] = useState(false);
+  const [dedupTargetUserId, setDedupTargetUserId] = useState<string | undefined>(undefined);
 
   // Cache of resolved image URLs for active view
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
@@ -737,7 +742,19 @@ const StudentFaceSamplesManager: React.FC = () => {
                 <Camera className="h-3.5 w-3.5 text-blue-500" /> {totalSamplesCount} Total Photos
               </Badge>
 
-              <div className="h-6 w-px bg-border/70 mx-1 hidden sm:block" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDedupTargetUserId(undefined);
+                  setDedupModalOpen(true);
+                }}
+                disabled={loading || groups.length === 0}
+                className="rounded-2xl border-primary/40 bg-primary/10 gap-1.5 text-xs font-bold text-primary hover:bg-primary/20 shadow-sm"
+              >
+                <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                AI Storage Optimizer
+              </Button>
 
               <Button
                 variant="outline"
@@ -939,6 +956,18 @@ const StudentFaceSamplesManager: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setDedupTargetUserId(selectedGroup.userId || selectedGroup.employeeId);
+                      setDedupModalOpen(true);
+                    }}
+                    className="rounded-xl border-primary/30 text-xs font-bold gap-1.5 hover:bg-primary/10 text-foreground"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-primary" /> AI Clean Duplicates
+                  </Button>
+
                   <Button
                     size="sm"
                     variant="outline"
@@ -1218,8 +1247,13 @@ const StudentFaceSamplesManager: React.FC = () => {
               {mergingStudent ? 'Merging...' : 'Confirm Merge'}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* AI Deduplication & Cloud Storage Reclaim Modal */}
+      <FaceSampleDeduplicationModal
+        open={dedupModalOpen}
+        onOpenChange={setDedupModalOpen}
+        targetUserId={dedupTargetUserId}
+        onCompleted={() => fetchSamples({ silent: true })}
+      />
 
     </div>
   );
