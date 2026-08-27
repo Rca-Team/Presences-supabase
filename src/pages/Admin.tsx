@@ -475,15 +475,18 @@ const Admin = () => {
 
   return (
     <PageTransition>
-      <PageLayout className="min-h-screen bg-background">
-        <div className="flex h-[calc(100dvh-4rem)]">
+      <PageLayout className="min-h-screen bg-background p-0" fullWidth noFooter>
+        <div className="flex h-[calc(100dvh-4rem)] overflow-hidden">
           {/* Desktop Sidebar */}
           {!isMobile &&
-          <aside className={cn(
-            "border-r border-border bg-card flex flex-col transition-all duration-200",
-            sidebarCollapsed ? "w-16" : "w-56"
-          )}>
-              <div className="p-3 border-b border-border flex items-center gap-2">
+          <aside
+            data-lenis-prevent="true"
+            className={cn(
+              "border-r border-border bg-card flex flex-col transition-all duration-200 h-full min-h-0 select-none overflow-hidden shrink-0",
+              sidebarCollapsed ? "w-16" : "w-56"
+            )}
+          >
+              <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
                 <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
                   <Shield className="w-4 h-4 text-primary-foreground" />
                 </div>
@@ -495,7 +498,7 @@ const Admin = () => {
               }
               </div>
 
-              <ScrollArea className="flex-1 py-2">
+              <ScrollArea data-lenis-prevent="true" className="flex-1 min-h-0 py-2 overscroll-contain">
                 {groups.map((group) =>
               <div key={group} className="mb-1">
                     {!sidebarCollapsed &&
