@@ -37,18 +37,30 @@ serve(async (req) => {
       });
     }
 
-    const { fileData, className, section, knownSubjects, knownTeachers } = await req.json();
+    const { fileData, className, section, knownSubjects, knownTeachers, apiKey } = await req.json();
     if (!fileData) {
       return new Response(JSON.stringify({ error: "No file data" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GEMINI_API_KEY =
+      apiKey ||
+      Deno.env.get("GEMINI_API_KEY") ||
+      Deno.env.get("VITE_GEMINI_API_KEY") ||
+      Deno.env.get("GOOGLE_API_KEY");
+
     if (!GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Gemini API key is not configured in backend secrets." }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "GEMINI_API_KEY_REQUIRED",
+          message: "Gemini API key is not configured. Please supply a key or configure backend secrets.",
+        }),
+        {
+          status: 422,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const systemPrompt = `You are an expert AI OCR assistant specialized in extracting school class timetables from photos of printed or handwritten timetable grids (e.g. Kendriya Vidyalaya / CBSE school formats).
