@@ -333,37 +333,99 @@ const StudentFaceSamplesManager: React.FC = () => {
       const attendanceRows = attendanceRes.data || [];
       const profileRows = profilesRes.data || [];
 
+      const normalizeNameKey = (raw?: string | null): string => {
+        if (!raw) return '';
+        return raw
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, ' ')
+          .replace(/[^a-z0-9 ]/gi, '');
+      };
+
       const profileMapByUserId = new Map<string, any>();
       const profileMapByEmpId = new Map<string, any>();
+      const profileMapByName = new Map<string, any>();
 
       profileRows.forEach((p) => {
         if (p.user_id) profileMapByUserId.set(p.user_id, p);
         if (p.employee_id) profileMapByEmpId.set(String(p.employee_id).trim().toLowerCase(), p);
         if (p.roll_number) profileMapByEmpId.set(String(p.roll_number).trim().toLowerCase(), p);
+        if (p.admission_number) profileMapByEmpId.set(String(p.admission_number).trim().toLowerCase(), p);
+        if (p.full_name) profileMapByName.set(normalizeNameKey(p.full_name), p);
+        if (p.display_name) profileMapByName.set(normalizeNameKey(p.display_name), p);
+      });
+
+      // Index attendance records for additional ID, class, and photo metadata
+      const regMetaByName = new Map<string, any>();
+      attendanceRows.forEach((row: any) => {
+        const di = (row.device_info as Record<string, any>) || {};
+        const meta = (di.metadata as Record<string, any>) || {};
+        const empId = meta.employee_id || meta.roll_number || meta.admission_number || di.employee_id || row.student_id || '';
+        const name = meta.name || di.name || row.student_name || '';
+        const classSec = meta.class ? `${meta.class}${meta.section ? `-${meta.section}` : ''}` : di.class_section || undefined;
+        const norm = normalizeNameKey(name);
+        if (norm && (!regMetaByName.has(norm) || row.status === 'registered' || row.image_url)) {
+          regMetaByName.set(norm, {
+            employeeId: empId,
+            classSection: classSec,
+            imageUrl: row.image_url,
+            userId: row.user_id,
+            name,
+          });
+        }
       });
 
       const studentGroupsMap = new Map<string, StudentGroup>();
 
-      // Helper to get or create student group
+      // Helper to get or create student group with case-insensitive name matching
       const getOrCreateGroup = (userId: string, empId: string, fallbackName: string): StudentGroup => {
-        const key = userId || empId || fallbackName;
-        if (studentGroupsMap.has(key)) return studentGroupsMap.get(key)!;
+        const normName = normalizeNameKey(fallbackName);
 
-        const profile = profileMapByUserId.get(userId) || (empId ? profileMapByEmpId.get(empId.toLowerCase()) : null);
-        const name = profile?.full_name || profile?.display_name || fallbackName || 'Student';
-        const finalEmpId = profile?.employee_id || profile?.roll_number || empId || '';
-        const classSec = profile?.class ? `${profile.class}${profile?.section ? `-${profile.section}` : ''}` : undefined;
+        // Multi-tier profile match:
+        // 1) By userId
+        // 2) By employeeId / rollNumber / admissionNumber
+        // 3) By case-insensitive normalized Name (matches ARYAN CHAUHAN <=> Aryan Chauhan)
+        const profile =
+          (userId ? profileMapByUserId.get(userId) : null) ||
+          (empId ? profileMapByEmpId.get(empId.toLowerCase()) : null) ||
+          (normName ? profileMapByName.get(normName) : null);
+
+        const regMeta = normName ? regMetaByName.get(normName) : null;
+
+        const finalUserId = userId || profile?.user_id || regMeta?.userId || '';
+        const finalEmpId = profile?.employee_id || profile?.roll_number || profile?.admission_number || empId || regMeta?.employeeId || '';
+        const rawName = profile?.full_name || profile?.display_name || (fallbackName && fallbackName !== 'Student' && fallbackName !== 'Unknown' ? fallbackName : regMeta?.name || 'Student');
+        const name = rawName || 'Student';
+        const classSec = profile?.class ? `${profile.class}${profile?.section ? `-${profile.section}` : ''}` : regMeta?.classSection || undefined;
+        const avatar = profile?.avatar_url || regMeta?.imageUrl || null;
+
+        // Unified primary key
+        const key = finalUserId || (finalEmpId ? `emp:${finalEmpId.toLowerCase()}` : (normName ? `name:${normName}` : name.toLowerCase()));
+
+        if (studentGroupsMap.has(key)) {
+          const existing = studentGroupsMap.get(key)!;
+          if (!existing.employeeId && finalEmpId) existing.employeeId = finalEmpId;
+          if (!existing.classSection && classSec) existing.classSection = classSec;
+          if (!existing.avatarUrl && avatar) existing.avatarUrl = avatar;
+          if ((!existing.name || existing.name === 'Student') && name !== 'Student') existing.name = name;
+          return existing;
+        }
 
         const newGroup: StudentGroup = {
-          userId: userId || profile?.user_id || '',
+          userId: finalUserId,
           name,
           employeeId: finalEmpId,
           classSection: classSec,
           rollNumber: profile?.roll_number,
-          avatarUrl: profile?.avatar_url,
+          avatarUrl: avatar,
           samples: [],
         };
+
         studentGroupsMap.set(key, newGroup);
+        if (normName) studentGroupsMap.set(`name:${normName}`, newGroup);
+        if (finalEmpId) studentGroupsMap.set(`emp:${finalEmpId.toLowerCase()}`, newGroup);
+        if (finalUserId) studentGroupsMap.set(finalUserId, newGroup);
+
         return newGroup;
       };
 
@@ -413,8 +475,19 @@ const StudentFaceSamplesManager: React.FC = () => {
         getOrCreateGroup(p.user_id, p.employee_id || p.roll_number || '', p.full_name || p.display_name || 'Student');
       });
 
-      const list = Array.from(studentGroupsMap.values());
-      setGroups(list);
+      // Ensure avatarUrl is populated for all students if they have any photo samples
+      studentGroupsMap.forEach((group) => {
+        if (!group.avatarUrl && group.samples.length > 0) {
+          const sampleWithImg = group.samples.find((s) => s.image_url);
+          if (sampleWithImg?.image_url) {
+            group.avatarUrl = sampleWithImg.image_url;
+          }
+        }
+      });
+
+      // Deduplicate unique student group references
+      const uniqueGroups = Array.from(new Set(studentGroupsMap.values()));
+      setGroups(uniqueGroups);
 
       // Auto-select first student if none selected
       if (list.length > 0 && !selectedUserId) {

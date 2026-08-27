@@ -104,13 +104,25 @@ export const scanDuplicateFaceSamples = async (): Promise<DeduplicationScanResul
   const attendance = attendanceRes.data || [];
   const profiles = profilesRes.data || [];
 
+  const normalizeNameKey = (raw?: string | null): string => {
+    if (!raw) return '';
+    return raw
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[^a-z0-9 ]/gi, '');
+  };
+
   const profileMapByUserId = new Map<string, any>();
   const profileMapByEmpId = new Map<string, any>();
+  const profileMapByName = new Map<string, any>();
 
   profiles.forEach((p) => {
     if (p.user_id) profileMapByUserId.set(p.user_id, p);
     if (p.employee_id) profileMapByEmpId.set(String(p.employee_id).trim().toLowerCase(), p);
     if (p.roll_number) profileMapByEmpId.set(String(p.roll_number).trim().toLowerCase(), p);
+    if (p.full_name) profileMapByName.set(normalizeNameKey(p.full_name), p);
+    if (p.display_name) profileMapByName.set(normalizeNameKey(p.display_name), p);
   });
 
   // Group all samples by student identity
@@ -127,23 +139,23 @@ export const scanDuplicateFaceSamples = async (): Promise<DeduplicationScanResul
     }
   >();
 
-  const getStudentGroupKey = (userId?: string | null, empId?: string | null, name?: string | null): string => {
-    return (userId || empId || name || 'unknown').trim().toLowerCase();
-  };
-
   const getOrCreateStudent = (userId?: string, empId?: string, fallbackName?: string) => {
-    const key = getStudentGroupKey(userId, empId, fallbackName);
-    if (studentMap.has(key)) return studentMap.get(key)!;
+    const normName = normalizeNameKey(fallbackName);
+    const profile =
+      (userId ? profileMapByUserId.get(userId) : null) ||
+      (empId ? profileMapByEmpId.get(empId.toLowerCase()) : null) ||
+      (normName ? profileMapByName.get(normName) : null);
 
-    const profile = (userId ? profileMapByUserId.get(userId) : null) ||
-      (empId ? profileMapByEmpId.get(empId.toLowerCase()) : null);
-
-    const name = profile?.full_name || profile?.display_name || fallbackName || 'Student';
+    const finalUserId = userId || profile?.user_id || '';
     const finalEmpId = profile?.employee_id || profile?.roll_number || empId || '';
+    const name = profile?.full_name || profile?.display_name || fallbackName || 'Student';
     const classSec = profile?.class ? `${profile.class}${profile?.section ? `-${profile.section}` : ''}` : undefined;
 
+    const key = finalUserId || (finalEmpId ? `emp:${finalEmpId.toLowerCase()}` : (normName ? `name:${normName}` : name.toLowerCase()));
+    if (studentMap.has(key)) return studentMap.get(key)!;
+
     const group = {
-      userId: userId || profile?.user_id || '',
+      userId: finalUserId,
       employeeId: finalEmpId,
       name,
       classSection: classSec,
@@ -153,6 +165,10 @@ export const scanDuplicateFaceSamples = async (): Promise<DeduplicationScanResul
     };
 
     studentMap.set(key, group);
+    if (normName) studentMap.set(`name:${normName}`, group);
+    if (finalEmpId) studentMap.set(`emp:${finalEmpId.toLowerCase()}`, group);
+    if (finalUserId) studentMap.set(finalUserId, group);
+
     return group;
   };
 
