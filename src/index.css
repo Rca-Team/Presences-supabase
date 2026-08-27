@@ -451,22 +451,19 @@
     background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.5), transparent);
   }
 
-  /* Royal Neon Textured Glass Dock */
+  /* Minimal Neon Textured Glass Dock */
   .royal-neon-dock {
     position: relative;
     overflow: hidden;
     background:
-      linear-gradient(135deg, hsl(var(--card) / 0.88), hsl(var(--card) / 0.58)),
-      radial-gradient(120% 120% at 50% 0%, hsl(var(--primary) / 0.22), transparent 75%),
-      radial-gradient(100% 100% at 50% 100%, hsl(var(--neon-violet, 260 90% 65%) / 0.16), transparent 65%);
-    border: 1px solid hsl(var(--foreground) / 0.16);
-    backdrop-filter: blur(32px) saturate(200%);
-    -webkit-backdrop-filter: blur(32px) saturate(200%);
+      linear-gradient(180deg, rgba(16, 24, 38, 0.88) 0%, rgba(10, 16, 26, 0.92) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
     box-shadow:
-      0 20px 45px -18px rgba(0, 0, 0, 0.65),
-      0 0 30px -8px hsl(var(--primary) / 0.35),
-      inset 0 1px 1px 0 rgba(255, 255, 255, 0.4),
-      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.5);
+      0 16px 36px -12px rgba(0, 0, 0, 0.65),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
   }
 
   .royal-neon-dock::before {
@@ -476,37 +473,37 @@
     pointer-events: none;
     background:
       repeating-linear-gradient(
-        125deg,
+        135deg,
         transparent 0px,
-        transparent 12px,
-        hsl(var(--foreground) / 0.05) 12px,
-        hsl(var(--foreground) / 0.05) 13px
+        transparent 11px,
+        rgba(255, 255, 255, 0.038) 11px,
+        rgba(255, 255, 255, 0.038) 12px
       );
-    opacity: 0.85;
+    opacity: 0.9;
   }
 
   .royal-neon-dock::after {
     content: "";
     position: absolute;
-    inset-x: 16px;
+    inset-x: 24px;
     top: 0;
-    height: 1.5px;
-    background: linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.9) 35%, hsl(var(--neon-cyan, 191 90% 60%) / 0.9) 65%, transparent 100%);
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 40%, rgba(56, 189, 248, 0.35) 60%, transparent 100%);
     pointer-events: none;
   }
 
+  /* Minimal Clean Active Sliding Pill */
   .royal-neon-active-pill {
     background:
-      linear-gradient(135deg, hsl(var(--primary) / 0.32) 0%, hsl(var(--card) / 0.9) 50%, hsl(var(--accent) / 0.25) 100%),
-      radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.45), transparent 75%);
-    border: 1px solid hsl(var(--primary) / 0.65);
+      linear-gradient(180deg, rgba(32, 54, 80, 0.75) 0%, rgba(18, 30, 48, 0.88) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.4);
     box-shadow:
-      0 0 22px -2px hsl(var(--primary) / 0.75),
-      0 8px 20px -6px rgba(0, 0, 0, 0.6),
-      inset 0 1px 2px 0 rgba(255, 255, 255, 0.65),
-      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+      0 0 14px -2px rgba(56, 189, 248, 0.25),
+      0 4px 14px -3px rgba(0, 0, 0, 0.5),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   .macbook-dock-item {

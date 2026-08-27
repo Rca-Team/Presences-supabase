@@ -110,31 +110,31 @@ const Navbar = () => {
                     setHoveredPath(item.path);
                     import('@/lib/preloadRoute').then((m) => m.preloadRoute(item.path)).catch(() => undefined);
                   }}
-                  whileHover={{ y: -1, scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
-                  transition={{ type: 'spring', stiffness: 450, damping: 28, mass: 0.6 }}
+                  whileHover={{ y: -1, scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.6 }}
                   className="relative select-none"
                 >
                   <Link
                     to={item.path}
                     onClick={() => haptic('selection')}
                     className={cn(
-                      "relative block px-5 py-2.5 rounded-full text-sm font-semibold mobile-touch-target transition-colors duration-200",
+                      "relative block px-5 py-2 rounded-full text-sm font-medium mobile-touch-target transition-colors duration-200",
                       active
-                        ? "text-foreground font-bold drop-shadow-[0_0_12px_hsl(var(--primary)/0.65)]"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "text-white font-bold"
+                        : "text-slate-300 hover:text-white"
                     )}
                   >
                     {/* Hover ghost highlight */}
                     {hovered && !active && (
                       <motion.div
                         layoutId="navbar-hover-pill"
-                        className="absolute inset-0 rounded-full bg-white/10 dark:bg-white/[0.08] backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm"
-                        transition={{ type: "spring", stiffness: 450, damping: 30, mass: 0.5 }}
+                        className="absolute inset-0 rounded-full bg-white/[0.06] backdrop-blur-md border border-white/[0.08]"
+                        transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.5 }}
                       />
                     )}
 
-                    {/* Royal Active Neon Sliding Pill */}
+                    {/* Minimal Clean Active Sliding Pill */}
                     {active && (
                       <motion.div
                         layoutId="navbar-active-pill"
@@ -142,12 +142,12 @@ const Navbar = () => {
                         transition={{
                           type: "spring",
                           stiffness: 380,
-                          damping: 28,
-                          mass: 0.6,
+                          damping: 30,
+                          mass: 0.7,
                         }}
                       >
-                        {/* Radiant micro top beam */}
-                        <span className="pointer-events-none absolute inset-x-3 top-0 h-[1.5px] rounded-full bg-gradient-to-r from-transparent via-white/80 dark:via-primary/90 to-transparent" />
+                        {/* Soft inner top reflection */}
+                        <span className="pointer-events-none absolute inset-x-2.5 top-0 h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/50 to-transparent" />
                       </motion.div>
                     )}
 
