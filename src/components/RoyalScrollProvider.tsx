@@ -3,6 +3,7 @@ import Lenis from 'lenis';
 import { useLocation } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
+import { useCursorDragScroll } from '@/hooks/useCursorDragScroll';
 
 interface RoyalScrollContextType {
   lenis: Lenis | null;
@@ -27,6 +28,9 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
   const { liteMode } = usePerformanceMode();
+
+  // Enable universal cursor drag-to-scroll across all pages and containers
+  useCursorDragScroll();
 
   // Full-screen / heavy camera routes that shouldn't bind global wheel interception
   const isExcludedRoute = location.pathname.startsWith('/gate') || location.pathname.startsWith('/__admin');
