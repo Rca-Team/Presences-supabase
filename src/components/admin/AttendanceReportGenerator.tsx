@@ -96,7 +96,7 @@ const AttendanceReportGenerator: React.FC = () => {
           .eq('status', 'registered'),
         supabase
           .from('attendance_records')
-          .select('id, user_id, device_info, status, timestamp, category')
+          .select('id, user_id, student_id, student_name, device_info, status, timestamp, category')
           .gte('timestamp', fromIso)
           .lte('timestamp', toIso)
           .in('status', ['present', 'late', 'unauthorized']),
@@ -155,8 +155,8 @@ const AttendanceReportGenerator: React.FC = () => {
       // Process attendance records
       (attendanceRes.data || []).forEach((rec: any) => {
         const di = rec.device_info || {};
-        const empId = di?.metadata?.employee_id || di?.employee_id;
-        const recName = di?.metadata?.name || di?.name;
+        const empId = rec.student_id || di?.metadata?.employee_id || di?.employee_id;
+        const recName = rec.student_name || di?.metadata?.name || di?.name;
         const userId = rec.user_id;
 
         const matched = students.find(s => 

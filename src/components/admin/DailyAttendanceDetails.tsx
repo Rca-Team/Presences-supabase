@@ -203,23 +203,21 @@ const DailyAttendanceDetails: React.FC<DailyAttendanceDetailsProps> = ({
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium">{formatTime(record.timestamp)}</p>
-                        {isGateRecord(record) && (
-                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                            Gate{record.subject ? ` • ${record.subject}` : ''}
-                            {record.class_name || record.section ? ` • ${record.class_name || ''}${record.section ? `-${record.section}` : ''}` : ''}
-                          </p>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-xs sm:text-sm font-semibold">{formatTime(record.timestamp)}</p>
+                          {record.name && record.name !== 'Student' && (
+                            <span className="text-xs font-medium text-foreground truncate">• {record.name}</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                          {record.class_name || record.section
+                            ? `${record.class_name || ''}${record.section ? `-${record.section}` : ''}`
+                            : 'School Terminal'}
+                          {record.period_key ? ` • ${record.period_key}` : ''}
+                          {record.subject ? ` • ${record.subject}` : ''}
+                        </p>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {isGateRecord(record) && (
-                          <Badge
-                            variant="outline"
-                            className="text-[9px] sm:text-[10px] px-1.5 py-0 border-primary/30 text-primary"
-                          >
-                            Gate
-                          </Badge>
-                        )}
                         <Badge
                           variant="outline"
                           className={cn(

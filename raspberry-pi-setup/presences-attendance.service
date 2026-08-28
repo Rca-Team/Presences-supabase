@@ -1,0 +1,19 @@
+[Unit]
+Description=Presences AI Smart Attendance Terminal
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Presences-AI/edge/raspberry-pi
+ExecStart=/usr/bin/python3 /home/pi/Presences-AI/edge/raspberry-pi/attendance_engine.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=multi-user.target

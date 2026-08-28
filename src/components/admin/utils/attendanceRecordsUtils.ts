@@ -19,15 +19,17 @@ function toMidnight(date: Date): Date {
   return d;
 }
 
-// Extract name from device_info
-function extractName(deviceInfo: any): string {
+// Extract name from record and device_info
+function extractName(record: any): string {
   try {
+    if (record?.student_name) return record.student_name;
+    const deviceInfo = record?.device_info || record;
     if (deviceInfo && typeof deviceInfo === 'object' && !Array.isArray(deviceInfo)) {
       if (deviceInfo.metadata?.name) return deviceInfo.metadata.name;
       if (deviceInfo.name) return deviceInfo.name;
     }
   } catch (e) {
-    console.error('Error extracting name from device_info:', e);
+    console.error('Error extracting name:', e);
   }
   return '';
 }
@@ -130,7 +132,7 @@ export const fetchAttendanceRecords = async (
 
       const { isGate } = normalizeGateMetadata(record);
 
-      if (status === 'present' && !isGate) {
+      if (status === 'present') {
         presentDaysMap.set(dateKey, date);
         lateDaysMap.delete(dateKey);
       } else if (status === 'late' && !presentDaysMap.has(dateKey)) {
@@ -165,7 +167,7 @@ export const fetchDailyAttendance = async (
 
     const queries = userIds.map(uid =>
       supabase.from('attendance_records')
-        .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, image_url')
+        .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, image_url, student_name')
         .or(`user_id.eq.${uid},id.eq.${uid}`)
         .gte('timestamp', timestampStart)
         .lte('timestamp', timestampEnd)
@@ -175,7 +177,7 @@ export const fetchDailyAttendance = async (
     if (employeeId) {
       queries.push(
         supabase.from('attendance_records')
-          .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, image_url')
+          .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, image_url, student_name')
           .contains('device_info', { metadata: { employee_id: employeeId } })
           .gte('timestamp', timestampStart)
           .lte('timestamp', timestampEnd)
@@ -203,7 +205,7 @@ export const fetchDailyAttendance = async (
         id: record.id,
         timestamp: record.timestamp,
         status: normalizeStatus(record.status),
-        name: extractName(record.device_info) || 'Student',
+        name: extractName(record) || 'Student',
         image_url: record.image_url
       }));
 

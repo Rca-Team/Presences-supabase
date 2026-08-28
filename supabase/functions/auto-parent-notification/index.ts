@@ -266,6 +266,7 @@ serve(async (req) => {
     const alreadySMS = false;
 
     // Emails cannot render base64 data URIs — host the live capture first.
+    const hostedSnapshot = imageUrl ? await hostSnapshot(supabaseClient, studentId, imageUrl) : null;
     const studentRegisteredPhoto = await resolveStudentPhotoUrl(supabaseClient, studentId, studentName);
     const photoForMetadata = hostedSnapshot || studentRegisteredPhoto || null;
 

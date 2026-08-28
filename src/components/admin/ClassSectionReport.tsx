@@ -83,7 +83,7 @@ const ClassSectionReport: React.FC<ClassSectionReportProps> = ({ allowedCategori
         .eq('status', 'registered'),
       supabase
         .from('attendance_records')
-        .select('id, user_id, device_info, status, timestamp, category')
+        .select('id, user_id, student_id, student_name, device_info, status, timestamp, category')
         .gte('timestamp', start.toISOString())
         .lte('timestamp', end.toISOString())
         .in('status', ['present', 'late', 'unauthorized']),
@@ -158,8 +158,8 @@ const ClassSectionReport: React.FC<ClassSectionReportProps> = ({ allowedCategori
 
     (attendanceRes.data || []).forEach((record: any) => {
       const di = record.device_info || {};
-      const employeeId = di?.metadata?.employee_id || di?.employee_id;
-      const recordName = di?.metadata?.name || di?.name;
+      const employeeId = record.student_id || di?.metadata?.employee_id || di?.employee_id;
+      const recordName = record.student_name || di?.metadata?.name || di?.name;
       const userId = record.user_id;
 
       let matchedKey: string | null = null;
