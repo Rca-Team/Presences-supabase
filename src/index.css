@@ -250,89 +250,139 @@
   }
 }
 
-/* Royal Luxury Custom Scrollbar & Cursor Scrolling */
-::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
+/* =========================================================================
+   ADAPTIVE SCROLL ENGINE (DESKTOP MOUSE + MOBILE TOUCH)
+   ========================================================================= */
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--primary) / 0.4),
-    hsl(var(--neon-cyan, 191 82% 60%) / 0.4)
-  );
-  border-radius: 9999px;
-  cursor: grab;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--primary) / 0.85),
-    hsl(var(--neon-cyan, 191 82% 60%) / 0.85)
-  );
-  box-shadow: 0 0 10px hsl(var(--primary) / 0.7);
-  cursor: grab;
-}
-
-::-webkit-scrollbar-thumb:active {
-  cursor: grabbing;
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--primary) / 0.45) transparent;
-}
-
-/* Global Cursor Drag-Scroll Classes */
-body.is-cursor-scrolling,
-body.is-cursor-scrolling * {
-  cursor: grabbing !important;
-  user-select: none !important;
+/* Base Universal Scroll Behavior */
+html, body {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
 .overflow-x-auto,
 .overflow-y-auto,
 .overflow-auto,
 [data-radix-scroll-area-viewport] {
-  cursor: grab;
-  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
-.overflow-x-auto:active,
-.overflow-y-auto:active,
-.overflow-auto:active,
-[data-radix-scroll-area-viewport]:active {
-  cursor: grabbing;
+/* 1. Mobile & Touch Screen Devices */
+@media (hover: none) and (pointer: coarse) {
+  * {
+    cursor: auto !important;
+  }
+
+  .overflow-x-auto {
+    touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain;
+  }
+
+  .overflow-y-auto,
+  [data-radix-scroll-area-viewport] {
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Compact native scrollbars on mobile */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.3);
+    border-radius: 9999px;
+  }
 }
 
-/* Keep standard pointer on interactive elements within scroll containers */
-.overflow-x-auto input,
-.overflow-x-auto textarea,
-.overflow-x-auto select,
-.overflow-x-auto button,
-.overflow-x-auto a,
-.overflow-y-auto input,
-.overflow-y-auto textarea,
-.overflow-y-auto select,
-.overflow-y-auto button,
-.overflow-y-auto a,
-[data-radix-scroll-area-viewport] input,
-[data-radix-scroll-area-viewport] button,
-[data-radix-scroll-area-viewport] a {
-  cursor: pointer;
-}
-.overflow-x-auto input,
-.overflow-x-auto textarea,
-.overflow-y-auto input,
-.overflow-y-auto textarea {
-  cursor: text;
+/* 2. Desktop, Trackpad & Mouse Devices */
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.5),
+      hsl(var(--neon-cyan, 191 82% 60%) / 0.4)
+    );
+    border-radius: 9999px;
+    border: 1px solid hsl(var(--border) / 0.3);
+    box-shadow: 0 0 6px hsl(var(--primary) / 0.3);
+    cursor: grab;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.85),
+      hsl(var(--neon-cyan, 191 82% 60%) / 0.85)
+    );
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.7);
+    cursor: grab;
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    cursor: grabbing;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.45) transparent;
+  }
+
+  /* Global Cursor Drag-Scroll Classes */
+  body.is-cursor-scrolling,
+  body.is-cursor-scrolling * {
+    cursor: grabbing !important;
+    user-select: none !important;
+  }
+
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto,
+  [data-radix-scroll-area-viewport] {
+    cursor: grab;
+    overscroll-behavior: contain;
+  }
+
+  .overflow-x-auto:active,
+  .overflow-y-auto:active,
+  .overflow-auto:active,
+  [data-radix-scroll-area-viewport]:active {
+    cursor: grabbing;
+  }
+
+  /* Keep standard pointer on interactive elements within scroll containers */
+  .overflow-x-auto input,
+  .overflow-x-auto textarea,
+  .overflow-x-auto select,
+  .overflow-x-auto button,
+  .overflow-x-auto a,
+  .overflow-y-auto input,
+  .overflow-y-auto textarea,
+  .overflow-y-auto select,
+  .overflow-y-auto button,
+  .overflow-y-auto a,
+  [data-radix-scroll-area-viewport] input,
+  [data-radix-scroll-area-viewport] button,
+  [data-radix-scroll-area-viewport] a {
+    cursor: pointer;
+  }
+  .overflow-x-auto input,
+  .overflow-x-auto textarea,
+  .overflow-y-auto input,
+  .overflow-y-auto textarea {
+    cursor: text;
+  }
 }
 
 @keyframes shimmer-slide {

@@ -35,16 +35,34 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
   // Full-screen / heavy camera routes that shouldn't bind global wheel interception
   const isExcludedRoute = location.pathname.startsWith('/gate') || location.pathname.startsWith('/__admin');
 
-  // Initialize Lenis smooth scroll engine
+  // Initialize Lenis smooth scroll engine (Desktop wheel / trackpad) & Native Touch on Mobile
   useEffect(() => {
-    // If user prefers reduced motion, low-power mode, or is on full-screen gate mode, bypass Lenis
-    if (prefersReducedMotion || liteMode || isExcludedRoute) {
+    const isTouchOnly =
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches &&
+      !window.matchMedia('(hover: hover)').matches;
+
+    // Synchronize top luminescence progress bar on all devices
+    const onNativeScroll = () => {
+      if (!progressBarRef.current) return;
+      const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      const maxScroll = (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight;
+      const pct = maxScroll > 0 ? Math.max(0, Math.min(1, scrollY / maxScroll)) : 0;
+      progressBarRef.current.style.transform = `scaleX(${pct})`;
+      progressBarRef.current.style.opacity = pct > 0.005 ? '1' : '0';
+    };
+
+    window.addEventListener('scroll', onNativeScroll, { passive: true });
+
+    // If user prefers reduced motion, low-power mode, is on touch screen, or full-screen gate mode, bypass Lenis
+    if (prefersReducedMotion || liteMode || isExcludedRoute || isTouchOnly) {
       if (lenisRef.current) {
         lenisRef.current.destroy();
         lenisRef.current = null;
         setLenisInstance(null);
       }
-      return;
+      return () => {
+        window.removeEventListener('scroll', onNativeScroll);
+      };
     }
 
     const lenis = new Lenis({
@@ -54,14 +72,13 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
       gestureOrientation: 'vertical',
       smoothWheel: true,
       wheelMultiplier: 1.0,
-      touchMultiplier: 1.1,
+      touchMultiplier: 0, // Never hijack native touch gestures
       infinite: false,
     });
 
     lenisRef.current = lenis;
     setLenisInstance(lenis);
 
-    // Synchronize scroll progress bar with Lenis
     lenis.on('scroll', (e: { progress: number; scroll: number; limit: number }) => {
       if (progressBarRef.current) {
         const pct = Math.max(0, Math.min(1, e.progress || 0));
@@ -92,6 +109,7 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
 
     return () => {
       isRunning = false;
+      window.removeEventListener('scroll', onNativeScroll);
       document.removeEventListener('visibilitychange', onVisibility);
       cancelAnimationFrame(rafId);
       lenis.destroy();

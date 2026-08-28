@@ -1,12 +1,18 @@
 import { useEffect } from 'react';
 
 /**
- * Universal Cursor Drag-To-Scroll Hook
- * Enables intuitive, butter-smooth click-and-drag scrolling with mouse cursor
- * across all pages, tables, tab bars, galleries, and overflow containers.
+ * Adaptive Cursor & Device Scroll Hook
+ * Provides optimal scrolling for both device categories:
+ * - Desktop/Mouse: Fluid click-and-drag pan scrolling with momentum flick & automatic horizontal wheel translation.
+ * - Mobile/Touch: 100% native hardware-accelerated touch gestures, momentum swipes, and pull-to-refresh with zero interference.
  */
 export function useCursorDragScroll() {
   useEffect(() => {
+    // Check if device is primarily touch-only
+    const isTouchOnly =
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches &&
+      !window.matchMedia('(hover: hover)').matches;
+
     let isDown = false;
     let isDragging = false;
     let startX = 0;
@@ -24,7 +30,6 @@ export function useCursorDragScroll() {
     const findScrollableContainer = (target: HTMLElement | null): HTMLElement | 'window' | null => {
       let curr = target;
       while (curr && curr !== document.body && curr !== document.documentElement) {
-        // Skip explicitly non-scrollable containers
         if (curr.classList.contains('no-cursor-scroll') || curr.classList.contains('no-drag-scroll')) {
           return null;
         }
@@ -42,7 +47,7 @@ export function useCursorDragScroll() {
         curr = curr.parentElement;
       }
 
-      // Check document / window scrolling
+      // Check window / body scrollability
       const isDocScrollable =
         document.documentElement.scrollHeight > window.innerHeight + 10 ||
         document.body.scrollHeight > window.innerHeight + 10 ||
@@ -68,14 +73,17 @@ export function useCursorDragScroll() {
       return false;
     };
 
-    const onMouseDown = (e: MouseEvent) => {
-      // Only handle primary left click or middle click
+    // 1. Pointer Down (Desktop mouse / stylus drag-scroll)
+    const onPointerDown = (e: PointerEvent) => {
+      // If the interaction is from a touch screen, yield 100% to native browser touch physics
+      if (e.pointerType === 'touch') return;
+
+      // Only left click or middle click
       if (e.button !== 0 && e.button !== 1) return;
 
       const target = e.target as HTMLElement;
       if (isInteractiveElement(target)) return;
 
-      // Stop any running momentum animation
       if (momentumRafId) {
         cancelAnimationFrame(momentumRafId);
         momentumRafId = null;
@@ -104,14 +112,15 @@ export function useCursorDragScroll() {
       }
     };
 
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDown || !targetContainer) return;
+    // 2. Pointer Move
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' || !isDown || !targetContainer) return;
 
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       const distance = Math.hypot(dx, dy);
 
-      // 4px threshold before engaging drag-scroll to preserve precise clicks
+      // 4px threshold before engaging drag-scroll to keep standard clicks precise
       if (!isDragging && distance > 4) {
         isDragging = true;
         document.body.classList.add('is-cursor-scrolling');
@@ -120,7 +129,6 @@ export function useCursorDragScroll() {
       if (isDragging) {
         e.preventDefault();
 
-        // Calculate instantaneous velocity for smooth momentum flick
         const now = performance.now();
         const dt = Math.max(1, now - lastTime);
         velocityX = ((e.clientX - lastX) / dt) * 16;
@@ -142,13 +150,14 @@ export function useCursorDragScroll() {
       }
     };
 
+    // 3. Momentum Decay Animation
     const applyMomentum = () => {
       if (!targetContainer) return;
       const friction = 0.94;
       velocityX *= friction;
       velocityY *= friction;
 
-      if (Math.abs(velocityX) > 0.3 || Math.abs(velocityY) > 0.3) {
+      if (Math.abs(velocityX) > 0.25 || Math.abs(velocityY) > 0.25) {
         if (targetContainer === 'window') {
           window.scrollBy({
             left: -velocityX,
@@ -165,17 +174,16 @@ export function useCursorDragScroll() {
       }
     };
 
-    const onMouseUp = () => {
-      if (!isDown) return;
+    // 4. Pointer Up / Cancel
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' || !isDown) return;
       isDown = false;
 
       if (isDragging) {
         document.body.classList.remove('is-cursor-scrolling');
-        // Trigger momentum scroll
         momentumRafId = requestAnimationFrame(applyMomentum);
       }
 
-      // Reset state on next tick to prevent drag release from triggering unwanted click
       setTimeout(() => {
         isDragging = false;
         targetContainer = null;
@@ -189,17 +197,47 @@ export function useCursorDragScroll() {
       }
     };
 
-    // Attach listeners to window for whole website coverage
-    window.addEventListener('mousedown', onMouseDown, { passive: true });
-    window.addEventListener('mousemove', onMouseMove, { passive: false });
-    window.addEventListener('mouseup', onMouseUp, { passive: true });
-    window.addEventListener('click', onClickCapture, { capture: true });
+    // 5. Desktop Horizontal Wheel Helper:
+    // When scrolling vertical wheel over a horizontal-only scroll container (e.g. tabs, wide tables),
+    // automatically translate to horizontal scroll for convenience.
+    const onWheel = (e: WheelEvent) => {
+      // Only for non-touch mouse wheel
+      if (Math.abs(e.deltaY) <= 0 || Math.abs(e.deltaX) > 0) return;
+
+      let el = e.target as HTMLElement | null;
+      while (el && el !== document.body && el !== document.documentElement) {
+        const style = window.getComputedStyle(el);
+        const isHoriz = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2;
+        const isVert = (style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 5;
+
+        // If element is horizontally scrollable but NOT vertically scrollable, translate vertical wheel to horizontal
+        if (isHoriz && !isVert) {
+          el.scrollLeft += e.deltaY;
+          e.preventDefault();
+          return;
+        }
+        el = el.parentElement;
+      }
+    };
+
+    if (!isTouchOnly) {
+      window.addEventListener('pointerdown', onPointerDown, { passive: true });
+      window.addEventListener('pointermove', onPointerMove, { passive: false });
+      window.addEventListener('pointerup', onPointerUp, { passive: true });
+      window.addEventListener('pointercancel', onPointerUp, { passive: true });
+      window.addEventListener('click', onClickCapture, { capture: true });
+      window.addEventListener('wheel', onWheel, { passive: false });
+    }
 
     return () => {
-      window.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      window.removeEventListener('click', onClickCapture, { capture: true });
+      if (!isTouchOnly) {
+        window.removeEventListener('pointerdown', onPointerDown);
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+        window.removeEventListener('click', onClickCapture, { capture: true });
+        window.removeEventListener('wheel', onWheel);
+      }
       if (momentumRafId) cancelAnimationFrame(momentumRafId);
       document.body.classList.remove('is-cursor-scrolling');
     };
