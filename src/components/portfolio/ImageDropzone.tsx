@@ -1,9 +1,14 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { PORTFOLIO_BUCKET, PORTFOLIO_PREFIX } from '@/hooks/usePortfolioData';
-import { UploadCloud, X, Loader2, ImagePlus } from 'lucide-react';
+import { UploadCloud, X, Loader2, ImagePlus, Link as LinkIcon, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import gauravPhoto from '@/assets/gaurav-photo.png';
+import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
+import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
 
 type Props = {
   value?: string;
@@ -24,31 +29,69 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [imgError, setImgError] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlDraft, setUrlDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
   const upload = useCallback(
     async (file: File) => {
       if (!file.type.startsWith('image/')) {
-        toast({ title: 'Not an image', description: 'Please drop an image file.', variant: 'destructive' });
+        toast({ title: 'Not an image', description: 'Please select a valid image file.', variant: 'destructive' });
         return;
       }
       setUploading(true);
-      setProgress(10);
+      setProgress(20);
+      setImgError(false);
+
       try {
         const ext = (file.name.split('.').pop() || 'png').toLowerCase();
         const key = `${PORTFOLIO_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        setProgress(40);
-        const { error } = await supabase.storage
-          .from(PORTFOLIO_BUCKET)
-          .upload(key, file, { upsert: false, cacheControl: '3600', contentType: file.type });
-        if (error) throw error;
-        setProgress(80);
-        const { data: pub } = supabase.storage.from(PORTFOLIO_BUCKET).getPublicUrl(key);
-        onChange(pub.publicUrl);
+        setProgress(50);
+
+        let uploadedUrl = '';
+        try {
+          const { error } = await supabase.storage
+            .from(PORTFOLIO_BUCKET)
+            .upload(key, file, { upsert: true, cacheControl: '3600', contentType: file.type });
+          if (!error) {
+            const { data: pub } = supabase.storage.from(PORTFOLIO_BUCKET).getPublicUrl(key);
+            if (pub?.publicUrl) {
+              uploadedUrl = pub.publicUrl;
+            }
+          }
+        } catch (storageErr) {
+          console.warn('Storage upload bypassed, fallback to data URL:', storageErr);
+        }
+
+        // If storage uploaded successfully, use public URL; otherwise fallback to Data URL
+        if (uploadedUrl) {
+          onChange(uploadedUrl);
+        } else {
+          const dataUrl = await readFileAsDataUrl(file);
+          onChange(dataUrl);
+          toast({ title: 'Photo loaded', description: 'Saved as local asset preview.' });
+        }
         setProgress(100);
       } catch (e: any) {
-        toast({ title: 'Upload failed', description: e?.message ?? 'Please try again', variant: 'destructive' });
+        // Ultimate fallback: direct FileReader
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          onChange(dataUrl);
+          toast({ title: 'Photo loaded', description: 'Saved locally.' });
+        } catch {
+          toast({ title: 'Upload failed', description: e?.message ?? 'Please try another image', variant: 'destructive' });
+        }
       } finally {
         setUploading(false);
         setTimeout(() => setProgress(0), 400);
@@ -70,9 +113,42 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
     if (file) void upload(file);
   };
 
+  const applyUrl = () => {
+    if (!urlDraft.trim()) return;
+    setImgError(false);
+    onChange(urlDraft.trim());
+    setUrlDraft('');
+    setShowUrlInput(false);
+    toast({ title: 'Image URL applied' });
+  };
+
   return (
     <div className={className}>
-      {label ? <p className="text-xs font-medium text-muted-foreground mb-1.5">{label}</p> : null}
+      <div className="flex items-center justify-between mb-1.5">
+        {label ? <p className="text-xs font-semibold text-foreground">{label}</p> : <div />}
+        <button
+          type="button"
+          onClick={() => setShowUrlInput(!showUrlInput)}
+          className="text-[10px] font-medium text-primary hover:underline flex items-center gap-1"
+        >
+          <LinkIcon className="h-3 w-3" /> {showUrlInput ? 'Hide URL' : 'Paste Link'}
+        </button>
+      </div>
+
+      {showUrlInput && (
+        <div className="mb-2 p-2 rounded-lg border bg-card flex gap-1.5 items-center animate-in fade-in">
+          <Input
+            placeholder="https://example.com/photo.jpg"
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            className="h-7 text-xs"
+          />
+          <Button size="sm" className="h-7 px-2.5 text-xs" onClick={applyUrl}>
+            Apply
+          </Button>
+        </div>
+      )}
+
       <div
         role="button"
         tabIndex={0}
@@ -86,19 +162,25 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
         onDrop={onDrop}
         onPaste={onPaste}
         className={cn(
-          'group relative w-full overflow-hidden rounded-xl border-2 border-dashed transition-all',
+          'group relative w-full overflow-hidden rounded-2xl border-2 border-dashed transition-all select-none',
           aspectClass[aspect],
           dragging
-            ? 'border-primary bg-primary/10 scale-[1.01]'
-            : 'border-border/60 bg-muted/30 hover:border-primary/50 hover:bg-muted/50',
-          'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary relative',
+            ? 'border-primary bg-primary/15 scale-[1.01]'
+            : 'border-border/70 bg-muted/20 hover:border-primary/50 hover:bg-muted/40',
+          'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm',
         )}
       >
-        {value ? (
+        {value && !imgError ? (
           <>
-            <img src={value} alt={label ?? 'Preview'} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-              <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-foreground shadow">
+            <img
+              src={value}
+              alt={label ?? 'Preview'}
+              onError={() => setImgError(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 backdrop-blur-xs transition-opacity group-hover:opacity-100">
+              <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-slate-900 shadow">
                 <ImagePlus className="mr-1 inline h-3.5 w-3.5" />
                 Replace
               </span>
@@ -109,7 +191,7 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
                     e.stopPropagation();
                     onChange('');
                   }}
-                  className="rounded-full bg-destructive/95 px-3 py-1.5 text-xs font-semibold text-destructive-foreground shadow"
+                  className="rounded-full bg-destructive/95 px-3 py-1.5 text-xs font-bold text-destructive-foreground shadow hover:bg-destructive"
                 >
                   <X className="mr-1 inline h-3.5 w-3.5" />
                   Remove
@@ -118,21 +200,47 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
             </div>
           </>
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-center text-muted-foreground">
-            <UploadCloud className="h-6 w-6" />
-            <p className="text-xs font-medium">Drop, paste, or click to upload</p>
-            <p className="text-[10px] opacity-70">PNG · JPG · WEBP · no size limit</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-3 text-center text-muted-foreground">
+            <UploadCloud className="h-6 w-6 text-primary/70" />
+            <p className="text-xs font-semibold text-foreground">Drop image or click to browse</p>
+            <p className="text-[10px] opacity-70">Supports JPG, PNG, WEBP, GIF</p>
           </div>
         )}
 
         {uploading && (
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-background/95 px-3 py-2">
+          <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-background/95 px-3 py-2 border-t">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-primary transition-[width] duration-200" style={{ width: `${progress}%` }} />
             </div>
           </div>
         )}
+      </div>
+
+      {/* Preset Quick Selectors */}
+      <div className="flex flex-wrap items-center gap-1 mt-1.5">
+        <span className="text-[9px] text-muted-foreground mr-1">Presets:</span>
+        <button
+          type="button"
+          onClick={() => onChange(gauravPhoto)}
+          className="text-[10px] px-2 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
+        >
+          Gaurav
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(swamiAnantVyasPhoto)}
+          className="text-[10px] px-2 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
+        >
+          Swami Anant
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(jatinDhamaPhoto)}
+          className="text-[10px] px-2 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
+        >
+          Jatin Dhama
+        </button>
       </div>
 
       <input
@@ -149,3 +257,4 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
     </div>
   );
 }
+

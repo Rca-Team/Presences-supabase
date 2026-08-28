@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import gauravPhoto from '@/assets/gaurav-photo.png';
+import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
+import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
 
 interface MemberAvatarProps {
   name: string;
@@ -23,6 +26,14 @@ function hueFrom(name: string) {
   return h;
 }
 
+function getKnownPhoto(name: string): string | null {
+  const n = (name || '').toLowerCase();
+  if (n.includes('gaurav')) return gauravPhoto;
+  if (n.includes('swami') || n.includes('anant')) return swamiAnantVyasPhoto;
+  if (n.includes('jatin')) return jatinDhamaPhoto;
+  return null;
+}
+
 export function MemberAvatar({
   name,
   image,
@@ -32,18 +43,20 @@ export function MemberAvatar({
   alt,
 }: MemberAvatarProps) {
   const [failed, setFailed] = useState(false);
+
   useEffect(() => {
     setFailed(false);
   }, [image]);
 
-  const showImage = !!image && !failed;
+  const resolvedImage = (!failed && image && !image.includes('.asset.json')) ? image : getKnownPhoto(name);
+  const showImage = !!resolvedImage;
   const h = hueFrom(name || 'x');
 
   return (
-    <div className={cn('relative inline-flex overflow-hidden', className)}>
+    <div className={cn('relative inline-flex overflow-hidden select-none', className)}>
       {showImage ? (
         <img
-          src={image}
+          src={resolvedImage}
           alt={alt || name}
           onError={() => setFailed(true)}
           className={cn('h-full w-full object-cover', imgClassName)}
