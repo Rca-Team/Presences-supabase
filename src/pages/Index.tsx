@@ -6,6 +6,7 @@ import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png.asset.json';
 import teamRcaPhoto from '@/assets/team-rca.jpg.asset.json';
 import { usePortfolioData } from '@/hooks/usePortfolioData';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { PublicPortfolioView } from '@/pages/Portfolio';
 import { MemberAvatar } from '@/components/portfolio/MemberAvatar';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import NeuralOrbPanel from '@/components/home/NeuralOrbPanel';
 import { RoyalReveal, RoyalStaggerGroup, RoyalStaggerItem } from '@/components/RoyalReveal';
 import {
   ArrowRight,
+  ArrowLeftRight,
   Scan,
   BookOpen,
   Shield,
@@ -156,6 +158,7 @@ const Index = () => {
   ];
 
   const { data: portfolio } = usePortfolioData();
+  const { trigger: haptic } = useHapticFeedback();
 
   // Fallback (used until portfolio JSON loads, or if a member has no image)
   const fallbackImages: Record<string, string> = {
@@ -176,6 +179,26 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [portfolio.members],
   );
+
+  const [teamMembersList, setTeamMembersList] = useState<any[]>([]);
+  const [isSwapped, setIsSwapped] = useState(false);
+
+  const defaultTeamMembers = useMemo(() => creatorMembers.slice(1), [creatorMembers]);
+  const displayedTeamMembers = useMemo(() => {
+    if (teamMembersList.length > 0) return teamMembersList;
+    return defaultTeamMembers;
+  }, [teamMembersList, defaultTeamMembers]);
+
+  const handleSwapTeamMembers = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    haptic('selection');
+    setIsSwapped((prev) => !prev);
+    setTeamMembersList((prev) => {
+      const current = prev.length > 0 ? prev : defaultTeamMembers;
+      if (current.length <= 1) return current;
+      return [...current].reverse();
+    });
+  };
 
   if (liteMode) return <LiteHome />;
 
@@ -411,30 +434,56 @@ const Index = () => {
                     <ArrowRight className="h-5 w-5 text-amber-300 shrink-0" />
                   </button>
 
+                  {/* Team Members List Header & Swap Button */}
+                  <div className="flex items-center justify-between mt-3 mb-2 px-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Core Members
+                    </span>
+                    {displayedTeamMembers.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSwapTeamMembers}
+                        className="h-6 px-2.5 text-[11px] font-semibold text-primary hover:text-primary hover:bg-primary/10 rounded-lg gap-1.5 transition-all active:scale-95 border border-primary/20 bg-primary/5 shadow-sm"
+                        title="Click to swap members"
+                      >
+                        <motion.div
+                          animate={{ rotate: isSwapped ? 180 : 0 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                        >
+                          <ArrowLeftRight className="h-3 w-3 text-primary" />
+                        </motion.div>
+                        <span>Click to Swap</span>
+                      </Button>
+                    )}
+                  </div>
+
                   {/* Team Members List */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {creatorMembers.slice(1).map((member) => (
-                      <button
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 relative">
+                    {displayedTeamMembers.map((member) => (
+                      <motion.button
+                        layout
                         key={member.name}
                         type="button"
                         onClick={() => setActiveProfile(member)}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3 text-left transition-all hover:border-amber-300/50 hover:bg-card/80"
+                        transition={{ type: 'spring', stiffness: 450, damping: 30, mass: 0.6 }}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3 text-left transition-all hover:border-amber-300/50 hover:bg-card/80 group"
                         aria-label={`Open ${member.name} profile`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <MemberAvatar
                             name={member.name}
                             image={member.image}
-                            className="h-9 w-9 rounded-xl border border-border/70 shrink-0"
-                            fallbackClassName="text-xs"
+                            className="h-9 w-9 rounded-xl border border-border/70 shrink-0 group-hover:scale-105 transition-transform"
+                            fallbackClassName="text-xs font-bold"
                           />
                           <div className="min-w-0">
                             <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Team Member</p>
                             <p className="text-xs font-bold text-foreground truncate">{member.name}</p>
                           </div>
                         </div>
-                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      </button>
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all" />
+                      </motion.button>
                     ))}
                   </div>
                 </div>
