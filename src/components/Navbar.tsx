@@ -121,15 +121,15 @@ const Navbar = () => {
                     className={cn(
                       "relative block px-5 py-2 rounded-full text-sm font-medium mobile-touch-target transition-colors duration-200",
                       active
-                        ? "text-white font-bold"
-                        : "text-slate-300 hover:text-white"
+                        ? "text-slate-900 dark:text-white font-bold"
+                        : "text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
                     )}
                   >
                     {/* Hover ghost highlight */}
                     {hovered && !active && (
                       <motion.div
                         layoutId="navbar-hover-pill"
-                        className="absolute inset-0 rounded-full bg-white/[0.06] backdrop-blur-md border border-white/[0.08]"
+                        className="absolute inset-0 rounded-full bg-slate-900/[0.05] dark:bg-white/[0.06] backdrop-blur-md border border-slate-900/[0.06] dark:border-white/[0.08]"
                         transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.5 }}
                       />
                     )}
@@ -147,7 +147,7 @@ const Navbar = () => {
                         }}
                       >
                         {/* Soft inner top reflection */}
-                        <span className="pointer-events-none absolute inset-x-2.5 top-0 h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+                        <span className="pointer-events-none absolute inset-x-2.5 top-0 h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/80 dark:via-white/50 to-transparent" />
                       </motion.div>
                     )}
 
