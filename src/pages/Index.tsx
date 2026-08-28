@@ -4,6 +4,7 @@ import { usePerformanceMode } from '@/hooks/usePerformanceMode';
 import LiteHome from '@/components/lite/LiteHome';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png.asset.json';
+import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
 import teamRcaPhoto from '@/assets/team-rca.jpg.asset.json';
 import { usePortfolioData } from '@/hooks/usePortfolioData';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
@@ -165,6 +166,8 @@ const Index = () => {
     Gaurav: gauravPhoto,
     'Gaurav Raj': gauravPhoto,
     'Swami Anant Vyas': swamiAnantVyasPhoto.url,
+    'Jatin Dhama': jatinDhamaPhoto,
+    Jatin: jatinDhamaPhoto,
   };
 
   const creatorMembers = useMemo(

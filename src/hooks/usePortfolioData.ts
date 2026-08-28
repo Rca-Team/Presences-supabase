@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png.asset.json';
+import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
 
 export const PORTFOLIO_KEY = 'gaurav_portfolio';
 export const PORTFOLIO_BUCKET = 'face-images';
@@ -110,7 +111,7 @@ export const DEFAULT_PORTFOLIO: PortfolioData = {
       id: uid(),
       name: 'Jatin Dhama',
       role: 'Team Member',
-      image: '',
+      image: jatinDhamaPhoto,
       bio: 'Contributes to system testing, execution support, and project coordination.',
       details: 'Supports feature QA and collaborative delivery.',
     },
@@ -135,14 +136,23 @@ function migrate(raw: any): PortfolioData {
     year: p.year ?? '',
     tags: Array.isArray(p.tags) ? p.tags : [],
   }));
-  base.members = (Array.isArray(raw?.members) ? raw.members : DEFAULT_PORTFOLIO.members).map((m: any) => ({
-    id: m.id ?? uid(),
-    name: m.name ?? '',
-    role: m.role ?? '',
-    bio: m.bio ?? '',
-    details: m.details ?? '',
-    image: m.image ?? '',
-  }));
+  base.members = (Array.isArray(raw?.members) ? raw.members : DEFAULT_PORTFOLIO.members).map((m: any) => {
+    let img = m.image ?? '';
+    const norm = (m.name || '').toLowerCase();
+    if (!img) {
+      if (norm.includes('gaurav')) img = gauravPhoto;
+      else if (norm.includes('swami') || norm.includes('anant')) img = swamiAnantVyasPhoto.url;
+      else if (norm.includes('jatin')) img = jatinDhamaPhoto;
+    }
+    return {
+      id: m.id ?? uid(),
+      name: m.name ?? '',
+      role: m.role ?? '',
+      bio: m.bio ?? '',
+      details: m.details ?? '',
+      image: img,
+    };
+  });
   return base as PortfolioData;
 }
 
