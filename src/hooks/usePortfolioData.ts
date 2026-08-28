@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import gauravPhoto from '@/assets/gaurav-photo.png';
-import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png.asset.json';
+import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
 
 export const PORTFOLIO_KEY = 'gaurav_portfolio';
@@ -103,7 +103,7 @@ export const DEFAULT_PORTFOLIO: PortfolioData = {
       id: uid(),
       name: 'Swami Anant Vyas',
       role: 'Hardware Prototype & Software Feedback',
-      image: swamiAnantVyasPhoto.url,
+      image: swamiAnantVyasPhoto,
       bio: 'Helped build the hardware prototype and contributed ideas for the software experience.',
       details: 'Built and validated early hardware concepts for gate mode.',
     },
@@ -139,9 +139,9 @@ function migrate(raw: any): PortfolioData {
   base.members = (Array.isArray(raw?.members) ? raw.members : DEFAULT_PORTFOLIO.members).map((m: any) => {
     let img = m.image ?? '';
     const norm = (m.name || '').toLowerCase();
-    if (!img) {
+    if (!img || img.includes('.asset.json') || img.startsWith('/__l5e/')) {
       if (norm.includes('gaurav')) img = gauravPhoto;
-      else if (norm.includes('swami') || norm.includes('anant')) img = swamiAnantVyasPhoto.url;
+      else if (norm.includes('swami') || norm.includes('anant')) img = swamiAnantVyasPhoto;
       else if (norm.includes('jatin')) img = jatinDhamaPhoto;
     }
     return {
