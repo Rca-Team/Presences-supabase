@@ -93,6 +93,27 @@ let gallery: Map<string, GalleryEntry> = new Map();
 let galleryLoadedAt = 0;
 const GALLERY_TTL_MS = 120_000;
 
+// Reusable canvas pool to eliminate memory allocation churn & GC latency
+const cropCanvasPool: HTMLCanvasElement[] = [];
+
+function acquireCropCanvas(): HTMLCanvasElement {
+  if (cropCanvasPool.length > 0) {
+    return cropCanvasPool.pop()!;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 224;
+  canvas.height = 224;
+  return canvas;
+}
+
+function releaseCropCanvas(canvas: HTMLCanvasElement) {
+  if (cropCanvasPool.length < 8) {
+    const ctx = canvas.getContext('2d');
+    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    cropCanvasPool.push(canvas);
+  }
+}
+
 /** Load the gallery and (re)build the vector index. Safe to call repeatedly. */
 export async function ensureGalleryIndex(force = false): Promise<void> {
   if (!force && gallery.size > 0 && Date.now() - galleryLoadedAt < GALLERY_TTL_MS) return;
@@ -316,66 +337,67 @@ export function createRecognitionEngine(
         return;
       }
 
-      // Each concurrent recognition job needs its own crop canvas. Sharing one
-      // canvas lets another student's frame overwrite pixels while an async
-      // embedding is still reading them, causing intermittent wrong/unknown
-      // results after several faces have entered the queue.
-      const cropCanvas = document.createElement('canvas');
-      cropCanvas.width = 224;
-      cropCanvas.height = 224;
-      const cctx = cropCanvas.getContext('2d');
-      if (!cctx) return;
+      const cropCanvas = acquireCropCanvas();
+      const cctx = cropCanvas.getContext('2d', { willReadFrequently: true });
+      if (!cctx) {
+        releaseCropCanvas(cropCanvas);
+        return;
+      }
       cctx.drawImage(video, sx, sy, sw, sh, 0, 0, 224, 224);
 
-      const tEmbed = performance.now();
+      try {
+        const tEmbed = performance.now();
 
-      // Fast path: InsightFace/ArcFace via ONNX Runtime (WebGPU/WASM-SIMD).
-      // Only used when the gallery itself is 512-dim ArcFace, so embeddings are
-      // always compared within the same space.
-      let onnxEmbedding: Float32Array | null = null;
-      if (getVectorIndexStats().dimension === 512 && isOnnxEmbedderReady()) {
-        onnxEmbedding = await embedFaceOnnx(cropCanvas);
-      }
-
-      const det = onnxEmbedding
-        ? ({ descriptor: onnxEmbedding } as { descriptor: Float32Array })
-        : await faceapi
-            .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
-            .withFaceLandmarks()
-            .withFaceDescriptor();
-      stats.embedMs = performance.now() - tEmbed;
-
-      if (!det) {
-        tracker.assignIdentity(track.id, null);
-        return;
-      }
-
-      const tMatch = performance.now();
-      let match = await matchDescriptorIndexed(det.descriptor, matchThreshold, shortlist);
-
-      // Offload a parallel verification to the worker pool when available
-      if (!match && isPoolInitialized()) {
-        const registered = Array.from(gallery.entries()).map(([id, e]) => ({
-          id,
-          name: e.userName,
-          descriptor: Array.from(e.averagedDescriptor),
-        }));
-        const parallel = await matchDescriptorParallel(det.descriptor, registered, matchThreshold);
-        if (parallel?.match) {
-          match = {
-            userId: parallel.match.id,
-            name: parallel.match.name,
-            distance: parallel.distance,
-            confidence: parallel.confidence,
-          };
+        // Fast path: InsightFace/ArcFace via ONNX Runtime (WebGPU/WASM-SIMD).
+        // Only used when the gallery itself is 512-dim ArcFace, so embeddings are
+        // always compared within the same space.
+        let onnxEmbedding: Float32Array | null = null;
+        if (getVectorIndexStats().dimension === 512 && isOnnxEmbedderReady()) {
+          onnxEmbedding = await embedFaceOnnx(cropCanvas);
         }
-      }
-      stats.matchMs = performance.now() - tMatch;
 
-      if (!match) {
-        tracker.assignIdentity(track.id, null);
-        publishStats();
-        return;
+        const det = onnxEmbedding
+          ? ({ descriptor: onnxEmbedding } as { descriptor: Float32Array })
+          : await faceapi
+              .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
+              .withFaceLandmarks()
+              .withFaceDescriptor();
+        stats.embedMs = performance.now() - tEmbed;
+
+        if (!det) {
+          tracker.assignIdentity(track.id, null);
+          return;
+        }
+
+        const tMatch = performance.now();
+        let match = await matchDescriptorIndexed(det.descriptor, matchThreshold, shortlist);
+
+        // Offload a parallel verification to the worker pool when available
+        if (!match && isPoolInitialized()) {
+          const registered = Array.from(gallery.entries()).map(([id, e]) => ({
+            id,
+            name: e.userName,
+            descriptor: Array.from(e.averagedDescriptor),
+          }));
+          const parallel = await matchDescriptorParallel(det.descriptor, registered, matchThreshold);
+          if (parallel?.match) {
+            match = {
+              userId: parallel.match.id,
+              name: parallel.match.name,
+              distance: parallel.distance,
+              confidence: parallel.confidence,
+            };
+          }
+        }
+        stats.matchMs = performance.now() - tMatch;
+
+        if (!match) {
+          tracker.assignIdentity(track.id, null);
+          publishStats();
+          return;
+        }
+      } finally {
+        releaseCropCanvas(cropCanvas);
       }
 
       tracker.assignIdentity(track.id, {

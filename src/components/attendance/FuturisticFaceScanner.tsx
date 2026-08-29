@@ -120,6 +120,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const processedEmbeddingsRef = useRef<Array<{ descriptor: Float32Array; employeeId?: string; ts: number }>>([]);
   const autoMarkedUsersRef = useRef<Map<string, number>>(new Map());
   const cutoffCacheRef = useRef<{ value: { hour: number; minute: number }; at: number } | null>(null);
+  const sharedCropCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [autoMarkedLog, setAutoMarkedLog] = useState<AutoMarkedEntry[]>([]);
   
 
@@ -496,8 +497,11 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
     if (cropW < 40 || cropH < 40) return null;
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    if (!sharedCropCanvasRef.current) {
+      sharedCropCanvasRef.current = document.createElement('canvas');
+    }
+    const canvas = sharedCropCanvasRef.current;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
 
     canvas.width = cropW;
