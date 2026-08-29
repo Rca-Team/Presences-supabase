@@ -7,66 +7,62 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-  GraduationCap,
-  Camera,
   Users,
   CheckCircle2,
   XCircle,
   Clock,
   Send,
-  FileDown,
-  Calendar,
-  Search,
+  Download,
   Plus,
-  Edit,
-  Mail,
-  Phone,
-  Scan,
-  Check,
-  Loader2,
-  RefreshCw,
+  Edit2,
+  Calendar,
+  AlertCircle,
+  FileSpreadsheet,
+  FileDown,
   Sparkles,
-  AlertTriangle,
-  UserCheck,
-  Share2,
-  ShieldCheck,
   Zap,
-  SlidersHorizontal,
+  Phone,
+  Mail,
+  Search,
+  CheckSquare,
+  Square,
+  GraduationCap,
+  Loader2,
+  Check,
+  Save,
   MessageSquare,
-  ArrowRight,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { supabase } from '@/integrations/supabase/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import {
   fetchTeacherCategories,
-  parseClassSection,
   fetchTeacherPermissions,
+  parseClassSection,
   matchesClassAndSection,
-  type TeacherPermissions,
   DEFAULT_TEACHER_PERMISSIONS,
+  type TeacherPermissions,
 } from '@/utils/teacherAccess';
-import TeacherHeroDeck from './TeacherHeroDeck';
-import TeacherMonthlyRegister from './TeacherMonthlyRegister';
-import { lazyWithRetry } from '@/lib/lazyWithRetry';
-import { SECTIONS, CLASSES } from '@/constants/schoolConfig';
+import { TeacherHeroDeck } from './TeacherHeroDeck';
+import { TeacherMonthlyRegister } from './TeacherMonthlyRegister';
+import * as XLSX from 'xlsx';
 
-const TimetableManager = lazyWithRetry(() => import('@/components/admin/TimetableManager'), 'tw-timetable');
-const ClassSectionReport = lazyWithRetry(() => import('@/components/admin/ClassSectionReport'), 'tw-report');
-
-export interface ClassAssignment {
-  class: string;
-  section: string;
-  category: string;
-}
+const ClassSectionReport = React.lazy(() => import('@/components/admin/ClassSectionReport'));
+const TimetableManager = React.lazy(() => import('@/components/admin/TimetableManager'));
 
 export interface ClassStudent {
   id: string;
-  user_id: string;
+  user_id?: string;
   name: string;
   roll_number?: string;
   admission_number?: string;
@@ -79,25 +75,28 @@ export interface ClassStudent {
   today_time?: string;
 }
 
-interface TeacherAdminWorkspaceProps {
-  initialClass?: string;
+export interface ClassAssignment {
+  class: string;
+  section: string;
+  category: string;
 }
 
-export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () => {
-  const navigate = useNavigate();
+export interface TeacherAdminWorkspaceProps {
+  initialClass?: { class: string; section: string; category: string };
+}
+
+export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ initialClass }) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { userId, role, isAdminOrPrincipal } = useUserRole();
+
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState<ClassAssignment[]>([]);
-  const [activeClass, setActiveClass] = useState<ClassAssignment | null>(null);
+  const [activeClass, setActiveClass] = useState<ClassAssignment | null>(initialClass || null);
   const [students, setStudents] = useState<ClassStudent[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('attendance');
-
-  // Manual Attendance State (studentId -> status)
-  const [manualMarks, setManualMarks] = useState<Record<string, 'present' | 'late' | 'absent'>>({});
-  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('register');
 
   // Student Edit Dialog
   const [editStudent, setEditStudent] = useState<ClassStudent | null>(null);
@@ -162,6 +161,8 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
       // Admin or Principal fallback: show classes if no specific assignments
       if (list.length === 0 && (isAdminOrPrincipal || role === 'admin' || role === 'principal')) {
         list = [
+          { class: '6', section: 'A', category: '6-A' },
+          { class: '6', section: 'B', category: '6-B' },
           { class: '10', section: 'A', category: '10-A' },
           { class: '10', section: 'B', category: '10-B' },
           { class: '9', section: 'A', category: '9-A' },
@@ -187,69 +188,172 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
     loadTeacherAssignments();
   }, [loadTeacherAssignments]);
 
-  // Load students for active class
+  // Load complete student roster across attendance_records and profiles
   const loadClassStudents = useCallback(async () => {
     if (!activeClass) return;
     setIsRefreshing(true);
     try {
       const { class: cls, section: sec, category } = activeClass;
-      const todayStr = new Date().toISOString().slice(0, 10);
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
-      // 1. Fetch profiles matching class and section (fuzzy matched for 6th A, 6th B, 6-A, Class 6 A, etc.)
-      const { data: allProfiles, error: profileErr } = await supabase
-        .from('profiles')
-        .select('*');
+      // Fetch from profiles, registered attendance records, face descriptors, and today's attendance logs
+      const [profilesRes, registeredAttRes, descriptorsRes, todayAttRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase
+          .from('attendance_records')
+          .select('id, user_id, student_id, student_name, class, section, category, status, device_info, image_url, timestamp')
+          .eq('status', 'registered')
+          .order('timestamp', { ascending: false }),
+        supabase
+          .from('face_descriptors')
+          .select('id, user_id, student_id, image_url'),
+        supabase
+          .from('attendance_records')
+          .select('id, user_id, student_id, student_name, class, section, category, status, timestamp, device_info')
+          .gte('timestamp', startOfToday.toISOString())
+          .order('timestamp', { ascending: false }),
+      ]);
 
-      if (profileErr) throw profileErr;
-
-      const profileRows = (allProfiles || []).filter(p => matchesClassAndSection(p, cls, sec));
-
-      // 2. Fetch today's attendance records for this class
-      const { data: allAttendanceRows } = await supabase
-        .from('attendance_records')
-        .select('id, user_id, student_name, class, section, category, status, timestamp, device_info')
-        .gte('timestamp', startOfToday.toISOString())
-        .order('timestamp', { ascending: false });
-
-      const attendanceRows = (allAttendanceRows || []).filter(r => matchesClassAndSection(r, cls, sec));
-
-      // 3. Fetch face descriptor presence
-      const { data: faceDescriptors } = await supabase
-        .from('face_descriptors')
-        .select('user_id, student_id');
-
+      // Enrolled face descriptor IDs
       const enrolledFaceIds = new Set<string>();
-      (faceDescriptors || []).forEach(f => {
-        if (f.user_id) enrolledFaceIds.add(f.user_id);
-        if (f.student_id) enrolledFaceIds.add(f.student_id);
+      (descriptorsRes.data || []).forEach((f: any) => {
+        if (f.user_id) enrolledFaceIds.add(String(f.user_id).trim().toLowerCase());
+        if (f.student_id) enrolledFaceIds.add(String(f.student_id).trim().toLowerCase());
       });
 
-      // Build attendance map for today
+      // Today's attendance status map
       const todayAttMap = new Map<string, { status: 'present' | 'late' | 'absent'; time: string }>();
-      (attendanceRows || []).forEach(att => {
+      const matchingTodayAtt = (todayAttRes.data || []).filter((r: any) => matchesClassAndSection(r, cls, sec));
+
+      matchingTodayAtt.forEach((att: any) => {
         const sName = (att.student_name || '').toLowerCase().trim();
-        const uId = att.user_id;
+        const uId = att.user_id ? String(att.user_id).trim().toLowerCase() : '';
+        const sId = att.student_id ? String(att.student_id).trim().toLowerCase() : '';
         const normalizedStatus = (att.status?.toLowerCase().includes('late') ? 'late' : att.status?.toLowerCase().includes('absent') ? 'absent' : 'present') as 'present' | 'late' | 'absent';
         const timeFormatted = att.timestamp ? new Date(att.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
 
-        if (uId && !todayAttMap.has(uId)) {
-          todayAttMap.set(uId, { status: normalizedStatus, time: timeFormatted });
-        }
-        if (sName && !todayAttMap.has(sName)) {
-          todayAttMap.set(sName, { status: normalizedStatus, time: timeFormatted });
-        }
+        if (uId && !todayAttMap.has(uId)) todayAttMap.set(uId, { status: normalizedStatus, time: timeFormatted });
+        if (sId && !todayAttMap.has(sId)) todayAttMap.set(sId, { status: normalizedStatus, time: timeFormatted });
+        if (sName && !todayAttMap.has(sName)) todayAttMap.set(sName, { status: normalizedStatus, time: timeFormatted });
       });
 
-      // Map to ClassStudent list
-      const mapped: ClassStudent[] = (profileRows || []).map(p => {
-        const name = p.display_name || p.full_name || p.username || 'Student';
-        const attInfo = todayAttMap.get(p.user_id) || todayAttMap.get(p.id) || todayAttMap.get(name.toLowerCase().trim());
-        const hasFace = enrolledFaceIds.has(p.user_id) || enrolledFaceIds.has(p.id) || Boolean(p.photo_url || p.avatar_url);
+      // Master student unification map
+      const studentMap = new Map<string, ClassStudent>();
+      const byUserId = new Map<string, string>();
+      const byName = new Map<string, string>();
+      const byEmployeeId = new Map<string, string>();
 
-        return {
-          id: p.id || p.user_id,
+      const norm = (v: any) => (v == null ? '' : String(v).trim().toLowerCase());
+
+      const upsertStudent = (candidate: ClassStudent) => {
+        const uid = norm(candidate.user_id);
+        const nameKey = norm(candidate.name);
+        const empKey = norm(candidate.admission_number || candidate.roll_number);
+
+        const existingKey =
+          (uid && byUserId.get(uid)) ||
+          (empKey && byEmployeeId.get(empKey)) ||
+          (nameKey && byName.get(nameKey)) ||
+          (studentMap.has(candidate.id) ? candidate.id : undefined);
+
+        if (existingKey && studentMap.has(existingKey)) {
+          const cur = studentMap.get(existingKey)!;
+          const merged: ClassStudent = {
+            ...cur,
+            user_id: cur.user_id || candidate.user_id,
+            name: cur.name && cur.name !== 'Student' ? cur.name : candidate.name,
+            roll_number: cur.roll_number || candidate.roll_number || '',
+            admission_number: cur.admission_number || candidate.admission_number || '',
+            parent_name: cur.parent_name || candidate.parent_name || '',
+            parent_email: cur.parent_email || candidate.parent_email || '',
+            parent_phone: cur.parent_phone || candidate.parent_phone || '',
+            photo_url: cur.photo_url || candidate.photo_url || '',
+            has_face_descriptor: cur.has_face_descriptor || candidate.has_face_descriptor,
+            today_status: cur.today_status && cur.today_status !== 'unmarked' ? cur.today_status : candidate.today_status,
+            today_time: cur.today_time || candidate.today_time,
+          };
+          studentMap.set(existingKey, merged);
+        } else {
+          studentMap.set(candidate.id, candidate);
+          const key = candidate.id;
+          if (uid) byUserId.set(uid, key);
+          if (nameKey) byName.set(nameKey, key);
+          if (empKey) byEmployeeId.set(empKey, key);
+        }
+      };
+
+      // 1. Process attendance_records with status = 'registered'
+      (registeredAttRes.data || []).forEach((r: any) => {
+        const deviceInfo = (r.device_info as any) || {};
+        const meta = deviceInfo?.metadata || {};
+        const categoryVal = r.category || meta.category || meta.department;
+        const classVal = r.class || meta.class;
+        const sectionVal = r.section || meta.section;
+
+        if (!matchesClassAndSection({ category: categoryVal, class: classVal, section: sectionVal, department: meta.department }, cls, sec)) {
+          return;
+        }
+
+        const name = meta.name || r.student_name || deviceInfo.name || 'Student';
+        const empId = meta.employee_id || deviceInfo.employee_id || r.student_id || '';
+        const roll = meta.roll_number || deviceInfo.roll_number || '';
+        const pPhone = meta.parent_phone || deviceInfo.parent_phone || meta.phone || '';
+        const pEmail = meta.parent_email || deviceInfo.parent_email || (meta.email?.includes('@') ? meta.email : '');
+        const pName = meta.parent_name || deviceInfo.parent_name || '';
+        const photo = r.image_url || meta.firebase_image_url || meta.image_url || '';
+
+        const uidKey = norm(r.user_id);
+        const nameK = norm(name);
+        const empK = norm(empId);
+
+        const hasFace =
+          (uidKey && enrolledFaceIds.has(uidKey)) ||
+          (empK && enrolledFaceIds.has(empK)) ||
+          Boolean(photo);
+
+        const attInfo =
+          (uidKey && todayAttMap.get(uidKey)) ||
+          (empK && todayAttMap.get(empK)) ||
+          (nameK && todayAttMap.get(nameK));
+
+        upsertStudent({
+          id: r.id || r.user_id || `att-${nameK}`,
+          user_id: r.user_id,
+          name,
+          roll_number: roll,
+          admission_number: empId,
+          parent_name: pName,
+          parent_email: pEmail,
+          parent_phone: pPhone,
+          photo_url: photo,
+          has_face_descriptor: hasFace,
+          today_status: attInfo?.status || 'unmarked',
+          today_time: attInfo?.time || '',
+        });
+      });
+
+      // 2. Process profiles table
+      (profilesRes.data || []).forEach((p: any) => {
+        if (!matchesClassAndSection(p, cls, sec)) return;
+
+        const name = p.display_name || p.full_name || p.username || 'Student';
+        const uidKey = norm(p.user_id || p.id);
+        const nameK = norm(name);
+        const empK = norm(p.admission_number || p.roll_number);
+
+        const hasFace =
+          (uidKey && enrolledFaceIds.has(uidKey)) ||
+          (empK && enrolledFaceIds.has(empK)) ||
+          Boolean(p.photo_url || p.avatar_url);
+
+        const attInfo =
+          (uidKey && todayAttMap.get(uidKey)) ||
+          (empK && todayAttMap.get(empK)) ||
+          (nameK && todayAttMap.get(nameK));
+
+        upsertStudent({
+          id: p.id || p.user_id || `prof-${nameK}`,
           user_id: p.user_id || p.id,
           name,
           roll_number: p.roll_number || '',
@@ -261,24 +365,17 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
           has_face_descriptor: hasFace,
           today_status: attInfo?.status || 'unmarked',
           today_time: attInfo?.time || '',
-        };
-      }).sort((a, b) => {
+        });
+      });
+
+      const finalStudents = Array.from(studentMap.values()).sort((a, b) => {
         const rollA = parseInt(a.roll_number || '999', 10);
         const rollB = parseInt(b.roll_number || '999', 10);
         if (!isNaN(rollA) && !isNaN(rollB) && rollA !== rollB) return rollA - rollB;
         return a.name.localeCompare(b.name);
       });
 
-      setStudents(mapped);
-
-      // Prepopulate manual marks
-      const initialMarks: Record<string, 'present' | 'late' | 'absent'> = {};
-      mapped.forEach(s => {
-        if (s.today_status && s.today_status !== 'unmarked') {
-          initialMarks[s.id] = s.today_status;
-        }
-      });
-      setManualMarks(initialMarks);
+      setStudents(finalStudents);
     } catch (err) {
       console.error('Error loading class students:', err);
       toast({ title: 'Failed to load students', description: 'Could not fetch class roster', variant: 'destructive' });
@@ -288,30 +385,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
   }, [activeClass, toast]);
 
   useEffect(() => {
-    if (activeClass) {
-      loadClassStudents();
-    }
-  }, [activeClass, loadClassStudents]);
+    loadClassStudents();
+  }, [loadClassStudents]);
 
-  // Realtime subscription for class attendance and profiles
-  useEffect(() => {
-    if (!activeClass) return;
-    const channel = supabase
-      .channel(`tw-class-${activeClass.category}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
-        loadClassStudents();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-        loadClassStudents();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [activeClass, loadClassStudents]);
-
-  // Filtered Students
+  // Filtered student roster
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
     const q = searchQuery.toLowerCase().trim();
@@ -323,7 +400,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
     );
   }, [students, searchQuery]);
 
-  // Stats
+  // Overall class attendance stats
   const stats = useMemo(() => {
     const total = students.length;
     const present = students.filter(s => s.today_status === 'present').length;
@@ -335,209 +412,105 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
     return { total, present, late, absent, unmarked, attendancePct };
   }, [students]);
 
-  // Manual Attendance Helpers
-  const handleMarkStudent = (studentId: string, status: 'present' | 'late' | 'absent') => {
-    setManualMarks(prev => ({ ...prev, [studentId]: status }));
+  // Edit Student Handlers
+  const handleOpenEditStudent = (student: ClassStudent) => {
+    setEditStudent({ ...student });
+    setIsEditDialogOpen(true);
   };
 
-  const handleMarkAllPresent = () => {
-    const allPresent: Record<string, 'present' | 'late' | 'absent'> = {};
-    students.forEach(s => {
-      allPresent[s.id] = 'present';
-    });
-    setManualMarks(allPresent);
-    toast({ title: 'Marked All Present', description: 'Click Save Attendance to persist' });
-  };
-
-  const handleMarkAllRemainingAbsent = () => {
-    const updated: Record<string, 'present' | 'late' | 'absent'> = { ...manualMarks };
-    students.forEach(s => {
-      if (!updated[s.id] && (!s.today_status || s.today_status === 'unmarked')) {
-        updated[s.id] = 'absent';
-      }
-    });
-    setManualMarks(updated);
-    toast({ title: 'Unmarked set to Absent', description: 'Click Save Attendance to persist' });
-  };
-
-  const openWhatsAppParent = (student: ClassStudent, status?: string) => {
-    const rawPhone = student.parent_phone || '';
-    const phone = rawPhone.replace(/\D/g, '');
-    if (!phone) {
-      toast({
-        title: 'No phone registered',
-        description: `No parent phone number found for ${student.name}.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-    const currentStatus = status || manualMarks[student.id] || (student.today_status !== 'unmarked' ? student.today_status : 'absent');
-    const msg = encodeURIComponent(
-      `Namaste, this is an official update from Class Teacher (${teacherProfile.name}) of Class ${activeClass?.category} regarding ${student.name}. Today's attendance status is recorded as: ${String(currentStatus).toUpperCase()} on ${new Date().toLocaleDateString('en-IN')}. Please contact the school if any questions.`
-    );
-    window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
-  };
-
-  const handleSaveManualAttendance = async () => {
-    if (!activeClass || students.length === 0) return;
-    setIsSavingAttendance(true);
-    try {
-      const now = new Date();
-      const recordsToInsert = Object.entries(manualMarks).map(([studentId, status]) => {
-        const student = students.find(s => s.id === studentId);
-        return {
-          user_id: student?.user_id || studentId,
-          student_name: student?.name || 'Student',
-          class: activeClass.class,
-          section: activeClass.section,
-          category: activeClass.category,
-          status,
-          verified_by: 'Teacher Manual Roster',
-          timestamp: now.toISOString(),
-          device_info: {
-            method: 'teacher_manual_grid',
-            teacher_id: userId,
-            marked_at: now.toISOString(),
-          },
-        };
-      });
-
-      if (recordsToInsert.length > 0) {
-        const { error } = await supabase.from('attendance_records').insert(recordsToInsert);
-        if (error) throw error;
-      }
-
-      toast({
-        title: '✅ Attendance Saved',
-        description: `Updated attendance for ${recordsToInsert.length} students in Class ${activeClass.category}.`,
-      });
-      loadClassStudents();
-    } catch (err: any) {
-      toast({ title: 'Save Failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setIsSavingAttendance(false);
-    }
-  };
-
-  // Student Edit / Add Handlers
-  const handleSaveStudentEdit = async () => {
+  const handleSaveStudent = async () => {
     if (!editStudent) return;
     setIsSavingStudent(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          display_name: editStudent.name,
-          full_name: editStudent.name,
-          roll_number: editStudent.roll_number,
-          admission_number: editStudent.admission_number,
-          parent_name: editStudent.parent_name,
-          parent_email: editStudent.parent_email,
-          parent_phone: editStudent.parent_phone,
-        })
-        .eq('id', editStudent.id);
+      if (editStudent.user_id) {
+        await supabase
+          .from('profiles')
+          .update({
+            display_name: editStudent.name,
+            roll_number: editStudent.roll_number || null,
+            admission_number: editStudent.admission_number || null,
+            parent_name: editStudent.parent_name || null,
+            parent_email: editStudent.parent_email || null,
+            parent_phone: editStudent.parent_phone || null,
+          })
+          .eq('user_id', editStudent.user_id);
+      }
 
-      if (error) throw error;
-      toast({ title: 'Student details updated', description: `${editStudent.name}'s info saved successfully.` });
+      setStudents(prev => prev.map(s => s.id === editStudent.id ? { ...s, ...editStudent } : s));
+      toast({ title: 'Student Updated', description: `Saved details for ${editStudent.name}.` });
       setIsEditDialogOpen(false);
-      loadClassStudents();
     } catch (err: any) {
-      toast({ title: 'Update failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Update Failed', description: err.message, variant: 'destructive' });
     } finally {
       setIsSavingStudent(false);
     }
   };
 
-  const handleAddNewStudent = async () => {
+  // Add Student Handlers
+  const handleAddStudent = async () => {
     if (!activeClass || !newStudent.name.trim()) {
-      toast({ title: 'Name required', description: 'Please provide the student name', variant: 'destructive' });
+      toast({ title: 'Name Required', description: 'Please provide a student name.', variant: 'destructive' });
       return;
     }
+
     setIsAddingStudent(true);
     try {
-      const { error } = await supabase.from('profiles').insert({
-        display_name: newStudent.name.trim(),
-        full_name: newStudent.name.trim(),
-        class: activeClass.class,
-        section: activeClass.section,
+      const parsed = parseClassSection(activeClass.category);
+      const studentPayload = {
+        name: newStudent.name.trim(),
+        employee_id: newStudent.admission_number.trim() || `STU-${Date.now().toString().slice(-4)}`,
+        roll_number: newStudent.roll_number.trim() || null,
+        parent_name: newStudent.parent_name.trim() || null,
+        parent_email: newStudent.parent_email.trim() || null,
+        parent_phone: newStudent.parent_phone.trim() || null,
+        department: activeClass.category,
+        class: parsed?.className || activeClass.class,
+        section: parsed?.section || activeClass.section,
+      };
+
+      const { error } = await supabase.from('attendance_records').insert({
         category: activeClass.category,
-        roll_number: newStudent.roll_number.trim(),
-        admission_number: newStudent.admission_number.trim(),
-        parent_name: newStudent.parent_name.trim(),
-        parent_email: newStudent.parent_email.trim(),
-        parent_phone: newStudent.parent_phone.trim(),
+        class: parsed?.className || activeClass.class,
+        section: parsed?.section || activeClass.section,
+        student_name: newStudent.name.trim(),
+        student_id: studentPayload.employee_id,
+        status: 'registered',
+        device_info: {
+          name: newStudent.name.trim(),
+          metadata: studentPayload,
+        },
       });
 
       if (error) throw error;
+
       toast({ title: 'Student Enrolled', description: `${newStudent.name} added to Class ${activeClass.category}.` });
       setIsAddStudentOpen(false);
       setNewStudent({ name: '', roll_number: '', admission_number: '', parent_name: '', parent_email: '', parent_phone: '' });
       loadClassStudents();
     } catch (err: any) {
-      toast({ title: 'Enrollment failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Failed to Add', description: err.message, variant: 'destructive' });
     } finally {
       setIsAddingStudent(false);
     }
   };
 
-  // Notification Handler
-  const handleSendClassNotice = async () => {
-    if (!notifSubject.trim() || !notifMessage.trim()) {
-      toast({ title: 'Missing fields', description: 'Subject and message are required', variant: 'destructive' });
+  // WhatsApp Alert to Parent
+  const openWhatsAppParent = (student: ClassStudent) => {
+    if (!student.parent_phone) {
+      toast({ title: 'No Phone Number', description: 'Parent phone number is not listed for this student.', variant: 'destructive' });
       return;
     }
-
-    let targetStudents = students;
-    if (notifTarget === 'absent') {
-      targetStudents = students.filter(s => s.today_status === 'absent');
-    } else if (notifTarget === 'late') {
-      targetStudents = students.filter(s => s.today_status === 'late');
-    } else if (notifTarget === 'selected') {
-      targetStudents = students.filter(s => selectedStudentIds.includes(s.id));
-    }
-
-    const recipients = targetStudents.filter(s => s.parent_email).map(s => s.parent_email!);
-    if (recipients.length === 0) {
-      toast({
-        title: 'No parent emails found',
-        description: 'None of the targeted students have parent email addresses saved.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsSendingNotif(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('send-notification', {
-        body: {
-          recipients,
-          subject: notifSubject,
-          message: notifMessage,
-          schoolName: 'PM Shri Kendriya Vidyalaya NFC Vigyan Vihar',
-          className: activeClass?.class,
-          section: activeClass?.section,
-        },
-      });
-
-      if (error) throw error;
-      toast({
-        title: '📢 Notice Sent Successfully',
-        description: `Dispatched to ${recipients.length} parent(s) of Class ${activeClass?.category}.`,
-      });
-      setNotifSubject('');
-      setNotifMessage('');
-    } catch (err: any) {
-      toast({ title: 'Send Failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setIsSendingNotif(false);
-    }
+    const cleanPhone = student.parent_phone.replace(/[^0-9]/g, '');
+    const phoneWithCode = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const msg = encodeURIComponent(
+      `Hello ${student.parent_name || 'Parent'}, this is from PM Shri KV NFC Vigyan Vihar regarding ${student.name} (Class ${activeClass?.category}). Today's attendance status is: ${student.today_status ? student.today_status.toUpperCase() : 'ABSENT'}. Please contact school administration if you have any questions.`
+    );
+    window.open(`https://wa.me/${phoneWithCode}?text=${msg}`, '_blank');
   };
 
-  // Export Class Sheet
-  const handleExportClassExcel = () => {
-    if (!activeClass || students.length === 0) return;
-    const dateStr = new Date().toLocaleDateString('en-IN');
+  // Export Roster Excel
+  const handleExportRosterExcel = () => {
+    if (!activeClass) return;
     const rows = students.map((s, idx) => ({
       'S.No': idx + 1,
       'Roll No': s.roll_number || '—',
@@ -601,10 +574,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
       />
 
       {activeClass && (
-        <>
-          {/* Class Summary Stats Cards */}
+        <div className="space-y-4">
+          {/* Quick Metrics Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <Card className="bg-card/60 backdrop-blur-lg border-border/60">
+            <Card className="bg-card/60 backdrop-blur-xl border">
               <CardContent className="p-3.5 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground font-medium">Total Students</p>
@@ -665,13 +638,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
             </Card>
           </div>
 
-          {/* Main Navigation Tabs */}
+          {/* Main Navigation Tabs (Attendance taking removed, starting with Monthly Register) */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
             <div className="overflow-x-auto pb-1">
               <TabsList className="bg-muted/50 p-1 rounded-2xl inline-flex w-full sm:w-auto">
-                <TabsTrigger value="attendance" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
-                  <Camera className="h-4 w-4" /> Take Attendance
-                </TabsTrigger>
                 <TabsTrigger value="register" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
                   <Calendar className="h-4 w-4" /> Monthly Register
                 </TabsTrigger>
@@ -690,157 +660,6 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
               </TabsList>
             </div>
 
-            {/* TAB 1: ATTENDANCE TAKING (AI Face Model + Manual Roll-call) */}
-            <TabsContent value="attendance" className="space-y-4 m-0">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card/60 border border-primary/20 backdrop-blur-lg shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                    <Camera className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground">AI Facial Attendance Scanner</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Attendance capture is conducted on the dedicated attendance kiosk page
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Button
-                    size="sm"
-                    onClick={() => navigate(`/attendance?class=${activeClass.class}&section=${activeClass.section}`)}
-                    className="text-xs h-8 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-primary/20"
-                  >
-                    <Scan className="h-3.5 w-3.5" /> Open Attendance Scanner
-                    <ArrowRight className="h-3.5 w-3.5 ml-0.5" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Manual Roll Call Grid & Quick Controls */}
-              <Card className="rounded-3xl border shadow-md">
-                <CardHeader className="pb-3 border-b bg-muted/20">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <UserCheck className="h-4 w-4 text-primary" />
-                        Today's Class Attendance Roster — Class {activeClass.category}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        Review live marked status, perform quick roll-call, or send WhatsApp parent alerts
-                      </CardDescription>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleMarkAllPresent}
-                        className="text-xs h-8 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 font-bold rounded-xl"
-                      >
-                        <Check className="h-3.5 w-3.5 mr-1" /> Mark All Present
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleMarkAllRemainingAbsent}
-                        className="text-xs h-8 text-rose-600 border-rose-500/30 hover:bg-rose-500/10 font-bold rounded-xl"
-                      >
-                        <XCircle className="h-3.5 w-3.5 mr-1" /> Mark Remaining Absent
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSaveManualAttendance}
-                        disabled={isSavingAttendance}
-                        className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl"
-                      >
-                        {isSavingAttendance ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
-                        Save Attendance
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <div className="divide-y divide-border/60 border rounded-xl overflow-hidden max-h-[500px] overflow-y-auto">
-                      {students.map((student, idx) => {
-                        const currentMark = manualMarks[student.id] || (student.today_status !== 'unmarked' ? student.today_status : undefined);
-                        return (
-                          <div
-                            key={student.id}
-                            className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors gap-3"
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-xs font-mono text-muted-foreground w-6 text-right">
-                                {student.roll_number || idx + 1}
-                              </span>
-                              <Avatar className="h-9 w-9">
-                                {student.photo_url ? <AvatarImage src={student.photo_url} alt={student.name} /> : null}
-                                <AvatarFallback className="text-xs">{student.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                              <div className="truncate">
-                                <p className="text-sm font-medium truncate">{student.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {student.parent_phone ? `📞 ${student.parent_phone}` : student.parent_email || 'No contact'}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* 3-State Toggle Pills & Quick WhatsApp */}
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleMarkStudent(student.id, 'present')}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                                  currentMark === 'present'
-                                    ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                                    : 'bg-muted/60 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600'
-                                }`}
-                              >
-                                Present
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMarkStudent(student.id, 'late')}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                                  currentMark === 'late'
-                                    ? 'bg-amber-600 text-white shadow-sm font-bold'
-                                    : 'bg-muted/60 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600'
-                                }`}
-                              >
-                                Late
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMarkStudent(student.id, 'absent')}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                                  currentMark === 'absent'
-                                    ? 'bg-rose-600 text-white shadow-sm font-bold'
-                                    : 'bg-muted/60 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600'
-                                }`}
-                              >
-                                Absent
-                              </button>
-
-                              {student.parent_phone && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => openWhatsAppParent(student)}
-                                  className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg ml-0.5"
-                                  title="WhatsApp Parent Alert"
-                                >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
             {/* TAB: MONTHLY ATTENDANCE REGISTER */}
             <TabsContent value="register" className="space-y-4 m-0">
               <TeacherMonthlyRegister
@@ -851,134 +670,170 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
               />
             </TabsContent>
 
-            {/* TAB 2: STUDENT MANAGEMENT (Their Class Only) */}
+            {/* TAB: STUDENT MANAGEMENT (Their Class Only) */}
             <TabsContent value="students" className="space-y-4 m-0">
               <Card>
                 <CardHeader className="pb-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Users className="h-4 w-4 text-blue-500" />
-                        Class {activeClass.class}–{activeClass.section} Students Roster
+                        <Users className="h-4 w-4 text-primary" />
+                        Class {activeClass.category} Student Directory ({students.length})
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Manage student info, parent contact details, and face registration
+                        Official student roster, roll numbers, biometric face status, and parent emergency contacts
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={() => setIsAddStudentOpen(true)} className="gap-1.5 text-xs h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                        <Plus className="h-3.5 w-3.5" /> Add Student
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleExportRosterExcel}
+                        className="text-xs h-8 rounded-xl gap-1.5"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Export Roster
                       </Button>
-                      <Button size="sm" variant="outline" onClick={handleExportClassExcel} className="gap-1.5 text-xs h-8">
-                        <FileDown className="h-3.5 w-3.5" /> Export Excel
-                      </Button>
+                      {permissions.can_manage_students && (
+                        <Button
+                          size="sm"
+                          onClick={() => setIsAddStudentOpen(true)}
+                          className="text-xs h-8 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-primary/20"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add Student
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
+
                 <CardContent className="space-y-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <div className="relative max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
-                      placeholder="Search students by name, roll no, phone or email..."
+                      placeholder="Search student by name, roll no, phone..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      className="pl-9 text-xs sm:text-sm h-9"
+                      className="h-8 pl-8 text-xs rounded-xl"
                     />
                   </div>
 
-                  <div className="divide-y border rounded-xl overflow-hidden max-h-[520px] overflow-y-auto">
-                    {filteredStudents.length === 0 ? (
-                      <p className="text-center py-8 text-xs text-muted-foreground">No students found matching search.</p>
-                    ) : (
-                      filteredStudents.map((s, i) => (
-                        <div key={s.id} className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors gap-2">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-xs font-mono text-muted-foreground w-6 text-right">
-                              {s.roll_number || i + 1}
-                            </span>
-                            <Avatar className="h-10 w-10 border">
-                              {s.photo_url ? <AvatarImage src={s.photo_url} alt={s.name} /> : null}
-                              <AvatarFallback className="text-xs font-bold">{s.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-semibold truncate">{s.name}</p>
-                                {s.has_face_descriptor ? (
-                                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500 border-emerald-500/30">
-                                    Face Enrolled
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-500 border-amber-500/30">
-                                    Photo Needed
-                                  </Badge>
-                                )}
-                                {s.today_status && s.today_status !== 'unmarked' && (
-                                  <Badge variant="outline" className={`text-[10px] ${
-                                    s.today_status === 'present' ? 'bg-emerald-500/10 text-emerald-500' : s.today_status === 'late' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'
-                                  }`}>
-                                    Today: {s.today_status.toUpperCase()} {s.today_time ? `(${s.today_time})` : ''}
-                                  </Badge>
-                                )}
+                  <div className="overflow-x-auto rounded-2xl border">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/50 border-b">
+                          <th className="p-2.5 text-left font-bold">Roll</th>
+                          <th className="p-2.5 text-left font-bold">Student Name</th>
+                          <th className="p-2.5 text-left font-bold">Admission No</th>
+                          <th className="p-2.5 text-left font-bold">Face Model</th>
+                          <th className="p-2.5 text-left font-bold">Parent Contact</th>
+                          <th className="p-2.5 text-center font-bold">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {filteredStudents.map(student => (
+                          <tr key={student.id} className="hover:bg-muted/30 transition-colors">
+                            <td className="p-2.5 font-bold font-mono text-muted-foreground">
+                              {student.roll_number || '—'}
+                            </td>
+                            <td className="p-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <Avatar className="h-7 w-7 rounded-xl border">
+                                  {student.photo_url && <AvatarImage src={student.photo_url} alt={student.name} />}
+                                  <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                    {student.name.slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="font-extrabold text-foreground">{student.name}</span>
                               </div>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                                {s.parent_name && <span>Parent: {s.parent_name}</span>}
-                                {s.parent_phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{s.parent_phone}</span>}
-                                {s.parent_email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{s.parent_email}</span>}
+                            </td>
+                            <td className="p-2.5 font-mono text-muted-foreground">
+                              {student.admission_number || '—'}
+                            </td>
+                            <td className="p-2.5">
+                              {student.has_face_descriptor ? (
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]">
+                                  ✓ Enrolled
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px]">
+                                  Pending
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-muted-foreground">
+                              <div>{student.parent_name || '—'}</div>
+                              {student.parent_phone && (
+                                <div className="text-[11px] font-mono text-primary flex items-center gap-1 mt-0.5">
+                                  <Phone className="h-3 w-3" /> {student.parent_phone}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {student.parent_phone && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => openWhatsAppParent(student)}
+                                    className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg"
+                                    title="WhatsApp Parent"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenEditStudent(student)}
+                                  className="h-7 w-7 p-0 rounded-lg"
+                                  title="Edit Student Info"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </Button>
                               </div>
-                            </div>
-                          </div>
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditStudent(s);
-                              setIsEditDialogOpen(true);
-                            }}
-                            className="h-8 px-2.5 text-xs"
-                          >
-                            <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                          </Button>
-                        </div>
-                      ))
-                    )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* TAB 3: PARENT NOTIFICATIONS & CLASS NOTICES */}
+            {/* TAB: PARENT NOTIFICATIONS & CLASS NOTICES */}
             <TabsContent value="notifications" className="space-y-4 m-0">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Send className="h-4 w-4 text-blue-500" />
-                    Send Notice to Parents — Class {activeClass.class} Section {activeClass.section}
+                    <Send className="h-4 w-4 text-primary" />
+                    Compose & Dispatch Class Notices
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Dispatches official notification emails with KVS collaboration branding
+                    Send targeted SMS, WhatsApp alerts, and app notifications directly to parents of Class {activeClass.category}
                   </CardDescription>
                 </CardHeader>
+
                 <CardContent className="space-y-4">
-                  {/* Target selector */}
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold">Target Parents:</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Recipient Target Group:</Label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <Button
                         type="button"
                         size="sm"
                         variant={notifTarget === 'all' ? 'default' : 'outline'}
                         onClick={() => setNotifTarget('all')}
-                        className={`text-xs h-8 ${notifTarget === 'all' ? 'bg-blue-600 text-white' : ''}`}
+                        className={`text-xs h-8 rounded-xl ${notifTarget === 'all' ? 'bg-primary text-white' : ''}`}
                       >
-                        All Parents ({students.length})
+                        All Students ({students.length})
                       </Button>
                       <Button
                         type="button"
                         size="sm"
                         variant={notifTarget === 'absent' ? 'default' : 'outline'}
                         onClick={() => setNotifTarget('absent')}
-                        className={`text-xs h-8 ${notifTarget === 'absent' ? 'bg-rose-600 text-white' : ''}`}
+                        className={`text-xs h-8 rounded-xl ${notifTarget === 'absent' ? 'bg-rose-600 text-white' : ''}`}
                       >
                         Absent Today ({stats.absent})
                       </Button>
@@ -987,292 +842,261 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                         size="sm"
                         variant={notifTarget === 'late' ? 'default' : 'outline'}
                         onClick={() => setNotifTarget('late')}
-                        className={`text-xs h-8 ${notifTarget === 'late' ? 'bg-amber-600 text-white' : ''}`}
+                        className={`text-xs h-8 rounded-xl ${notifTarget === 'late' ? 'bg-amber-600 text-white' : ''}`}
                       >
-                        Late Today ({stats.late})
+                        Late Arrivals ({stats.late})
                       </Button>
                       <Button
                         type="button"
                         size="sm"
                         variant={notifTarget === 'selected' ? 'default' : 'outline'}
                         onClick={() => setNotifTarget('selected')}
-                        className={`text-xs h-8 ${notifTarget === 'selected' ? 'bg-blue-600 text-white' : ''}`}
+                        className={`text-xs h-8 rounded-xl ${notifTarget === 'selected' ? 'bg-blue-600 text-white' : ''}`}
                       >
-                        Selected ({selectedStudentIds.length})
+                        Custom Selected ({selectedStudentIds.length})
                       </Button>
                     </div>
                   </div>
 
-                  {notifTarget === 'selected' && (
-                    <div className="border rounded-xl p-3 max-h-40 overflow-y-auto space-y-1.5 text-xs bg-muted/20">
-                      <p className="font-semibold text-xs mb-1">Select students to notify:</p>
-                      {students.map(s => {
-                        const isChecked = selectedStudentIds.includes(s.id);
-                        return (
-                          <label key={s.id} className="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-muted">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {
-                                setSelectedStudentIds(prev =>
-                                  isChecked ? prev.filter(id => id !== s.id) : [...prev, s.id]
-                                );
-                              }}
-                            />
-                            <span>{s.name} ({s.parent_email || 'No email'})</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Quick Presets */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Quick Notice Templates:</Label>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="text-xs h-7"
-                        onClick={() => {
-                          setNotifSubject(`Attendance Notice · Class ${activeClass.category}`);
-                          setNotifMessage(`Dear Parent, this is an update regarding today's attendance and class activities for Class ${activeClass.category}. Please ensure timely attendance.`);
-                        }}
-                      >
-                        Daily Attendance Notice
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="text-xs h-7"
-                        onClick={() => {
-                          setNotifSubject(`Urgent Notice: Absent Today · Class ${activeClass.category}`);
-                          setNotifMessage(`Dear Parent, your child was recorded absent in school today. Please verify and contact the class teacher if leave was not applied.`);
-                        }}
-                      >
-                        Absent Alert
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="text-xs h-7"
-                        onClick={() => {
-                          setNotifSubject(`Class Announcement · Class ${activeClass.category}`);
-                          setNotifMessage(`Dear Parent, please note the upcoming class test and homework submission scheduled for this week.`);
-                        }}
-                      >
-                        Class Announcement
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <div>
-                      <Label className="text-xs">Subject Line:</Label>
+                      <Label className="text-xs font-semibold">Notice Title / Subject:</Label>
                       <Input
-                        placeholder="e.g. Class 10-A Notice: Attendance & Important Update"
+                        placeholder="e.g. Unit Test Schedule / Homework Update"
                         value={notifSubject}
                         onChange={e => setNotifSubject(e.target.value)}
-                        className="text-xs sm:text-sm mt-1"
+                        className="h-9 text-xs rounded-xl mt-1"
                       />
                     </div>
 
                     <div>
-                      <Label className="text-xs">Notice Message:</Label>
+                      <Label className="text-xs font-semibold">Notice Message:</Label>
                       <Textarea
-                        placeholder="Write your notice message here to send to parents..."
+                        placeholder="Write your official class notice for parents here..."
                         value={notifMessage}
                         onChange={e => setNotifMessage(e.target.value)}
                         rows={4}
-                        className="text-xs sm:text-sm mt-1"
+                        className="text-xs rounded-xl mt-1"
                       />
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end gap-2 pt-2">
                     <Button
-                      onClick={handleSendClassNotice}
+                      size="sm"
+                      onClick={async () => {
+                        if (!notifSubject.trim() || !notifMessage.trim()) {
+                          toast({ title: 'Missing Content', description: 'Please enter title and message.', variant: 'destructive' });
+                          return;
+                        }
+                        setIsSendingNotif(true);
+                        try {
+                          await supabase.from('notifications').insert({
+                            title: `[Class ${activeClass.category}] ${notifSubject.trim()}`,
+                            message: notifMessage.trim(),
+                            type: 'class_notice',
+                            target_role: 'parent',
+                            category: activeClass.category,
+                          });
+                          toast({ title: 'Notice Dispatched', description: `Broadcasted to parents of Class ${activeClass.category}.` });
+                          setNotifSubject('');
+                          setNotifMessage('');
+                        } catch (err: any) {
+                          toast({ title: 'Dispatch Failed', description: err.message, variant: 'destructive' });
+                        } finally {
+                          setIsSendingNotif(false);
+                        }
+                      }}
                       disabled={isSendingNotif}
-                      className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold px-6 shadow-lg shadow-blue-600/25"
+                      className="h-8 text-xs bg-primary hover:bg-primary/90 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-primary/20"
                     >
-                      {isSendingNotif ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      {isSendingNotif ? 'Sending Notice…' : 'Send Notice to Parents'}
+                      {isSendingNotif ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                      Broadcast Notice to Parents
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* TAB 4: CLASS REPORTS & ANALYTICS */}
+            {/* TAB: CLASS REPORTS & ANALYTICS */}
             <TabsContent value="reports" className="space-y-4 m-0">
               <Suspense fallback={<div className="h-[360px] rounded-2xl bg-muted/40 animate-pulse" />}>
                 <ClassSectionReport allowedCategories={[activeClass.category]} />
               </Suspense>
             </TabsContent>
 
-            {/* TAB 5: CLASS TIMETABLE & PLAN */}
+            {/* TAB: CLASS TIMETABLE & PLAN */}
             <TabsContent value="timetable" className="space-y-4 m-0">
               <Suspense fallback={<div className="h-[360px] rounded-2xl bg-muted/40 animate-pulse" />}>
                 <TimetableManager allowedCategories={[activeClass.category]} />
               </Suspense>
             </TabsContent>
           </Tabs>
-        </>
+        </div>
       )}
 
-      {/* Edit Student Dialog */}
+      {/* Edit Student Modal */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Edit Student Details</DialogTitle>
-            <DialogDescription>
-              Update student information and parent contact coordinates
+            <DialogTitle className="text-base">Edit Student Profile</DialogTitle>
+            <DialogDescription className="text-xs">
+              Update details for {editStudent?.name}
             </DialogDescription>
           </DialogHeader>
+
           {editStudent && (
-            <div className="space-y-3 py-2 text-xs sm:text-sm">
+            <div className="space-y-3 py-2">
               <div>
-                <Label className="text-xs">Student Full Name</Label>
+                <Label className="text-xs">Student Full Name:</Label>
                 <Input
                   value={editStudent.name}
-                  onChange={e => setEditStudent({ ...editStudent, name: e.target.value })}
-                  className="mt-1"
+                  onChange={e => setEditStudent(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  className="h-8 text-xs mt-1"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">Roll Number</Label>
+                  <Label className="text-xs">Roll Number:</Label>
                   <Input
                     value={editStudent.roll_number || ''}
-                    onChange={e => setEditStudent({ ...editStudent, roll_number: e.target.value })}
-                    className="mt-1"
+                    onChange={e => setEditStudent(prev => prev ? { ...prev, roll_number: e.target.value } : null)}
+                    className="h-8 text-xs mt-1"
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Admission No</Label>
+                  <Label className="text-xs">Admission No / ID:</Label>
                   <Input
                     value={editStudent.admission_number || ''}
-                    onChange={e => setEditStudent({ ...editStudent, admission_number: e.target.value })}
-                    className="mt-1"
+                    onChange={e => setEditStudent(prev => prev ? { ...prev, admission_number: e.target.value } : null)}
+                    className="h-8 text-xs mt-1"
                   />
                 </div>
               </div>
+
               <div>
-                <Label className="text-xs">Parent / Guardian Name</Label>
+                <Label className="text-xs">Parent / Guardian Name:</Label>
                 <Input
                   value={editStudent.parent_name || ''}
-                  onChange={e => setEditStudent({ ...editStudent, parent_name: e.target.value })}
-                  className="mt-1"
+                  onChange={e => setEditStudent(prev => prev ? { ...prev, parent_name: e.target.value } : null)}
+                  className="h-8 text-xs mt-1"
                 />
               </div>
-              <div>
-                <Label className="text-xs">Parent Email (for Auto Attendance Alerts)</Label>
-                <Input
-                  type="email"
-                  value={editStudent.parent_email || ''}
-                  onChange={e => setEditStudent({ ...editStudent, parent_email: e.target.value })}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Parent Phone Number</Label>
-                <Input
-                  value={editStudent.parent_phone || ''}
-                  onChange={e => setEditStudent({ ...editStudent, parent_phone: e.target.value })}
-                  className="mt-1"
-                />
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Parent Phone:</Label>
+                  <Input
+                    value={editStudent.parent_phone || ''}
+                    onChange={e => setEditStudent(prev => prev ? { ...prev, parent_phone: e.target.value } : null)}
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Parent Email:</Label>
+                  <Input
+                    value={editStudent.parent_email || ''}
+                    onChange={e => setEditStudent(prev => prev ? { ...prev, parent_email: e.target.value } : null)}
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
               </div>
             </div>
           )}
+
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(false)} className="text-xs">
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSaveStudentEdit} disabled={isSavingStudent}>
-              {isSavingStudent ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+            <Button size="sm" onClick={handleSaveStudent} disabled={isSavingStudent} className="text-xs font-bold">
+              {isSavingStudent ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
               Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add New Student Dialog */}
+      {/* Add Student Modal */}
       <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Add Student to Class {activeClass?.category}</DialogTitle>
-            <DialogDescription>
-              Register a new student directly into your class roster
+            <DialogTitle className="text-base">Enroll Student to Class {activeClass?.category}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Add a new student to the official class attendance roster
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2 text-xs sm:text-sm">
+
+          <div className="space-y-3 py-2">
             <div>
-              <Label className="text-xs">Student Full Name *</Label>
+              <Label className="text-xs">Student Full Name *:</Label>
               <Input
                 placeholder="e.g. Aarav Sharma"
                 value={newStudent.name}
-                onChange={e => setNewStudent({ ...newStudent, name: e.target.value })}
-                className="mt-1"
+                onChange={e => setNewStudent(prev => ({ ...prev, name: e.target.value }))}
+                className="h-8 text-xs mt-1"
               />
             </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-xs">Roll Number</Label>
+                <Label className="text-xs">Roll Number:</Label>
                 <Input
-                  placeholder="e.g. 15"
+                  placeholder="e.g. 1"
                   value={newStudent.roll_number}
-                  onChange={e => setNewStudent({ ...newStudent, roll_number: e.target.value })}
-                  className="mt-1"
+                  onChange={e => setNewStudent(prev => ({ ...prev, roll_number: e.target.value }))}
+                  className="h-8 text-xs mt-1"
                 />
               </div>
               <div>
-                <Label className="text-xs">Admission No</Label>
+                <Label className="text-xs">Admission No / ID:</Label>
                 <Input
-                  placeholder="e.g. KV-2026-101"
+                  placeholder="e.g. KV-2026-001"
                   value={newStudent.admission_number}
-                  onChange={e => setNewStudent({ ...newStudent, admission_number: e.target.value })}
-                  className="mt-1"
+                  onChange={e => setNewStudent(prev => ({ ...prev, admission_number: e.target.value }))}
+                  className="h-8 text-xs mt-1"
                 />
               </div>
             </div>
+
             <div>
-              <Label className="text-xs">Parent Name</Label>
+              <Label className="text-xs">Parent / Guardian Name:</Label>
               <Input
                 placeholder="e.g. Rajesh Sharma"
                 value={newStudent.parent_name}
-                onChange={e => setNewStudent({ ...newStudent, parent_name: e.target.value })}
-                className="mt-1"
+                onChange={e => setNewStudent(prev => ({ ...prev, parent_name: e.target.value }))}
+                className="h-8 text-xs mt-1"
               />
             </div>
-            <div>
-              <Label className="text-xs">Parent Email</Label>
-              <Input
-                type="email"
-                placeholder="e.g. parent@example.com"
-                value={newStudent.parent_email}
-                onChange={e => setNewStudent({ ...newStudent, parent_email: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Parent Phone</Label>
-              <Input
-                placeholder="e.g. 9876543210"
-                value={newStudent.parent_phone}
-                onChange={e => setNewStudent({ ...newStudent, parent_phone: e.target.value })}
-                className="mt-1"
-              />
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Parent WhatsApp Phone:</Label>
+                <Input
+                  placeholder="e.g. 9876543210"
+                  value={newStudent.parent_phone}
+                  onChange={e => setNewStudent(prev => ({ ...prev, parent_phone: e.target.value }))}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Parent Email:</Label>
+                <Input
+                  placeholder="parent@gmail.com"
+                  value={newStudent.parent_email}
+                  onChange={e => setNewStudent(prev => ({ ...prev, parent_email: e.target.value }))}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsAddStudentOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsAddStudentOpen(false)} className="text-xs">
               Cancel
             </Button>
-            <Button size="sm" onClick={handleAddNewStudent} disabled={isAddingStudent}>
-              {isAddingStudent ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+            <Button size="sm" onClick={handleAddStudent} disabled={isAddingStudent || !newStudent.name.trim()} className="text-xs font-bold">
+              {isAddingStudent ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
               Enroll Student
             </Button>
           </DialogFooter>
