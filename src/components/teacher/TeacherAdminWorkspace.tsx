@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ import {
   Zap,
   SlidersHorizontal,
   MessageSquare,
+  ArrowRight,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,6 +46,7 @@ import {
   fetchTeacherCategories,
   parseClassSection,
   fetchTeacherPermissions,
+  matchesClassAndSection,
   type TeacherPermissions,
   DEFAULT_TEACHER_PERMISSIONS,
 } from '@/utils/teacherAccess';
@@ -52,7 +55,6 @@ import TeacherMonthlyRegister from './TeacherMonthlyRegister';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
 import { SECTIONS, CLASSES } from '@/constants/schoolConfig';
 
-const AttendanceCapture = lazyWithRetry(() => import('@/components/attendance/AttendanceCapture'), 'tw-face');
 const TimetableManager = lazyWithRetry(() => import('@/components/admin/TimetableManager'), 'tw-timetable');
 const ClassSectionReport = lazyWithRetry(() => import('@/components/admin/ClassSectionReport'), 'tw-report');
 
@@ -82,6 +84,7 @@ interface TeacherAdminWorkspaceProps {
 }
 
 export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { userId, role, isAdminOrPrincipal } = useUserRole();
   const [loading, setLoading] = useState(true);
@@ -91,7 +94,6 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('attendance');
-  const [attendanceMode, setAttendanceMode] = useState<'face' | 'manual'>('face');
 
   // Manual Attendance State (studentId -> status)
   const [manualMarks, setManualMarks] = useState<Record<string, 'present' | 'late' | 'absent'>>({});
@@ -195,21 +197,23 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
-      // 1. Fetch profiles matching class and section
-      const { data: profileRows, error: profileErr } = await supabase
+      // 1. Fetch profiles matching class and section (fuzzy matched for 6th A, 6th B, 6-A, Class 6 A, etc.)
+      const { data: allProfiles, error: profileErr } = await supabase
         .from('profiles')
-        .select('*')
-        .or(`and(class.eq.${cls},section.eq.${sec}),category.eq.${category}`);
+        .select('*');
 
       if (profileErr) throw profileErr;
 
+      const profileRows = (allProfiles || []).filter(p => matchesClassAndSection(p, cls, sec));
+
       // 2. Fetch today's attendance records for this class
-      const { data: attendanceRows } = await supabase
+      const { data: allAttendanceRows } = await supabase
         .from('attendance_records')
-        .select('id, user_id, student_name, status, timestamp, device_info')
-        .or(`and(class.eq.${cls},section.eq.${sec}),category.eq.${category}`)
+        .select('id, user_id, student_name, class, section, category, status, timestamp, device_info')
         .gte('timestamp', startOfToday.toISOString())
         .order('timestamp', { ascending: false });
+
+      const attendanceRows = (allAttendanceRows || []).filter(r => matchesClassAndSection(r, cls, sec));
 
       // 3. Fetch face descriptor presence
       const { data: faceDescriptors } = await supabase
@@ -688,106 +692,75 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
 
             {/* TAB 1: ATTENDANCE TAKING (AI Face Model + Manual Roll-call) */}
             <TabsContent value="attendance" className="space-y-4 m-0">
-              <div className="flex items-center justify-between gap-3 flex-wrap bg-card/40 p-3 rounded-2xl border">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mode:</span>
-                  <div className="inline-flex rounded-xl bg-muted/60 p-1">
-                    <Button
-                      size="sm"
-                      variant={attendanceMode === 'face' ? 'default' : 'ghost'}
-                      onClick={() => setAttendanceMode('face')}
-                      className={`text-xs h-7 rounded-lg gap-1.5 ${attendanceMode === 'face' ? 'bg-blue-600 text-white font-bold' : ''}`}
-                    >
-                      <Scan className="h-3.5 w-3.5" /> AI Face Scanner (Scoped)
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={attendanceMode === 'manual' ? 'default' : 'ghost'}
-                      onClick={() => setAttendanceMode('manual')}
-                      className={`text-xs h-7 rounded-lg gap-1.5 ${attendanceMode === 'manual' ? 'bg-blue-600 text-white font-bold' : ''}`}
-                    >
-                      <UserCheck className="h-3.5 w-3.5" /> 1-Click Roll Call Grid
-                    </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card/60 border border-primary/20 backdrop-blur-lg shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                    <Camera className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">AI Facial Attendance Scanner</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Attendance capture is conducted on the dedicated attendance kiosk page
+                    </p>
                   </div>
                 </div>
 
-                {attendanceMode === 'manual' && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleMarkAllPresent}
-                      className="text-xs h-8 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 font-medium"
-                    >
-                      <Check className="h-3.5 w-3.5 mr-1" /> Mark All Present
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleMarkAllRemainingAbsent}
-                      className="text-xs h-8 text-rose-600 border-rose-500/30 hover:bg-rose-500/10 font-medium"
-                    >
-                      <XCircle className="h-3.5 w-3.5 mr-1" /> Mark Remaining Absent
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleSaveManualAttendance}
-                      disabled={isSavingAttendance}
-                      className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                    >
-                      {isSavingAttendance ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
-                      Save Attendance
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/attendance?class=${activeClass.class}&section=${activeClass.section}`)}
+                    className="text-xs h-8 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-primary/20"
+                  >
+                    <Scan className="h-3.5 w-3.5" /> Open Attendance Scanner
+                    <ArrowRight className="h-3.5 w-3.5 ml-0.5" />
+                  </Button>
+                </div>
               </div>
 
-              {attendanceMode === 'face' ? (
-                <Card className="border-blue-900/30 shadow-xl overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-blue-950/30 to-slate-900/30 pb-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-blue-400" />
-                          AI Face Attendance — Class {activeClass.class} Section {activeClass.section}
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                          AI Model is strictly scoped to load only {students.length} students of Class {activeClass.category}
-                        </CardDescription>
-                      </div>
-                      <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                        {students.filter(s => s.has_face_descriptor).length}/{students.length} Face Enrolled
-                      </Badge>
+              {/* Manual Roll Call Grid & Quick Controls */}
+              <Card className="rounded-3xl border shadow-md">
+                <CardHeader className="pb-3 border-b bg-muted/20">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-primary" />
+                        Today's Class Attendance Roster — Class {activeClass.category}
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Review live marked status, perform quick roll-call, or send WhatsApp parent alerts
+                      </CardDescription>
                     </div>
-                  </CardHeader>
-                  <CardContent className="p-4">
-                    <Suspense fallback={<div className="h-[400px] rounded-2xl bg-muted/40 animate-pulse" />}>
-                      <AttendanceCapture
-                        classScope={{
-                          className: activeClass.class,
-                          section: activeClass.section,
-                        }}
-                      />
-                    </Suspense>
-                  </CardContent>
-                </Card>
-              ) : (
-                /* Manual Roll Call Grid */
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-base">1-Click Classroom Attendance Roster</CardTitle>
-                        <CardDescription className="text-xs">
-                          Mark student attendance quickly with one-click status pills
-                        </CardDescription>
-                      </div>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {Object.keys(manualMarks).length}/{students.length} marked
-                      </span>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleMarkAllPresent}
+                        className="text-xs h-8 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 font-bold rounded-xl"
+                      >
+                        <Check className="h-3.5 w-3.5 mr-1" /> Mark All Present
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleMarkAllRemainingAbsent}
+                        className="text-xs h-8 text-rose-600 border-rose-500/30 hover:bg-rose-500/10 font-bold rounded-xl"
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Mark Remaining Absent
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveManualAttendance}
+                        disabled={isSavingAttendance}
+                        className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl"
+                      >
+                        {isSavingAttendance ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+                        Save Attendance
+                      </Button>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
                     <div className="divide-y divide-border/60 border rounded-xl overflow-hidden max-h-[500px] overflow-y-auto">
                       {students.map((student, idx) => {
                         const currentMark = manualMarks[student.id] || (student.today_status !== 'unmarked' ? student.today_status : undefined);

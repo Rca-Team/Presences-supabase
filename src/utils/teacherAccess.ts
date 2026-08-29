@@ -56,9 +56,35 @@ export const getWingForClass = (cls: string | number): 'Primary' | 'Middle' | 'S
 export const normalizeCategory = (value: string): string | null => {
   const raw = (value || '').trim();
   if (!raw) return null;
-  const match = raw.match(/^(\d+)-([A-Z])$/i);
-  if (!match) return null;
-  return `${match[1]}-${match[2].toUpperCase()}`;
+
+  // Handle standard "6-A", "10-B"
+  const directMatch = raw.match(/^(\d+)-([A-Z])$/i);
+  if (directMatch) {
+    return `${directMatch[1]}-${directMatch[2].toUpperCase()}`;
+  }
+
+  // Handle fuzzy formats like "6th A", "6th-A", "6 A", "Class 6 Section A", "Class 6-A", "Class 6 A", "6th_A", "6A", "VI-A", "VI A", "10th B", etc.
+  const cleaned = raw.replace(/^class\s+/i, '').replace(/section\s+/i, '').trim();
+
+  // Roman numerals mapping
+  const romanMap: Record<string, string> = {
+    i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10', xi: '11', xii: '12'
+  };
+
+  const match = cleaned.match(/^(\d+|[IVXLCDM]+)(?:st|nd|rd|th)?[\s\-_:]*([A-Z])$/i);
+  if (match) {
+    let cls = match[1].toLowerCase();
+    if (romanMap[cls]) cls = romanMap[cls];
+    const sec = match[2].toUpperCase();
+    return `${cls}-${sec}`;
+  }
+
+  const fuzzyNumberMatch = raw.match(/(\d+)\s*(?:st|nd|rd|th)?[\s\-_:]*([A-Z])/i);
+  if (fuzzyNumberMatch) {
+    return `${fuzzyNumberMatch[1]}-${fuzzyNumberMatch[2].toUpperCase()}`;
+  }
+
+  return null;
 };
 
 export const parseClassSection = (category: string): { className: string; section: string } | null => {
@@ -68,16 +94,53 @@ export const parseClassSection = (category: string): { className: string; sectio
   return { className, section };
 };
 
+export const matchesClassAndSection = (
+  item: { class?: string | number | null; section?: string | null; category?: string | null; department?: string | null },
+  targetClass: string | number,
+  targetSection: string
+): boolean => {
+  const targetNorm = normalizeCategory(`${targetClass}-${targetSection}`);
+  if (!targetNorm) return false;
+  const [tClass, tSec] = targetNorm.split('-');
+
+  // 1. Direct category match
+  if (item.category) {
+    const itemNorm = normalizeCategory(item.category);
+    if (itemNorm === targetNorm) return true;
+  }
+
+  // 2. Department match
+  if (item.department) {
+    const deptNorm = normalizeCategory(item.department);
+    if (deptNorm === targetNorm) return true;
+  }
+
+  // 3. Class + Section match
+  if (item.class !== undefined && item.class !== null) {
+    const cleanCls = String(item.class).replace(/[^0-9]/g, '');
+    const cleanSec = item.section ? String(item.section).trim().toUpperCase() : '';
+
+    if (item.section) {
+      const rawCat = `${item.class}-${item.section}`;
+      const norm = normalizeCategory(rawCat);
+      if (norm === targetNorm) return true;
+    }
+
+    if (cleanCls === tClass && (!item.section || cleanSec === tSec)) {
+      return cleanSec === tSec;
+    }
+  }
+
+  return false;
+};
+
 export const categoryFromPermissionKey = (key: string): string | null => {
   const raw = (key || '').trim();
   if (!raw) return null;
   if (raw.startsWith(CLASS_ACCESS_PREFIX)) {
     return normalizeCategory(raw.slice(CLASS_ACCESS_PREFIX.length));
   }
-  if (/^\d+-[A-Z]$/i.test(raw)) {
-    return normalizeCategory(raw);
-  }
-  return null;
+  return normalizeCategory(raw);
 };
 
 export const toClassAccessPermission = (category: string) => `${CLASS_ACCESS_PREFIX}${category}`;

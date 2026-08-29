@@ -71,6 +71,10 @@ const AnimatedNumber: React.FC<{ value: number; durationMs?: number }> = ({ valu
 
 const Attendance: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const classParam = searchParams.get('class');
+  const sectionParam = searchParams.get('section');
+  const scopedCategory = classParam && sectionParam ? `${classParam}-${sectionParam.toUpperCase()}` : null;
+
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const prefersReducedMotion = useReducedMotion();
@@ -234,6 +238,12 @@ const Attendance: React.FC = () => {
                       </span>
                       Autonomous Hands-Free Active
                     </span>
+                    {scopedCategory && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 text-xs font-bold backdrop-blur-md">
+                        <Users className="h-3.5 w-3.5" />
+                        Class {scopedCategory} Scoped Kiosk
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300/90 mt-1 flex-wrap font-medium">
                     <span className="flex items-center gap-1">
