@@ -209,7 +209,7 @@ const Index = () => {
 
   return (
     <PageTransition>
-      <PageLayout className="neon-liquid-bg overflow-hidden has-bottom-nav md:pb-0">
+      <PageLayout className="neon-liquid-bg has-bottom-nav md:pb-0">
         
         {/* ========================================================================= */}
         {/* HERO SECTION — Optimized for Desktop & Mobile Balance                     */}

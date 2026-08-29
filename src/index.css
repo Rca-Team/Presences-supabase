@@ -255,9 +255,17 @@
    ========================================================================= */
 
 /* Base Universal Scroll Behavior */
-html, body {
+html {
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
+  overscroll-behavior-y: auto;
+  overscroll-behavior-x: none;
+}
+
+body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+  overscroll-behavior-x: none;
+  overflow-x: hidden;
 }
 
 .overflow-x-auto,
@@ -267,8 +275,13 @@ html, body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* 1. Mobile & Touch Screen Devices */
+/* 1. Mobile & Touch Screen Devices — 100% Native 120fps Inertia */
 @media (hover: none) and (pointer: coarse) {
+  html, body {
+    scroll-behavior: auto !important;
+    touch-action: pan-y;
+  }
+
   * {
     cursor: auto !important;
   }
@@ -276,22 +289,24 @@ html, body {
   .overflow-x-auto {
     touch-action: pan-x pan-y;
     overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .overflow-y-auto,
   [data-radix-scroll-area-viewport] {
     touch-action: pan-y;
     overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Compact native scrollbars on mobile */
   ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 3px;
+    height: 3px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--primary) / 0.3);
+    background: hsl(var(--primary) / 0.35);
     border-radius: 9999px;
   }
 }

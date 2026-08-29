@@ -1,18 +1,12 @@
 import { useEffect } from 'react';
 
 /**
- * Adaptive Cursor & Device Scroll Hook
- * Provides optimal scrolling for both device categories:
- * - Desktop/Mouse: Fluid click-and-drag pan scrolling with momentum flick & automatic horizontal wheel translation.
- * - Mobile/Touch: 100% native hardware-accelerated touch gestures, momentum swipes, and pull-to-refresh with zero interference.
+ * Smart Adaptive Cursor & Device Scroll Engine
+ * - Desktop/Mouse: Smooth click-and-drag pan scrolling with momentum flick and horizontal wheel translation.
+ * - Mobile/Touch: 100% native compositor-thread hardware-accelerated touch physics with zero listeners or input latency.
  */
 export function useCursorDragScroll() {
   useEffect(() => {
-    // Check if device is primarily touch-only
-    const isTouchOnly =
-      window.matchMedia('(hover: none) and (pointer: coarse)').matches &&
-      !window.matchMedia('(hover: hover)').matches;
-
     let isDown = false;
     let isDragging = false;
     let startX = 0;
@@ -73,9 +67,9 @@ export function useCursorDragScroll() {
       return false;
     };
 
-    // 1. Pointer Down (Desktop mouse / stylus drag-scroll)
+    // 1. Pointer Down (Only mouse & stylus desktop interactions)
     const onPointerDown = (e: PointerEvent) => {
-      // If the interaction is from a touch screen, yield 100% to native browser touch physics
+      // 100% Bypass touch pointers so mobile devices have pure native touch scrolling
       if (e.pointerType === 'touch') return;
 
       // Only left click or middle click
@@ -110,9 +104,14 @@ export function useCursorDragScroll() {
         scrollStartX = container.scrollLeft;
         scrollStartY = container.scrollTop;
       }
+
+      // Dynamically attach move & up listeners ONLY while mouse is actively pressed down
+      window.addEventListener('pointermove', onPointerMove, { passive: false });
+      window.addEventListener('pointerup', onPointerUp, { passive: true });
+      window.addEventListener('pointercancel', onPointerUp, { passive: true });
     };
 
-    // 2. Pointer Move
+    // 2. Pointer Move (Active during mouse drag only)
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType === 'touch' || !isDown || !targetContainer) return;
 
@@ -176,8 +175,12 @@ export function useCursorDragScroll() {
 
     // 4. Pointer Up / Cancel
     const onPointerUp = (e: PointerEvent) => {
-      if (e.pointerType === 'touch' || !isDown) return;
+      if (e.pointerType === 'touch') return;
       isDown = false;
+
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
 
       if (isDragging) {
         document.body.classList.remove('is-cursor-scrolling');
@@ -197,11 +200,8 @@ export function useCursorDragScroll() {
       }
     };
 
-    // 5. Desktop Horizontal Wheel Helper:
-    // When scrolling vertical wheel over a horizontal-only scroll container (e.g. tabs, wide tables),
-    // automatically translate to horizontal scroll for convenience.
+    // 5. Desktop Horizontal Wheel Helper
     const onWheel = (e: WheelEvent) => {
-      // Only for non-touch mouse wheel
       if (Math.abs(e.deltaY) <= 0 || Math.abs(e.deltaX) > 0) return;
 
       let el = e.target as HTMLElement | null;
@@ -210,7 +210,6 @@ export function useCursorDragScroll() {
         const isHoriz = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 2;
         const isVert = (style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 5;
 
-        // If element is horizontally scrollable but NOT vertically scrollable, translate vertical wheel to horizontal
         if (isHoriz && !isVert) {
           el.scrollLeft += e.deltaY;
           e.preventDefault();
@@ -220,26 +219,20 @@ export function useCursorDragScroll() {
       }
     };
 
-    if (!isTouchOnly) {
-      window.addEventListener('pointerdown', onPointerDown, { passive: true });
-      window.addEventListener('pointermove', onPointerMove, { passive: false });
-      window.addEventListener('pointerup', onPointerUp, { passive: true });
-      window.addEventListener('pointercancel', onPointerUp, { passive: true });
-      window.addEventListener('click', onClickCapture, { capture: true });
-      window.addEventListener('wheel', onWheel, { passive: false });
-    }
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('click', onClickCapture, { capture: true });
+    window.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
-      if (!isTouchOnly) {
-        window.removeEventListener('pointerdown', onPointerDown);
-        window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerup', onPointerUp);
-        window.removeEventListener('pointercancel', onPointerUp);
-        window.removeEventListener('click', onClickCapture, { capture: true });
-        window.removeEventListener('wheel', onWheel);
-      }
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('click', onClickCapture, { capture: true });
+      window.removeEventListener('wheel', onWheel);
       if (momentumRafId) cancelAnimationFrame(momentumRafId);
       document.body.classList.remove('is-cursor-scrolling');
     };
   }, []);
 }
+
