@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
+import { compressImageFile } from '@/utils/imageCompressor';
 
 type Props = {
   value?: string;
@@ -45,8 +46,8 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
   };
 
   const upload = useCallback(
-    async (file: File) => {
-      if (!file.type.startsWith('image/')) {
+    async (rawFile: File) => {
+      if (!rawFile.type.startsWith('image/')) {
         toast({ title: 'Not an image', description: 'Please select a valid image file.', variant: 'destructive' });
         return;
       }
@@ -55,7 +56,8 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
       setImgError(false);
 
       try {
-        const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+        const { file, dataUrl } = await compressImageFile(rawFile, 1600, 1200, 0.85);
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
         const key = `${PORTFOLIO_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
         setProgress(50);
 
@@ -78,20 +80,12 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
         if (uploadedUrl) {
           onChange(uploadedUrl);
         } else {
-          const dataUrl = await readFileAsDataUrl(file);
           onChange(dataUrl);
-          toast({ title: 'Photo loaded', description: 'Saved as local asset preview.' });
+          toast({ title: 'Photo loaded', description: 'Saved as optimized preview.' });
         }
         setProgress(100);
       } catch (e: any) {
-        // Ultimate fallback: direct FileReader
-        try {
-          const dataUrl = await readFileAsDataUrl(file);
-          onChange(dataUrl);
-          toast({ title: 'Photo loaded', description: 'Saved locally.' });
-        } catch {
-          toast({ title: 'Upload failed', description: e?.message ?? 'Please try another image', variant: 'destructive' });
-        }
+        toast({ title: 'Upload failed', description: e?.message ?? 'Please try another image', variant: 'destructive' });
       } finally {
         setUploading(false);
         setTimeout(() => setProgress(0), 400);

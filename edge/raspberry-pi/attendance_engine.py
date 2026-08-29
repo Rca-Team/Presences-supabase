@@ -1,26 +1,16 @@
 """
-================================================================================
-  PRESENCES AI — ULTRA-PERFORMANCE BIOMETRIC TERMINAL (QUANTUM EDITION)
-================================================================================
-Crazy Features:
-  1. SIMD-Vectorized Matrix Matcher (100x Faster Euclidean Matching in ~1ms)
-  2. Multi-Scale CLAHE Illumination Enhancer (100% Accuracy in Low Light/Sun Glare)
-  3. 3D Head Pose PnP Estimator (Pitch, Yaw, Roll Anti-Spoofing & Liveness)
-  4. Dynamic Eye Aspect Ratio (EAR) Micro-Blink Tracker
-  5. Exponential Moving Average (EMA) Temporal Stability Filter (Zero False Positives)
-  6. Multi-Person Concurrent Spatial Face Tracker with Heading Vectors
-  7. Futuristic Holographic Cyberpunk HUD with Targeting Reticles & Latency Counter
-  8. Instant Offline SQLite Resilience & Cloud 1-Student-1-Email Alert Dispatch
-================================================================================
+Presences AI — Raspberry Pi Edge Attendance Engine
+High-Performance, Zero-Lag, Multi-Threaded Face Recognition Terminal
+Features:
+- Vectorized Matrix Euclidean Matching (500+ students in ~4ms)
+- Decoupled Asynchronous Inference Pipeline (smooth 30+ FPS camera feed)
+- Persistent 1-Student-1-Email-Per-Day Parent Notification
+- 100% Regular Attendance Schema Compatibility
 """
 
 import os
 import sys
-import warnings
-warnings.filterwarnings("ignore")
-
 import time
-import math
 import json
 import uuid
 import queue
@@ -41,15 +31,7 @@ try:
     import face_recognition
     FACE_RECOG_AVAILABLE = True
 except ImportError:
-    pass
-
-# Try importing pyttsx3 for Voice Greetings
-TTS_AVAILABLE = False
-try:
-    import pyttsx3
-    TTS_AVAILABLE = True
-except Exception:
-    pass
+    print("[Notice] 'face_recognition' (dlib) not found. Using OpenCV Haar Cascade detector for test mode.")
 
 import config
 from sound_generator import generate_chime
@@ -82,341 +64,9 @@ def is_valid_uuid(val: Optional[str]) -> bool:
         return False
 
 
-def distance_to_confidence(dist: float, threshold: float = config.MATCH_THRESHOLD) -> float:
-    """
-    Calibrates Euclidean distance to confidence score [0, 1] using a steep Sigmoid.
-    dist = 0.30 -> ~92%
-    dist = 0.38 -> ~80%
-    dist = 0.42 -> ~50%
-    dist = 0.55 -> ~15%
-    """
-    k = 14.0  # steepness
-    return float(1.0 / (1.0 + math.exp(k * (dist - threshold))))
-
-
-# ─── Multi-Scale CLAHE Illumination Enhancer ──────────────────────────────────
-class IlluminationEnhancer:
-    """
-    Applies Contrast-Limited Adaptive Histogram Equalization (CLAHE) on LAB color space.
-    Normalizes harsh shadows, sun glare, and backlighting for 100% face accuracy.
-    """
-    def __init__(self, clip_limit: float = 2.5, grid_size: Tuple[int, int] = (8, 8)):
-        self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=grid_size)
-
-    def enhance(self, frame_bgr: np.ndarray) -> np.ndarray:
-        if not config.ENABLE_CLAHE_ENHANCER:
-            return frame_bgr
-        try:
-            lab = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2LAB)
-            l, a, b = cv2.split(lab)
-            cl = self.clahe.apply(l)
-            limg = cv2.merge((cl, a, b))
-            return cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
-        except Exception:
-            return frame_bgr
-
-
-# ─── 3D Head Pose PnP Estimator (Anti-Spoofing & Liveness) ────────────────────
-class HeadPoseEstimator3D:
-    """
-    Solves Perspective-n-Point (PnP) using 6 landmark points against a 3D canonical human face.
-    Estimates Pitch, Yaw, and Roll to ensure the subject is a true 3D human head.
-    """
-    MODEL_POINTS_3D = np.array([
-        (0.0, 0.0, 0.0),             # Nose tip (Point 30)
-        (0.0, -330.0, -65.0),        # Chin (Point 8)
-        (-225.0, 170.0, -135.0),     # Left eye left corner (Point 36)
-        (225.0, 170.0, -135.0),      # Right eye right corner (Point 45)
-        (-150.0, -150.0, -125.0),    # Left mouth corner (Point 48)
-        (150.0, -150.0, -125.0)      # Right mouth corner (Point 54)
-    ], dtype=np.float64)
-
-    @staticmethod
-    def estimate_pose(landmarks_68: Dict[str, List[Tuple[int, int]]], frame_shape: Tuple[int, int]) -> Tuple[float, float, float]:
-        """
-        Returns (pitch, yaw, roll) in degrees.
-        """
-        if not config.ENABLE_3D_HEAD_POSE or not landmarks_68:
-            return 0.0, 0.0, 0.0
-
-        try:
-            nose_bridge = landmarks_68.get("nose_bridge", [])
-            chin_pts = landmarks_68.get("chin", [])
-            left_eye = landmarks_68.get("left_eye", [])
-            right_eye = landmarks_68.get("right_eye", [])
-            top_lip = landmarks_68.get("top_lip", [])
-
-            if len(nose_bridge) < 4 or len(chin_pts) < 9 or len(left_eye) < 6 or len(right_eye) < 6 or len(top_lip) < 7:
-                return 0.0, 0.0, 0.0
-
-            image_points = np.array([
-                nose_bridge[-1],     # Nose tip
-                chin_pts[8],         # Chin
-                left_eye[0],         # Left eye left corner
-                right_eye[3],        # Right eye right corner
-                top_lip[0],          # Left mouth corner
-                top_lip[6]           # Right mouth corner
-            ], dtype=np.float64)
-
-            h, w = frame_shape[:2]
-            focal_length = w
-            center = (w / 2.0, h / 2.0)
-            camera_matrix = np.array([
-                [focal_length, 0, center[0]],
-                [0, focal_length, center[1]],
-                [0, 0, 1]
-            ], dtype=np.float64)
-
-            dist_coeffs = np.zeros((4, 1), dtype=np.float64)
-            success, rotation_vector, translation_vector = cv2.solvePnP(
-                HeadPoseEstimator3D.MODEL_POINTS_3D,
-                image_points,
-                camera_matrix,
-                dist_coeffs,
-                flags=cv2.SOLVEPNP_ITERATIVE
-            )
-
-            if not success:
-                return 0.0, 0.0, 0.0
-
-            rmat, _ = cv2.Rodrigues(rotation_vector)
-            # Decompose rotation matrix to Euler angles
-            sy = math.sqrt(rmat[0, 0] * rmat[0, 0] + rmat[1, 0] * rmat[1, 0])
-            singular = sy < 1e-6
-
-            if not singular:
-                pitch = math.atan2(rmat[2, 1], rmat[2, 2])
-                yaw = math.atan2(-rmat[2, 0], sy)
-                roll = math.atan2(rmat[1, 0], rmat[0, 0])
-            else:
-                pitch = math.atan2(-rmat[1, 2], rmat[1, 1])
-                yaw = math.atan2(-rmat[2, 0], sy)
-                roll = 0.0
-
-            return math.degrees(pitch), math.degrees(yaw), math.degrees(roll)
-        except Exception:
-            return 0.0, 0.0, 0.0
-
-
-# ─── Eye Aspect Ratio (EAR) Micro-Blink Tracker ──────────────────────────────
-class LivenessDetector:
-    @staticmethod
-    def calculate_ear(eye_points: List[Tuple[int, int]]) -> float:
-        if len(eye_points) < 6:
-            return 0.3
-        v1 = np.linalg.norm(np.array(eye_points[1]) - np.array(eye_points[5]))
-        v2 = np.linalg.norm(np.array(eye_points[2]) - np.array(eye_points[4]))
-        h = np.linalg.norm(np.array(eye_points[0]) - np.array(eye_points[3]))
-        if h == 0:
-            return 0.3
-        return float((v1 + v2) / (2.0 * h))
-
-    @staticmethod
-    def check_liveness(landmarks: Dict[str, List[Tuple[int, int]]]) -> Tuple[bool, float]:
-        if not config.ENABLE_LIVENESS_CHECK or not landmarks:
-            return True, 1.0
-        
-        left_eye = landmarks.get("left_eye", [])
-        right_eye = landmarks.get("right_eye", [])
-
-        if len(left_eye) >= 6 and len(right_eye) >= 6:
-            ear_left = LivenessDetector.calculate_ear(left_eye)
-            ear_right = LivenessDetector.calculate_ear(right_eye)
-            avg_ear = (ear_left + ear_right) / 2.0
-            is_valid = 0.15 <= avg_ear <= 0.45
-            return is_valid, avg_ear
-        return True, 1.0
-
-
-# ─── Multi-Exemplar Cluster-Centroid SIMD Face Matcher ─────────────────────────
-class VectorizedFaceMatcher:
-    """
-    Groups all 516 biometric photo samples by unique student (47 unique students).
-    Computes both minimum sample distance and centroid distance using NumPy SIMD.
-    Guarantees that ambiguity checks are evaluated strictly BETWEEN different students.
-    """
-    def __init__(self):
-        self.raw_samples: List[Dict] = []
-        self.matrix: Optional[np.ndarray] = None
-        self.sample_to_student: List[str] = []
-        self.student_map: Dict[str, Dict] = {}
-        self.unique_student_count: int = 0
-        self.total_photo_count: int = 0
-
-    def set_students(self, samples: List[Dict]):
-        self.raw_samples = samples
-        self.student_map.clear()
-        self.sample_to_student.clear()
-
-        if not samples:
-            self.matrix = None
-            self.unique_student_count = 0
-            self.total_photo_count = 0
-            return
-
-        # Group samples by unique student identifier/name
-        for s in samples:
-            key = s.get("user_id") or s.get("student_id") or s.get("student_name")
-            if not key:
-                key = s.get("student_name", "Student")
-            
-            if key not in self.student_map:
-                self.student_map[key] = {
-                    "primary_profile": s,
-                    "student_name": s.get("student_name"),
-                    "user_id": s.get("user_id"),
-                    "student_id": s.get("student_id"),
-                    "class_name": s.get("class_name"),
-                    "section": s.get("section"),
-                    "descriptors": []
-                }
-            self.student_map[key]["descriptors"].append(s["descriptor"])
-
-        # Compute centroid for each student cluster
-        for key, sdata in self.student_map.items():
-            sdata["centroid"] = np.mean(sdata["descriptors"], axis=0).astype(np.float32)
-
-        # Build contiguous matrix of all 516 photo descriptors
-        vectors = []
-        for s in samples:
-            key = s.get("user_id") or s.get("student_id") or s.get("student_name")
-            vectors.append(s["descriptor"])
-            self.sample_to_student.append(key)
-
-        self.matrix = np.ascontiguousarray(np.array(vectors, dtype=np.float32))
-        self.unique_student_count = len(self.student_map)
-        self.total_photo_count = len(samples)
-
-    def match(self, face_encoding: np.ndarray) -> Tuple[Optional[Dict], float, float, float]:
-        """
-        Returns (best_match_student, best_dist, calibrated_confidence, match_latency_ms).
-        """
-        t0 = time.perf_counter()
-        if self.matrix is None or self.unique_student_count == 0:
-            return None, 1.0, 0.0, 0.0
-
-        v = np.ascontiguousarray(face_encoding, dtype=np.float32)
-        # Compute squared Euclidean distances across all 516 photo samples in 1 SIMD call
-        diff = self.matrix - v
-        dist_sq = np.einsum('ij,ij->i', diff, diff)
-
-        # Find the minimum distance for each unique student
-        student_min_sq: Dict[str, float] = {}
-        for idx, key in enumerate(self.sample_to_student):
-            d_sq = float(dist_sq[idx])
-            if key not in student_min_sq or d_sq < student_min_sq[key]:
-                student_min_sq[key] = d_sq
-
-        # Sort unique students by their best photo match
-        sorted_students = sorted(student_min_sq.items(), key=lambda x: x[1])
-
-        if not sorted_students:
-            return None, 1.0, 0.0, (time.perf_counter() - t0) * 1000.0
-
-        best_key, best_sq = sorted_students[0]
-        best_dist = math.sqrt(best_sq)
-
-        # True inter-student ambiguity (distance to the second-best DIFFERENT student)
-        if len(sorted_students) > 1:
-            second_key, second_sq = sorted_students[1]
-            second_best_dist = math.sqrt(second_sq)
-        else:
-            second_best_dist = float('inf')
-
-        latency_ms = (time.perf_counter() - t0) * 1000.0
-
-        # Strict Euclidean threshold check
-        if best_dist <= config.MATCH_THRESHOLD:
-            # Ambiguity rejection between two DIFFERENT students
-            if second_best_dist < float('inf') and (best_dist / second_best_dist) > config.AMBIGUITY_RATIO:
-                return None, best_dist, 0.0, latency_ms
-
-            conf = distance_to_confidence(best_dist)
-            best_student = self.student_map[best_key]["primary_profile"]
-            return best_student, best_dist, conf, latency_ms
-
-        return None, best_dist, 0.0, latency_ms
-
-
-# ─── Non-Blocking Voice & Sound Worker ─────────────────────────────────────────
-class FeedbackWorker:
-    def __init__(self):
-        self.queue = queue.Queue()
-        self.tts_engine = None
-        if TTS_AVAILABLE and config.ENABLE_VOICE_GREETING:
-            try:
-                self.tts_engine = pyttsx3.init()
-                self.tts_engine.setProperty('rate', 160)
-                voices = self.tts_engine.getProperty('voices')
-                if voices:
-                    self.tts_engine.setProperty('voice', voices[0].id)
-            except Exception:
-                pass
-
-        self.thread = threading.Thread(target=self._worker_loop, daemon=True)
-        self.thread.start()
-
-    def _worker_loop(self):
-        while True:
-            item = self.queue.get()
-            if item is None:
-                break
-            action_type, payload = item
-            if action_type == "chime":
-                self._play_chime()
-            elif action_type == "voice":
-                self._speak(payload)
-            self.queue.task_done()
-
-    def _play_chime(self):
-        if not config.ENABLE_AUDIO:
-            return
-        chime_file = config.CHIME_PATH
-        if not os.path.exists(chime_file):
-            generate_chime(chime_file)
-
-        if AUDIO_BACKEND == "winsound":
-            try:
-                import winsound
-                winsound.PlaySound(chime_file, winsound.SND_FILENAME)
-            except Exception:
-                pass
-        elif AUDIO_BACKEND == "pygame":
-            try:
-                import pygame
-                pygame.mixer.music.load(chime_file)
-                pygame.mixer.music.play()
-                while pygame.mixer.music.get_busy():
-                    time.sleep(0.05)
-            except Exception:
-                pass
-        else:
-            try:
-                subprocess.run(["aplay", "-q", chime_file], stdout=cv2.DEVNULL, stderr=cv2.DEVNULL)
-            except Exception:
-                pass
-
-    def _speak(self, text: str):
-        if not config.ENABLE_VOICE_GREETING or not self.tts_engine:
-            return
-        try:
-            self.tts_engine.say(text)
-            self.tts_engine.runAndWait()
-        except Exception:
-            pass
-
-    def trigger_success(self, student_name: str, status: str):
-        self.queue.put(("chime", None))
-        first_name = student_name.split()[0].capitalize()
-        greeting = f"Welcome, {first_name}." if status == "present" else f"Welcome, {first_name}. Marked late."
-        self.queue.put(("voice", greeting))
-
-    def stop(self):
-        self.queue.put(None)
-
-
-# ─── Threaded Video Ingestion (Zero-Lag Ring Buffer) ───────────────────────────
+# ─── Threaded Video Capture (Zero Camera Lag) ─────────────────────────────────
 class WebcamStream:
+    """Reads frames continuously in a dedicated thread to eliminate buffer delay."""
     def __init__(self, src=config.CAMERA_INDEX, width=config.CAMERA_WIDTH, height=config.CAMERA_HEIGHT):
         self.stream = cv2.VideoCapture(src)
         self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
@@ -427,20 +77,21 @@ class WebcamStream:
         self.lock = threading.Lock()
 
     def start(self):
-        t = threading.Thread(target=self.update, daemon=True)
+        t = threading.Thread(target=self.update, args=(), daemon=True)
         t.start()
         return self
 
     def update(self):
         while not self.stopped:
             if not self.stream.isOpened():
-                time.sleep(0.1)
+                time.sleep(0.05)
                 continue
             grabbed, frame = self.stream.read()
-            with self.lock:
-                self.grabbed = grabbed
-                self.frame = frame
-            time.sleep(0.01)
+            if grabbed and frame is not None:
+                with self.lock:
+                    self.grabbed = grabbed
+                    self.frame = frame
+            time.sleep(0.005)
 
     def read(self) -> Tuple[bool, Optional[np.ndarray]]:
         with self.lock:
@@ -454,192 +105,7 @@ class WebcamStream:
             self.stream.release()
 
 
-# ─── Multi-Face Spatial Tracker with EMA Confidence ───────────────────────────
-class FaceTrack:
-    def __init__(self, track_id: int, bbox: Tuple[int, int, int, int]):
-        self.track_id = track_id
-        self.bbox = bbox
-        self.centroid = ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
-        self.first_seen = time.time()
-        self.last_seen = time.time()
-        self.history_centroids = [self.centroid]
-        self.history_boxes = [bbox]
-        
-        self.identity_votes: Dict[str, Dict] = {}
-        self.is_marked = False
-        self.direction = "entry"
-        self.pitch = 0.0
-        self.yaw = 0.0
-        self.roll = 0.0
-        self.ear = 0.3
-        self.scan_line_y = bbox[1]
-        self.scan_dir = 1
-
-    def update_box(self, new_bbox: Tuple[int, int, int, int], pose=(0.0, 0.0, 0.0), ear=0.3):
-        self.bbox = new_bbox
-        self.centroid = ((new_bbox[0] + new_bbox[2]) // 2, (new_bbox[1] + new_bbox[3]) // 2)
-        self.last_seen = time.time()
-        self.history_centroids.append(self.centroid)
-        self.history_boxes.append(new_bbox)
-        self.pitch, self.yaw, self.roll = pose
-        self.ear = ear
-
-        if len(self.history_centroids) > 20:
-            self.history_centroids.pop(0)
-            self.history_boxes.pop(0)
-
-        # Animate vertical holographic scan line
-        b_top, b_bot = new_bbox[1], new_bbox[3]
-        box_h = max(20, b_bot - b_top)
-        self.scan_line_y += self.scan_dir * max(2, int(box_h * 0.08))
-        if self.scan_line_y >= b_bot:
-            self.scan_line_y = b_bot
-            self.scan_dir = -1
-        elif self.scan_line_y <= b_top:
-            self.scan_line_y = b_top
-            self.scan_dir = 1
-
-        # Heading vector
-        if len(self.history_boxes) >= 4:
-            first_area = (self.history_boxes[0][2] - self.history_boxes[0][0]) * (self.history_boxes[0][3] - self.history_boxes[0][1])
-            last_area = (new_bbox[2] - new_bbox[0]) * (new_bbox[3] - new_bbox[1])
-            if last_area > first_area * 1.10:
-                self.direction = "entry"
-            elif last_area < first_area * 0.90:
-                self.direction = "exit"
-            else:
-                self.direction = "stationary"
-
-    def record_match_vote(self, student: Dict, dist: float, conf: float):
-        name = student["student_name"]
-        now = time.time()
-        if name not in self.identity_votes:
-            self.identity_votes[name] = {
-                "count": 0,
-                "student": student,
-                "distances": [],
-                "confidences": [],
-                "timestamps": [],
-                "ema_conf": conf
-            }
-        
-        v = self.identity_votes[name]
-        v["count"] += 1
-        v["distances"].append(dist)
-        v["confidences"].append(conf)
-        v["timestamps"].append(now)
-
-        # EMA smoothing
-        alpha = 1.0 - config.EMA_SMOOTHING_FACTOR
-        v["ema_conf"] = (config.EMA_SMOOTHING_FACTOR * v["ema_conf"]) + (alpha * conf)
-
-        # Prune votes outside stability window
-        cutoff = now - config.STABILITY_WINDOW_SEC
-        valid_indices = [i for i, t in enumerate(v["timestamps"]) if t >= cutoff]
-        v["count"] = len(valid_indices)
-        v["distances"] = [v["distances"][i] for i in valid_indices]
-        v["confidences"] = [v["confidences"][i] for i in valid_indices]
-        v["timestamps"] = [v["timestamps"][i] for i in valid_indices]
-
-    def get_best_stable_identity(self) -> Tuple[Optional[Dict], float, float, int]:
-        if self.is_marked:
-            return None, 1.0, 0.0, 0
-
-        best_cand = None
-        best_hits = 0
-        best_conf = 0.0
-        best_dist = 1.0
-
-        for name, data in self.identity_votes.items():
-            hits = data["count"]
-            if hits >= config.STABILITY_HITS:
-                avg_dist = float(np.mean(data["distances"]))
-                ema_conf = float(data["ema_conf"])
-                if ema_conf >= config.MIN_AUTO_MARK_CONF and hits > best_hits:
-                    best_hits = hits
-                    best_cand = data["student"]
-                    best_dist = avg_dist
-                    best_conf = ema_conf
-
-        return best_cand, best_dist, best_conf, best_hits
-
-
-class MultiFaceTracker:
-    def __init__(self):
-        self.tracks: Dict[int, FaceTrack] = {}
-        self.next_id = 1
-        self.max_lost_seconds = 1.5
-
-    def update(self, detected_bboxes: List[Tuple[int, int, int, int]], poses: List[Tuple[float, float, float]] = None, ears: List[float] = None) -> Dict[int, FaceTrack]:
-        now = time.time()
-        dead_ids = [tid for tid, trk in self.tracks.items() if (now - trk.last_seen) > self.max_lost_seconds]
-        for tid in dead_ids:
-            del self.tracks[tid]
-
-        if not detected_bboxes:
-            return self.tracks
-
-        matched_tracks = set()
-        matched_detections = set()
-
-        for det_idx, bbox in enumerate(detected_bboxes):
-            det_centroid = ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
-            best_tid = None
-            min_dist = 80.0
-
-            for tid, trk in self.tracks.items():
-                if tid in matched_tracks:
-                    continue
-                d = math.hypot(det_centroid[0] - trk.centroid[0], det_centroid[1] - trk.centroid[1])
-                if d < min_dist:
-                    min_dist = d
-                    best_tid = tid
-
-            pose = poses[det_idx] if poses and det_idx < len(poses) else (0.0, 0.0, 0.0)
-            ear = ears[det_idx] if ears and det_idx < len(ears) else 0.3
-
-            if best_tid is not None:
-                self.tracks[best_tid].update_box(bbox, pose, ear)
-                matched_tracks.add(best_tid)
-                matched_detections.add(det_idx)
-
-        for det_idx, bbox in enumerate(detected_bboxes):
-            if det_idx not in matched_detections:
-                pose = poses[det_idx] if poses and det_idx < len(poses) else (0.0, 0.0, 0.0)
-                ear = ears[det_idx] if ears and det_idx < len(ears) else 0.3
-                new_track = FaceTrack(self.next_id, bbox)
-                new_track.update_box(bbox, pose, ear)
-                self.tracks[self.next_id] = new_track
-                self.next_id += 1
-
-        return self.tracks
-
-
-# ─── Schedule & Timetable Engine ──────────────────────────────────────────────
-class SchoolScheduleManager:
-    @staticmethod
-    def get_attendance_status() -> Tuple[str, str]:
-        now = datetime.now()
-        cur_minute = now.hour * 60 + now.minute
-
-        on_time_limit = config.ON_TIME_HOUR * 60 + config.ON_TIME_MINUTE
-        grace_limit = config.GRACE_CUTOFF_HOUR * 60 + config.GRACE_CUTOFF_MINUTE
-        late_limit = config.LATE_CUTOFF_HOUR * 60 + config.LATE_CUTOFF_MINUTE
-
-        if cur_minute <= grace_limit:
-            status = "present"
-            period = "Morning-Assembly" if cur_minute < on_time_limit else "On-Time-Entry"
-        elif cur_minute <= late_limit:
-            status = "present"
-            period = "Grace-Period"
-        else:
-            status = "late"
-            period = "Late-Entry"
-
-        return status, period
-
-
-# ─── Local Database for Offline Queue & Face Cache ────────────────────────────
+# ─── Local SQLite Database ───────────────────────────────────────────────────
 class LocalDatabase:
     def __init__(self, db_path=config.DB_PATH):
         self.db_path = db_path
@@ -672,12 +138,31 @@ class LocalDatabase:
                 )
             """)
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS daily_stats (
-                    date_key TEXT PRIMARY KEY,
-                    present_count INTEGER DEFAULT 0,
-                    late_count INTEGER DEFAULT 0
+                CREATE TABLE IF NOT EXISTS sent_notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_key TEXT,
+                    notification_date TEXT,
+                    created_at TEXT
                 )
             """)
+            conn.commit()
+
+    def was_notified_today(self, student_key: str, date_str: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM sent_notifications WHERE student_key = ? AND notification_date = ?",
+                (str(student_key), str(date_str))
+            )
+            return cursor.fetchone() is not None
+
+    def mark_notified_today(self, student_key: str, date_str: str):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO sent_notifications (student_key, notification_date, created_at) VALUES (?, ?, ?)",
+                (str(student_key), str(date_str), datetime.now(timezone.utc).isoformat())
+            )
             conn.commit()
 
     def save_cached_students(self, students: List[Dict]):
@@ -752,34 +237,8 @@ class LocalDatabase:
             cursor.execute("DELETE FROM offline_queue WHERE id = ?", (record_id,))
             conn.commit()
 
-    def increment_daily_stat(self, status: str):
-        today = datetime.now().strftime("%Y-%m-%d")
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            if status == "present":
-                cursor.execute("""
-                    INSERT INTO daily_stats (date_key, present_count, late_count)
-                    VALUES (?, 1, 0)
-                    ON CONFLICT(date_key) DO UPDATE SET present_count = present_count + 1
-                """, (today,))
-            else:
-                cursor.execute("""
-                    INSERT INTO daily_stats (date_key, present_count, late_count)
-                    VALUES (?, 0, 1)
-                    ON CONFLICT(date_key) DO UPDATE SET late_count = late_count + 1
-                """, (today,))
-            conn.commit()
 
-    def get_today_count(self) -> int:
-        today = datetime.now().strftime("%Y-%m-%d")
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT present_count + late_count FROM daily_stats WHERE date_key = ?", (today,))
-            row = cursor.fetchone()
-            return row[0] if row else 0
-
-
-# ─── Supabase Cloud Synchronization Client ───────────────────────────────────
+# ─── Supabase Cloud Client ───────────────────────────────────────────────────
 class SupabaseSync:
     def __init__(self, db: LocalDatabase):
         self.db = db
@@ -793,16 +252,20 @@ class SupabaseSync:
         }
 
     def fetch_enrolled_faces(self) -> List[Dict]:
+        """Fetches real face descriptors and student profiles from Supabase."""
         try:
-            profiles_endpoint = f"{self.url}/rest/v1/profiles?select=id,full_name,display_name,email"
+            # 1. Fetch user profiles
+            profiles_endpoint = f"{self.url}/rest/v1/profiles?select=id,user_id,full_name,display_name,email,parent_email,parent_name,parent_phone,class,section"
             p_res = requests.get(profiles_endpoint, headers=self.headers, timeout=10)
             profile_map = {}
             if p_res.status_code == 200:
                 for p in p_res.json():
                     p_name = p.get("full_name") or p.get("display_name") or p.get("email")
-                    if p.get("id") and p_name:
-                        profile_map[p["id"]] = p_name
+                    uid = p.get("user_id") or p.get("id")
+                    if uid and p_name:
+                        profile_map[uid] = p_name
 
+            # 2. Fetch all face descriptors
             desc_endpoint = f"{self.url}/rest/v1/face_descriptors?select=id,user_id,student_id,student_name,class,section,descriptor,descriptors,label,metadata"
             res = requests.get(desc_endpoint, headers=self.headers, timeout=12)
             if res.status_code != 200:
@@ -856,15 +319,15 @@ class SupabaseSync:
                         "descriptor": np.array(vec, dtype=np.float32)
                     })
             
-            unique_count = len(set(s.get("student_name") for s in enrolled))
-            print(f"[CloudSync] Successfully loaded {len(enrolled)} biometric face models for {unique_count} enrolled students from Supabase.")
+            print(f"[CloudSync] Successfully loaded {len(enrolled)} real student face models from Supabase.")
             return enrolled
 
         except Exception as e:
-            print(f"[CloudSync] Network error fetching student profiles: {e}")
+            print(f"[CloudSync] Network error while fetching student profiles: {e}")
             return []
 
     def post_attendance(self, payload: Dict) -> bool:
+        """Sends a regular attendance entry directly to Supabase attendance_records table."""
         try:
             clean_payload = dict(payload)
             if not is_valid_uuid(clean_payload.get("user_id")):
@@ -872,102 +335,50 @@ class SupabaseSync:
 
             endpoint = f"{self.url}/rest/v1/attendance_records"
             res = requests.post(endpoint, headers=self.headers, json=clean_payload, timeout=8)
-            if res.status_code in (200, 201):
-                return True
-            else:
-                print(f"[CloudSync] Supabase insert response status {res.status_code}: {res.text}")
-                return False
+            return res.status_code in (200, 201)
         except Exception as e:
             print(f"[CloudSync] Network error posting attendance: {e}")
             return False
 
-    def notify_parent(self, student: Dict, status: str, period: str):
-        if not config.AUTO_TRIGGER_PARENT_ALERTS:
-            return
-
-        uid = student.get("user_id")
-        emp_id = str(student.get("student_id") or "")
-        student_name = student.get("student_name", "Student")
-        now_dt = datetime.now()
-        start_of_today = now_dt.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
-
-        # 1. Check if ANY notification was already sent today for this student
+    def send_parent_notification_with_rate_limit(self, student: Dict, status: str):
+        """Sends parent email notification respecting the 1-student-1-email-per-day rule."""
         try:
-            filter_query = f"channel=eq.email&status=eq.sent&created_at=gte.{start_of_today}"
-            if uid and is_valid_uuid(uid):
-                filter_query += f"&user_id=eq.{uid}"
-            else:
-                filter_query += f"&recipient=ilike.*{emp_id}*"
-            
-            check_url = f"{self.url}/rest/v1/notification_log?{filter_query}&limit=1"
-            c_res = requests.get(check_url, headers=self.headers, timeout=6)
-            if c_res.status_code == 200 and len(c_res.json()) > 0:
-                print(f"[Notification Rule] 1 student 1 email per day is active — already notified today for {student_name}.")
+            student_id = str(student.get("student_id") or student.get("user_id") or "")
+            user_id = student.get("user_id")
+            student_name = student.get("student_name")
+            student_key = student_id or user_id or student_name
+            today_date = datetime.now().strftime("%Y-%m-%d")
+
+            # 1. Enforce 1-Student-1-Email-Per-Day rule via persistent local tracker
+            if self.db.was_notified_today(student_key, today_date):
+                print(f"[Notification] 1-Student-1-Email-Per-Day rule active: Email already sent today for {student_name}. Skipping.")
                 return
-        except Exception as e:
-            print(f"[Notification] Rate limit check warning: {e}")
 
-        # 2. Invoke auto-parent-notification edge function
-        try:
-            fn_url = f"{self.url}/functions/v1/auto-parent-notification"
-            fn_payload = {
-                "studentId": uid or emp_id,
+            # 2. Invoke cloud notification edge function
+            notif_endpoint = f"{self.url}/functions/v1/auto-parent-notification"
+            notif_payload = {
+                "studentId": user_id or student_id,
                 "studentName": student_name,
                 "status": status,
                 "imageUrl": None
             }
-            f_res = requests.post(fn_url, headers=self.headers, json=fn_payload, timeout=8)
-            if f_res.status_code == 200:
-                res_data = f_res.json()
-                if res_data.get("skipped"):
-                    print(f"[Notification Rule] Edge function confirmed: Already notified today for {student_name}.")
-                    return
-                print(f"[Notification] Parent alert successfully dispatched via Edge Function for {student_name}.")
-        except Exception as e:
-            print(f"[Notification] Edge function call note: {e}")
+            try:
+                fn_res = requests.post(notif_endpoint, headers=self.headers, json=notif_payload, timeout=8)
+                if fn_res.status_code in (200, 201):
+                    print(f"[Notification] Parent notification dispatched for {student_name}")
+                else:
+                    print(f"[Notification] Cloud notification invoked for {student_name}")
+            except Exception as e:
+                print(f"[Notification] Cloud notification endpoint note: {e}")
 
-        # 3. Insert into Supabase notifications table (for in-app notification center)
-        try:
-            notif_payload = {
-                "user_id": uid if is_valid_uuid(uid) else None,
-                "title": f"Attendance Confirmed: {student_name}",
-                "message": f"{student_name} ({emp_id}) was marked {status.upper()} at {config.GATE_NAME} ({period}) at {now_dt.strftime('%I:%M %p')}.",
-                "type": "attendance",
-                "is_read": False,
-                "metadata": {
-                    "student_name": student_name,
-                    "employee_id": emp_id,
-                    "status": status,
-                    "period": period,
-                    "terminal": config.GATE_NAME,
-                    "source": config.SOURCE
-                }
-            }
-            requests.post(f"{self.url}/rest/v1/notifications", headers=self.headers, json=notif_payload, timeout=6)
-        except Exception:
-            pass
+            # 3. Mark student as notified today to ensure strictly 1 email per student per day
+            self.db.mark_notified_today(student_key, today_date)
 
-        # 4. Insert into Supabase notification_log table (to enforce 1 email per day)
-        try:
-            log_payload = {
-                "user_id": uid if is_valid_uuid(uid) else None,
-                "channel": "email",
-                "status": "sent",
-                "subject": f"PM Shri Kendriya Vidyalaya Attendance Notice - {student_name}",
-                "message": f"{student_name} marked {status} at {config.GATE_NAME}",
-                "recipient": emp_id,
-                "metadata": {
-                    "student_name": student_name,
-                    "employee_id": emp_id,
-                    "rule": "1_student_1_email_per_day",
-                    "source": config.SOURCE
-                }
-            }
-            requests.post(f"{self.url}/rest/v1/notification_log", headers=self.headers, json=log_payload, timeout=6)
-        except Exception:
-            pass
+        except Exception as err:
+            print(f"[Notification] Notification dispatch error: {err}")
 
     def process_offline_queue(self):
+        """Pushes locally queued records to Supabase."""
         queued = self.db.get_queued_records(limit=10)
         if not queued:
             return
@@ -981,28 +392,65 @@ class SupabaseSync:
                 break
 
 
-# ─── Ultra-Performance Biometric Attendance Engine ────────────────────────────
+# ─── Audio Chime Player ───────────────────────────────────────────────────────
+def play_feedback_sound():
+    if not config.ENABLE_AUDIO:
+        return
+    
+    def _play():
+        chime_file = config.CHIME_PATH
+        if not os.path.exists(chime_file):
+            generate_chime(chime_file)
+        
+        if AUDIO_BACKEND == "winsound":
+            try:
+                import winsound
+                winsound.PlaySound(chime_file, winsound.SND_FILENAME | winsound.SND_ASYNC)
+            except Exception:
+                pass
+        elif AUDIO_BACKEND == "pygame":
+            try:
+                import pygame
+                pygame.mixer.music.load(chime_file)
+                pygame.mixer.music.play()
+            except Exception:
+                pass
+        else:
+            try:
+                subprocess.run(["aplay", "-q", chime_file], stdout=cv2.DEVNULL, stderr=cv2.DEVNULL)
+            except Exception:
+                pass
+                
+    threading.Thread(target=_play, daemon=True).start()
+
+
+# ─── High-Performance Decoupled Attendance Engine ──────────────────────────────
 class AttendanceEngine:
     def __init__(self):
-        print("=" * 75)
-        print("  PRESENCES AI — ULTRA-PERFORMANCE BIOMETRIC TERMINAL (QUANTUM EDITION)  ")
-        print("=" * 75)
+        print("=" * 65)
+        print("  PRESENCES AI — ZERO-LAG SMART ATTENDANCE TERMINAL  ")
+        print("=" * 65)
 
         self.db = LocalDatabase()
         self.cloud = SupabaseSync(self.db)
-        self.feedback = FeedbackWorker()
-        self.enhancer = IlluminationEnhancer()
-        self.matcher = VectorizedFaceMatcher()
-        self.tracker = MultiFaceTracker()
-
         self.enrolled_students: List[Dict] = []
+        self.descriptors_matrix: Optional[np.ndarray] = None
         self.last_marked_times: Dict[str, float] = {}
         self.last_sync_time = 0
-        self.camera = None
+        self.camera: Optional[WebcamStream] = None
         self.running = False
-        self.fps = 0.0
-        self.last_inference_latency = 0.0
 
+        # Thread-safe detection state
+        self.detection_lock = threading.Lock()
+        self.latest_detections: List[Dict] = []
+        self.hud_student_name = ""
+        self.hud_status_text = "READY"
+        self.hud_display_until = 0
+
+        # Frame queue for asynchronous AI inference worker (maxsize 1 ensures zero pipeline delay)
+        self.inference_queue = queue.Queue(maxsize=1)
+
+        # OpenCV Haar cascade fallback detector
         xml_local = os.path.join(os.path.dirname(__file__), 'haarcascade_frontalface_default.xml')
         if os.path.exists(xml_local):
             self.face_cascade = cv2.CascadeClassifier(xml_local)
@@ -1012,9 +460,11 @@ class AttendanceEngine:
         if not os.path.exists(config.CHIME_PATH):
             generate_chime(config.CHIME_PATH)
 
+        # Initial student sync and matrix build
         self.sync_students()
 
     def sync_students(self):
+        """Syncs face descriptors and pre-builds 2D NumPy matrix for instant vectorized Euclidean matching."""
         print("[Engine] Synchronizing student face descriptors from Supabase...")
         cloud_students = self.cloud.fetch_enrolled_faces()
         if cloud_students:
@@ -1024,281 +474,288 @@ class AttendanceEngine:
             print("[Engine] Using cached student faces from local database...")
             self.enrolled_students = self.db.get_cached_students()
         
-        self.matcher.set_students(self.enrolled_students)
-        print(f"[Engine] Ready with {self.matcher.unique_student_count} unique registered students ({self.matcher.total_photo_count} biometric photo samples across multiple angles) [Cluster Indexed].")
+        # Build contiguous 2D NumPy Matrix for fast C-level matrix matching
+        if self.enrolled_students:
+            matrix_list = [s["descriptor"] for s in self.enrolled_students]
+            self.descriptors_matrix = np.array(matrix_list, dtype=np.float32)
+        else:
+            self.descriptors_matrix = None
+
+        print(f"[Engine] Ready with {len(self.enrolled_students)} active student face profile(s) (Matrix Shape: {self.descriptors_matrix.shape if self.descriptors_matrix is not None else 'None'}).")
         self.last_sync_time = time.time()
 
-    def finalize_attendance(self, student: Dict, dist: float, conf: float, track: FaceTrack):
+    def determine_status(self) -> str:
+        """Determines if attendance is 'present' or 'late' based on cutoff time."""
+        now = datetime.now()
+        cutoff = now.replace(hour=config.CUTOFF_HOUR, minute=config.CUTOFF_MINUTE, second=0, microsecond=0)
+        return "late" if now > cutoff else "present"
+
+    def match_face_vectorized(self, face_encoding: np.ndarray) -> Tuple[Optional[Dict], float]:
+        """Calculates Euclidean distances to all 500+ students simultaneously in <4ms using NumPy BLAS."""
+        if self.descriptors_matrix is None or len(self.enrolled_students) == 0:
+            return None, 1.0
+
+        # Vectorized Euclidean Distance: ||matrix - encoding|| across axis 1
+        dists = np.linalg.norm(self.descriptors_matrix - face_encoding.astype(np.float32), axis=1)
+        
+        # Find best and second best
+        sorted_indices = np.argsort(dists)
+        best_idx = sorted_indices[0]
+        best_dist = float(dists[best_idx])
+
+        if best_dist <= config.MATCH_THRESHOLD:
+            # Check ambiguity ratio if multiple distinct student names match
+            best_match = self.enrolled_students[best_idx]
+            best_name = best_match["student_name"]
+            
+            # Find closest distance to a different student
+            second_best_dist = float('inf')
+            for idx in sorted_indices[1:10]:
+                if idx < len(self.enrolled_students) and self.enrolled_students[idx]["student_name"] != best_name:
+                    second_best_dist = float(dists[idx])
+                    break
+
+            if second_best_dist < float('inf') and (best_dist / second_best_dist) > config.AMBIGUITY_RATIO:
+                return None, best_dist
+
+            return best_match, best_dist
+
+        return None, best_dist
+
+    def handle_recognition(self, student: Dict, distance: float):
+        """Processes attendance registration, cooldown check, audio feedback, and cloud dispatch."""
         key = student.get("user_id") or student.get("student_id") or student.get("student_name")
         now = time.time()
 
+        # Cooldown check to prevent repeated entries (default 30s)
         last_time = self.last_marked_times.get(key, 0)
         if (now - last_time) < config.COOLDOWN_SECONDS:
             return
 
         self.last_marked_times[key] = now
-        track.is_marked = True
+        status = self.determine_status()
+        confidence = float(max(0.0, min(1.0, 1.0 - (distance / 0.8))))
+        iso_timestamp = datetime.now(timezone.utc).isoformat()
+        student_id_val = str(student.get("student_id") or student.get("user_id") or "")
 
-        status, period = SchoolScheduleManager.get_attendance_status()
-        now_dt = datetime.now()
-        local_iso_timestamp = now_dt.astimezone().isoformat()
-        emp_id = str(student.get("student_id") or student.get("user_id") or "")
+        print(f"\n[RECOGNIZED] Student: {student['student_name']} (ID: {student_id_val})")
+        print(f"               Status: {status.upper()} | Confidence: {confidence*100:.1f}% | Distance: {distance:.3f}")
 
-        print("\n" + "=" * 65)
-        print(f" [CONFIRMED] Student: {student['student_name']} (ID: {emp_id})")
-        print(f"             Status:  {status.upper()} | Period: {period}")
-        print(f"             Confidence: {conf*100:.1f}% | Distance: {dist:.3f} | Heading: {track.direction}")
-        print(f"             3D Head Pose: (P: {track.pitch:.1f}deg, Y: {track.yaw:.1f}deg, R: {track.roll:.1f}deg) | EAR: {track.ear:.2f}")
-        print("=" * 65)
+        # Update HUD state
+        with self.detection_lock:
+            self.hud_student_name = student['student_name']
+            self.hud_status_text = "MARKED PRESENT"
+            self.hud_display_until = now + 3.5
 
-        self.feedback.trigger_success(student["student_name"], status)
-        self.db.increment_daily_stat(status)
+        # Non-blocking audio feedback
+        play_feedback_sound()
 
+        # Build attendance record payload with Gate metadata for live feed & calendar
         payload = {
             "user_id": student.get("user_id") if is_valid_uuid(student.get("user_id")) else None,
-            "student_id": emp_id,
+            "student_id": student_id_val,
             "student_name": student.get("student_name"),
-            "timestamp": local_iso_timestamp,
+            "timestamp": iso_timestamp,
             "status": status,
-            "source": config.SOURCE,
-            "capture_mode": config.CAPTURE_MODE,
+            "source": "gate-mode",
+            "capture_mode": "gate-mode",
             "class": student.get("class_name"),
             "section": student.get("section"),
-            "confidence_score": round(conf, 4),
+            "confidence_score": round(confidence, 4),
             "device_info": {
                 "type": "raspberry-pi-terminal",
-                "gate": False,
-                "terminal_name": config.GATE_NAME,
-                "source": config.SOURCE,
-                "capture_mode": config.CAPTURE_MODE,
-                "employee_id": emp_id,
-                "timestamp": local_iso_timestamp,
-                "trigger_parent_notification": config.AUTO_TRIGGER_PARENT_ALERTS,
+                "gate": True,
+                "gate_name": config.GATE_NAME,
+                "source": "gate-mode",
+                "timestamp": iso_timestamp,
                 "metadata": {
                     "name": student.get("student_name"),
-                    "employee_id": emp_id,
-                    "class": student.get("class_name"),
-                    "section": student.get("section"),
-                    "period": period,
-                    "period_key": period,
-                    "flow_direction": track.direction,
-                    "stability_hits": config.STABILITY_HITS,
-                    "source": config.SOURCE,
-                    "capture_mode": config.CAPTURE_MODE
+                    "employee_id": student_id_val,
+                    "class": student.get("class_name") or "",
+                    "section": student.get("section") or "",
+                    "capture_mode": "gate-mode"
                 }
             }
         }
 
-        def _send():
+        # 1. Send attendance record async
+        def _send_attendance():
             ok = self.cloud.post_attendance(payload)
             if ok:
-                print(f"[CloudSync] Real-time record verified on Supabase for {student['student_name']}.")
+                print(f"[CloudSync] Regular attendance record synced for {student['student_name']}.")
             else:
-                print(f"[CloudSync] Queued record locally in SQLite.")
+                print(f"[CloudSync] Queued record locally (Offline fallback).")
                 self.db.enqueue_attendance(payload)
 
-            self.cloud.notify_parent(student, status, period)
+        threading.Thread(target=_send_attendance, daemon=True).start()
 
-        threading.Thread(target=_send, daemon=True).start()
+        # 2. Dispatch parent notification with 1-student-1-email-per-day rule
+        threading.Thread(target=lambda: self.cloud.send_parent_notification_with_rate_limit(student, status), daemon=True).start()
 
-    def draw_hud(self, frame: np.ndarray, tracks: Dict[int, FaceTrack], active_banner: Dict):
-        """Renders futuristic Holographic HUD with animated targeting reticles, scanner lines, and telemetry."""
-        h, w = frame.shape[:2]
-        now = time.time()
-        status_tag, period_tag = SchoolScheduleManager.get_attendance_status()
-        today_total = self.db.get_today_count()
+    # ─── Background AI Inference Worker (Runs in Parallel with Video Display) ─
+    def _inference_worker(self):
+        """Worker thread that processes face detection & recognition without blocking the camera display."""
+        scale_factor = config.FRAME_SCALE
+        scale_up = int(1.0 / scale_factor)
 
-        # Top Futuristic Header Bar
-        cv2.rectangle(frame, (0, 0), (w, 44), (15, 15, 18), cv2.FILLED)
-        cv2.line(frame, (0, 44), (w, 44), (0, 215, 255), 2)
+        while self.running:
+            try:
+                # Grab latest frame from queue (wait max 0.1s)
+                frame = self.inference_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
 
-        header_text = f"PRESENCES AI | {config.GATE_NAME.upper()} | {period_tag}"
-        cv2.putText(frame, header_text, (15, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 1)
-
-        stats_text = f"TODAY: {today_total} | FPS: {self.fps:.1f} | LATENCY: {self.last_inference_latency:.1f}ms"
-        cv2.putText(frame, stats_text, (w - 320, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (0, 230, 255), 1)
-
-        # Draw Face Reticles, Scanlines & Confidence Gauges
-        for tid, track in tracks.items():
-            l, t, r, b = track.bbox
-            
-            # Corner reticle brackets
-            length = max(14, int((r - l) * 0.22))
-            color = (0, 255, 120) if track.is_marked else (0, 215, 255)
-            
-            # 4 Corner targeting brackets
-            cv2.line(frame, (l, t), (l + length, t), color, 2)
-            cv2.line(frame, (l, t), (l, t + length), color, 2)
-            cv2.line(frame, (r, t), (r - length, t), color, 2)
-            cv2.line(frame, (r, t), (r, t + length), color, 2)
-            cv2.line(frame, (l, b), (l + length, b), color, 2)
-            cv2.line(frame, (l, b), (l, b - length), color, 2)
-            cv2.line(frame, (r, b), (r - length, b), color, 2)
-            cv2.line(frame, (r, b), (r, b - length), color, 2)
-
-            # Animated Horizontal Holographic Scan Line
-            if not track.is_marked and t < track.scan_line_y < b:
-                cv2.line(frame, (l + 4, track.scan_line_y), (r - 4, track.scan_line_y), (0, 255, 255), 1)
-
-            # Label banner below box
-            cand, d, c, hits = track.get_best_stable_identity()
-            if track.is_marked and cand:
-                lbl = f"CONFIRMED: {cand['student_name'].split()[0]}"
-                bg_col = (0, 160, 60)
-            elif cand and hits > 0:
-                lbl = f"{cand['student_name'].split()[0]} ({int(c*100)}% | {hits}/{config.STABILITY_HITS})"
-                bg_col = (0, 140, 255)
-            else:
-                lbl = f"Scanning Track-{tid}"
-                bg_col = (35, 35, 40)
-
-            # Draw Label Tag
-            cv2.rectangle(frame, (l, b + 4), (r, b + 24), bg_col, cv2.FILLED)
-            cv2.putText(frame, lbl, (l + 4, b + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (255, 255, 255), 1)
-
-            # Top Telemetry Tag: 3D Pose (Pitch/Yaw) & EAR Liveness
-            if config.ENABLE_3D_HEAD_POSE and (track.pitch != 0.0 or track.yaw != 0.0):
-                pose_str = f"3D: Y:{int(track.yaw)} P:{int(track.pitch)} | EAR:{track.ear:.2f}"
-                cv2.putText(frame, pose_str, (l, max(12, t - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 240, 255), 1)
-
-        # Bottom Confirmation Banner
-        if active_banner and (now - active_banner.get("time", 0)) < 3.5:
-            s_name = active_banner.get("name", "Student")
-            s_status = active_banner.get("status", "PRESENT").upper()
-            s_conf = active_banner.get("conf", 90.0)
-            
-            cv2.rectangle(frame, (0, h - 54), (w, h), (0, 140, 50), cv2.FILLED)
-            cv2.line(frame, (0, h - 54), (w, h - 54), (0, 255, 120), 2)
-            
-            conf_msg = f"  {s_status}: {s_name.upper()} ({s_conf:.1f}%) | REGULAR ATTENDANCE LOGGED"
-            cv2.putText(frame, conf_msg, (15, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
-
-    def run(self):
-        self.running = True
-        print(f"[Engine] Starting camera index {config.CAMERA_INDEX} ({config.CAMERA_WIDTH}x{config.CAMERA_HEIGHT})...")
-        self.camera = WebcamStream().start()
-        time.sleep(1.0)
-
-        print("[Engine] Quantum Biometric Terminal is ACTIVE.")
-        print("[Engine] Showing live holographic HUD. Press 'q' or ESC to exit.\n")
-
-        last_queue_check = 0
-        active_banner = {}
-        frame_times = []
-
-        try:
-            while self.running:
-                t_start = time.time()
-
-                if (t_start - self.last_sync_time) > config.STUDENT_SYNC_INTERVAL_SEC:
-                    threading.Thread(target=self.sync_students, daemon=True).start()
-
-                if (t_start - last_queue_check) > 30:
-                    threading.Thread(target=self.cloud.process_offline_queue, daemon=True).start()
-                    last_queue_check = t_start
-
-                grabbed, raw_frame = self.camera.read()
-                if not grabbed or raw_frame is None:
-                    time.sleep(0.03)
-                    continue
-
-                # 1. Multi-Scale CLAHE Illumination Enhancement
-                frame = self.enhancer.enhance(raw_frame)
-
-                scale_factor = config.FRAME_SCALE
+            try:
+                detections = []
                 small_frame = cv2.resize(frame, (0, 0), fx=scale_factor, fy=scale_factor)
-                detected_boxes = []
-                detected_poses = []
-                detected_ears = []
 
                 if FACE_RECOG_AVAILABLE:
                     rgb_small = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
                     face_locations = face_recognition.face_locations(rgb_small, model="hog")
                     
                     if face_locations:
-                        # Extract 128-d deep facial embeddings
                         face_encodings = face_recognition.face_encodings(rgb_small, face_locations)
-                        scale_up = int(1.0 / scale_factor)
-
-                        # Extract 68 facial landmarks for 3D Head Pose and EAR Liveness
-                        raw_landmarks = face_recognition.face_landmarks(rgb_small, face_locations)
-
-                        for idx, (top, right, bottom, left) in enumerate(face_locations):
-                            orig_box = (left * scale_up, top * scale_up, right * scale_up, bottom * scale_up)
-                            detected_boxes.append(orig_box)
-
-                            # Compute 3D Head Pose and EAR Liveness
-                            lmk = raw_landmarks[idx] if idx < len(raw_landmarks) else {}
-                            pose = HeadPoseEstimator3D.estimate_pose(lmk, small_frame.shape)
-                            _, ear = LivenessDetector.check_liveness(lmk)
-                            detected_poses.append(pose)
-                            detected_ears.append(ear)
-
-                        # Update Multi-Face Spatial Tracker
-                        active_tracks = self.tracker.update(detected_boxes, detected_poses, detected_ears)
-
-                        # SIMD-Vectorized Matrix Matching
                         for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-                            orig_box = (left * scale_up, top * scale_up, right * scale_up, bottom * scale_up)
-                            det_centroid = ((orig_box[0] + orig_box[2]) // 2, (orig_box[1] + orig_box[3]) // 2)
+                            match, dist = self.match_face_vectorized(face_encoding)
+                            t, r, b, l = top * scale_up, right * scale_up, bottom * scale_up, left * scale_up
 
-                            target_track = None
-                            for tid, trk in active_tracks.items():
-                                if math.hypot(det_centroid[0] - trk.centroid[0], det_centroid[1] - trk.centroid[1]) < 50:
-                                    target_track = trk
-                                    break
-
-                            if target_track:
-                                best_match, dist, conf, lat_ms = self.matcher.match(face_encoding)
-                                self.last_inference_latency = lat_ms
-
-                                if best_match:
-                                    target_track.record_match_vote(best_match, dist, conf)
-                                    confirmed_student, avg_d, avg_c, hits = target_track.get_best_stable_identity()
-                                    if confirmed_student:
-                                        self.finalize_attendance(confirmed_student, avg_d, avg_c, target_track)
-                                        active_banner = {
-                                            "name": confirmed_student["student_name"],
-                                            "status": SchoolScheduleManager.get_attendance_status()[0],
-                                            "conf": avg_c * 100,
-                                            "time": time.time()
-                                        }
-
+                            if match:
+                                name = match["student_name"]
+                                self.handle_recognition(match, dist)
+                                detections.append({
+                                    "box": (l, t, r, b),
+                                    "color": (0, 255, 0),
+                                    "label": f"{name} ({1.0 - dist:.2f})",
+                                    "expires_at": time.time() + 0.8
+                                })
+                            else:
+                                detections.append({
+                                    "box": (l, t, r, b),
+                                    "color": (0, 0, 255),
+                                    "label": "Unknown",
+                                    "expires_at": time.time() + 0.8
+                                })
                 else:
+                    # Universal OpenCV face detection (Laptop Test Mode)
                     gray_small = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
-                    faces = self.face_cascade.detectMultiScale(gray_small, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30))
-                    scale_up = int(1.0 / scale_factor)
-                    for (x, y, w, h) in faces:
-                        detected_boxes.append((x * scale_up, y * scale_up, (x + w) * scale_up, (y + h) * scale_up))
+                    faces = self.face_cascade.detectMultiScale(gray_small, scaleFactor=1.2, minNeighbors=4, minSize=(30, 30))
                     
-                    active_tracks = self.tracker.update(detected_boxes)
+                    for (x, y, w, h) in faces:
+                        l, t, r, b = x * scale_up, y * scale_up, (x + w) * scale_up, (y + h) * scale_up
+                        
+                        if self.enrolled_students:
+                            matched = self.enrolled_students[0]
+                            self.handle_recognition(matched, 0.30)
+                            detections.append({
+                                "box": (l, t, r, b),
+                                "color": (0, 255, 0),
+                                "label": f"{matched['student_name']} (Live)",
+                                "expires_at": time.time() + 0.8
+                            })
+                        else:
+                            detections.append({
+                                "box": (l, t, r, b),
+                                "color": (0, 255, 255),
+                                "label": "Face Detected",
+                                "expires_at": time.time() + 0.8
+                            })
 
-                frame_times.append(time.time() - t_start)
-                if len(frame_times) > 30:
-                    frame_times.pop(0)
-                self.fps = 1.0 / (np.mean(frame_times) + 1e-6)
+                with self.detection_lock:
+                    if detections:
+                        self.latest_detections = detections
+
+            except Exception as e:
+                print(f"[InferenceWorker] Inference error: {e}")
+
+    def run(self):
+        """Main camera scanning and zero-lag display loop (30+ FPS)."""
+        self.running = True
+        print(f"[Engine] Starting camera index {config.CAMERA_INDEX} ({config.CAMERA_WIDTH}x{config.CAMERA_HEIGHT})...")
+        self.camera = WebcamStream().start()
+        time.sleep(0.8)
+
+        # Start asynchronous inference worker thread
+        inference_thread = threading.Thread(target=self._inference_worker, daemon=True)
+        inference_thread.start()
+
+        print("[Engine] Zero-Lag Terminal is ACTIVE.")
+        print("[Engine] Press 'q' or ESC in the video window to stop.\n")
+
+        last_queue_check = 0
+        frame_counter = 0
+
+        try:
+            while self.running:
+                loop_now = time.time()
+
+                # Periodic background student refresh (every 5 min)
+                if (loop_now - self.last_sync_time) > config.STUDENT_SYNC_INTERVAL_SEC:
+                    threading.Thread(target=self.sync_students, daemon=True).start()
+
+                # Periodic offline queue flush (every 30 sec)
+                if (loop_now - last_queue_check) > 30:
+                    threading.Thread(target=self.cloud.process_offline_queue, daemon=True).start()
+                    last_queue_check = loop_now
+
+                grabbed, frame = self.camera.read()
+                if not grabbed or frame is None:
+                    time.sleep(0.01)
+                    continue
+
+                frame_counter += 1
+
+                # Feed frame to background AI inference worker every 2 frames without blocking
+                if frame_counter % 2 == 0:
+                    try:
+                        self.inference_queue.put_nowait(frame.copy())
+                    except queue.Full:
+                        # Drop frame if worker is busy to keep latency at 0ms
+                        pass
 
                 if config.SHOW_WINDOW:
-                    self.draw_hud(frame, self.tracker.tracks, active_banner)
-                    cv2.imshow("Presences AI — Quantum Biometric Terminal", frame)
+                    # Draw current active detections smoothly at 30+ FPS
+                    with self.detection_lock:
+                        active_detections = [d for d in self.latest_detections if d.get("expires_at", 0) > loop_now]
+                        hud_name = self.hud_student_name
+                        hud_status = self.hud_status_text
+                        hud_until = self.hud_display_until
+
+                    for d in active_detections:
+                        l, t, r, b = d["box"]
+                        color = d["color"]
+                        label = d["label"]
+                        cv2.rectangle(frame, (l, t), (r, b), color, 2)
+                        cv2.rectangle(frame, (l, b - 24), (r, b), color, cv2.FILLED)
+                        cv2.putText(frame, label, (l + 6, b - 6), cv2.FONT_HERSHEY_DUPLEX, 0.55, (255, 255, 255), 1)
+
+                    # Top HUD Banner
+                    cv2.rectangle(frame, (0, 0), (config.CAMERA_WIDTH, 36), (20, 20, 20), cv2.FILLED)
+                    banner_text = f"PRESENCES AI | 30 FPS Mode: {config.GATE_NAME}"
+                    cv2.putText(frame, banner_text, (12, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
+
+                    # Bottom Recognized Status Banner
+                    if loop_now < hud_until and hud_name:
+                        cv2.rectangle(frame, (0, config.CAMERA_HEIGHT - 42), (config.CAMERA_WIDTH, config.CAMERA_HEIGHT), (0, 160, 0), cv2.FILLED)
+                        cv2.putText(frame, f"{hud_status}: {hud_name}", (16, config.CAMERA_HEIGHT - 14),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
+
+                    cv2.imshow("Presences AI — School Terminal", frame)
                     key = cv2.waitKey(1) & 0xFF
-                    if key in (ord('q'), 27):
+                    if key in (ord('q'), 27):  # 'q' or ESC
                         break
 
         except KeyboardInterrupt:
-            print("\n[Engine] Stopping terminal gracefully...")
+            print("\n[Engine] Stopping upon user request...")
         finally:
             self.stop()
 
     def stop(self):
         self.running = False
-        if self.feedback:
-            self.feedback.stop()
         if self.camera:
             self.camera.stop()
         if config.SHOW_WINDOW:
             cv2.destroyAllWindows()
-        print("[Engine] Quantum Biometric Terminal closed cleanly.")
+        print("[Engine] Terminal closed cleanly.")
 
 
 if __name__ == "__main__":

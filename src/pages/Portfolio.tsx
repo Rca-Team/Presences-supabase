@@ -7,7 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +31,7 @@ import {
   Linkedin,
   Twitter,
   Instagram,
+  Youtube,
   Trash2,
   GripVertical,
   Sparkles,
@@ -39,6 +48,8 @@ import {
   CheckCircle2,
   ArrowRight,
   UserCheck,
+  SlidersHorizontal,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   DEFAULT_PORTFOLIO,
@@ -46,10 +57,13 @@ import {
   type PortfolioData,
   type PortfolioProject,
   type PortfolioMember,
+  type PortfolioGalleryItem,
   migratePortfolioData,
   portfolioUid,
 } from '@/hooks/usePortfolioData';
 import { ImageDropzone } from '@/components/portfolio/ImageDropzone';
+import { BatchGalleryUploader } from '@/components/portfolio/BatchGalleryUploader';
+import { HomeGallery } from '@/components/portfolio/HomeGallery';
 import { MemberAvatar } from '@/components/portfolio/MemberAvatar';
 import teamRcaPhoto from '@/assets/team-rca.jpg';
 import gauravPhoto from '@/assets/gaurav-photo.png';
@@ -109,19 +123,27 @@ function SortableItem({ id, children }: { id: string; children: (handle: React.R
 /* Public View Component                                              */
 /* ------------------------------------------------------------------ */
 
-export function PublicPortfolioView({ data, onUnlock }: { data: PortfolioData; onUnlock?: () => void }) {
+export function PublicPortfolioView({
+  data,
+  onUnlock,
+  showGallery = true,
+}: {
+  data: PortfolioData;
+  onUnlock?: () => void;
+  showGallery?: boolean;
+}) {
   const [selectedMember, setSelectedMember] = useState<PortfolioMember | null>(null);
 
   return (
-    <section className="space-y-8 md:space-y-12 pb-12 md:pb-16 min-w-0">
+    <section className="space-y-10 md:space-y-14 pb-12 md:pb-16 min-w-0">
       {/* Hero Header */}
       <div className="relative overflow-hidden rounded-3xl border border-white/15 bg-card/60 backdrop-blur-2xl shadow-2xl">
         {/* Cover Photo */}
         <div
-          className="h-40 sm:h-52 md:h-72 w-full bg-gradient-to-br from-primary/35 via-accent/25 to-primary/10 relative overflow-hidden"
+          className="h-44 sm:h-56 md:h-72 w-full bg-gradient-to-br from-primary/35 via-accent/25 to-primary/10 relative overflow-hidden"
           style={data.coverImage ? { backgroundImage: `url(${data.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
         >
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/25 to-transparent" />
         </div>
 
         <div className="px-5 sm:px-8 md:px-12 pb-6 md:pb-8 relative">
@@ -142,7 +164,7 @@ export function PublicPortfolioView({ data, onUnlock }: { data: PortfolioData; o
 
               <div className="flex-1 min-w-0">
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-primary">
-                  <Sparkles className="h-3.5 w-3.5" /> Core Team Lead
+                  <Sparkles className="h-3.5 w-3.5" /> {data.settings?.customBadge || 'Core Team Lead'}
                 </div>
                 <h1 className="mt-2 text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
                   {data.name}
@@ -200,6 +222,17 @@ export function PublicPortfolioView({ data, onUnlock }: { data: PortfolioData; o
                   title="Instagram"
                 >
                   <Instagram className="h-4 w-4" />
+                </a>
+              )}
+              {data.socials?.youtube && (
+                <a
+                  href={data.socials.youtube}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-border/70 bg-card/60 p-2.5 hover:bg-muted hover:text-primary transition shadow-sm"
+                  title="YouTube Channel"
+                >
+                  <Youtube className="h-4 w-4" />
                 </a>
               )}
               {onUnlock && (
@@ -438,29 +471,13 @@ export function PublicPortfolioView({ data, onUnlock }: { data: PortfolioData; o
         )}
       </div>
 
-      {/* Gallery Showcase */}
-      {data.gallery.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl md:text-2xl font-extrabold text-foreground flex items-center gap-2">
-            <ImageIcon className="h-5 w-5 text-primary" /> Media & Campus Gallery
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {data.gallery.map((src, i) => (
-              <motion.div
-                key={i}
-                whileHover={{ scale: 1.02 }}
-                className="aspect-square overflow-hidden rounded-2xl border border-white/10 shadow-sm bg-muted/30"
-              >
-                <img
-                  src={src}
-                  alt={`Gallery item ${i + 1}`}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </motion.div>
-            ))}
-          </div>
-        </div>
+      {/* Rebuilt Interactive Media & Campus Gallery Section */}
+      {showGallery && data.gallery.length > 0 && (
+        <HomeGallery
+          items={data.gallery}
+          defaultLayout={data.settings?.homeGalleryLayout || 'bento'}
+          allowManage={Boolean(onUnlock)}
+        />
       )}
 
       {/* Member Detail Dialog */}
@@ -532,27 +549,38 @@ const Portfolio = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data: row, error } = await supabase
-      .from('attendance_settings')
-      .select('value')
-      .eq('key', PORTFOLIO_KEY)
-      .maybeSingle();
-
-    if (error) {
-      toast({ title: 'Load failed', description: error.message, variant: 'destructive' });
-      setLoading(false);
-      return;
-    }
-
-    if (row?.value) {
-      try {
-        setData(migratePortfolioData(JSON.parse(row.value)));
-      } catch {
-        setData(DEFAULT_PORTFOLIO);
+    // 1. Try local cache for immediate display
+    try {
+      const cached = localStorage.getItem('gaurav_portfolio_cache');
+      if (cached) {
+        setData(migratePortfolioData(JSON.parse(cached)));
       }
+    } catch {
+      /* ignore */
     }
-    setDirty(false);
-    setLoading(false);
+
+    try {
+      const { data: row, error } = await supabase
+        .from('attendance_settings')
+        .select('value')
+        .eq('key', PORTFOLIO_KEY)
+        .maybeSingle();
+
+      if (row?.value) {
+        try {
+          const parsed = migratePortfolioData(JSON.parse(row.value));
+          setData(parsed);
+          localStorage.setItem('gaurav_portfolio_cache', JSON.stringify(parsed));
+        } catch {
+          /* keep current */
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load portfolio from cloud, using local cache:', e);
+    } finally {
+      setDirty(false);
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -567,24 +595,58 @@ const Portfolio = () => {
   const save = async () => {
     setSaving(true);
     const payload = JSON.stringify(data);
-    const { data: existing } = await supabase
-      .from('attendance_settings')
-      .select('id')
-      .eq('key', PORTFOLIO_KEY)
-      .maybeSingle();
 
-    const mutation = existing?.id
-      ? supabase.from('attendance_settings').update({ value: payload }).eq('id', existing.id)
-      : supabase.from('attendance_settings').insert({ key: PORTFOLIO_KEY, value: payload });
-
-    const { error } = await mutation;
-    setSaving(false);
-    if (error) {
-      toast({ title: 'Save failed', description: error.message, variant: 'destructive' });
-      return;
+    // Save to local cache first
+    try {
+      localStorage.setItem('gaurav_portfolio_cache', payload);
+      window.dispatchEvent(new CustomEvent('portfolio-updated', { detail: data }));
+    } catch (e) {
+      console.warn('localStorage save warning:', e);
     }
-    setDirty(false);
-    toast({ title: 'Saved', description: 'Portfolio published live across the school platform.' });
+
+    try {
+      const { data: existing } = await supabase
+        .from('attendance_settings')
+        .select('id')
+        .eq('key', PORTFOLIO_KEY)
+        .maybeSingle();
+
+      let saveErr = null;
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('attendance_settings')
+          .update({ value: payload, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        saveErr = error;
+      } else {
+        const { error } = await supabase
+          .from('attendance_settings')
+          .insert({ key: PORTFOLIO_KEY, value: payload });
+        saveErr = error;
+      }
+
+      setSaving(false);
+      if (saveErr) {
+        console.warn('Cloud sync note:', saveErr.message);
+        toast({
+          title: 'Saved Locally',
+          description: `Saved to browser storage (${saveErr.message}).`,
+        });
+        setDirty(false);
+        return;
+      }
+
+      setDirty(false);
+      toast({ title: 'Saved & Published', description: 'Portfolio and Gallery published live across the platform.' });
+    } catch (err: any) {
+      setSaving(false);
+      console.error('Save error:', err);
+      toast({
+        title: 'Saved Locally',
+        description: 'Changes saved locally in browser.',
+      });
+      setDirty(false);
+    }
   };
 
   const handleResetToDefaults = () => {
@@ -766,16 +828,46 @@ const Portfolio = () => {
               <PublicPortfolioView data={data} onUnlock={() => setStudioViewMode('editor')} />
             </Card>
           ) : (
-            <Tabs defaultValue="profile" className="space-y-5">
+            <Tabs defaultValue="gallery" className="space-y-5">
               <TabsList className="flex-wrap bg-muted/40 p-1 rounded-2xl border">
-                <TabsTrigger value="profile" className="rounded-xl font-semibold text-xs">Profile & Photos</TabsTrigger>
+                <TabsTrigger value="gallery" className="rounded-xl font-bold text-xs">
+                  📸 Campus Gallery ({data.gallery.length})
+                </TabsTrigger>
+                <TabsTrigger value="profile" className="rounded-xl font-semibold text-xs">Profile & Bio</TabsTrigger>
                 <TabsTrigger value="projects" className="rounded-xl font-semibold text-xs">Projects ({data.projects.length})</TabsTrigger>
                 <TabsTrigger value="members" className="rounded-xl font-semibold text-xs">Team Members ({data.members.length})</TabsTrigger>
-                <TabsTrigger value="gallery" className="rounded-xl font-semibold text-xs">Gallery ({data.gallery.length})</TabsTrigger>
-                <TabsTrigger value="extras" className="rounded-xl font-semibold text-xs">Achievements · Skills · Socials</TabsTrigger>
+                <TabsTrigger value="extras" className="rounded-xl font-semibold text-xs">Skills · Socials</TabsTrigger>
+                <TabsTrigger value="settings" className="rounded-xl font-semibold text-xs">Display & Layout</TabsTrigger>
               </TabsList>
 
-              {/* 1. PROFILE TAB */}
+              {/* 1. GALLERY TAB (Rebuilt with Multi-Photo Batch Uploader) */}
+              <TabsContent value="gallery" className="space-y-5">
+                <Card className="rounded-3xl border shadow-sm">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                          <ImageIcon className="h-5 w-5 text-primary" /> Multi-Photo Gallery Studio
+                        </CardTitle>
+                        <CardDescription>
+                          Upload multiple photos at once, paste bulk URLs, categorize into tags, and drag to reorder.
+                        </CardDescription>
+                      </div>
+                      <Badge variant="outline" className="text-xs font-mono font-bold">
+                        {data.gallery.length} Photos
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <BatchGalleryUploader
+                      items={data.gallery}
+                      onChange={(gallery) => update({ gallery })}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* 2. PROFILE TAB */}
               <TabsContent value="profile" className="space-y-5">
                 <Card className="rounded-3xl border shadow-sm">
                   <CardHeader>
@@ -839,7 +931,7 @@ const Portfolio = () => {
                 </Card>
               </TabsContent>
 
-              {/* 2. PROJECTS TAB */}
+              {/* 3. PROJECTS TAB */}
               <TabsContent value="projects" className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">Drag <GripVertical className="inline h-3 w-3" /> to arrange priority order.</p>
@@ -908,7 +1000,7 @@ const Portfolio = () => {
                 </DndContext>
               </TabsContent>
 
-              {/* 3. MEMBERS TAB */}
+              {/* 4. MEMBERS TAB */}
               <TabsContent value="members" className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">These photos and names drive the Home page team cards & About Me sections.</p>
@@ -969,33 +1061,7 @@ const Portfolio = () => {
                 </DndContext>
               </TabsContent>
 
-              {/* 4. GALLERY TAB */}
-              <TabsContent value="gallery" className="space-y-4">
-                <p className="text-xs text-muted-foreground">Drop images or paste image URLs to populate the campus showcase gallery.</p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {data.gallery.map((url, i) => (
-                    <div key={`${url}-${i}`} className="relative">
-                      <ImageDropzone
-                        aspect="square"
-                        value={url}
-                        onChange={(next) => {
-                          if (!next) update({ gallery: data.gallery.filter((_, j) => j !== i) });
-                          else update({ gallery: data.gallery.map((g, j) => (j === i ? next : g)) });
-                        }}
-                      />
-                    </div>
-                  ))}
-                  <ImageDropzone
-                    aspect="square"
-                    value=""
-                    allowClear={false}
-                    onChange={(url) => url && update({ gallery: [...data.gallery, url] })}
-                    label="Add New Photo"
-                  />
-                </div>
-              </TabsContent>
-
-              {/* 5. EXTRAS TAB */}
+              {/* 5. EXTRAS TAB (Skills & Socials) */}
               <TabsContent value="extras" className="space-y-5">
                 <div className="grid gap-5 md:grid-cols-2">
                   <Card className="rounded-3xl border shadow-sm">
@@ -1054,6 +1120,84 @@ const Portfolio = () => {
                       <Label className="text-xs font-bold">Instagram</Label>
                       <Input value={data.socials.instagram ?? ''} onChange={(e) => update({ socials: { ...data.socials, instagram: e.target.value } })} className="mt-1" />
                     </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs font-bold">YouTube / Demo Link</Label>
+                      <Input value={data.socials.youtube ?? ''} onChange={(e) => update({ socials: { ...data.socials, youtube: e.target.value } })} className="mt-1" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* 6. DISPLAY & HOME SETTINGS TAB */}
+              <TabsContent value="settings" className="space-y-5">
+                <Card className="rounded-3xl border shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                      <SlidersHorizontal className="h-5 w-5 text-primary" /> Home Page & Display Customization
+                    </CardTitle>
+                    <CardDescription>
+                      Customize how the portfolio showcase and campus gallery appear to visitors on the Home page.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between p-4 rounded-2xl border bg-muted/20">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">Show Developer Showcase on Home Page</p>
+                        <p className="text-xs text-muted-foreground">Display the full interactive developer and team spotlight on the main landing page.</p>
+                      </div>
+                      <Switch
+                        checked={data.settings?.showOnHome ?? true}
+                        onCheckedChange={(checked) =>
+                          update({ settings: { ...data.settings, showOnHome: checked } })
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 rounded-2xl border bg-muted/20">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">Show Campus & Media Gallery on Home Page</p>
+                        <p className="text-xs text-muted-foreground">Display the media & photo gallery with Bento/Grid/Cinematic layout on the home page.</p>
+                      </div>
+                      <Switch
+                        checked={data.settings?.showGalleryOnHome ?? true}
+                        onCheckedChange={(checked) =>
+                          update({ settings: { ...data.settings, showGalleryOnHome: checked } })
+                        }
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label className="text-xs font-bold">Default Home Gallery View Style</Label>
+                        <Select
+                          value={data.settings?.homeGalleryLayout || 'bento'}
+                          onValueChange={(val: any) =>
+                            update({ settings: { ...data.settings, homeGalleryLayout: val } })
+                          }
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bento">Bento Masonry Grid (Dynamic)</SelectItem>
+                            <SelectItem value="grid">Uniform Cyber Grid</SelectItem>
+                            <SelectItem value="carousel">Cinematic Slider Carousel</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-bold">Custom Leader / Creator Badge</Label>
+                        <Input
+                          value={data.settings?.customBadge || ''}
+                          placeholder="e.g. Team RCA · Core Lead"
+                          onChange={(e) =>
+                            update({ settings: { ...data.settings, customBadge: e.target.value } })
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1066,3 +1210,4 @@ const Portfolio = () => {
 };
 
 export default Portfolio;
+

@@ -225,34 +225,44 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const { data: profileData } = await supabaseClient
+    // 1. Fetch profile data
+    let { data: profileData } = await supabaseClient
       .from('profiles')
       .select('parent_email, parent_name, parent_phone, phone, display_name, metadata, email, class, section')
       .eq('user_id', studentId)
       .maybeSingle();
 
+    if (!profileData) {
+      const { data: byId } = await supabaseClient
+        .from('profiles')
+        .select('parent_email, parent_name, parent_phone, phone, display_name, metadata, email, class, section')
+        .eq('id', studentId)
+        .maybeSingle();
+      if (byId) profileData = byId;
+    }
+
     let parentEmail = normalizeEmail(profileData?.parent_email);
     let parentName = profileData?.parent_name || 'Parent/Guardian';
     let parentPhone = (profileData as any)?.parent_phone || (profileData as any)?.metadata?.parent_phone || profileData?.phone || null;
 
-    // Fallback: if profile is missing parent email, recover from latest registration metadata.
+    // Fallback: if profile is missing parent email, recover from latest registration metadata
     if (!parentEmail) {
-      const { data: registrationRecord } = await supabaseClient
+      const { data: registrationRecords } = await supabaseClient
         .from('attendance_records')
-        .select('device_info, student_name')
-        .eq('user_id', studentId)
-        .eq('status', 'registered')
+        .select('device_info, student_name, user_id, student_id')
+        .or(`user_id.eq.${studentId},student_id.eq.${studentId},id.eq.${studentId}`)
+        .in('status', ['registered', 'pending_approval'])
         .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
 
-      const metadata = (registrationRecord as any)?.device_info?.metadata || {};
+      const reg = registrationRecords?.[0];
+      const metadata = (reg as any)?.device_info?.metadata || {};
       parentEmail = normalizeEmail(metadata?.parent_email);
       parentName = metadata?.parent_name || parentName;
       parentPhone = metadata?.parent_phone || parentPhone;
     }
 
-    // Final fallback: send to the student's own account email so the alert is never silently dropped.
+    // Final fallback: send to the student's own account email
     if (!parentEmail) {
       parentEmail = normalizeEmail((profileData as any)?.email)
         || normalizeEmail(Deno.env.get('NOTIFY_FALLBACK_EMAIL'));
@@ -265,8 +275,18 @@ serve(async (req) => {
     const alreadyWhatsApp = false;
     const alreadySMS = false;
 
-    // Emails cannot render base64 data URIs — host the live capture first.
-    const hostedSnapshot = imageUrl ? await hostSnapshot(supabaseClient, studentId, imageUrl) : null;
+    // Emails cannot render base64 data URIs — host the live capture first
+    let hostedSnapshot: string | null = null;
+    if (imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('data:')) {
+      try {
+        hostedSnapshot = await hostSnapshot(supabaseClient, imageUrl, studentId);
+      } catch (e) {
+        console.warn('Could not host snapshot:', e);
+      }
+    } else if (imageUrl && typeof imageUrl === 'string') {
+      hostedSnapshot = imageUrl;
+    }
+
     const studentRegisteredPhoto = await resolveStudentPhotoUrl(supabaseClient, studentId, studentName);
     const photoForMetadata = hostedSnapshot || studentRegisteredPhoto || null;
 

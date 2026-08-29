@@ -19,17 +19,15 @@ function toMidnight(date: Date): Date {
   return d;
 }
 
-// Extract name from record and device_info
-function extractName(record: any): string {
+// Extract name from device_info
+function extractName(deviceInfo: any): string {
   try {
-    if (record?.student_name) return record.student_name;
-    const deviceInfo = record?.device_info || record;
     if (deviceInfo && typeof deviceInfo === 'object' && !Array.isArray(deviceInfo)) {
       if (deviceInfo.metadata?.name) return deviceInfo.metadata.name;
       if (deviceInfo.name) return deviceInfo.name;
     }
   } catch (e) {
-    console.error('Error extracting name:', e);
+    console.error('Error extracting name from device_info:', e);
   }
   return '';
 }
@@ -55,7 +53,7 @@ function normalizeGateMetadata(record: any) {
 async function getFaceIdentifiers(faceId: string): Promise<{ userIds: string[]; employeeId: string | null }> {
   const { data } = await supabase
     .from('attendance_records')
-    .select('user_id, device_info')
+    .select('user_id, student_id, device_info')
     .eq('id', faceId)
     .eq('status', 'registered')
     .single();
@@ -65,9 +63,16 @@ async function getFaceIdentifiers(faceId: string): Promise<{ userIds: string[]; 
 
   if (data) {
     if (data.user_id) userIds.push(data.user_id);
+    if ((data as any).student_id) {
+      userIds.push((data as any).student_id);
+      employeeId = (data as any).student_id;
+    }
     const di = data.device_info as any;
-    employeeId = di?.metadata?.employee_id || di?.employee_id || null;
-    if (employeeId) userIds.push(employeeId);
+    const metaId = di?.metadata?.employee_id || di?.employee_id;
+    if (metaId) {
+      employeeId = metaId;
+      userIds.push(metaId);
+    }
   }
 
   return { userIds: [...new Set(userIds)], employeeId };
@@ -85,16 +90,22 @@ export const fetchAttendanceRecords = async (
     // Build queries for all possible identifier matches
     const queries = userIds.map(uid =>
       supabase.from('attendance_records')
-        .select('id, timestamp, status, source, capture_mode, class, section, device_info')
-        .or(`user_id.eq.${uid},id.eq.${uid}`)
+        .select('id, timestamp, status, source, capture_mode, class, section, device_info, student_id')
+        .or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`)
         .in('status', ['present', 'late', 'unauthorized'])
     );
 
-    // Also query by employee_id in device_info if available
+    // Also query by employee_id in device_info or student_id column
     if (employeeId) {
       queries.push(
         supabase.from('attendance_records')
-          .select('id, timestamp, status, source, capture_mode, class, section, device_info')
+          .select('id, timestamp, status, source, capture_mode, class, section, device_info, student_id')
+          .eq('student_id', employeeId)
+          .in('status', ['present', 'late', 'unauthorized'])
+      );
+      queries.push(
+        supabase.from('attendance_records')
+          .select('id, timestamp, status, source, capture_mode, class, section, device_info, student_id')
           .contains('device_info', { metadata: { employee_id: employeeId } })
           .in('status', ['present', 'late', 'unauthorized'])
       );
@@ -129,8 +140,6 @@ export const fetchAttendanceRecords = async (
 
       const date = toMidnight(new Date(record.timestamp));
       const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-
-      const { isGate } = normalizeGateMetadata(record);
 
       if (status === 'present') {
         presentDaysMap.set(dateKey, date);
@@ -167,8 +176,8 @@ export const fetchDailyAttendance = async (
 
     const queries = userIds.map(uid =>
       supabase.from('attendance_records')
-        .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, image_url, student_name')
-        .or(`user_id.eq.${uid},id.eq.${uid}`)
+        .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, student_id, image_url')
+        .or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`)
         .gte('timestamp', timestampStart)
         .lte('timestamp', timestampEnd)
         .order('timestamp', { ascending: true })
@@ -177,7 +186,15 @@ export const fetchDailyAttendance = async (
     if (employeeId) {
       queries.push(
         supabase.from('attendance_records')
-          .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, image_url, student_name')
+          .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, student_id, image_url')
+          .eq('student_id', employeeId)
+          .gte('timestamp', timestampStart)
+          .lte('timestamp', timestampEnd)
+          .order('timestamp', { ascending: true })
+      );
+      queries.push(
+        supabase.from('attendance_records')
+          .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, student_id, image_url')
           .contains('device_info', { metadata: { employee_id: employeeId } })
           .gte('timestamp', timestampStart)
           .lte('timestamp', timestampEnd)
@@ -205,7 +222,7 @@ export const fetchDailyAttendance = async (
         id: record.id,
         timestamp: record.timestamp,
         status: normalizeStatus(record.status),
-        name: extractName(record) || 'Student',
+        name: extractName(record.device_info) || 'Student',
         image_url: record.image_url
       }));
 

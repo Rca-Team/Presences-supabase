@@ -23,14 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
-.env.*
-!.env.example
-
-# Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
 *.db
-*.sqlite3
-venv/
-.venv/

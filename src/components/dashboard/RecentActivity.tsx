@@ -141,9 +141,15 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ isLoading, activityData
             const name = item.displayName || 'Unknown';
             const avatarUrl = item.avatarUrl || null;
             const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const status = item.status === 'present' ? 'Checked in' : 
-                          item.status === 'late' ? 'Checked in (Late)' : 'Unauthorized';
-            
+            const isGate =
+              item.device_info?.gate === true ||
+              item.device_info?.type === 'raspberry-pi-terminal' ||
+              item.device_info?.source === 'gate-mode' ||
+              item.device_info?.source === 'raspberry-pi-terminal' ||
+              item.device_info?.metadata?.capture_mode === 'gate-mode' ||
+              item.source === 'gate-mode' ||
+              item.capture_mode === 'gate-mode';
+
             return (
               <div key={`${item.id}-${index}`} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                 <div className="flex items-center gap-3">
@@ -160,15 +166,22 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ isLoading, activityData
                     <p className="text-sm text-muted-foreground">{time}</p>
                   </div>
                 </div>
-                <span className={`text-sm px-2 py-1 rounded-full ${
-                  status.includes('Late') 
-                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500' 
-                    : status.includes('Unauthorized')
-                      ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-500'
-                      : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-500'
-                }`}>
-                  {status}
-                </span>
+                <div className="flex items-center gap-2">
+                  {isGate && (
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-medium">
+                      🚪 Gate Mode
+                    </span>
+                  )}
+                  <span className={`text-sm px-2 py-1 rounded-full ${
+                    status.includes('Late') 
+                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500' 
+                      : status.includes('Unauthorized')
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-500'
+                        : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-500'
+                  }`}>
+                    {status}
+                  </span>
+                </div>
               </div>
             );
           }) || []

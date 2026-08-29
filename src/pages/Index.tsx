@@ -5,10 +5,11 @@ import LiteHome from '@/components/lite/LiteHome';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
-import teamRcaPhoto from '@/assets/team-rca.jpg.asset.json';
+import teamRcaPhoto from '@/assets/team-rca.jpg';
 import { usePortfolioData } from '@/hooks/usePortfolioData';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { PublicPortfolioView } from '@/pages/Portfolio';
+import { HomeGallery } from '@/components/portfolio/HomeGallery';
 import { MemberAvatar } from '@/components/portfolio/MemberAvatar';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -561,29 +562,46 @@ const Index = () => {
         ))}
 
         {/* ========================================================================= */}
+        {/* CAMPUS & MEDIA GALLERY (Bento, Grid, and Cinematic Carousel)              */}
+        {/* ========================================================================= */}
+        {(portfolio.settings?.showGalleryOnHome !== false) && portfolio.gallery.length > 0 && (
+          <RoyalReveal effect="fade-up" className="pb-14 min-w-0">
+            <HomeGallery
+              items={portfolio.gallery}
+              defaultLayout={portfolio.settings?.homeGalleryLayout || 'bento'}
+              title="Media & Campus Gallery"
+              subtitle="Capturing smart gate testing, face-recognition kiosks, school activities, and team milestones at KV NFC Vigyan Vihar."
+              allowManage={true}
+            />
+          </RoyalReveal>
+        )}
+
+        {/* ========================================================================= */}
         {/* DEVELOPER PORTFOLIO SHOWCASE                                              */}
         {/* ========================================================================= */}
-        <RoyalReveal effect="fade-up" className="pb-14 min-w-0">
-          <section id="developer-portfolio">
-            <div className="mb-6 flex items-end justify-between gap-4">
-              <div>
-                <p className="inline-flex items-center gap-2 rounded-full bg-primary/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">
-                  <Sparkles className="h-3 w-3" /> Meet the Developer
-                </p>
-                <h2
-                  className="mt-2 text-3xl font-black text-foreground md:text-4xl"
-                  style={{ fontFamily: 'Sora, sans-serif' }}
-                >
-                  {portfolio.name || 'Gaurav Raj'}
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground md:text-base">
-                  {portfolio.role || 'Developer & Team Leader'}
-                </p>
+        {(portfolio.settings?.showOnHome !== false) && (
+          <RoyalReveal effect="fade-up" className="pb-14 min-w-0">
+            <section id="developer-portfolio">
+              <div className="mb-6 flex items-end justify-between gap-4">
+                <div>
+                  <p className="inline-flex items-center gap-2 rounded-full bg-primary/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">
+                    <Sparkles className="h-3 w-3" /> Meet the Developer
+                  </p>
+                  <h2
+                    className="mt-2 text-3xl font-black text-foreground md:text-4xl"
+                    style={{ fontFamily: 'Sora, sans-serif' }}
+                  >
+                    {portfolio.name || 'Gaurav Raj'}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground md:text-base">
+                    {portfolio.role || 'Developer & Team Leader'}
+                  </p>
+                </div>
               </div>
-            </div>
-            <PublicPortfolioView data={portfolio} onUnlock={() => navigate('/portfolio')} />
-          </section>
-        </RoyalReveal>
+              <PublicPortfolioView data={portfolio} showGallery={false} onUnlock={() => navigate('/portfolio')} />
+            </section>
+          </RoyalReveal>
+        )}
 
         {/* ========================================================================= */}
         {/* BOTTOM CTA BANNER                                                         */}

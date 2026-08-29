@@ -141,12 +141,19 @@ export const useAttendanceCalendar = (selectedFaceId: string | null) => {
       const queries = userIds.map(uid =>
         supabase.from('attendance_records')
           .select('id, timestamp, status, source, capture_mode, class, section, device_info, image_url')
-          .or(`user_id.eq.${uid},id.eq.${uid}`)
+          .or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`)
           .in('status', ['present', 'late', 'unauthorized'])
           .order('timestamp', { ascending: true })
       );
 
       if (employeeId) {
+        queries.push(
+          supabase.from('attendance_records')
+            .select('id, timestamp, status, source, capture_mode, class, section, device_info, image_url')
+            .eq('student_id', employeeId)
+            .in('status', ['present', 'late', 'unauthorized'])
+            .order('timestamp', { ascending: true })
+        );
         queries.push(
           supabase.from('attendance_records')
             .select('id, timestamp, status, source, capture_mode, class, section, device_info, image_url')

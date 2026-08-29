@@ -22,39 +22,29 @@ export interface UnifiedStudentSnapshot {
   statusesByEmployeeId: Record<string, UnifiedStudentStatus>;
 }
 
-function getLocalDayBoundaries(): { startOfDay: string; endOfDay: string } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  return {
-    startOfDay: start.toISOString(),
-    endOfDay: end.toISOString(),
-  };
-}
-
 /**
  * Single source of truth for attendance stats.
  * 1. Registered = attendance_records with status='registered' (canonical registration table)
  * 2. Present/Late from attendance_records (present/late/unauthorized) + gate_entries
- * 3. Multi-identifier matching (employee_id, user_id, registration id, student_name)
+ * 3. Multi-identifier matching (employee_id, user_id, registration id)
  * 4. Status normalization: unauthorized → present
  */
 export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceStats> {
-  const { startOfDay, endOfDay } = getLocalDayBoundaries();
+  const today = new Date().toISOString().split('T')[0];
 
   const [registeredRes, todayRes, gateRes] = await Promise.all([
     supabase.from('attendance_records')
       .select('id, user_id, device_info, category')
       .eq('status', 'registered'),
     supabase.from('attendance_records')
-      .select('id, user_id, student_id, student_name, status, device_info, timestamp')
+      .select('id, user_id, status, device_info')
       .in('status', ['present', 'late', 'unauthorized'])
-      .gte('timestamp', startOfDay)
-      .lte('timestamp', endOfDay),
+      .gte('timestamp', `${today}T00:00:00`)
+      .lte('timestamp', `${today}T23:59:59`),
     supabase.from('gate_entries')
       .select('student_id')
-      .gte('entry_time', startOfDay)
-      .lte('entry_time', endOfDay)
+      .gte('entry_time', `${today}T00:00:00`)
+      .lte('entry_time', `${today}T23:59:59`)
       .eq('is_recognized', true),
   ]);
 
@@ -64,12 +54,12 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
     return {
       id: r.id,
       user_id: r.user_id,
-      employee_id: m.employee_id || (r.device_info as any)?.employee_id || '',
-      name: m.name || (r.device_info as any)?.name || '',
+      employee_id: m.employee_id || '',
+      name: m.name || '',
     };
   }).filter(u => u.name && u.name !== 'Unknown' && !u.name.toLowerCase().includes('unknown') && u.name !== 'User');
 
-  // Deduplicate by employee_id / user_id
+  // Deduplicate by employee_id
   const seen = new Set<string>();
   const uniqueUsers = processedUsers.filter(u => {
     const key = u.employee_id || u.user_id || u.id;
@@ -91,35 +81,18 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
 
   (todayRes.data || []).forEach(r => {
     const m = (r.device_info as any)?.metadata || {};
-    const possibleKeys = [
-      m.employee_id,
-      (r.device_info as any)?.employee_id,
-      r.student_id,
-      r.user_id,
-      r.id,
-      r.student_name?.trim().toLowerCase(),
-      m.name?.trim().toLowerCase(),
-    ].filter(Boolean);
-
+    const empId = m.employee_id || (r.device_info as any)?.employee_id || r.user_id;
     const normalized = normalizeStatus(r.status || '');
-    possibleKeys.forEach(k => {
-      const keyStr = String(k);
-      if (normalized === 'present') {
-        presentMap.add(keyStr);
-        lateMap.delete(keyStr);
-      } else if (normalized === 'late' && !presentMap.has(keyStr)) {
-        lateMap.add(keyStr);
-      }
-    });
+    if (empId) {
+      if (normalized === 'present') { presentMap.add(empId); lateMap.delete(empId); }
+      else if (normalized === 'late' && !presentMap.has(empId)) lateMap.add(empId);
+    }
   });
 
   // Merge gate entries
   (gateRes.data || []).forEach(g => {
-    if (g.student_id) {
-      const keyStr = String(g.student_id);
-      if (!presentMap.has(keyStr) && !lateMap.has(keyStr)) {
-        presentMap.add(keyStr);
-      }
+    if (g.student_id && !presentMap.has(g.student_id) && !lateMap.has(g.student_id)) {
+      presentMap.add(g.student_id);
     }
   });
 
@@ -127,22 +100,11 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
   let totalPresent = 0;
   let totalLate = 0;
   uniqueUsers.forEach(u => {
-    const identifiers = [
-      u.employee_id,
-      u.user_id,
-      u.id,
-      u.name.trim().toLowerCase(),
-    ].filter(Boolean).map(String);
-
+    const identifiers = [u.employee_id, u.user_id, u.id].filter(Boolean);
     for (const id of identifiers) {
-      if (presentMap.has(id)) {
-        totalPresent++;
-        return;
-      }
-      if (lateMap.has(id)) {
-        totalLate++;
-        return;
-      }
+      if (!id) continue;
+      if (presentMap.has(id)) { totalPresent++; return; }
+      if (lateMap.has(id)) { totalLate++; return; }
     }
   });
 
@@ -160,7 +122,7 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
  * Uses registered users as source-of-truth roster and merges Attendance + Gate Mode records.
  */
 export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnapshot> {
-  const { startOfDay, endOfDay } = getLocalDayBoundaries();
+  const today = new Date().toISOString().split('T')[0];
 
   const [registeredRes, todayRes, gateRes] = await Promise.all([
     supabase
@@ -169,16 +131,16 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
       .eq('status', 'registered'),
     supabase
       .from('attendance_records')
-      .select('id, user_id, student_id, student_name, status, timestamp, device_info')
+      .select('id, user_id, student_id, status, timestamp, device_info')
       .in('status', ['present', 'late', 'unauthorized'])
-      .gte('timestamp', startOfDay)
-      .lte('timestamp', endOfDay)
+      .gte('timestamp', `${today}T00:00:00`)
+      .lte('timestamp', `${today}T23:59:59`)
       .order('timestamp', { ascending: false }),
     supabase
       .from('gate_entries')
       .select('student_id, entry_time')
-      .gte('entry_time', startOfDay)
-      .lte('entry_time', endOfDay)
+      .gte('entry_time', `${today}T00:00:00`)
+      .lte('entry_time', `${today}T23:59:59`)
       .eq('is_recognized', true)
       .order('entry_time', { ascending: false }),
   ]);
@@ -223,7 +185,7 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
   const idToEmployeeId = new Map<string, string>();
   uniqueUsers.forEach((u) => {
     const employeeKey = u.employee_id || u.id;
-    [u.employee_id, u.user_id, u.id, u.name.trim().toLowerCase()].filter(Boolean).forEach((id) => {
+    [u.employee_id, u.user_id, u.id].filter(Boolean).forEach((id) => {
       idToEmployeeId.set(String(id), employeeKey);
     });
   });
@@ -243,8 +205,6 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
       (r.device_info as any)?.employee_id,
       r.user_id,
       r.id,
-      r.student_name?.trim().toLowerCase(),
-      metadata.name?.trim().toLowerCase(),
     ]
       .filter(Boolean)
       .map(String);

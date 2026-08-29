@@ -215,20 +215,41 @@ const LiveAttendanceFeed: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Status Pill */}
+                {/* Status Pill & Mode Indicator */}
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-wider ${
-                      isPresent
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                        : isLate
-                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                    }`}
-                  >
-                    {isPresent ? 'Present' : isLate ? 'Late' : 'Absent'}
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    {(() => {
+                      const isGate =
+                        record.device_info?.gate === true ||
+                        record.device_info?.type === 'raspberry-pi-terminal' ||
+                        record.device_info?.source === 'gate-mode' ||
+                        record.device_info?.source === 'raspberry-pi-terminal' ||
+                        record.device_info?.metadata?.capture_mode === 'gate-mode' ||
+                        (record as any).source === 'gate-mode' ||
+                        (record as any).capture_mode === 'gate-mode';
+
+                      if (isGate) {
+                        return (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 flex items-center gap-1">
+                            🚪 Gate Mode
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-wider ${
+                        isPresent
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                          : isLate
+                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                      }`}
+                    >
+                      {isPresent ? 'Present' : isLate ? 'Late' : 'Absent'}
+                    </Badge>
+                  </div>
                   <span className="text-[10px] text-muted-foreground/70 flex items-center gap-0.5">
                     <ShieldCheck className="h-2.5 w-2.5 text-blue-400" /> Face Verified
                   </span>
