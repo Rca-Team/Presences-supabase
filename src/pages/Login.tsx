@@ -13,6 +13,28 @@ import { Lock, Mail, ArrowLeft, Scan, BookOpen, Shield, Bell } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { motion } from 'framer-motion';
+import { hasTeacherAccess } from '@/utils/teacherAccess';
+
+const resolvePostLoginRoute = async (userId: string, defaultTarget: string) => {
+  if (defaultTarget && defaultTarget !== '/attendance') return defaultTarget;
+  try {
+    const { data: adminRole } = await (supabase as any)
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (adminRole?.role === 'admin' || adminRole?.role === 'principal') {
+      return '/admin';
+    }
+    if (adminRole?.role === 'teacher' || (await hasTeacherAccess(userId))) {
+      return '/teacher';
+    }
+  } catch {
+    // fallback
+  }
+  return '/attendance';
+};
 
 const getSignInErrorDetails = (error: any) => {
   const message = (error?.message || '').toLowerCase();
@@ -79,18 +101,25 @@ const Login = () => {
   }, [queryRedirect]);
   
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const handleAuthRouting = async (session: any) => {
+      if (!session?.user?.id) return;
+      sessionStorage.removeItem('auth_redirect_to');
+      const target = await resolvePostLoginRoute(session.user.id, from);
+      navigate(target, { replace: true });
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        sessionStorage.removeItem('auth_redirect_to');
-        navigate(from, { replace: true });
+        handleAuthRouting(session);
       }
     });
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        sessionStorage.removeItem('auth_redirect_to');
-        navigate(from, { replace: true });
+        handleAuthRouting(session);
       }
     });
+
     return () => subscription.unsubscribe();
   }, [navigate, from]);
   

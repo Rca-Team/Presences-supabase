@@ -34,6 +34,7 @@ import {
   ShieldCheck,
   Zap,
   SlidersHorizontal,
+  MessageSquare,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,6 +47,8 @@ import {
   type TeacherPermissions,
   DEFAULT_TEACHER_PERMISSIONS,
 } from '@/utils/teacherAccess';
+import TeacherHeroDeck from './TeacherHeroDeck';
+import TeacherMonthlyRegister from './TeacherMonthlyRegister';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
 import { SECTIONS, CLASSES } from '@/constants/schoolConfig';
 
@@ -119,17 +122,33 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
   const [isSendingNotif, setIsSendingNotif] = useState(false);
 
   const [permissions, setPermissions] = useState<TeacherPermissions>(DEFAULT_TEACHER_PERMISSIONS);
+  const [teacherProfile, setTeacherProfile] = useState<{ name: string; email: string; avatarUrl?: string }>({
+    name: 'Faculty Teacher',
+    email: '',
+    avatarUrl: '',
+  });
 
-  // Load teacher class assignments and permissions
+  // Load teacher class assignments, permissions, and profile
   const loadTeacherAssignments = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const [categories, perms] = await Promise.all([
+      const [categories, perms, profileRes, authRes] = await Promise.all([
         fetchTeacherCategories(userId),
         fetchTeacherPermissions(userId),
+        supabase.from('profiles').select('display_name, username, avatar_url, parent_email').eq('user_id', userId).maybeSingle(),
+        supabase.auth.getUser(),
       ]);
+
       setPermissions(perms);
+
+      const userProfile = profileRes.data;
+      const authUser = authRes.data?.user;
+      setTeacherProfile({
+        name: userProfile?.display_name || userProfile?.username || authUser?.email?.split('@')[0] || 'Faculty Teacher',
+        email: authUser?.email || userProfile?.parent_email || '',
+        avatarUrl: userProfile?.avatar_url || '',
+      });
 
       let list: ClassAssignment[] = categories
         .map(c => {
@@ -324,6 +343,36 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
     });
     setManualMarks(allPresent);
     toast({ title: 'Marked All Present', description: 'Click Save Attendance to persist' });
+  };
+
+  const handleMarkAllRemainingAbsent = () => {
+    const updated: Record<string, 'present' | 'late' | 'absent'> = { ...manualMarks };
+    students.forEach(s => {
+      if (!updated[s.id] && (!s.today_status || s.today_status === 'unmarked')) {
+        updated[s.id] = 'absent';
+      }
+    });
+    setManualMarks(updated);
+    toast({ title: 'Unmarked set to Absent', description: 'Click Save Attendance to persist' });
+  };
+
+  const openWhatsAppParent = (student: ClassStudent, status?: string) => {
+    const rawPhone = student.parent_phone || '';
+    const phone = rawPhone.replace(/\D/g, '');
+    if (!phone) {
+      toast({
+        title: 'No phone registered',
+        description: `No parent phone number found for ${student.name}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
+    const currentStatus = status || manualMarks[student.id] || (student.today_status !== 'unmarked' ? student.today_status : 'absent');
+    const msg = encodeURIComponent(
+      `Namaste, this is an official update from Class Teacher (${teacherProfile.name}) of Class ${activeClass?.category} regarding ${student.name}. Today's attendance status is recorded as: ${String(currentStatus).toUpperCase()} on ${new Date().toLocaleDateString('en-IN')}. Please contact the school if any questions.`
+    );
+    window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
   };
 
   const handleSaveManualAttendance = async () => {
@@ -534,60 +583,18 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
 
   return (
     <div className="space-y-6">
-      {/* Top Header & Class Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-950/40 via-slate-900/60 to-slate-950 border border-blue-900/30 backdrop-blur-xl">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
-            <GraduationCap className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg md:text-xl font-bold tracking-tight text-foreground">
-                Class Teacher Workspace
-              </h1>
-              <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-xs">
-                Scoped Class Mode
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
-            </p>
-          </div>
-        </div>
-
-        {/* Assigned Classes Bar */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground font-medium hidden sm:inline">Active Class:</span>
-          {assignments.map(a => {
-            const isSelected = activeClass?.category === a.category;
-            return (
-              <Button
-                key={a.category}
-                size="sm"
-                variant={isSelected ? 'default' : 'outline'}
-                onClick={() => setActiveClass(a)}
-                className={`text-xs h-8 px-3 rounded-xl transition-all ${
-                  isSelected
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 font-semibold'
-                    : 'border-border/60 hover:bg-muted/60'
-                }`}
-              >
-                Class {a.class}–{a.section}
-              </Button>
-            );
-          })}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={loadClassStudents}
-            disabled={isRefreshing}
-            className="h-8 w-8 p-0 rounded-xl"
-            title="Refresh Class Data"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
+      {/* Top Personalized Hero Deck & Live Schedule */}
+      <TeacherHeroDeck
+        teacherName={teacherProfile.name}
+        teacherEmail={teacherProfile.email}
+        avatarUrl={teacherProfile.avatarUrl}
+        activeClass={activeClass}
+        assignments={assignments}
+        onSelectClass={setActiveClass}
+        onRefresh={loadClassStudents}
+        isRefreshing={isRefreshing}
+        totalStudents={students.length}
+      />
 
       {activeClass && (
         <>
@@ -661,6 +668,9 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                 <TabsTrigger value="attendance" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
                   <Camera className="h-4 w-4" /> Take Attendance
                 </TabsTrigger>
+                <TabsTrigger value="register" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
+                  <Calendar className="h-4 w-4" /> Monthly Register
+                </TabsTrigger>
                 <TabsTrigger value="students" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
                   <Users className="h-4 w-4" /> Student Management ({students.length})
                 </TabsTrigger>
@@ -686,7 +696,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                       size="sm"
                       variant={attendanceMode === 'face' ? 'default' : 'ghost'}
                       onClick={() => setAttendanceMode('face')}
-                      className={`text-xs h-7 rounded-lg gap-1.5 ${attendanceMode === 'face' ? 'bg-blue-600 text-white' : ''}`}
+                      className={`text-xs h-7 rounded-lg gap-1.5 ${attendanceMode === 'face' ? 'bg-blue-600 text-white font-bold' : ''}`}
                     >
                       <Scan className="h-3.5 w-3.5" /> AI Face Scanner (Scoped)
                     </Button>
@@ -694,7 +704,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                       size="sm"
                       variant={attendanceMode === 'manual' ? 'default' : 'ghost'}
                       onClick={() => setAttendanceMode('manual')}
-                      className={`text-xs h-7 rounded-lg gap-1.5 ${attendanceMode === 'manual' ? 'bg-blue-600 text-white' : ''}`}
+                      className={`text-xs h-7 rounded-lg gap-1.5 ${attendanceMode === 'manual' ? 'bg-blue-600 text-white font-bold' : ''}`}
                     >
                       <UserCheck className="h-3.5 w-3.5" /> 1-Click Roll Call Grid
                     </Button>
@@ -702,20 +712,28 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                 </div>
 
                 {attendanceMode === 'manual' && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={handleMarkAllPresent}
-                      className="text-xs h-8 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                      className="text-xs h-8 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 font-medium"
                     >
                       <Check className="h-3.5 w-3.5 mr-1" /> Mark All Present
                     </Button>
                     <Button
                       size="sm"
+                      variant="outline"
+                      onClick={handleMarkAllRemainingAbsent}
+                      className="text-xs h-8 text-rose-600 border-rose-500/30 hover:bg-rose-500/10 font-medium"
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1" /> Mark Remaining Absent
+                    </Button>
+                    <Button
+                      size="sm"
                       onClick={handleSaveManualAttendance}
                       disabled={isSavingAttendance}
-                      className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                     >
                       {isSavingAttendance ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
                       Save Attendance
@@ -794,7 +812,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                               </div>
                             </div>
 
-                            {/* 3-State Toggle Pills */}
+                            {/* 3-State Toggle Pills & Quick WhatsApp */}
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button
                                 type="button"
@@ -829,6 +847,18 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                               >
                                 Absent
                               </button>
+
+                              {student.parent_phone && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openWhatsAppParent(student)}
+                                  className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg ml-0.5"
+                                  title="WhatsApp Parent Alert"
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
@@ -837,6 +867,16 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                   </CardContent>
                 </Card>
               )}
+            </TabsContent>
+
+            {/* TAB: MONTHLY ATTENDANCE REGISTER */}
+            <TabsContent value="register" className="space-y-4 m-0">
+              <TeacherMonthlyRegister
+                classNameNumber={activeClass.class}
+                section={activeClass.section}
+                category={activeClass.category}
+                students={students}
+              />
             </TabsContent>
 
             {/* TAB 2: STUDENT MANAGEMENT (Their Class Only) */}

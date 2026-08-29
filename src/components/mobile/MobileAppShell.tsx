@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Home, ScanLine, UserPlus, ShieldCheck, UserCircle, LayoutDashboard } from "lucide-react";
+import { Home, ScanLine, UserPlus, ShieldCheck, UserCircle, LayoutDashboard, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useUserRole";
