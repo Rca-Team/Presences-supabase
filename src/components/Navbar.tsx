@@ -67,7 +67,7 @@ const Navbar = () => {
   const navLinks = [
     { text: 'Home', path: '/', show: true },
     { text: 'Parent Portal', path: '/parent', show: !isAuthenticated },
-    { text: 'Teacher Portal', path: '/teacher', show: isAuthenticated && (isTeacher || isAdminOrPrincipal) },
+    { text: 'Teacher Portal', path: '/teacher', show: isAuthenticated && isTeacher && !isAdminOrPrincipal },
     { text: 'Profile', path: '/profile', show: isAuthenticated },
     { text: 'Register', path: '/register', show: isAuthenticated },
     { text: 'Attendance', path: '/attendance', show: isAuthenticated },

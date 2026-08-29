@@ -12,7 +12,15 @@ const TeacherPortal: React.FC = () => {
 
   useEffect(() => {
     if (roleLoading) return;
-    if (!role || !['teacher', 'admin', 'principal'].includes(role)) {
+    if (!role) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    if (role === 'admin' || role === 'principal') {
+      navigate('/admin', { replace: true });
+      return;
+    }
+    if (role !== 'teacher') {
       navigate('/login', { replace: true });
     }
   }, [role, roleLoading, navigate]);
