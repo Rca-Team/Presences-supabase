@@ -76,8 +76,6 @@ export const generatePrintableReport = async ({
   const registeredEmployeeId = selectedFace.employee_id || deviceInfo?.metadata?.employee_id || deviceInfo?.employee_id;
   const registeredUserId = regRecord.user_id || selectedFace.recordId;
   const faceDescriptor = deviceInfo?.metadata?.faceDescriptor;
-  
-  console.log('Report matching identifiers:', { registeredEmployeeId, registeredUserId });
 
   // Now get all attendance records for the last 30 days (ascending for earliest-first)
   const { data: allAttendanceRecords, error: attendanceError } = await supabase
@@ -129,8 +127,6 @@ export const generatePrintableReport = async ({
       return false;
     });
   }
-  
-  console.log(`Found ${attendanceRecords.length} matching attendance records for ${selectedFace.name}`);
 
   // Helper function to calculate descriptor similarity
   function calculateDescriptorSimilarity(desc1: number[], desc2: number[]): number {
@@ -818,8 +814,6 @@ export const exportToCSV = async ({
   const registeredUserId = regRecord.user_id || selectedFace.recordId;
   const faceDescriptor = regDeviceInfo?.metadata?.faceDescriptor;
 
-  console.log('CSV export matching identifiers:', { registeredEmployeeId, registeredUserId });
-
   // Now get all attendance records for the last 30 days
   const { data: allAttendanceRecords, error: attendanceError } = await supabase
     .from('attendance_records')
@@ -871,7 +865,6 @@ export const exportToCSV = async ({
     });
   }
 
-  console.log(`CSV: Found ${attendanceRecords.length} matching attendance records for ${selectedFace.name}`);
   // Helper function to calculate descriptor similarity for CSV
   function calculateDescriptorSimilarityCSV(desc1: number[], desc2: number[]): number {
     if (desc1.length !== desc2.length) return 0;

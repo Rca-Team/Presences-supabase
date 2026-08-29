@@ -7,10 +7,24 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node dependencies
 node_modules
 dist
 dist-ssr
 *.local
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.dump
+*.sql.gz
 
 # Editor directories and files
 .vscode/*
@@ -22,7 +36,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
 __pycache__/
 *.pyc
 *.db
+*.sqlite

@@ -78,16 +78,6 @@ const PresenceTracker: React.FC<PresenceTrackerProps> = ({
       setViewerCount(users.length);
     });
 
-    // Handle join events
-    presenceChannel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-      console.log('User joined:', key, newPresences);
-    });
-
-    // Handle leave events
-    presenceChannel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-      console.log('User left:', key, leftPresences);
-    });
-
     // Subscribe and track presence
     presenceChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {

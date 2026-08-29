@@ -353,8 +353,8 @@ const UserAccessManager: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 md:grid-cols-6">
-            <Input className="md:col-span-2" placeholder="teacher@school.com" value={tEmail} onChange={(e) => setTEmail(e.target.value)} />
-            <Input placeholder="Password" type="text" value={tPass} onChange={(e) => setTPass(e.target.value)} />
+            <Input className="md:col-span-2" placeholder="teacher@school.com" value={tEmail} onChange={(e) => setTEmail(e.target.value)} autoComplete="off" />
+            <Input placeholder="Password" type="password" value={tPass} onChange={(e) => setTPass(e.target.value)} autoComplete="new-password" />
             <Input placeholder="Display name (optional)" value={tName} onChange={(e) => setTName(e.target.value)} />
             <Select value={tClass} onValueChange={setTClass}>
               <SelectTrigger><SelectValue placeholder="Class" /></SelectTrigger>
