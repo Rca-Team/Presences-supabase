@@ -39,7 +39,13 @@ import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
-import { fetchTeacherCategories, parseClassSection } from '@/utils/teacherAccess';
+import {
+  fetchTeacherCategories,
+  parseClassSection,
+  fetchTeacherPermissions,
+  type TeacherPermissions,
+  DEFAULT_TEACHER_PERMISSIONS,
+} from '@/utils/teacherAccess';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
 import { SECTIONS, CLASSES } from '@/constants/schoolConfig';
 
@@ -112,12 +118,19 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
   const [notifMessage, setNotifMessage] = useState('');
   const [isSendingNotif, setIsSendingNotif] = useState(false);
 
-  // Load teacher class assignments
+  const [permissions, setPermissions] = useState<TeacherPermissions>(DEFAULT_TEACHER_PERMISSIONS);
+
+  // Load teacher class assignments and permissions
   const loadTeacherAssignments = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const categories = await fetchTeacherCategories(userId);
+      const [categories, perms] = await Promise.all([
+        fetchTeacherCategories(userId),
+        fetchTeacherPermissions(userId),
+      ]);
+      setPermissions(perms);
+
       let list: ClassAssignment[] = categories
         .map(c => {
           const parsed = parseClassSection(c);
