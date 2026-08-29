@@ -839,8 +839,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = () =>
                     </div>
                   </CardContent>
                 </Card>
-              )}
-            </TabsContent>
+              </TabsContent>
 
             {/* TAB: MONTHLY ATTENDANCE REGISTER */}
             <TabsContent value="register" className="space-y-4 m-0">
