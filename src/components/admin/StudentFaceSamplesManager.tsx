@@ -289,6 +289,8 @@ const StudentFaceSamplesManager: React.FC = () => {
 
   // States for operations
   const [deletingStudent, setDeletingStudent] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<StudentGroup | null>(null);
+  const [deleteStudentDialogOpen, setDeleteStudentDialogOpen] = useState(false);
   const [reregisteringStudent, setReregisteringStudent] = useState(false);
   const [exportingZip, setExportingZip] = useState(false);
   const [exportProgress, setExportProgress] = useState<OperationProgress | null>(null);
@@ -752,6 +754,140 @@ const StudentFaceSamplesManager: React.FC = () => {
       if (transferSample.source_table === 'face_descriptors') syncDescriptorCache().catch(() => {});
     } catch (err: any) {
       toast({ title: 'Transfer Failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  // Delete Student Entirely from Database and Website
+  const handleDeleteStudentEntirely = async (student: StudentGroup) => {
+    if (!student) return;
+    setDeletingStudent(true);
+    try {
+      const studentName = student.name;
+      const userId = student.userId;
+      const empId = student.employeeId;
+      const rollNo = student.rollNumber;
+      
+      const candidateUserIds = [userId].filter(Boolean) as string[];
+      const candidateEmpIds = [empId, rollNo].filter(Boolean) as string[];
+      const candidateNames = (studentName && studentName !== 'Student' && studentName !== 'Unknown') ? [studentName] : [];
+
+      // 1. Delete all face descriptors
+      if (candidateUserIds.length > 0) {
+        await supabase.from('face_descriptors').delete().in('user_id', candidateUserIds);
+      }
+      if (candidateEmpIds.length > 0) {
+        await supabase.from('face_descriptors').delete().in('student_id', candidateEmpIds);
+      }
+      if (candidateNames.length > 0) {
+        await supabase.from('face_descriptors').delete().in('label', candidateNames);
+      }
+      const descriptorSampleIds = student.samples.filter((s) => s.source_table === 'face_descriptors').map((s) => s.id);
+      if (descriptorSampleIds.length > 0) {
+        await supabase.from('face_descriptors').delete().in('id', descriptorSampleIds);
+      }
+
+      // 2. Delete all attendance records
+      if (candidateUserIds.length > 0) {
+        await supabase.from('attendance_records').delete().in('user_id', candidateUserIds);
+      }
+      if (candidateEmpIds.length > 0) {
+        await supabase.from('attendance_records').delete().in('student_id', candidateEmpIds);
+      }
+      if (candidateNames.length > 0) {
+        await supabase.from('attendance_records').delete().in('student_name', candidateNames);
+      }
+      const attendanceSampleIds = student.samples.filter((s) => s.source_table === 'attendance_records').map((s) => s.id);
+      if (attendanceSampleIds.length > 0) {
+        await supabase.from('attendance_records').delete().in('id', attendanceSampleIds);
+      }
+
+      // 3. Delete profiles
+      if (candidateUserIds.length > 0) {
+        await supabase.from('profiles').delete().in('user_id', candidateUserIds);
+      }
+      if (candidateEmpIds.length > 0) {
+        await supabase.from('profiles').delete().in('employee_id', candidateEmpIds);
+        await supabase.from('profiles').delete().in('roll_number', candidateEmpIds);
+        await supabase.from('profiles').delete().in('admission_number', candidateEmpIds);
+      }
+      if (candidateNames.length > 0) {
+        await supabase.from('profiles').delete().in('full_name', candidateNames);
+        await supabase.from('profiles').delete().in('display_name', candidateNames);
+      }
+
+      // 4. Delete related secondary tables
+      if (candidateEmpIds.length > 0) {
+        await supabase.from('gate_entries').delete().in('student_id', candidateEmpIds);
+        await supabase.from('attendance_predictions').delete().in('student_id', candidateEmpIds);
+        await supabase.from('attendance_points').delete().in('student_id', candidateEmpIds);
+        await supabase.from('student_badges').delete().in('student_id', candidateEmpIds);
+        await supabase.from('wellness_scores').delete().in('student_id', candidateEmpIds);
+        await supabase.from('late_entries').delete().in('student_id', candidateEmpIds);
+      }
+      if (candidateNames.length > 0) {
+        await supabase.from('gate_entries').delete().in('student_name', candidateNames);
+        await supabase.from('late_entries').delete().in('student_name', candidateNames);
+      }
+      if (candidateUserIds.length > 0) {
+        await supabase.from('emotion_events').delete().in('user_id', candidateUserIds);
+        await supabase.from('notifications').delete().in('user_id', candidateUserIds);
+        await supabase.from('notification_log').delete().in('user_id', candidateUserIds);
+        await supabase.from('user_roles').delete().in('user_id', candidateUserIds);
+      }
+
+      // 5. Clean up Storage files if possible
+      const storageBuckets = ['face-images', 'attendance-training-faces', 'student-registration-faces', 'public'];
+      const pathsToDelete: { bucket: string; path: string }[] = [];
+      const allImageUrls = [student.avatarUrl, ...student.samples.map((s) => s.image_url)].filter(Boolean) as string[];
+
+      for (const rawUrl of allImageUrls) {
+        for (const bucket of storageBuckets) {
+          const path = parseStoragePathFromUrl(rawUrl, bucket);
+          if (path) {
+            pathsToDelete.push({ bucket, path });
+          }
+        }
+      }
+
+      for (const item of pathsToDelete) {
+        try {
+          await supabase.storage.from(item.bucket).remove([item.path]);
+        } catch {
+          // ignore storage delete failures silently
+        }
+      }
+
+      // 6. Synchronize AI model descriptor cache
+      await syncDescriptorCache(true).catch(() => {});
+
+      // 7. Update UI state
+      toast({
+        title: 'Student Permanently Deleted',
+        description: `Successfully removed ${studentName} (${student.samples.length} photos & all database records) entirely from the database and website.`,
+      });
+
+      setDeleteStudentDialogOpen(false);
+      setStudentToDelete(null);
+
+      // Select another student if the deleted one was selected
+      setGroups((prev) => {
+        const remaining = prev.filter((g) => g.userId !== student.userId && g.employeeId !== student.employeeId);
+        if (selectedUserId === student.userId || selectedUserId === student.employeeId) {
+          setSelectedUserId(remaining.length > 0 ? (remaining[0].userId || remaining[0].employeeId) : '');
+        }
+        return remaining;
+      });
+
+      await fetchSamples({ silent: true });
+    } catch (err: any) {
+      console.error('Delete student error:', err);
+      toast({
+        title: 'Delete Failed',
+        description: err.message || 'Could not completely delete student from database.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingStudent(false);
     }
   };
 
@@ -1406,10 +1542,10 @@ const StudentFaceSamplesManager: React.FC = () => {
                     const isTrained = slotCount > 0;
 
                     return (
-                      <button
+                      <div
                         key={`${g.userId || 'u'}-${g.employeeId || 'e'}`}
                         onClick={() => setSelectedUserId(g.userId || g.employeeId)}
-                        className={`w-full text-left p-3 rounded-2xl transition-all flex items-center gap-3 ${
+                        className={`w-full text-left p-3 rounded-2xl transition-all flex items-center gap-3 cursor-pointer group ${
                           isSelected
                             ? 'border border-primary/50 bg-primary/10 shadow-md shadow-primary/5'
                             : 'border border-transparent hover:border-border/60 hover:bg-muted/30'
@@ -1436,19 +1572,35 @@ const StudentFaceSamplesManager: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Pills */}
-                        <div className="shrink-0 flex flex-col items-end gap-1">
-                          <Badge
-                            variant={isTrained ? 'default' : 'outline'}
-                            className="text-[10px] font-bold px-1.5 py-0 rounded-md"
+                        {/* Pills & Action */}
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge
+                              variant={isTrained ? 'default' : 'outline'}
+                              className="text-[10px] font-bold px-1.5 py-0 rounded-md"
+                            >
+                              {slotCount} slots
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {g.samples.length} photos
+                            </span>
+                          </div>
+
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title={`Delete ${g.name} entirely from database`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setStudentToDelete(g);
+                              setDeleteStudentDialogOpen(true);
+                            }}
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/15 opacity-0 group-hover:opacity-100 transition-all shrink-0"
                           >
-                            {slotCount} slots
-                          </Badge>
-                          <span className="text-[10px] text-muted-foreground font-mono">
-                            {g.samples.length} photos
-                          </span>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1525,6 +1677,20 @@ const StudentFaceSamplesManager: React.FC = () => {
                     className="rounded-xl border-border/70 text-xs font-bold gap-1.5"
                   >
                     <ArrowRightLeft className="h-3.5 w-3.5 text-primary" /> Merge
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setStudentToDelete(selectedGroup);
+                      setDeleteStudentDialogOpen(true);
+                    }}
+                    disabled={deletingStudent}
+                    className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold gap-1.5 shadow-md shadow-destructive/20 active:scale-95 transition-all"
+                  >
+                    <Trash2 className={`h-3.5 w-3.5 ${deletingStudent ? 'animate-spin' : ''}`} />
+                    Delete Student Entirely
                   </Button>
                 </div>
               </div>
@@ -1817,6 +1983,102 @@ const StudentFaceSamplesManager: React.FC = () => {
         targetUserId={dedupTargetUserId}
         onCompleted={() => fetchSamples({ silent: true })}
       />
+
+      {/* Delete Student Entirely Confirmation Modal */}
+      <Dialog
+        open={deleteStudentDialogOpen}
+        onOpenChange={(open) => {
+          if (!deletingStudent) {
+            setDeleteStudentDialogOpen(open);
+            if (!open) setStudentToDelete(null);
+          }
+        }}
+      >
+        <DialogContent className="rounded-3xl border border-destructive/40 bg-card/95 backdrop-blur-2xl max-w-lg shadow-2xl">
+          <DialogHeader className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-destructive/15 text-destructive shrink-0">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-foreground">
+                  Delete Student Entirely
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Permanently erase student records and biometric data across the whole database and website.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {studentToDelete && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-sm text-primary overflow-hidden shrink-0">
+                    {studentToDelete.avatarUrl ? (
+                      <img src={studentToDelete.avatarUrl} alt={studentToDelete.name} className="h-full w-full object-cover" />
+                    ) : (
+                      studentToDelete.name.slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-extrabold text-foreground">{studentToDelete.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                      <span>ID: {studentToDelete.employeeId || 'N/A'}</span>
+                      {studentToDelete.classSection && <span>• Class {studentToDelete.classSection}</span>}
+                      {studentToDelete.rollNumber && <span>• Roll: {studentToDelete.rollNumber}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-destructive/15 pt-2 text-xs text-destructive font-medium space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    The following will be completely erased:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground pl-1 text-[11px]">
+                    <li>Student profile & registration accounts ({studentToDelete.name})</li>
+                    <li>All {studentToDelete.samples.filter((s) => s.source_table === 'face_descriptors').length} AI face model descriptor slots</li>
+                    <li>All {studentToDelete.samples.filter((s) => s.source_table === 'attendance_records').length} attendance recognition photos</li>
+                    <li>Complete attendance history, points, and gate logs</li>
+                    <li>Associated cloud storage photo files</li>
+                  </ul>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Are you sure you want to delete <strong>{studentToDelete.name}</strong> entirely? This action is immediate and <strong>cannot be undone</strong>.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDeleteStudentDialogOpen(false);
+                setStudentToDelete(null);
+              }}
+              disabled={deletingStudent}
+              className="rounded-xl text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => studentToDelete && handleDeleteStudentEntirely(studentToDelete)}
+              disabled={deletingStudent}
+              className="rounded-xl text-xs font-bold gap-1.5 shadow-lg shadow-destructive/30"
+            >
+              <Trash2 className={`h-3.5 w-3.5 ${deletingStudent ? 'animate-spin' : ''}`} />
+              {deletingStudent ? 'Deleting Entirely...' : 'Yes, Delete Completely from Website'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Full-Screen Image Preview Modal */}
       <Dialog open={!!previewImageUrl} onOpenChange={(open) => !open && setPreviewImageUrl(null)}>
