@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom';
 import { useReducedMotion } from 'framer-motion';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
 import { useCursorDragScroll } from '@/hooks/useCursorDragScroll';
-import { MobileSmartScroll } from '@/components/MobileSmartScroll';
 
 interface RoyalScrollContextType {
   lenis: Lenis | null;
@@ -167,7 +166,6 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
           }}
         />
       </div>
-      <MobileSmartScroll />
       {children}
     </RoyalScrollContext.Provider>
   );
