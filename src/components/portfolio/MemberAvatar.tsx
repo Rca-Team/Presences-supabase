@@ -53,19 +53,19 @@ export function MemberAvatar({
   const h = hueFrom(name || 'x');
 
   return (
-    <div className={cn('relative inline-flex overflow-hidden select-none', className)}>
+    <div className={cn('relative inline-flex overflow-hidden select-none transition-transform duration-300', className)}>
       {showImage ? (
         <img
           src={resolvedImage}
           alt={alt || name}
           onError={() => setFailed(true)}
-          className={cn('h-full w-full object-cover', imgClassName)}
+          className={cn('h-full w-full object-cover transition-transform duration-500 hover:scale-108', imgClassName)}
           loading="lazy"
         />
       ) : (
         <div
           className={cn(
-            'flex h-full w-full items-center justify-center font-bold text-white',
+            'flex h-full w-full items-center justify-center font-bold text-white shadow-inner',
             fallbackClassName,
           )}
           style={{

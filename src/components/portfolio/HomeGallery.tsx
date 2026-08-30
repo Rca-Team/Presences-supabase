@@ -29,6 +29,45 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import type { PortfolioGalleryItem } from '@/hooks/usePortfolioData';
 
+export type GalleryVisualTheme = 'cyber' | 'royal' | 'crystal' | 'vintage';
+export type LightboxFilter = 'normal' | 'cyberpunk' | 'golden' | 'vivid' | 'noir' | 'matrix';
+
+const themeStyles: Record<GalleryVisualTheme, { card: string; overlay: string; badge: string; ring: string }> = {
+  cyber: {
+    card: 'border-cyan-500/30 hover:border-cyan-400/80 hover:shadow-cyan-500/20',
+    overlay: 'from-black/90 via-cyan-950/30 to-transparent',
+    badge: 'border-cyan-400/40 bg-cyan-950/85 text-cyan-300 shadow-cyan-500/20',
+    ring: 'ring-cyan-500/30',
+  },
+  royal: {
+    card: 'border-amber-500/35 hover:border-amber-400/90 hover:shadow-amber-500/25',
+    overlay: 'from-black/90 via-amber-950/30 to-transparent',
+    badge: 'border-amber-400/40 bg-amber-950/85 text-amber-300 shadow-amber-500/20',
+    ring: 'ring-amber-500/30',
+  },
+  crystal: {
+    card: 'border-white/30 hover:border-white/70 hover:shadow-white/15',
+    overlay: 'from-black/90 via-slate-900/30 to-transparent',
+    badge: 'border-white/30 bg-black/75 text-white shadow-white/10',
+    ring: 'ring-white/30',
+  },
+  vintage: {
+    card: 'border-orange-500/30 hover:border-orange-400/80 hover:shadow-orange-500/20',
+    overlay: 'from-black/90 via-amber-950/40 to-transparent',
+    badge: 'border-orange-400/40 bg-orange-950/85 text-orange-200 shadow-orange-500/20',
+    ring: 'ring-orange-500/30',
+  },
+};
+
+const filterCss: Record<LightboxFilter, string> = {
+  normal: 'none',
+  cyberpunk: 'contrast(120%) saturate(145%) hue-rotate(8deg)',
+  golden: 'sepia(28%) contrast(110%) saturate(135%) brightness(102%)',
+  vivid: 'contrast(125%) saturate(155%) brightness(104%)',
+  noir: 'grayscale(100%) contrast(135%) brightness(95%)',
+  matrix: 'hue-rotate(85deg) contrast(125%) saturate(160%)',
+};
+
 interface HomeGalleryProps {
   items: PortfolioGalleryItem[];
   defaultLayout?: 'bento' | 'grid' | 'carousel';
@@ -47,8 +86,10 @@ export function HomeGallery({
   className,
 }: HomeGalleryProps) {
   const [layout, setLayout] = useState<'bento' | 'grid' | 'carousel'>(defaultLayout);
+  const [theme, setTheme] = useState<GalleryVisualTheme>('cyber');
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxFilter, setLightboxFilter] = useState<LightboxFilter>('normal');
   const [copied, setCopied] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -180,9 +221,29 @@ export function HomeGallery({
           </p>
         </div>
 
-        {/* View Controls (Bento / Grid / Carousel) + Manage Studio Button */}
+        {/* View Controls (Bento / Grid / Carousel), Theme Selector + Manage Studio Button */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center rounded-2xl border border-border/70 bg-card/60 p-1 backdrop-blur-md shadow-sm">
+          {/* Theme Preset Selector */}
+          <div className="flex items-center rounded-2xl border border-border/70 bg-card/60 p-1 backdrop-blur-md shadow-xs">
+            {(['cyber', 'royal', 'crystal', 'vintage'] as GalleryVisualTheme[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTheme(t)}
+                className={cn(
+                  'rounded-xl px-2.5 py-1 text-[11px] font-bold capitalize transition-all',
+                  theme === t
+                    ? 'bg-primary/20 text-primary border border-primary/30 shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+                title={`${t} visual style theme`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center rounded-2xl border border-border/70 bg-card/60 p-1 backdrop-blur-md shadow-xs">
             <button
               type="button"
               onClick={() => setLayout('bento')}
@@ -300,35 +361,39 @@ export function HomeGallery({
               <motion.div
                 key={item.id}
                 layout
-                whileHover={{ y: -4, scale: 1.01 }}
+                whileHover={{ y: -5, scale: 1.015 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                 onClick={() => {
                   setZoomLevel(1);
                   setLightboxIndex(idx);
                 }}
                 className={cn(
-                  'group relative overflow-hidden rounded-3xl border border-white/15 bg-card/60 shadow-xl backdrop-blur-xl cursor-pointer',
+                  'group relative overflow-hidden rounded-3xl border bg-card/70 shadow-xl backdrop-blur-xl cursor-pointer transition-all duration-300',
+                  themeStyles[theme].card,
                   isBig ? 'sm:col-span-2 sm:row-span-2 min-h-[300px]' : 'col-span-1 row-span-1',
                 )}
               >
                 <img
                   src={item.url}
                   alt={item.title || 'Campus photo'}
-                  className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-108"
+                  className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                   loading="lazy"
                 />
 
-                {/* Subtle Neon Glow Gradient */}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent opacity-80 group-hover:opacity-95 transition-opacity" />
+                {/* Dynamic Theme Gradient Overlay */}
+                <div className={cn('pointer-events-none absolute inset-0 bg-gradient-to-t opacity-85 group-hover:opacity-95 transition-opacity', themeStyles[theme].overlay)} />
+
+                {/* Sweeping Light Sheen Reflection on Hover */}
+                <div className="pointer-events-none absolute -inset-full bg-gradient-to-r from-transparent via-white/20 to-transparent -rotate-45 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out" />
 
                 {/* Top Badges */}
                 <div className="absolute left-3.5 top-3.5 right-3.5 flex items-center justify-between">
                   {item.category && (
-                    <span className="rounded-full border border-white/20 bg-black/60 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300 backdrop-blur-md">
+                    <span className={cn('rounded-full border px-3 py-0.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-xs', themeStyles[theme].badge)}>
                       {item.category}
                     </span>
                   )}
-                  <span className="rounded-full bg-black/60 p-1.5 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md">
+                  <span className="rounded-full bg-black/60 p-2 text-white/90 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md shadow-md">
                     <Maximize2 className="h-3.5 w-3.5" />
                   </span>
                 </div>
@@ -339,7 +404,7 @@ export function HomeGallery({
                     {item.title || 'Presences Campus Moment'}
                   </h3>
                   {item.caption && (
-                    <p className={cn('mt-1 line-clamp-2 text-white/70 font-medium leading-relaxed', isBig ? 'text-xs sm:text-sm' : 'text-[11px]')}>
+                    <p className={cn('mt-1 line-clamp-2 text-white/80 font-medium leading-relaxed', isBig ? 'text-xs sm:text-sm' : 'text-[11px]')}>
                       {item.caption}
                     </p>
                   )}
@@ -356,13 +421,16 @@ export function HomeGallery({
           {filteredItems.map((item, idx) => (
             <motion.div
               key={item.id}
-              whileHover={{ y: -3, scale: 1.02 }}
+              whileHover={{ y: -4, scale: 1.03 }}
               transition={{ type: 'spring', stiffness: 350, damping: 25 }}
               onClick={() => {
                 setZoomLevel(1);
                 setLightboxIndex(idx);
               }}
-              className="group relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-card/60 shadow-lg backdrop-blur-md cursor-pointer flex flex-col justify-between"
+              className={cn(
+                'group relative aspect-square overflow-hidden rounded-2xl border bg-card/70 shadow-lg backdrop-blur-md cursor-pointer flex flex-col justify-between transition-all duration-300',
+                themeStyles[theme].card,
+              )}
             >
               <img
                 src={item.url}
@@ -371,15 +439,18 @@ export function HomeGallery({
                 loading="lazy"
               />
 
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
+              <div className={cn('pointer-events-none absolute inset-0 bg-gradient-to-t opacity-70 group-hover:opacity-100 transition-opacity', themeStyles[theme].overlay)} />
 
-              <div className="absolute top-2 right-2 rounded-full bg-black/60 p-1 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md">
-                <Maximize2 className="h-3.5 w-3.5" />
+              {/* Sweeping Light Sheen */}
+              <div className="pointer-events-none absolute -inset-full bg-gradient-to-r from-transparent via-white/20 to-transparent -rotate-45 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out" />
+
+              <div className="absolute top-2 right-2 rounded-full bg-black/60 p-1.5 text-white/90 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md shadow-md">
+                <Maximize2 className="h-3 w-3" />
               </div>
 
               <div className="absolute inset-x-0 bottom-0 p-3">
                 {item.category && (
-                  <span className="inline-block text-[9px] font-extrabold uppercase tracking-wider text-amber-300">
+                  <span className={cn('inline-block text-[9px] font-extrabold uppercase tracking-wider rounded-md px-1.5 py-0.5 mb-1', themeStyles[theme].badge)}>
                     {item.category}
                   </span>
                 )}
@@ -590,14 +661,41 @@ export function HomeGallery({
                 </div>
               </div>
 
+              {/* Lightbox Filter Bar */}
+              <div className="flex items-center justify-between px-4 py-2 bg-black/40 border-b border-white/10 backdrop-blur-md overflow-x-auto gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">
+                  Image Filter:
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {(['normal', 'cyberpunk', 'golden', 'vivid', 'noir', 'matrix'] as LightboxFilter[]).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setLightboxFilter(f)}
+                      className={cn(
+                        'rounded-lg px-2.5 py-0.5 text-[10px] font-bold capitalize transition-all',
+                        lightboxFilter === f
+                          ? 'bg-primary text-primary-foreground shadow-xs'
+                          : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white',
+                      )}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Main Image Stage */}
-              <div className="relative flex-1 min-h-[350px] max-h-[65vh] flex items-center justify-center p-4 bg-black/60 overflow-hidden">
+              <div className="relative flex-1 min-h-[350px] max-h-[65vh] flex items-center justify-center p-4 bg-black/80 overflow-hidden">
                 <motion.img
                   key={activeLightboxItem.id}
                   src={activeLightboxItem.url}
                   alt={activeLightboxItem.title || 'Lightbox photo'}
-                  className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-2xl transition-transform duration-200 select-none"
-                  style={{ transform: `scale(${zoomLevel})` }}
+                  className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-2xl transition-all duration-300 select-none"
+                  style={{
+                    transform: `scale(${zoomLevel})`,
+                    filter: filterCss[lightboxFilter],
+                  }}
                   drag={zoomLevel > 1}
                   dragConstraints={{ left: -300, right: 300, top: -300, bottom: 300 }}
                 />

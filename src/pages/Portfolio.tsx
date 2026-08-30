@@ -151,13 +151,15 @@ export function PublicPortfolioView({
         <div className="px-5 sm:px-8 md:px-12 pb-6 md:pb-8 relative">
           <div className="-mt-16 sm:-mt-20 md:-mt-24 flex flex-col md:flex-row md:items-end justify-between gap-5">
             <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
-              <div className="relative">
-                <img
-                  src={data.profileImage || gauravPhoto}
-                  alt={data.name}
-                  className="h-28 w-28 sm:h-36 sm:w-36 md:h-44 md:w-44 rounded-3xl border-4 border-background object-cover shadow-2xl bg-card"
-                  loading="lazy"
-                />
+              <div className="relative group">
+                <div className="p-1 rounded-3xl bg-gradient-to-tr from-cyan-400 via-primary to-purple-500 shadow-xl shadow-primary/25 transition-transform duration-300 group-hover:scale-105">
+                  <img
+                    src={data.profileImage || gauravPhoto}
+                    alt={data.name}
+                    className="h-28 w-28 sm:h-36 sm:w-36 md:h-44 md:w-44 rounded-[22px] border-2 border-background object-cover shadow-2xl bg-card"
+                    loading="lazy"
+                  />
+                </div>
                 <span className="absolute bottom-2 right-2 flex h-4 w-4">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-background" />
@@ -299,12 +301,12 @@ export function PublicPortfolioView({
                 transition={{ type: 'spring', stiffness: 400, damping: 28 }}
                 className="group relative overflow-hidden rounded-3xl border border-white/10 bg-card/70 backdrop-blur shadow-md flex flex-col justify-between"
               >
-                <div className="relative aspect-video overflow-hidden bg-muted/40">
+                <div className="relative aspect-video overflow-hidden bg-muted/40 group-hover:shadow-lg transition-shadow">
                   {p.image ? (
                     <img
                       src={p.image}
                       alt={p.title}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                       loading="lazy"
                     />
                   ) : (
@@ -312,8 +314,10 @@ export function PublicPortfolioView({
                       <Sparkles className="h-8 w-8 opacity-40" />
                     </div>
                   )}
+                  {/* Hover Light Sheen */}
+                  <div className="pointer-events-none absolute -inset-full bg-gradient-to-r from-transparent via-white/20 to-transparent -rotate-45 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out" />
                   {p.year && (
-                    <span className="absolute right-3 top-3 rounded-full bg-background/90 px-2.5 py-0.5 text-[10px] font-bold text-foreground shadow-sm backdrop-blur">
+                    <span className="absolute right-3 top-3 rounded-full border border-white/20 bg-background/90 px-2.5 py-0.5 text-[10px] font-bold text-foreground shadow-sm backdrop-blur-md">
                       {p.year}
                     </span>
                   )}
