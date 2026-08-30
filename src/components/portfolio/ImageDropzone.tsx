@@ -172,15 +172,6 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
             <p className="text-[10px] opacity-70">Supports JPG, PNG, WEBP, GIF</p>
           </div>
         )}
-
-        {uploading && (
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-background/95 px-3 py-2 border-t">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-primary transition-[width] duration-200" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Quick Action & Preset Selectors */}
