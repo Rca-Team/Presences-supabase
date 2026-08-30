@@ -33,15 +33,16 @@ import { cn } from '@/lib/utils';
 import { uploadPortfolioImage } from '@/utils/portfolioUploadHelper';
 import { useToast } from '@/hooks/use-toast';
 
-export type AspectRatioPreset = '16:9' | '4:3' | '1:1' | '21:9' | '3:2' | 'free';
+export type AspectRatioPreset = 'free' | '16:9' | '4:3' | '1:1' | '21:9' | '3:2';
 export type FilterPreset = 'normal' | 'cyberpunk' | 'royal' | 'vivid' | 'noir' | 'matrix' | 'sunset' | 'vintage';
+export type FitMode = 'contain' | 'cover';
 
 interface PhotoStudioModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   imageUrl: string;
   onApply: (newUrl: string) => void;
-  defaultAspect?: '16:9' | '4:3' | '1:1' | '21:9' | '3:2' | 'free';
+  defaultAspect?: AspectRatioPreset;
   title?: string;
 }
 
@@ -65,7 +66,7 @@ export function PhotoStudioModal({
   title = 'Photo Studio & Image Styling',
 }: PhotoStudioModalProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'presets' | 'adjust' | 'crop'>('presets');
+  const [activeTab, setActiveTab] = useState<'presets' | 'adjust' | 'crop'>('crop');
   
   // Transform states
   const [zoom, setZoom] = useState(1);
@@ -73,6 +74,7 @@ export function PhotoStudioModal({
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
   const [aspect, setAspect] = useState<AspectRatioPreset>(defaultAspect);
+  const [fitMode, setFitMode] = useState<FitMode>('contain');
   
   // Pan states
   const [panX, setPanX] = useState(0);
@@ -115,6 +117,7 @@ export function PhotoStudioModal({
     setSaturation(100);
     setSepia(0);
     setVignette(false);
+    setFitMode('contain');
     setAspect(defaultAspect);
     toast({ title: 'Adjustments reset to original' });
   };
@@ -140,13 +143,31 @@ export function PhotoStudioModal({
 
   // Aspect ratio calculation
   const getAspectDimensions = (targetAspect: AspectRatioPreset) => {
+    if (targetAspect === 'free' && imageObjRef.current) {
+      const origW = imageObjRef.current.naturalWidth || imageObjRef.current.width || 1280;
+      const origH = imageObjRef.current.naturalHeight || imageObjRef.current.height || 720;
+      const maxDim = 1280;
+      let w = origW;
+      let h = origH;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      return { width: w, height: h, ratioClass: 'aspect-auto', style: { aspectRatio: `${w}/${h}` } };
+    }
+
     switch (targetAspect) {
-      case '16:9': return { width: 1280, height: 720, ratioClass: 'aspect-video' };
-      case '4:3': return { width: 1024, height: 768, ratioClass: 'aspect-[4/3]' };
-      case '1:1': return { width: 800, height: 800, ratioClass: 'aspect-square' };
-      case '21:9': return { width: 1260, height: 540, ratioClass: 'aspect-[21/9]' };
-      case '3:2': return { width: 1200, height: 800, ratioClass: 'aspect-[3/2]' };
-      default: return { width: 1200, height: 800, ratioClass: 'aspect-video' };
+      case '16:9': return { width: 1280, height: 720, ratioClass: 'aspect-video', style: undefined };
+      case '4:3': return { width: 1024, height: 768, ratioClass: 'aspect-[4/3]', style: undefined };
+      case '1:1': return { width: 800, height: 800, ratioClass: 'aspect-square', style: undefined };
+      case '21:9': return { width: 1260, height: 540, ratioClass: 'aspect-[21/9]', style: undefined };
+      case '3:2': return { width: 1200, height: 800, ratioClass: 'aspect-[3/2]', style: undefined };
+      default: return { width: 1280, height: 720, ratioClass: 'aspect-video', style: undefined };
     }
   };
 
@@ -178,6 +199,14 @@ export function PhotoStudioModal({
       ctx.fillStyle = '#0a0a0c';
       ctx.fillRect(0, 0, targetW, targetH);
 
+      // If in contain mode, draw subtle blurred ambient backdrop of the photo
+      if (fitMode === 'contain') {
+        ctx.save();
+        ctx.filter = 'blur(20px) brightness(0.4)';
+        ctx.drawImage(img, -targetW * 0.1, -targetH * 0.1, targetW * 1.2, targetH * 1.2);
+        ctx.restore();
+      }
+
       // 2. Apply Filters
       ctx.filter = activeCssFilter();
 
@@ -187,17 +216,28 @@ export function PhotoStudioModal({
       ctx.rotate((rotation * Math.PI) / 180);
       ctx.scale(flipH ? -zoom : zoom, flipV ? -zoom : zoom);
 
-      // 4. Calculate cover dimensions
+      // 4. Calculate dimensions based on fitMode
       const imgAspect = img.width / img.height;
       const targetAspectNum = targetW / targetH;
       let drawW: number, drawH: number;
 
-      if (imgAspect > targetAspectNum) {
-        drawH = targetH;
-        drawW = targetH * imgAspect;
+      if (fitMode === 'cover') {
+        if (imgAspect > targetAspectNum) {
+          drawH = targetH;
+          drawW = targetH * imgAspect;
+        } else {
+          drawW = targetW;
+          drawH = targetW / imgAspect;
+        }
       } else {
-        drawW = targetW;
-        drawH = targetW / imgAspect;
+        // Contain (No crop: Entire image fits inside target canvas)
+        if (imgAspect > targetAspectNum) {
+          drawW = targetW;
+          drawH = targetW / imgAspect;
+        } else {
+          drawH = targetH;
+          drawW = targetH * imgAspect;
+        }
       }
 
       ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
@@ -231,8 +271,8 @@ export function PhotoStudioModal({
 
       onApply(newCloudUrl);
       toast({
-        title: 'Image Styled & Saved',
-        description: 'New styled photo has been applied to the project.',
+        title: 'Image Styled & Uploaded',
+        description: 'New styled photo has been applied and saved.',
       });
       onOpenChange(false);
     } catch (err: any) {
@@ -287,31 +327,48 @@ export function PhotoStudioModal({
               )}
             >
               {imageUrl ? (
-                <div
-                  className="h-full w-full relative flex items-center justify-center overflow-hidden"
-                  style={{
-                    transform: `translate(${panX}%, ${panY}%) scale(${zoom}) rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
-                    transition: 'transform 0.15s ease-out',
-                  }}
-                >
-                  <img
-                    src={imageUrl}
-                    alt="Editor preview"
-                    className="h-full w-full object-cover select-none pointer-events-none"
-                    style={{ filter: activeCssFilter() }}
-                  />
-                  {vignette && (
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.7)_100%)]" />
+                <div className="h-full w-full relative flex items-center justify-center overflow-hidden">
+                  {fitMode === 'contain' && (
+                    <img
+                      src={imageUrl}
+                      alt="Backdrop"
+                      className="absolute inset-0 h-full w-full object-cover blur-xl scale-125 opacity-40 select-none pointer-events-none"
+                    />
                   )}
+                  <div
+                    className="h-full w-full relative flex items-center justify-center overflow-hidden"
+                    style={{
+                      transform: `translate(${panX}%, ${panY}%) scale(${zoom}) rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
+                      transition: 'transform 0.15s ease-out',
+                    }}
+                  >
+                    <img
+                      src={imageUrl}
+                      alt="Editor preview"
+                      className={cn(
+                        'h-full w-full select-none pointer-events-none transition-all',
+                        fitMode === 'contain' ? 'object-contain' : 'object-cover'
+                      )}
+                      style={{ filter: activeCssFilter() }}
+                    />
+                    {vignette && (
+                      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.7)_100%)]" />
+                    )}
+                  </div>
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">No image to preview</p>
               )}
 
-              {/* Aspect Ratio Badge */}
-              <span className="absolute top-3 left-3 rounded-full bg-black/75 border border-white/20 px-2.5 py-0.5 text-[10px] font-mono font-bold text-amber-300 backdrop-blur-md">
-                {aspect}
-              </span>
+              {/* Aspect Ratio & Fit Mode Badge */}
+              <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                <span className="rounded-full bg-black/75 border border-white/20 px-2.5 py-0.5 text-[10px] font-mono font-bold text-amber-300 backdrop-blur-md">
+                  {aspect === 'free' ? 'Original' : aspect}
+                </span>
+                <span className="rounded-full bg-primary/25 border border-primary/40 px-2 py-0.5 text-[10px] font-mono font-bold text-primary backdrop-blur-md uppercase">
+                  {fitMode}
+                </span>
+              </div>
             </div>
 
             {/* Quick Canvas Transform Controls Bar */}
@@ -499,53 +556,119 @@ export function PhotoStudioModal({
               </TabsContent>
 
               {/* 3. Crop & Framing Tab */}
-              <TabsContent value="crop" className="space-y-4 focus:outline-none">
+              <TabsContent value="crop" className="space-y-4 focus:outline-none max-h-[300px] overflow-y-auto pr-1">
+                {/* Fit Mode Toggle */}
                 <div>
-                  <Label className="text-xs font-bold mb-2 block">Aspect Ratio Preset</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['16:9', '4:3', '1:1', '21:9', '3:2', 'free'] as AspectRatioPreset[]).map((r) => (
+                  <Label className="text-xs font-bold mb-1.5 block">Image Fit Mode</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFitMode('contain');
+                        setZoom(1);
+                        setPanX(0);
+                        setPanY(0);
+                      }}
+                      className={cn(
+                        'flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs font-bold transition-all',
+                        fitMode === 'contain'
+                          ? 'border-primary bg-primary/15 text-primary shadow-xs ring-1 ring-primary'
+                          : 'border-border/60 bg-card/60 text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      <span>Fit Entire Image</span>
+                      <span className="text-[10px] font-normal opacity-75">No cropping / 100% visible</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFitMode('cover')}
+                      className={cn(
+                        'flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs font-bold transition-all',
+                        fitMode === 'cover'
+                          ? 'border-primary bg-primary/15 text-primary shadow-xs ring-1 ring-primary'
+                          : 'border-border/60 bg-card/60 text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      <span>Fill & Zoom</span>
+                      <span className="text-[10px] font-normal opacity-75">Crop to fit frame</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Aspect Ratio Preset */}
+                <div>
+                  <Label className="text-xs font-bold mb-1.5 block">Aspect Ratio Frame</Label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { id: 'free', label: 'Original' },
+                        { id: '16:9', label: '16:9 Video' },
+                        { id: '4:3', label: '4:3 Standard' },
+                        { id: '1:1', label: '1:1 Square' },
+                        { id: '21:9', label: '21:9 Ultra' },
+                        { id: '3:2', label: '3:2 Photo' },
+                      ] as { id: AspectRatioPreset; label: string }[]
+                    ).map((r) => (
                       <button
-                        key={r}
+                        key={r.id}
                         type="button"
-                        onClick={() => setAspect(r)}
+                        onClick={() => setAspect(r.id)}
                         className={cn(
-                          'rounded-xl py-2 text-xs font-bold uppercase transition-all',
-                          aspect === r
-                            ? 'bg-primary text-primary-foreground shadow-sm'
+                          'rounded-xl py-1.5 px-2 text-[11px] font-bold transition-all',
+                          aspect === r.id
+                            ? 'bg-primary text-primary-foreground shadow-xs'
                             : 'border border-border/70 bg-card/60 text-muted-foreground hover:text-foreground'
                         )}
                       >
-                        {r}
+                        {r.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
+                {/* Zoom & Scale Slider */}
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
                     <Label className="text-xs font-semibold">Scale / Zoom Level</Label>
                     <span className="font-mono text-muted-foreground">{zoom.toFixed(1)}x</span>
                   </div>
                   <Slider
-                    min={0.6}
-                    max={2.8}
-                    step={0.1}
+                    min={0.5}
+                    max={3.0}
+                    step={0.05}
                     value={[zoom]}
                     onValueChange={([v]) => setZoom(v)}
                   />
                 </div>
 
+                {/* Horizontal Pan */}
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <Label className="text-xs font-semibold">Horizontal Pan Offset</Label>
+                    <Label className="text-xs font-semibold">Horizontal Pan (X)</Label>
                     <span className="font-mono text-muted-foreground">{panX}%</span>
                   </div>
                   <Slider
-                    min={-40}
-                    max={40}
+                    min={-50}
+                    max={50}
                     step={1}
                     value={[panX]}
                     onValueChange={([v]) => setPanX(v)}
+                  />
+                </div>
+
+                {/* Vertical Pan */}
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1.5">
+                    <Label className="text-xs font-semibold">Vertical Pan (Y)</Label>
+                    <span className="font-mono text-muted-foreground">{panY}%</span>
+                  </div>
+                  <Slider
+                    min={-50}
+                    max={50}
+                    step={1}
+                    value={[panY]}
+                    onValueChange={([v]) => setPanY(v)}
                   />
                 </div>
               </TabsContent>

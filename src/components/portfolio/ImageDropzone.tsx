@@ -29,39 +29,30 @@ const aspectClass: Record<NonNullable<Props['aspect']>, string> = {
 
 export function ImageDropzone({ value, onChange, label, aspect = 'square', className, allowClear = true }: Props) {
   const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [imgError, setImgError] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const upload = useCallback(
-    async (rawFile: File) => {
+  const handleFileSelect = useCallback(
+    (rawFile: File) => {
       if (!rawFile.type.startsWith('image/')) {
         toast({ title: 'Not an image', description: 'Please select a valid image file.', variant: 'destructive' });
         return;
       }
-      setUploading(true);
-      setProgress(25);
-      setImgError(false);
-
-      try {
-        setProgress(60);
-        const uploadedUrl = await uploadPortfolioImage(rawFile);
-        onChange(uploadedUrl);
-        setProgress(100);
-        toast({ title: 'Photo updated' });
-      } catch (e: any) {
-        toast({ title: 'Upload failed', description: e?.message ?? 'Please try another image', variant: 'destructive' });
-      } finally {
-        setUploading(false);
-        setTimeout(() => setProgress(0), 400);
-      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setPendingImageUrl(reader.result);
+          setStudioOpen(true);
+        }
+      };
+      reader.readAsDataURL(rawFile);
     },
-    [onChange, toast],
+    [toast],
   );
 
   const onDrop = (e: React.DragEvent) => {
@@ -69,21 +60,20 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
     e.stopPropagation();
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) void upload(file);
+    if (file) handleFileSelect(file);
   };
 
   const onPaste = (e: React.ClipboardEvent) => {
     const file = Array.from(e.clipboardData.files).find((f) => f.type.startsWith('image/'));
-    if (file) void upload(file);
+    if (file) handleFileSelect(file);
   };
 
   const applyUrl = () => {
     if (!urlDraft.trim()) return;
-    setImgError(false);
-    onChange(urlDraft.trim());
+    setPendingImageUrl(urlDraft.trim());
     setUrlDraft('');
     setShowUrlInput(false);
-    toast({ title: 'Image URL applied' });
+    setStudioOpen(true);
   };
 
   return (
@@ -238,20 +228,26 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void upload(file);
+          if (file) handleFileSelect(file);
           e.target.value = '';
         }}
       />
 
-      {/* Photo Studio Modal */}
-      {value && (
+      {/* Photo Studio & Resize Modal */}
+      {(pendingImageUrl || value) && (
         <PhotoStudioModal
           open={studioOpen}
-          onOpenChange={setStudioOpen}
-          imageUrl={value}
+          onOpenChange={(open) => {
+            setStudioOpen(open);
+            if (!open) setPendingImageUrl(null);
+          }}
+          imageUrl={pendingImageUrl || value || ''}
           defaultAspect={aspect === 'video' ? '16:9' : aspect === 'cover' ? '21:9' : '1:1'}
-          onApply={(newUrl) => onChange(newUrl)}
-          title={`Style ${label || 'Photo'}`}
+          onApply={(newUrl) => {
+            onChange(newUrl);
+            setPendingImageUrl(null);
+          }}
+          title={pendingImageUrl ? `Style & Frame ${label || 'Photo'}` : `Edit & Style ${label || 'Photo'}`}
         />
       )}
     </div>
