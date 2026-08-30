@@ -1,0 +1,9 @@
+android
+ios
+edge
+raspberry-pi-setup
+*.py
+*.pyc
+__pycache__
+replit.nix
+scratch
