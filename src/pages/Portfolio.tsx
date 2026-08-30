@@ -65,6 +65,8 @@ import { ImageDropzone } from '@/components/portfolio/ImageDropzone';
 import { BatchGalleryUploader } from '@/components/portfolio/BatchGalleryUploader';
 import { HomeGallery } from '@/components/portfolio/HomeGallery';
 import { MemberAvatar } from '@/components/portfolio/MemberAvatar';
+import { savePortfolioToIndexedDb, getPortfolioFromIndexedDb } from '@/utils/portfolioCacheDb';
+import { uploadPortfolioImage } from '@/utils/portfolioUploadHelper';
 import teamRcaPhoto from '@/assets/team-rca.jpg';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
@@ -549,11 +551,14 @@ const Portfolio = () => {
 
   const load = async () => {
     setLoading(true);
-    // 1. Try local cache for immediate display
+    // 1. Try local IndexedDB / localStorage cache for immediate display
     try {
-      const cached = localStorage.getItem('gaurav_portfolio_cache');
-      if (cached) {
-        setData(migratePortfolioData(JSON.parse(cached)));
+      const dbCached = await getPortfolioFromIndexedDb();
+      if (dbCached) {
+        setData(migratePortfolioData(dbCached));
+      } else {
+        const cached = localStorage.getItem('gaurav_portfolio_cache');
+        if (cached) setData(migratePortfolioData(JSON.parse(cached)));
       }
     } catch {
       /* ignore */
@@ -570,7 +575,12 @@ const Portfolio = () => {
         try {
           const parsed = migratePortfolioData(JSON.parse(row.value));
           setData(parsed);
-          localStorage.setItem('gaurav_portfolio_cache', JSON.stringify(parsed));
+          await savePortfolioToIndexedDb(parsed);
+          try {
+            localStorage.setItem('gaurav_portfolio_cache', JSON.stringify(parsed));
+          } catch {
+            /* localStorage quota fallback handled by IndexedDB */
+          }
         } catch {
           /* keep current */
         }
@@ -592,18 +602,84 @@ const Portfolio = () => {
     setDirty(true);
   };
 
-  const save = async () => {
-    setSaving(true);
-    const payload = JSON.stringify(data);
+  const sanitizePortfolioImages = async (current: PortfolioData): Promise<PortfolioData> => {
+    const next = { ...current };
 
-    // Save to local cache first
-    try {
-      localStorage.setItem('gaurav_portfolio_cache', payload);
-      window.dispatchEvent(new CustomEvent('portfolio-updated', { detail: data }));
-    } catch (e) {
-      console.warn('localStorage save warning:', e);
+    // Convert any base64 gallery items to storage URLs
+    if (Array.isArray(next.gallery)) {
+      next.gallery = await Promise.all(
+        next.gallery.map(async (g) => {
+          if (g.url?.startsWith('data:image/')) {
+            try {
+              const res = await fetch(g.url);
+              const blob = await res.blob();
+              const file = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
+              const cleanUrl = await uploadPortfolioImage(file);
+              return { ...g, url: cleanUrl };
+            } catch {
+              return g;
+            }
+          }
+          return g;
+        }),
+      );
     }
 
+    // Convert base64 profile image
+    if (next.profileImage?.startsWith('data:image/')) {
+      try {
+        const res = await fetch(next.profileImage);
+        const blob = await res.blob();
+        const file = new File([blob], 'profile.jpg', { type: blob.type || 'image/jpeg' });
+        next.profileImage = await uploadPortfolioImage(file);
+      } catch {
+        /* keep */
+      }
+    }
+
+    // Convert base64 cover image
+    if (next.coverImage?.startsWith('data:image/')) {
+      try {
+        const res = await fetch(next.coverImage);
+        const blob = await res.blob();
+        const file = new File([blob], 'cover.jpg', { type: blob.type || 'image/jpeg' });
+        next.coverImage = await uploadPortfolioImage(file);
+      } catch {
+        /* keep */
+      }
+    }
+
+    return next;
+  };
+
+  const save = async () => {
+    setSaving(true);
+
+    // Sanitize any base64 images into cloud URLs first
+    let cleanData = data;
+    try {
+      cleanData = await sanitizePortfolioImages(data);
+      setData(cleanData);
+    } catch (e) {
+      console.warn('Image sanitize notice:', e);
+    }
+
+    const payload = JSON.stringify(cleanData);
+
+    // 1. Save to local IndexedDB (never throws quota errors) and dispatch instant live event
+    try {
+      await savePortfolioToIndexedDb(cleanData);
+      window.dispatchEvent(new CustomEvent('portfolio-updated', { detail: cleanData }));
+      try {
+        localStorage.setItem('gaurav_portfolio_cache', payload);
+      } catch {
+        /* quota exceeded on localStorage is fine since IndexedDB has the data */
+      }
+    } catch (e) {
+      console.warn('Local cache save warning:', e);
+    }
+
+    // 2. Persist to Supabase attendance_settings table
     try {
       const { data: existing } = await supabase
         .from('attendance_settings')
@@ -630,7 +706,7 @@ const Portfolio = () => {
         console.warn('Cloud sync note:', saveErr.message);
         toast({
           title: 'Saved Locally',
-          description: `Saved to browser storage (${saveErr.message}).`,
+          description: `Saved to browser offline database (${saveErr.message}).`,
         });
         setDirty(false);
         return;
@@ -643,7 +719,7 @@ const Portfolio = () => {
       console.error('Save error:', err);
       toast({
         title: 'Saved Locally',
-        description: 'Changes saved locally in browser.',
+        description: 'Changes saved locally in browser database.',
       });
       setDirty(false);
     }

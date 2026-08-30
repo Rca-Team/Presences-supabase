@@ -66,7 +66,7 @@ import teamRcaPhoto from '@/assets/team-rca.jpg';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
-import { compressImageFile } from '@/utils/imageCompressor';
+import { uploadPortfolioImage } from '@/utils/portfolioUploadHelper';
 
 export const GALLERY_CATEGORIES = [
   'All',
@@ -338,28 +338,8 @@ export function BatchGalleryUploader({ items, onChange }: Props) {
 
       for (const rawFile of validFiles) {
         try {
-          const { file, dataUrl } = await compressImageFile(rawFile, 1600, 1200, 0.82);
-          const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
           const cleanName = rawFile.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-          const key = `${PORTFOLIO_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-          let finalUrl = '';
-          try {
-            const { error } = await supabase.storage
-              .from(PORTFOLIO_BUCKET)
-              .upload(key, file, { upsert: true, cacheControl: '3600', contentType: file.type });
-
-            if (!error) {
-              const { data: pub } = supabase.storage.from(PORTFOLIO_BUCKET).getPublicUrl(key);
-              if (pub?.publicUrl) finalUrl = pub.publicUrl;
-            }
-          } catch (storageErr) {
-            console.warn('Supabase storage fallback for:', rawFile.name, storageErr);
-          }
-
-          if (!finalUrl) {
-            finalUrl = dataUrl;
-          }
+          const finalUrl = await uploadPortfolioImage(rawFile);
 
           newItems.push({
             id: portfolioUid(),

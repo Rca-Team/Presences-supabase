@@ -4,6 +4,7 @@ import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
 import teamRcaPhoto from '@/assets/team-rca.jpg';
+import { getPortfolioFromIndexedDb, savePortfolioToIndexedDb } from '@/utils/portfolioCacheDb';
 
 export const PORTFOLIO_KEY = 'gaurav_portfolio';
 export const PORTFOLIO_BUCKET = 'face-images';
@@ -281,16 +282,30 @@ export function usePortfolioData() {
 
   const fetchOnce = useCallback(async () => {
     try {
+      // Check IndexedDB cache first
+      try {
+        const idbCached = await getPortfolioFromIndexedDb();
+        if (idbCached) setData(migrate(idbCached));
+      } catch {
+        /* keep */
+      }
+
       const { data: row } = await supabase
         .from('attendance_settings')
         .select('value')
         .eq('key', PORTFOLIO_KEY)
         .maybeSingle();
+
       if (row?.value) {
         try {
           const parsed = migrate(JSON.parse(row.value));
           setData(parsed);
-          localStorage.setItem('gaurav_portfolio_cache', JSON.stringify(parsed));
+          await savePortfolioToIndexedDb(parsed);
+          try {
+            localStorage.setItem('gaurav_portfolio_cache', JSON.stringify(parsed));
+          } catch {
+            /* quota limit safe */
+          }
         } catch {
           /* keep defaults */
         }
@@ -315,13 +330,18 @@ export function usePortfolioData() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'attendance_settings', filter: `key=eq.${PORTFOLIO_KEY}` },
-        (payload) => {
+        async (payload) => {
           const raw = (payload.new as any)?.value ?? (payload.old as any)?.value;
           if (!raw) return;
           try {
             const parsed = migrate(JSON.parse(raw));
             setData(parsed);
-            localStorage.setItem('gaurav_portfolio_cache', JSON.stringify(parsed));
+            await savePortfolioToIndexedDb(parsed);
+            try {
+              localStorage.setItem('gaurav_portfolio_cache', JSON.stringify(parsed));
+            } catch {
+              /* quota limit safe */
+            }
           } catch {
             /* ignore */
           }

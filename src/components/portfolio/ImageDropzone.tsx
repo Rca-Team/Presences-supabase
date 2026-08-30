@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
-import { compressImageFile } from '@/utils/imageCompressor';
+import { uploadPortfolioImage } from '@/utils/portfolioUploadHelper';
 
 type Props = {
   value?: string;
@@ -36,15 +36,6 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const readFileAsDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
   const upload = useCallback(
     async (rawFile: File) => {
       if (!rawFile.type.startsWith('image/')) {
@@ -52,38 +43,15 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
         return;
       }
       setUploading(true);
-      setProgress(20);
+      setProgress(25);
       setImgError(false);
 
       try {
-        const { file, dataUrl } = await compressImageFile(rawFile, 1600, 1200, 0.85);
-        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-        const key = `${PORTFOLIO_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        setProgress(50);
-
-        let uploadedUrl = '';
-        try {
-          const { error } = await supabase.storage
-            .from(PORTFOLIO_BUCKET)
-            .upload(key, file, { upsert: true, cacheControl: '3600', contentType: file.type });
-          if (!error) {
-            const { data: pub } = supabase.storage.from(PORTFOLIO_BUCKET).getPublicUrl(key);
-            if (pub?.publicUrl) {
-              uploadedUrl = pub.publicUrl;
-            }
-          }
-        } catch (storageErr) {
-          console.warn('Storage upload bypassed, fallback to data URL:', storageErr);
-        }
-
-        // If storage uploaded successfully, use public URL; otherwise fallback to Data URL
-        if (uploadedUrl) {
-          onChange(uploadedUrl);
-        } else {
-          onChange(dataUrl);
-          toast({ title: 'Photo loaded', description: 'Saved as optimized preview.' });
-        }
+        setProgress(60);
+        const uploadedUrl = await uploadPortfolioImage(rawFile);
+        onChange(uploadedUrl);
         setProgress(100);
+        toast({ title: 'Photo updated' });
       } catch (e: any) {
         toast({ title: 'Upload failed', description: e?.message ?? 'Please try another image', variant: 'destructive' });
       } finally {
