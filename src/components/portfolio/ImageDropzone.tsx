@@ -1,11 +1,12 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { PORTFOLIO_BUCKET, PORTFOLIO_PREFIX } from '@/hooks/usePortfolioData';
-import { UploadCloud, X, Loader2, ImagePlus, Link as LinkIcon, Sparkles } from 'lucide-react';
+import { UploadCloud, X, Loader2, ImagePlus, Link as LinkIcon, Sparkles, Wand2, Crop } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { PhotoStudioModal } from '@/components/portfolio/PhotoStudioModal';
 import gauravPhoto from '@/assets/gaurav-photo.png';
 import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 import jatinDhamaPhoto from '@/assets/jatin-dhama.jpg';
@@ -32,6 +33,7 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
   const [progress, setProgress] = useState(0);
   const [imgError, setImgError] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -141,9 +143,21 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
               className="absolute inset-0 h-full w-full object-cover"
               loading="lazy"
             />
-            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 backdrop-blur-xs transition-opacity group-hover:opacity-100">
-              <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-slate-900 shadow">
-                <ImagePlus className="mr-1 inline h-3.5 w-3.5" />
+            <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/65 opacity-0 backdrop-blur-xs transition-opacity group-hover:opacity-100 p-2 flex-wrap">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStudioOpen(true);
+                }}
+                className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow-md hover:bg-primary/90 flex items-center gap-1"
+                title="Open Photo Styling & Resize Studio"
+              >
+                <Wand2 className="h-3 w-3" />
+                Style
+              </button>
+              <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-slate-900 shadow">
+                <ImagePlus className="mr-0.5 inline h-3 w-3" />
                 Replace
               </span>
               {allowClear && (
@@ -153,9 +167,9 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
                     e.stopPropagation();
                     onChange('');
                   }}
-                  className="rounded-full bg-destructive/95 px-3 py-1.5 text-xs font-bold text-destructive-foreground shadow hover:bg-destructive"
+                  className="rounded-full bg-destructive/95 px-2.5 py-1 text-[11px] font-bold text-destructive-foreground shadow hover:bg-destructive"
                 >
-                  <X className="mr-1 inline h-3.5 w-3.5" />
+                  <X className="mr-0.5 inline h-3 w-3" />
                   Remove
                 </button>
               )}
@@ -179,30 +193,42 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
         )}
       </div>
 
-      {/* Preset Quick Selectors */}
-      <div className="flex flex-wrap items-center gap-1 mt-1.5">
-        <span className="text-[9px] text-muted-foreground mr-1">Presets:</span>
-        <button
-          type="button"
-          onClick={() => onChange(gauravPhoto)}
-          className="text-[10px] px-2 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
-        >
-          Gaurav
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(swamiAnantVyasPhoto)}
-          className="text-[10px] px-2 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
-        >
-          Swami Anant
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(jatinDhamaPhoto)}
-          className="text-[10px] px-2 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
-        >
-          Jatin Dhama
-        </button>
+      {/* Quick Action & Preset Selectors */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5 mt-1.5">
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-[9px] text-muted-foreground mr-0.5">Presets:</span>
+          <button
+            type="button"
+            onClick={() => onChange(gauravPhoto)}
+            className="text-[10px] px-1.5 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
+          >
+            Gaurav
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(swamiAnantVyasPhoto)}
+            className="text-[10px] px-1.5 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
+          >
+            Swami
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(jatinDhamaPhoto)}
+            className="text-[10px] px-1.5 py-0.5 rounded-md border bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground transition"
+          >
+            Jatin
+          </button>
+        </div>
+
+        {value && (
+          <button
+            type="button"
+            onClick={() => setStudioOpen(true)}
+            className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1"
+          >
+            <Wand2 className="h-3 w-3" /> Style & Resize
+          </button>
+        )}
       </div>
 
       <input
@@ -216,6 +242,18 @@ export function ImageDropzone({ value, onChange, label, aspect = 'square', class
           e.target.value = '';
         }}
       />
+
+      {/* Photo Studio Modal */}
+      {value && (
+        <PhotoStudioModal
+          open={studioOpen}
+          onOpenChange={setStudioOpen}
+          imageUrl={value}
+          defaultAspect={aspect === 'video' ? '16:9' : aspect === 'cover' ? '21:9' : '1:1'}
+          onApply={(newUrl) => onChange(newUrl)}
+          title={`Style ${label || 'Photo'}`}
+        />
+      )}
     </div>
   );
 }

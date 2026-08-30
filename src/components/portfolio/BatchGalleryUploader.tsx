@@ -23,7 +23,9 @@ import {
   Plus,
   FileSpreadsheet,
   Layers,
+  Wand2,
 } from 'lucide-react';
+import { PhotoStudioModal } from '@/components/portfolio/PhotoStudioModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -110,6 +112,7 @@ function SortableGalleryCard({
   });
 
   const [editOpen, setEditOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -138,14 +141,13 @@ function SortableGalleryCard({
             loading="lazy"
           />
 
-          {/* Top Quick Actions bar */}
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between p-2 bg-gradient-to-b from-black/70 via-black/30 to-transparent">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 opacity-70 group-hover:opacity-100 transition-opacity" />
+
+          {/* Drag Handle & Checkbox */}
+          <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSelect();
-              }}
+              onClick={onToggleSelect}
               className="rounded-lg bg-black/60 p-1 text-white hover:text-primary transition backdrop-blur-sm"
               title={isSelected ? 'Deselect' : 'Select'}
             >
@@ -155,25 +157,31 @@ function SortableGalleryCard({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdate({ featured: !item.featured });
-                }}
-                className={cn(
-                  'rounded-lg bg-black/60 p-1 transition backdrop-blur-sm',
-                  item.featured ? 'text-amber-400' : 'text-white/80 hover:text-amber-300',
-                )}
-                title={item.featured ? 'Featured Highlight' : 'Mark as Featured'}
+                onClick={() => setStudioOpen(true)}
+                className="rounded-lg bg-black/60 p-1 text-white hover:text-primary transition backdrop-blur-sm"
+                title="Style & Resize Photo"
               >
-                {item.featured ? <Star className="h-3.5 w-3.5 fill-amber-400" /> : <StarOff className="h-3.5 w-3.5" />}
+                <Wand2 className="h-3.5 w-3.5" />
               </button>
 
               <button
                 type="button"
-                className="cursor-grab touch-none rounded-lg bg-black/60 p-1 text-white/80 hover:text-white transition backdrop-blur-sm active:cursor-grabbing"
-                aria-label="Drag photo to reorder"
+                onClick={() => onUpdate({ featured: !item.featured })}
+                className={cn(
+                  'rounded-lg p-1 transition backdrop-blur-sm',
+                  item.featured ? 'bg-amber-400 text-black' : 'bg-black/60 text-white hover:text-amber-400',
+                )}
+                title={item.featured ? 'Featured in Bento' : 'Mark as Featured'}
+              >
+                <Star className="h-3.5 w-3.5 fill-current" />
+              </button>
+
+              <button
+                type="button"
                 {...attributes}
                 {...listeners}
+                className="rounded-lg bg-black/60 p-1 text-white/70 hover:text-white cursor-grab active:cursor-grabbing backdrop-blur-sm"
+                title="Drag to reorder"
               >
                 <GripVertical className="h-3.5 w-3.5" />
               </button>
@@ -200,13 +208,23 @@ function SortableGalleryCard({
           )}
 
           <div className="mt-2.5 flex items-center justify-between pt-2 border-t border-border/40">
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="text-[11px] font-bold text-primary hover:underline"
-            >
-              Edit Details
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="text-[11px] font-bold text-primary hover:underline"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudioOpen(true)}
+                className="text-[11px] font-bold text-muted-foreground hover:text-primary transition flex items-center gap-0.5"
+                title="Photo Studio: Crop, Resize, Filters"
+              >
+                <Wand2 className="h-3 w-3" /> Style
+              </button>
+            </div>
 
             <button
               type="button"
@@ -229,8 +247,16 @@ function SortableGalleryCard({
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            <div className="aspect-video w-full overflow-hidden rounded-2xl border bg-muted/40">
+            <div className="relative aspect-video w-full overflow-hidden rounded-2xl border bg-muted/40 group">
               <img src={item.url} alt="Preview" className="h-full w-full object-cover" />
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setStudioOpen(true)}
+                className="absolute bottom-2 right-2 rounded-xl text-xs font-bold gap-1 shadow-md bg-black/70 text-white hover:bg-black/90 backdrop-blur-md"
+              >
+                <Wand2 className="h-3.5 w-3.5 text-primary" /> Style & Resize
+              </Button>
             </div>
 
             <div>
@@ -291,6 +317,18 @@ function SortableGalleryCard({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Photo Studio Modal */}
+      {item.url && (
+        <PhotoStudioModal
+          open={studioOpen}
+          onOpenChange={setStudioOpen}
+          imageUrl={item.url}
+          defaultAspect="16:9"
+          onApply={(newUrl) => onUpdate({ url: newUrl })}
+          title={`Style Photo: ${item.title || 'Campus Media'}`}
+        />
+      )}
     </>
   );
 }
