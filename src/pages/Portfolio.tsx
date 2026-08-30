@@ -605,48 +605,53 @@ const Portfolio = () => {
   const sanitizePortfolioImages = async (current: PortfolioData): Promise<PortfolioData> => {
     const next = { ...current };
 
-    // Convert any base64 gallery items to storage URLs
-    if (Array.isArray(next.gallery)) {
-      next.gallery = await Promise.all(
-        next.gallery.map(async (g) => {
-          if (g.url?.startsWith('data:image/')) {
-            try {
-              const res = await fetch(g.url);
-              const blob = await res.blob();
-              const file = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
-              const cleanUrl = await uploadPortfolioImage(file);
-              return { ...g, url: cleanUrl };
-            } catch {
-              return g;
-            }
+    // 1. Convert profile image
+    if (next.profileImage && next.profileImage.startsWith('data:image/')) {
+      next.profileImage = await uploadPortfolioImage(next.profileImage);
+    }
+
+    // 2. Convert cover image
+    if (next.coverImage && next.coverImage.startsWith('data:image/')) {
+      next.coverImage = await uploadPortfolioImage(next.coverImage);
+    }
+
+    // 3. Convert projects images
+    if (Array.isArray(next.projects)) {
+      next.projects = await Promise.all(
+        next.projects.map(async (p) => {
+          if (p.image && p.image.startsWith('data:image/')) {
+            const cleanUrl = await uploadPortfolioImage(p.image);
+            return { ...p, image: cleanUrl };
           }
-          return g;
+          return p;
         }),
       );
     }
 
-    // Convert base64 profile image
-    if (next.profileImage?.startsWith('data:image/')) {
-      try {
-        const res = await fetch(next.profileImage);
-        const blob = await res.blob();
-        const file = new File([blob], 'profile.jpg', { type: blob.type || 'image/jpeg' });
-        next.profileImage = await uploadPortfolioImage(file);
-      } catch {
-        /* keep */
-      }
+    // 4. Convert member images
+    if (Array.isArray(next.members)) {
+      next.members = await Promise.all(
+        next.members.map(async (m) => {
+          if (m.image && m.image.startsWith('data:image/')) {
+            const cleanUrl = await uploadPortfolioImage(m.image);
+            return { ...m, image: cleanUrl };
+          }
+          return m;
+        }),
+      );
     }
 
-    // Convert base64 cover image
-    if (next.coverImage?.startsWith('data:image/')) {
-      try {
-        const res = await fetch(next.coverImage);
-        const blob = await res.blob();
-        const file = new File([blob], 'cover.jpg', { type: blob.type || 'image/jpeg' });
-        next.coverImage = await uploadPortfolioImage(file);
-      } catch {
-        /* keep */
-      }
+    // 5. Convert gallery photos
+    if (Array.isArray(next.gallery)) {
+      next.gallery = await Promise.all(
+        next.gallery.map(async (g) => {
+          if (g.url && g.url.startsWith('data:image/')) {
+            const cleanUrl = await uploadPortfolioImage(g.url);
+            return { ...g, url: cleanUrl };
+          }
+          return g;
+        }),
+      );
     }
 
     return next;
