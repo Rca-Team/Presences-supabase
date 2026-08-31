@@ -437,7 +437,7 @@ const GateMode = () => {
 
   // ── Active gate session ────────────────────────────────────────────────────
   return (
-    <div ref={containerRef} className="fixed inset-0 bg-[#070b14] z-40 flex flex-col overflow-hidden text-foreground pt-16 md:pt-20">
+    <div ref={containerRef} className="fixed inset-0 bg-[#070b14] z-40 flex flex-col overflow-hidden text-foreground">
 
       {/* ── Top Command Bar ── */}
       <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-card/80 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
