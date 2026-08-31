@@ -95,20 +95,20 @@ interface DeviceInfo {
  * For a school with 300–1000 students we use a stricter value so that
  * no two students are ever confused:
  */
-const MATCH_THRESHOLD = 0.41;
+const MATCH_THRESHOLD = 0.50;
 
 /**
  * If best and second-best distances are within this ratio the match is
  * ambiguous and will be rejected.
  * ratio = bestDist / secondBestDist; reject when ratio > AMBIGUITY_RATIO
  */
-const AMBIGUITY_RATIO = 0.78;
-const MIN_MARGIN_GAP = 0.08;
+const AMBIGUITY_RATIO = 0.84;
+const MIN_MARGIN_GAP = 0.05;
 
 /**
  * Auto-mark without manual confirmation only when confidence is this high.
  */
-const AUTO_MARK_CONFIDENCE = 0.70;
+const AUTO_MARK_CONFIDENCE = 0.65;
 
 // ─── caches ───────────────────────────────────────────────────────────────────
 
@@ -185,8 +185,8 @@ export function estimatePitchFromLandmarks(landmarks: { x: number; y: number }[]
  *   dist = 0.55 → confidence ≈ 0.18
  */
 function distanceToConfidence(dist: number): number {
-  const k = 14; // steepness
-  return 1 / (1 + Math.exp(k * (dist - MATCH_THRESHOLD)));
+  const k = 10;
+  return 1 / (1 + Math.exp(k * (dist - 0.45)));
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -277,26 +277,13 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
       perNameBest.clear();
       for (const userId of ids) {
         const data = trainedDescriptors.get(userId);
-        if (!data) continue;
-        // Best distance across all stored samples for this user
-        // Using ONLY Euclidean distance — do NOT mix with cosine distance for face-api.js vectors
-        // Weighted prototype matching: combine centroid + per-sample distances
-        const centroidDist = euclideanDistance(faceDescriptor, data.averagedDescriptor);
-        let minSampleDist = centroidDist;
-        let sampleDistSum = 0;
-        let sampleCount = 0;
+        // Best distance across all stored samples and averaged centroid for this user
+        let minDist = euclideanDistance(faceDescriptor, data.averagedDescriptor);
         for (const desc of data.descriptors) {
           if (desc.length !== faceDescriptor.length) continue;
           const d = euclideanDistance(faceDescriptor, desc);
-          if (d < minSampleDist) minSampleDist = d;
-          sampleDistSum += d;
-          sampleCount++;
+          if (d < minDist) minDist = d;
         }
-        // Harmonic fusion: weight best sample match heavily, penalize by centroid deviation
-        const avgSampleDist = sampleCount > 0 ? sampleDistSum / sampleCount : centroidDist;
-        const minDist = sampleCount >= 3
-          ? 0.65 * minSampleDist + 0.20 * centroidDist + 0.15 * avgSampleDist
-          : 0.70 * minSampleDist + 0.30 * centroidDist;
 
         // Guard: skip if distance is non-finite (indicates corrupt/mismatched descriptor data)
         if (!Number.isFinite(minDist)) {

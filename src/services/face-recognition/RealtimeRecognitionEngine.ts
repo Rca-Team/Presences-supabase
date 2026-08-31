@@ -171,7 +171,7 @@ function distanceToConfidence(distance: number, threshold: number): number {
  */
 export async function matchDescriptorIndexed(
   descriptor: Float32Array,
-  matchThreshold = 0.41,
+  matchThreshold = 0.50,
   shortlist = 64,
 ): Promise<{ userId: string; name: string; distance: number; confidence: number } | null> {
   await ensureGalleryIndex();
@@ -196,12 +196,12 @@ export async function matchDescriptorIndexed(
   if (!best || best.distance > matchThreshold) return null;
 
   // Strict Ambiguity Guard:
-  // If the best match distance is within 78% of the second best match (different student)
-  // or the absolute margin gap is less than 0.08, reject to prevent lookalikes from misidentifying!
+  // If the best match distance is within 84% of the second best match (different student)
+  // or the absolute margin gap is less than 0.05, reject to prevent lookalikes from misidentifying!
   const second = ranked.find(
     r => r.userId !== best.userId && r.name.trim().toLowerCase() !== best.name.trim().toLowerCase()
   );
-  if (second && ((best.distance / second.distance) > 0.78 || (second.distance - best.distance) < 0.08)) {
+  if (second && ((best.distance / second.distance) > 0.84 || (second.distance - best.distance) < 0.05)) {
     console.log(`Rejecting ambiguous real-time match: best=${best.name} (${best.distance.toFixed(3)}) vs second=${second.name} (${second.distance.toFixed(3)})`);
     return null;
   }
@@ -231,7 +231,7 @@ export function createRecognitionEngine(
 ): RecognitionEngine {
   const detectFps = options.detectFps ?? 9;
   const detectionWidth = options.detectionWidth ?? 640;
-  const matchThreshold = options.matchThreshold ?? 0.45;
+  const matchThreshold = options.matchThreshold ?? 0.50;
   const shortlist = options.shortlist ?? 16;
   const maxConcurrentJobs = options.maxConcurrentJobs ?? 4;
 

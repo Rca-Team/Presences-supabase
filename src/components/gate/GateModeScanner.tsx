@@ -1044,10 +1044,10 @@ const GateModeScanner = ({
               try {
                 // Capture frame for the attendance record / notification email
                 let photo = captureFrame(0.85);
-                if (aiEnhancerEnabled && photo && canvasRef.current) {
+                if (aiEnhancerEnabled && photo && videoRef.current && videoRef.current.videoWidth) {
                   const c = document.createElement('canvas');
-                  c.width = videoRef.current!.videoWidth; c.height = videoRef.current!.videoHeight;
-                  c.getContext('2d')?.drawImage(videoRef.current!, 0, 0);
+                  c.width = videoRef.current.videoWidth; c.height = videoRef.current.videoHeight;
+                  c.getContext('2d')?.drawImage(videoRef.current, 0, 0);
                   photo = await autoEnhance(photo, c);
                 }
 
