@@ -8,7 +8,6 @@ import { Helmet, HelmetProvider } from "react-helmet-async";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import RouteFallback from "@/components/RouteFallback";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
-import { warmCommonRoutes } from "@/lib/preloadRoute";
 
 
 const Index = lazyWithRetry(() => import("./pages/Index"), "index");
@@ -184,159 +183,83 @@ function SeoHead() {
   );
 }
 
-// Routes that should preserve their state and scroll position when the user
-// navigates away and back. Excludes auth screens, one-time flows, and heavy camera/AI
-// routes (which must clean up hardware resources when navigated away).
-const KEEP_ALIVE_PATHS = new Set<string>([
-  '/',
-  '/features',
-  '/contact',
-  '/profile',
-  '/portfolio',
-  '/parent',
-  '/admin',
-  '/teacher',
-  '/notifications',
-]);
-
-// Elements rendered when a keep-alive path is visited. Kept as stable node
-// references so React never unmounts them across navigations.
-const keepAliveElements: Record<string, JSX.Element> = {
-  '/': <Index />,
-  '/features': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-      <Features />
-    </ProtectedRoute>
-  ),
-  '/contact': <Contact />,
-  '/profile': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-      <Profile />
-    </ProtectedRoute>
-  ),
-  '/portfolio': <Portfolio />,
-  '/parent': <ParentPortal />,
-  '/admin': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-      <Admin />
-    </ProtectedRoute>
-  ),
-  '/teacher': (
-    <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-      <TeacherPortal />
-    </ProtectedRoute>
-  ),
-  '/notifications': (
-    <ProtectedRoute requireRoles={["admin", "principal"]}>
-      <NotificationDemo />
-    </ProtectedRoute>
-  ),
-};
-
-// This component wraps our routes with a keep-alive cache so pages remain
-// mounted (and preserve scroll) when the user navigates between them.
+// Optimized declarative router with scroll restoration and zero background memory leaks
 function AnimatedRoutes() {
   const location = useLocation();
-  const path = location.pathname;
-  const isKeepAlive = KEEP_ALIVE_PATHS.has(path) && path in keepAliveElements;
 
-  const [visited, setVisited] = useState<string[]>(() => (isKeepAlive ? [path] : []));
-  const scrollPositions = useRef<Record<string, number>>({});
-  const prevPathRef = useRef<string>(path);
-
-  // Save the outgoing path's scroll position BEFORE the DOM swaps, then
-  // restore the incoming path's saved scroll position synchronously so the
-  // user never sees a flash of scroll-to-top or a reload-style jump.
   useLayoutEffect(() => {
-    const previous = prevPathRef.current;
-    if (previous !== path) {
-      if (KEEP_ALIVE_PATHS.has(previous)) {
-        scrollPositions.current[previous] = window.scrollY;
-      }
-      prevPathRef.current = path;
-    }
-
-    if (isKeepAlive && !visited.includes(path)) {
-      setVisited((prev) => (prev.includes(path) ? prev : [...prev, path]));
-    }
-
-    if (isKeepAlive) {
-      const saved = scrollPositions.current[path] ?? 0;
-      requestAnimationFrame(() => {
-        window.scrollTo(0, saved);
-      });
-    } else {
-      window.scrollTo(0, 0);
-    }
-  }, [path, isKeepAlive, visited]);
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return (
     <Suspense fallback={<RouteFallback />}>
-      {/* Keep-alive cache: every visited cacheable route stays mounted;
-          only the active one is visible. */}
-      {visited.map((cachedPath) => {
-        const active = cachedPath === path;
-        return (
-          <div
-            key={cachedPath}
-            hidden={!active}
-            aria-hidden={!active}
-            style={active ? undefined : { display: 'none' }}
-            className={active ? 'route-mount' : undefined}
-          >
-            {keepAliveElements[cachedPath]}
-          </div>
-        );
-      })}
-
-      {/* Fall-through routes render only when the current path is not a
-          keep-alive path, so cached siblings above never render twice. */}
-      {!isKeepAlive && (
-        <div key={path} className="route-mount">
-          <Routes location={location}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/attendance" element={
-              <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-                <Attendance />
-              </ProtectedRoute>
-            } />
-            <Route path="/user" element={
-              <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-                <Attendance />
-              </ProtectedRoute>
-            } />
-            <Route path="/gate" element={
-              <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-                <GateMode />
-              </ProtectedRoute>
-            } />
-            <Route path="/gate/vision" element={
-              <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-                <GateVisionMode />
-              </ProtectedRoute>
-            } />
-            <Route path="/unsubscribe" element={<Unsubscribe />} />
-            <Route path="/backup" element={
-              <ProtectedRoute requireRoles={["admin", "principal"]}>
-                <Backup />
-              </ProtectedRoute>
-            } />
-            <Route path="/data" element={
-              <ProtectedRoute requireRoles={["admin", "principal"]}>
-                <Backup />
-              </ProtectedRoute>
-            } />
-            <Route path="/__admin/face-model-validator" element={
-              <ProtectedRoute requireRoles={["admin"]}>
-                <FaceModelValidator />
-              </ProtectedRoute>
-            } />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      )}
+      <Routes location={location}>
+        <Route path="/" element={<Index />} />
+        <Route path="/features" element={<Features />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/profile" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
+            <Profile />
+          </ProtectedRoute>
+        } />
+        <Route path="/attendance" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
+            <Attendance />
+          </ProtectedRoute>
+        } />
+        <Route path="/user" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
+            <Attendance />
+          </ProtectedRoute>
+        } />
+        <Route path="/gate" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+            <GateMode />
+          </ProtectedRoute>
+        } />
+        <Route path="/gate/vision" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+            <GateVisionMode />
+          </ProtectedRoute>
+        } />
+        <Route path="/parent" element={<ParentPortal />} />
+        <Route path="/teacher" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+            <TeacherPortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+            <Admin />
+          </ProtectedRoute>
+        } />
+        <Route path="/notifications" element={
+          <ProtectedRoute requireRoles={["admin", "principal"]}>
+            <NotificationDemo />
+          </ProtectedRoute>
+        } />
+        <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/unsubscribe" element={<Unsubscribe />} />
+        <Route path="/backup" element={
+          <ProtectedRoute requireRoles={["admin", "principal"]}>
+            <Backup />
+          </ProtectedRoute>
+        } />
+        <Route path="/data" element={
+          <ProtectedRoute requireRoles={["admin", "principal"]}>
+            <Backup />
+          </ProtectedRoute>
+        } />
+        <Route path="/__admin/face-model-validator" element={
+          <ProtectedRoute requireRoles={["admin"]}>
+            <FaceModelValidator />
+          </ProtectedRoute>
+        } />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </Suspense>
   );
 }
@@ -344,37 +267,30 @@ function AnimatedRoutes() {
 
 function App() {
   const [mountNonCritical, setMountNonCritical] = useState(false);
-  // Skip in-app splash for PWA/standalone launches (OS already showed the manifest
-  // splash) and for same-tab re-renders. Only fresh web loads see the branded splash.
   const [showSplash, setShowSplash] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
+      if (sessionStorage.getItem('presence:splash-seen')) return false;
       const isStandalone =
         window.matchMedia?.('(display-mode: standalone)').matches ||
         (window.navigator as any).standalone === true;
       if (isStandalone) return false;
-      if (sessionStorage.getItem('presence:splash-seen')) return false;
     } catch {
-      // sessionStorage may throw in private mode — fall through and show splash.
+      return false;
     }
-    return true;
+    return false; // Skip blocking splash for immediate instant start
   });
   const chunkRecoveryKey = "presence:chunk-recovery";
 
 
   useEffect(() => {
     const onPreloadError = (event: Event) => {
-      // Let React's Suspense/ErrorBoundary handle it — no hard reload,
-      // no cache/SW nuking here (that caused reload loops).
       const recoveryCount = Number(sessionStorage.getItem(chunkRecoveryKey) || "0");
       if (recoveryCount >= 1) {
-        // Already attempted recovery this session; give up quietly.
         return;
       }
       sessionStorage.setItem(chunkRecoveryKey, String(recoveryCount + 1));
-      // Prevent the default (which would surface a hard error overlay in dev).
       event.preventDefault();
-      // Best-effort: unregister only stale app-shell SWs, do NOT reload.
       void (async () => {
         try {
           if ("serviceWorker" in navigator) {
@@ -400,46 +316,11 @@ function App() {
 
 
   useEffect(() => {
-    const schedule = window.setTimeout(() => setMountNonCritical(true), 350);
+    const schedule = window.setTimeout(() => setMountNonCritical(true), 800);
     return () => {
       window.clearTimeout(schedule);
     };
   }, []);
-
-  useEffect(() => {
-    if (!mountNonCritical) return;
-
-    const prefetchTimer = window.setTimeout(() => {
-      // Warm the most common route chunks so first tab click is instant.
-      warmCommonRoutes(['/attendance', '/register', '/profile', '/admin', '/gate']);
-
-      void import('./components/gate/GateModeScanner').catch(() => undefined);
-      void import('./components/attendance/FuturisticFaceScanner').catch(() => undefined);
-
-      void import('@/services/face-recognition/ModelService')
-        .then(({ areGateDetectionModelsLoaded, loadGateDetectionModels }) => {
-          if (areGateDetectionModelsLoaded()) return;
-          return loadGateDetectionModels();
-        })
-        .catch((err) => {
-          console.warn('Gate model preload failed, will retry on Gate Mode open', err);
-        });
-
-    }, 500);
-
-    return () => window.clearTimeout(prefetchTimer);
-  }, [mountNonCritical]);
-
-  useEffect(() => {
-    if (!showSplash) return;
-
-    const failSafeTimer = window.setTimeout(() => {
-      setShowSplash(false);
-    }, 2200);
-
-    return () => window.clearTimeout(failSafeTimer);
-  }, [showSplash]);
-
 
   const handleSplashComplete = () => {
     sessionStorage.setItem('presence:splash-seen', '1');

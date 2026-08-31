@@ -209,30 +209,10 @@
       -webkit-backdrop-filter 0.45s ease !important;
   }
 
-  /* Lenis smooth scrolling support */
-  html.lenis,
-  html.lenis body {
-    height: auto;
-  }
-
-  .lenis.lenis-smooth {
-    scroll-behavior: auto !important;
-  }
-
-  .lenis.lenis-smooth [data-lenis-prevent],
-  .lenis.lenis-smooth .overflow-y-auto,
-  .lenis.lenis-smooth .overflow-x-auto,
-  .lenis.lenis-smooth .overflow-auto,
-  .lenis.lenis-smooth [data-radix-scroll-area-viewport] {
-    overscroll-behavior: contain;
-  }
-
-  .lenis.lenis-stopped {
-    overflow: hidden;
-  }
-
-  .lenis.lenis-scrolling iframe {
-    pointer-events: none;
+  /* Universal native scrolling support */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -251,21 +231,19 @@
 }
 
 /* =========================================================================
-   ADAPTIVE SCROLL ENGINE (DESKTOP MOUSE + MOBILE TOUCH)
+   UNIVERSAL NATIVE SCROLL ENGINE (100% HARDWARE-ACCELERATED)
    ========================================================================= */
 
 /* Base Universal Scroll Behavior */
 html {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: auto;
-  overscroll-behavior-x: none;
+  scroll-behavior: smooth;
 }
 
 body {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: auto;
-  overscroll-behavior-x: none;
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
 .overflow-x-auto,
@@ -275,34 +253,22 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* 1. Mobile & Touch Screen Devices — 100% Native 120fps Inertia */
+/* 1. Mobile & Touch Screen Devices — Pure Native 120fps Inertia */
 @media (hover: none) and (pointer: coarse) {
   html, body {
-    scroll-behavior: auto !important;
-    touch-action: pan-y;
-  }
-
-  * {
-    cursor: auto !important;
-  }
-
-  .overflow-x-auto {
-    touch-action: pan-x pan-y;
-    overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
+  .overflow-x-auto,
   .overflow-y-auto,
-  [data-radix-scroll-area-viewport] {
-    touch-action: pan-y;
-    overscroll-behavior-y: contain;
+  .overflow-auto {
     -webkit-overflow-scrolling: touch;
   }
 
   /* Compact native scrollbars on mobile */
   ::-webkit-scrollbar {
-    width: 3px;
-    height: 3px;
+    width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-thumb {
@@ -331,8 +297,7 @@ body {
     border-radius: 9999px;
     border: 1px solid hsl(var(--border) / 0.3);
     box-shadow: 0 0 6px hsl(var(--primary) / 0.3);
-    cursor: grab;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.2s ease-out;
   }
 
   ::-webkit-scrollbar-thumb:hover {
@@ -342,61 +307,11 @@ body {
       hsl(var(--neon-cyan, 191 82% 60%) / 0.85)
     );
     box-shadow: 0 0 10px hsl(var(--primary) / 0.7);
-    cursor: grab;
-  }
-
-  ::-webkit-scrollbar-thumb:active {
-    cursor: grabbing;
   }
 
   * {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary) / 0.45) transparent;
-  }
-
-  /* Global Cursor Drag-Scroll Classes */
-  body.is-cursor-scrolling,
-  body.is-cursor-scrolling * {
-    cursor: grabbing !important;
-    user-select: none !important;
-  }
-
-  .overflow-x-auto,
-  .overflow-y-auto,
-  .overflow-auto,
-  [data-radix-scroll-area-viewport] {
-    cursor: grab;
-    overscroll-behavior: contain;
-  }
-
-  .overflow-x-auto:active,
-  .overflow-y-auto:active,
-  .overflow-auto:active,
-  [data-radix-scroll-area-viewport]:active {
-    cursor: grabbing;
-  }
-
-  /* Keep standard pointer on interactive elements within scroll containers */
-  .overflow-x-auto input,
-  .overflow-x-auto textarea,
-  .overflow-x-auto select,
-  .overflow-x-auto button,
-  .overflow-x-auto a,
-  .overflow-y-auto input,
-  .overflow-y-auto textarea,
-  .overflow-y-auto select,
-  .overflow-y-auto button,
-  .overflow-y-auto a,
-  [data-radix-scroll-area-viewport] input,
-  [data-radix-scroll-area-viewport] button,
-  [data-radix-scroll-area-viewport] a {
-    cursor: pointer;
-  }
-  .overflow-x-auto input,
-  .overflow-x-auto textarea,
-  .overflow-y-auto input,
-  .overflow-y-auto textarea {
-    cursor: text;
   }
 }
 

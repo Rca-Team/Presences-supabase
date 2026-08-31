@@ -171,7 +171,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background relative overflow-hidden flex neon-liquid-bg">
+    <div className="min-h-[100dvh] bg-background relative flex flex-col lg:flex-row overflow-x-hidden neon-liquid-bg">
       {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ duration: 8, repeat: Infinity }}

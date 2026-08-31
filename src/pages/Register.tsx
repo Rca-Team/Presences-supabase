@@ -429,7 +429,7 @@ const Register = () => {
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex neon-liquid-bg">
+      <div className="min-h-screen flex flex-col lg:flex-row neon-liquid-bg overflow-x-hidden">
         {/* Left Panel - Branding */}
         <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(var(--neon-orange)), hsl(var(--neon-pink)), hsl(var(--neon-violet)))' }}>
           <div className="absolute inset-0">
@@ -481,8 +481,8 @@ const Register = () => {
           </div>
         </div>
 
-        {/* Right Panel - Form */}
-        <div className="flex-1 flex flex-col min-h-screen overflow-y-auto bg-background/50">
+        {/* Right Panel - Form (Natural scroll flow) */}
+        <div className="flex-1 flex flex-col min-h-screen bg-background/50">
           <div className="lg:hidden p-4 border-b border-border/70 liquid-glass-surface flex items-center justify-between">
             <Link to="/"><Logo /></Link>
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">

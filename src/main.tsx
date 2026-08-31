@@ -134,43 +134,6 @@ resetLocalProjectDataOnce();
 sanitizeSupabaseAuthStorage();
 
 
-// Improved model loading with retry mechanism
-const loadFaceModels = async (retries = 2, delay = 1500) => {
-  let attempt = 0;
-
-  // Dynamic import: keeps face-api.js + tfjs (~850kB) out of the entry chunk
-  // so the first paint isn't blocked by parsing the model runtime.
-  const { loadModels, areModelsLoaded } = await import('./services/FaceRecognitionService');
-  
-  while (attempt <= retries) {
-    try {
-      if (areModelsLoaded()) {
-        console.log('Face recognition models already loaded');
-        return true;
-      }
-      
-      console.log(`Loading face recognition models (attempt ${attempt + 1}/${retries + 1})...`);
-      await loadModels();
-      console.log('Face recognition models loaded successfully');
-      return true;
-    } catch (err) {
-      console.error(`Error loading face models (attempt ${attempt + 1}/${retries + 1}):`, err);
-      
-      if (attempt < retries) {
-        console.log(`Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        // Increase delay for each retry using exponential backoff
-        delay = delay * 1.5;
-      }
-      
-      attempt++;
-    }
-  }
-  
-  console.error(`Failed to load face models after ${retries + 1} attempts`);
-  return false;
-}
-
 // Global error handler to prevent white screens
 window.addEventListener('error', (event) => {
   console.error('Global error caught:', event.error);
@@ -194,25 +157,6 @@ const initApp = () => {
         <App />
       </StrictMode>
     );
-    
-    // Defer face model loading until the browser is idle so the first paint
-    // and route hydration aren't blocked by a ~7MB model download.
-    const scheduleModelLoad = () => {
-      loadFaceModels().then(success => {
-        if (!success) {
-          toast.error('Failed to pre-load face recognition models. Some features may not work correctly.', {
-            duration: 6000,
-            id: 'face-models-error'
-          });
-        }
-      });
-    };
-    if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(scheduleModelLoad, { timeout: 4000 });
-    } else {
-      setTimeout(scheduleModelLoad, 2500);
-    }
-
   } catch (err) {
     console.error('Failed to initialize app:', err);
     const root = document.getElementById("root");

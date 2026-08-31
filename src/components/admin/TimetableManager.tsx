@@ -19,6 +19,8 @@ import {
   Flame,
   GraduationCap,
   ChevronDown,
+  Camera,
+  FileImage,
 } from 'lucide-react';
 import {
   Dialog,
@@ -39,6 +41,9 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ALL_CLASS_SECTIONS, getCategoryLabel } from '@/constants/schoolConfig';
 import { parseClassSection } from '@/utils/teacherAccess';
+import { TimetablePhotoExtractorModal } from '@/components/admin/TimetablePhotoExtractorModal';
+import { ExtractedTimetableResult } from '@/utils/timetableExtractor';
+import SubstitutionReport from '@/components/admin/SubstitutionReport';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -195,6 +200,8 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isExtractorModalOpen, setIsExtractorModalOpen] = useState(false);
+  const [activeManagerTab, setActiveManagerTab] = useState<'timetable' | 'substitutions'>('timetable');
 
   // Quick Slot Edit Modal (when user clicks any cell in the preview)
   const [editingSlot, setEditingSlot] = useState<{ day: number; periodNumber: number } | null>(null);
@@ -589,6 +596,92 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
     }
   };
 
+  // Apply extracted timetable from photo
+  const handleApplyExtractedTimetable = async (result: ExtractedTimetableResult, autoSaveToCloud = false) => {
+    const nextDraft: Record<string, DraftSlot> = {};
+    result.slots.forEach((s) => {
+      if (s.dayNumber && s.period_number && s.subjectId) {
+        nextDraft[slotKey(s.dayNumber, s.period_number)] = {
+          teacherId: s.teacherId || teachers[0]?.id || '',
+          subjectId: s.subjectId,
+          room: s.room || `Class ${selectedCategory}`,
+          notes: s.notes || '',
+        };
+      }
+    });
+
+    setDraftSlots(nextDraft);
+
+    if (autoSaveToCloud) {
+      setIsSaving(true);
+      try {
+        const parsed = parseClassSection(selectedCategory);
+        const rowsToSave = Object.entries(nextDraft)
+          .map(([key, v]) => {
+            const [day, period] = key.split('-').map(Number);
+            const teacher = teachers.find(t => t.id === v.teacherId);
+            if (!teacher || !v.subjectId) return null;
+            return {
+              class: parsed?.className || null,
+              section: parsed?.section || null,
+              day_of_week: day,
+              period_number: period,
+              teacher_id: teacher.id,
+              teacher_name: teacher.name,
+              subject_id: v.subjectId,
+              room: v.room || `Class ${selectedCategory}`,
+              notes: v.notes || null,
+              metadata: {
+                category: selectedCategory,
+                class: parsed?.className || null,
+                section: parsed?.section || null,
+                teacher_record_id: teacher.id,
+                teacher_name: teacher.name,
+                subject_id: v.subjectId,
+                room: v.room || `Class ${selectedCategory}`,
+              },
+            };
+          })
+          .filter(Boolean);
+
+        if (parsed) {
+          await db.from('timetable').delete().eq('class', parsed.className).eq('section', parsed.section);
+        }
+        await db.from('timetable').delete().eq('category', selectedCategory);
+
+        if (rowsToSave.length > 0) {
+          const { error } = await db.from('timetable').insert(rowsToSave);
+          if (error) {
+            const legacyRows = rowsToSave.map((r: any) => ({
+              category: selectedCategory,
+              day_of_week: r.day_of_week,
+              period_number: r.period_number,
+              teacher_record_id: r.teacher_id,
+              teacher_name: r.teacher_name,
+              subject_id: r.subject_id,
+            }));
+            await db.from('timetable').insert(legacyRows);
+          }
+        }
+
+        toast({
+          title: '✅ Timetable Extracted & Saved to Cloud',
+          description: `Successfully configured and published timetable for ${getCategoryLabel(selectedCategory)}.`,
+        });
+        loadData();
+      } catch (e: any) {
+        toast({ title: 'Save Failed', description: e.message, variant: 'destructive' });
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
+      toast({
+        title: '✨ Timetable Configured from Photo',
+        description: 'Schedule extracted and teachers assigned by subject. Review and click Save Timetable when ready.',
+      });
+    }
+  };
+
   // Open Cell Quick Edit Dialog
   const handleOpenCellEditor = (day: number, periodNumber: number) => {
     const key = slotKey(day, periodNumber);
@@ -723,26 +816,59 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
 
   return (
     <div className="space-y-4">
-      {/* Top AI Automation Command Bar */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-primary/20 backdrop-blur-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30 shrink-0">
-            <Sparkles className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
-                AI Smart Timetable Generator
-              </h2>
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 text-xs font-semibold">
-                {totalAllocated}/48 Periods Active
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              1-Click automated scheduling with zero human effort • Balanced pedagogy & teacher allocation
-            </p>
-          </div>
+      {/* Top View Mode Switcher */}
+      <div className="flex items-center justify-between gap-3 p-1.5 rounded-2xl bg-card/60 border border-border/40 backdrop-blur-xl">
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant={activeManagerTab === 'timetable' ? 'default' : 'ghost'}
+            onClick={() => setActiveManagerTab('timetable')}
+            className={cn(
+              'h-8 px-3.5 text-xs font-bold rounded-xl gap-1.5 transition-all',
+              activeManagerTab === 'timetable' ? 'shadow-md shadow-primary/20' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <CalendarDays className="h-3.5 w-3.5" /> Class Timetables
+          </Button>
+
+          <Button
+            size="sm"
+            variant={activeManagerTab === 'substitutions' ? 'default' : 'ghost'}
+            onClick={() => setActiveManagerTab('substitutions')}
+            className={cn(
+              'h-8 px-3.5 text-xs font-bold rounded-xl gap-1.5 transition-all',
+              activeManagerTab === 'substitutions' ? 'bg-gradient-to-r from-rose-600 to-purple-600 text-white shadow-md shadow-rose-600/20' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Users className="h-3.5 w-3.5" /> Faculty Substitutions & Leave
+          </Button>
         </div>
+      </div>
+
+      {activeManagerTab === 'substitutions' ? (
+        <SubstitutionReport />
+      ) : (
+        <>
+          {/* Top AI Automation Command Bar */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-primary/20 backdrop-blur-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30 shrink-0">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
+                    AI Smart Timetable Generator
+                  </h2>
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 text-xs font-semibold">
+                    {totalAllocated}/48 Periods Active
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  1-Click automated scheduling with zero human effort • Balanced pedagogy & teacher allocation
+                </p>
+              </div>
+            </div>
 
         {/* 1-Click AI Actions */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -758,6 +884,17 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
               <SelectItem value="exam" className="text-xs">📖 Revision Mode</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Extract Timetable from Photo Button */}
+          <Button
+            size="sm"
+            onClick={() => setIsExtractorModalOpen(true)}
+            className="h-9 px-3.5 text-xs font-extrabold bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-700 hover:to-rose-700 text-white rounded-xl shadow-lg shadow-purple-600/25 gap-1.5 transition-all hover:scale-105 active:scale-95"
+            title="Scan or upload photo of printed timetable"
+          >
+            <Camera className="h-4 w-4" />
+            Extract from Photo
+          </Button>
 
           {/* Glowing 1-Click Auto-Generate Button */}
           <Button
@@ -1038,6 +1175,18 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>
+      )}
+
+      {/* AI Timetable Photo Extractor Modal */}
+      <TimetablePhotoExtractorModal
+        open={isExtractorModalOpen}
+        onOpenChange={setIsExtractorModalOpen}
+        selectedCategory={selectedCategory}
+        knownSubjects={subjects}
+        knownTeachers={teachers}
+        onApply={handleApplyExtractedTimetable}
+      />
     </div>
   );
 };

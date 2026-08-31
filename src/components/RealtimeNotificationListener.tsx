@@ -32,29 +32,41 @@ const RealtimeNotificationListener: React.FC = () => {
     };
   }, []);
 
-  const notify = useCallback(async (title: string, body: string, icon: string, tag: string, url = '/admin') => {
-    // In-app toast
-    toastRef.current({ title, description: body, duration: 6000 });
+  const lastNotifyTimeRef = useRef<Record<string, number>>({});
 
-    // Browser push notification
-    try {
-      if (Notification.permission === 'granted') {
-        const reg = await navigator.serviceWorker?.getRegistration();
-        if (reg) {
-          await reg.showNotification(title, {
-            body,
-            icon: '/favicon.ico',
-            badge: '/favicon.ico',
-            tag,
-            renotify: true,
-            vibrate: [200, 100, 200],
-            data: { url },
-            silent: false,
-          } as NotificationOptions);
-        }
+  const notify = useCallback(async (title: string, body: string, icon: string, tag: string, url = '/admin') => {
+    const now = Date.now();
+    const prefix = tag.split('-')[0] || 'general';
+    const lastTime = lastNotifyTimeRef.current[prefix] || 0;
+
+    // Throttle high-frequency events of same category to max 1 per 1.5s to prevent UI freezes
+    if (now - lastTime < 1500 && prefix === 'att') {
+      return;
+    }
+    lastNotifyTimeRef.current[prefix] = now;
+
+    // In-app toast
+    toastRef.current({ title, description: body, duration: 4000 });
+
+    // Browser push notification (non-blocking)
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        navigator.serviceWorker?.getRegistration().then((reg) => {
+          if (reg) {
+            reg.showNotification(title, {
+              body,
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              tag,
+              renotify: false,
+              data: { url },
+              silent: true,
+            } as NotificationOptions).catch(() => {});
+          }
+        }).catch(() => {});
+      } catch {
+        // ignore push error
       }
-    } catch (e) {
-      console.warn('Push notification failed:', e);
     }
   }, []);
 
