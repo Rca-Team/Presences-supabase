@@ -198,8 +198,9 @@ export function normalizeGallery(rawGallery: any): PortfolioGalleryItem[] {
   return rawGallery
     .map((item, idx) => {
       if (typeof item === 'string') {
-        const cleanUrl = item.trim();
+        let cleanUrl = item.trim();
         if (!cleanUrl) return null;
+        cleanUrl = cleanUrl.replace(/eiahucigcvsnuvviajqt/g, 'cvdcbcsonlianbfeessy');
         return {
           id: `gal-migrated-${idx}-${Math.random().toString(36).slice(2, 6)}`,
           url: cleanUrl,
@@ -210,9 +211,10 @@ export function normalizeGallery(rawGallery: any): PortfolioGalleryItem[] {
         };
       }
       if (item && typeof item === 'object' && item.url) {
+        const cleanUrl = String(item.url).replace(/eiahucigcvsnuvviajqt/g, 'cvdcbcsonlianbfeessy');
         return {
           id: item.id || `gal-${idx}-${uid()}`,
-          url: item.url,
+          url: cleanUrl,
           title: item.title || '',
           category: item.category || 'Campus',
           caption: item.caption || '',
@@ -227,6 +229,8 @@ export function normalizeGallery(rawGallery: any): PortfolioGalleryItem[] {
 
 function migrate(raw: any): PortfolioData {
   const base = { ...DEFAULT_PORTFOLIO, ...(raw ?? {}) };
+  if (base.profileImage) base.profileImage = base.profileImage.replace(/eiahucigcvsnuvviajqt/g, 'cvdcbcsonlianbfeessy');
+  if (base.coverImage) base.coverImage = base.coverImage.replace(/eiahucigcvsnuvviajqt/g, 'cvdcbcsonlianbfeessy');
   base.achievements = Array.isArray(raw?.achievements) ? raw.achievements : DEFAULT_PORTFOLIO.achievements;
   base.skills = Array.isArray(raw?.skills) ? raw.skills : DEFAULT_PORTFOLIO.skills;
   base.gallery = normalizeGallery(raw?.gallery);
@@ -238,7 +242,7 @@ function migrate(raw: any): PortfolioData {
     title: p.title ?? '',
     description: p.description ?? '',
     stack: p.stack ?? '',
-    image: p.image ?? '',
+    image: (p.image ?? '').replace(/eiahucigcvsnuvviajqt/g, 'cvdcbcsonlianbfeessy'),
     link: p.link ?? '',
     githubUrl: p.githubUrl ?? '',
     year: p.year ?? '',
@@ -247,7 +251,7 @@ function migrate(raw: any): PortfolioData {
   }));
 
   base.members = (Array.isArray(raw?.members) && raw.members.length > 0 ? raw.members : DEFAULT_PORTFOLIO.members).map((m: any) => {
-    let img = m.image ?? '';
+    let img = (m.image ?? '').replace(/eiahucigcvsnuvviajqt/g, 'cvdcbcsonlianbfeessy');
     const norm = (m.name || '').toLowerCase();
     if (!img || img.includes('.asset.json') || img.startsWith('/__l5e/')) {
       if (norm.includes('gaurav')) img = gauravPhoto;
@@ -258,9 +262,9 @@ function migrate(raw: any): PortfolioData {
       id: m.id ?? uid(),
       name: m.name ?? '',
       role: m.role ?? '',
+      image: img,
       bio: m.bio ?? '',
       details: m.details ?? '',
-      image: img,
     };
   });
 
