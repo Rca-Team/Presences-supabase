@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, X, Volume2, VolumeX, Maximize, Minimize,
   Users, CheckCircle2, Wifi, WifiOff, Wand2,
-  DoorOpen, ChevronUp, ChevronDown, AlertTriangle, CloudOff, Cctv, Shirt, Navigation,
+  DoorOpen, ChevronUp, ChevronDown, AlertTriangle, CloudOff, Cctv, Shirt, Navigation, Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
