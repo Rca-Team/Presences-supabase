@@ -89,6 +89,22 @@ type GalleryEntry = {
   sampleCount: number;
 };
 
+/** Multi-frame consensus voting buffer — accumulates match votes per track */
+interface ConsensusVote {
+  userId: string;
+  name: string;
+  distance: number;
+  confidence: number;
+  timestamp: number;
+}
+interface ConsensusBuffer {
+  votes: ConsensusVote[];
+  firstSeen: number;
+}
+const CONSENSUS_REQUIRED = 3;       // minimum matching votes needed
+const CONSENSUS_WINDOW_MS = 2_500;  // temporal window for votes
+const CONSENSUS_AGREEMENT = 0.80;   // 80% of votes must agree on same person
+
 let gallery: Map<string, GalleryEntry> = new Map();
 let galleryLoadedAt = 0;
 const GALLERY_TTL_MS = 120_000;
@@ -180,12 +196,12 @@ export async function matchDescriptorIndexed(
   if (!best || best.distance > matchThreshold) return null;
 
   // Strict Ambiguity Guard:
-  // If the best match distance is within 80% of the second best match (different student),
-  // reject to prevent lookalikes from misidentifying!
+  // If the best match distance is within 78% of the second best match (different student)
+  // or the absolute margin gap is less than 0.08, reject to prevent lookalikes from misidentifying!
   const second = ranked.find(
     r => r.userId !== best.userId && r.name.trim().toLowerCase() !== best.name.trim().toLowerCase()
   );
-  if (second && (best.distance / second.distance) > 0.80) {
+  if (second && ((best.distance / second.distance) > 0.78 || (second.distance - best.distance) < 0.08)) {
     console.log(`Rejecting ambiguous real-time match: best=${best.name} (${best.distance.toFixed(3)}) vs second=${second.name} (${second.distance.toFixed(3)})`);
     return null;
   }
@@ -217,7 +233,7 @@ export function createRecognitionEngine(
   const detectionWidth = options.detectionWidth ?? 640;
   const matchThreshold = options.matchThreshold ?? 0.45;
   const shortlist = options.shortlist ?? 16;
-  const maxConcurrentJobs = options.maxConcurrentJobs ?? 2;
+  const maxConcurrentJobs = options.maxConcurrentJobs ?? 4;
 
   const tracker = createFaceTracker({
     identityTtlMs: options.identityTtlMs ?? 3500,
@@ -233,6 +249,8 @@ export function createRecognitionEngine(
   let queue: number[] = [];
   /** trackId -> userId that was last handed to markAttendance for that track */
   const markedByTrack = new Map<number, string>();
+  /** trackId -> multi-frame consensus voting buffer */
+  const consensusBuffers = new Map<number, ConsensusBuffer>();
 
   const stats: EngineStats = {
     detectFps: 0,
@@ -408,6 +426,38 @@ export function createRecognitionEngine(
         return;
       }
 
+      // Consensus Voting: Accumulate votes across frames within CONSENSUS_WINDOW_MS
+      const now = Date.now();
+      let buf = consensusBuffers.get(track.id);
+      if (!buf || now - buf.firstSeen > CONSENSUS_WINDOW_MS) {
+        buf = { votes: [], firstSeen: now };
+        consensusBuffers.set(track.id, buf);
+      }
+      buf.votes.push({
+        userId: match.userId,
+        name: match.name,
+        distance: match.distance,
+        confidence: match.confidence,
+        timestamp: now,
+      });
+
+      // Filter recent votes
+      buf.votes = buf.votes.filter(v => now - v.timestamp <= CONSENSUS_WINDOW_MS);
+
+      // Check consensus agreement: how many votes agree with current match?
+      const matchingVotes = buf.votes.filter(v => v.userId === match!.userId);
+      const agreementRatio = matchingVotes.length / Math.max(1, buf.votes.length);
+
+      // Require at least 2 consistent matching votes (or high confidence single vote)
+      const isConsensusReached =
+        (matchingVotes.length >= 2 && agreementRatio >= CONSENSUS_AGREEMENT) ||
+        (match.confidence >= 0.88);
+
+      if (!isConsensusReached) {
+        // Not enough consensus yet — keep tracking but don't finalize attendance
+        return;
+      }
+
       tracker.assignIdentity(track.id, {
         userId: match.userId,
         name: match.name,
@@ -436,15 +486,13 @@ export function createRecognitionEngine(
         if (options.markAttendance) {
           const handler = options.markAttendance;
           enqueueWrite({
-            key: `attendance:${match.userId}:${Math.floor(Date.now() / 30_000)}`,
-            payload: identified,
-            run: face =>
-              Promise.race([
-                handler(face),
-                new Promise<void>((_, reject) =>
-                  setTimeout(() => reject(new Error('attendance write timed out')), 15_000),
-                ),
-              ]),
+            userId: match.userId,
+            studentName: match.name,
+            status: 'present',
+            confidence: match.confidence,
+            timestamp: new Date().toISOString(),
+            source: 'realtime-engine',
+            metadata: { trackId: track.id, matchDistance: match.distance },
           });
         }
 

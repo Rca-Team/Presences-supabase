@@ -37,6 +37,15 @@ interface GateStatsOverlayProps {
     uniformNonCompliant: number;
     entryFlow: number;
     exitFlow: number;
+    stationary?: number;
+    people?: Array<{
+      trackId: string;
+      name: string;
+      confidence: number;
+      uniformStatus: 'compliant' | 'non-compliant' | 'unknown';
+      hasLanyard?: boolean;
+      heading: 'entry' | 'exit' | 'stationary';
+    }>;
   };
 }
 

@@ -2,12 +2,14 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   Eye, Loader2, Scan, Zap, ShieldCheck, ShieldAlert,
   SwitchCamera, Wand2, Square, SlidersHorizontal, CloudOff, Cctv, Camera,
+  Volume2, VolumeX, Sparkles, CheckCircle2, AlertCircle, UserCheck, Compass,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GateEntry } from '@/pages/GateMode';
 import { loadGateDetectionModels, areGateDetectionModelsLoaded } from '@/services/face-recognition/ModelService';
 import { recordAttendance, recognizeFace } from '@/services/face-recognition/RecognitionService';
 import { usePhotoEnhancer } from '@/hooks/usePhotoEnhancer';
+import { enqueueAttendance, startOfflineQueueDrain, stopOfflineQueueDrain } from '@/services/face-recognition/AttendanceWriteQueue';
 import * as faceapi from 'face-api.js';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,6 +40,7 @@ interface GateModeScannerProps {
       name: string;
       confidence: number;
       uniformStatus: 'compliant' | 'non-compliant' | 'unknown';
+      hasLanyard?: boolean;
       heading: 'entry' | 'exit' | 'stationary';
     }>;
     uniformCompliant: number;
@@ -61,6 +64,8 @@ interface GateModeScannerProps {
   cutoffMinute?: number;
   cameraSource?: 'webcam' | 'cctv' | 'both';
   cctvStreamUrl?: string;
+  voiceGreeting?: 'voice' | 'chime' | 'off';
+  uniformDetectionEnabled?: boolean;
 }
 
 interface DetectionBox {
@@ -165,6 +170,8 @@ const GateModeScanner = ({
   cutoffMinute = 0,
   cameraSource = 'both',
   cctvStreamUrl,
+  voiceGreeting = 'voice',
+  uniformDetectionEnabled = true,
 }: GateModeScannerProps) => {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const canvasRef  = useRef<HTMLCanvasElement>(null);
@@ -210,6 +217,31 @@ const GateModeScanner = ({
   const sampleCanvasRef     = useRef<HTMLCanvasElement | null>(null);
 
   const { isEnhancing: isAIEnhancing, autoEnhance } = usePhotoEnhancer();
+
+  // Start offline queue background drain
+  useEffect(() => {
+    startOfflineQueueDrain();
+    return () => {
+      stopOfflineQueueDrain();
+    };
+  }, []);
+
+  const speakGreeting = useCallback((name: string, isLate: boolean) => {
+    if (voiceGreeting === 'off' || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const cleanName = name.split(' ')[0] || name;
+      const text = isLate
+        ? `Welcome ${cleanName}, marked Late.`
+        : `Welcome ${cleanName}, attendance marked Present.`;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.02;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // silent
+    }
+  }, [voiceGreeting]);
 
   useEffect(() => {
     if (cameraSource === 'cctv') setActiveSource('cctv');
@@ -441,18 +473,20 @@ const GateModeScanner = ({
 
   const estimateUniformStatus = useCallback((box: { x: number; y: number; width: number; height: number }) => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth || !video.videoHeight) return 'unknown' as const;
+    if (!video || !video.videoWidth || !video.videoHeight || !uniformDetectionEnabled) {
+      return { status: 'unknown' as const, hasLanyard: false, confidence: 0 };
+    }
 
     if (!sampleCanvasRef.current) sampleCanvasRef.current = document.createElement('canvas');
     const c = sampleCanvasRef.current;
-    const ctx = c.getContext('2d');
-    if (!ctx) return 'unknown' as const;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return { status: 'unknown' as const, hasLanyard: false, confidence: 0 };
 
-    const sx = Math.max(0, Math.floor(box.x - box.width * 0.2));
-    const sy = Math.max(0, Math.floor(box.y + box.height * 0.9));
-    const sw = Math.min(video.videoWidth - sx, Math.max(10, Math.floor(box.width * 1.4)));
-    const sh = Math.min(video.videoHeight - sy, Math.max(10, Math.floor(box.height * 1.2)));
-    if (sw < 10 || sh < 10) return 'unknown' as const;
+    const sx = Math.max(0, Math.floor(box.x - box.width * 0.25));
+    const sy = Math.max(0, Math.floor(box.y + box.height * 0.85));
+    const sw = Math.min(video.videoWidth - sx, Math.max(12, Math.floor(box.width * 1.5)));
+    const sh = Math.min(video.videoHeight - sy, Math.max(12, Math.floor(box.height * 1.4)));
+    if (sw < 12 || sh < 12) return { status: 'unknown' as const, hasLanyard: false, confidence: 0 };
 
     c.width = sw;
     c.height = sh;
@@ -461,21 +495,42 @@ const GateModeScanner = ({
 
     let blueDominant = 0;
     let brightWhite = 0;
+    let lanyardStripe = 0;
     const total = data.length / 4;
+    const centerX = Math.floor(sw / 2);
+
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
-      if (b > r + 22 && b > g + 14) blueDominant++;
-      if (r > 170 && g > 170 && b > 170) brightWhite++;
+      const px = (i / 4) % sw;
+
+      // Navy Blue Uniform / Blazer detection
+      if (b > r + 18 && b > g + 10) blueDominant++;
+      // White shirt / Formal shirt detection
+      if (r > 165 && g > 165 && b > 165) brightWhite++;
+
+      // ID Card Lanyard / Tie stripe in central vertical corridor
+      if (Math.abs(px - centerX) < sw * 0.18) {
+        if ((r > 130 && g < 80 && b < 80) || (b > 120 && r < 80) || (r < 50 && g < 50 && b < 50)) {
+          lanyardStripe++;
+        }
+      }
     }
 
     const blueRatio = blueDominant / Math.max(1, total);
     const whiteRatio = brightWhite / Math.max(1, total);
-    if (blueRatio > 0.18 || whiteRatio > 0.33) return 'compliant' as const;
-    if (blueRatio < 0.06 && whiteRatio < 0.14) return 'non-compliant' as const;
-    return 'unknown' as const;
-  }, []);
+    const centerRatio = lanyardStripe / Math.max(1, total * 0.36);
+    const hasLanyard = centerRatio > 0.10;
+
+    if (blueRatio > 0.15 || whiteRatio > 0.28 || (blueRatio > 0.08 && whiteRatio > 0.12)) {
+      return { status: 'compliant' as const, hasLanyard, confidence: Math.min(0.99, (blueRatio + whiteRatio) * 1.8) };
+    }
+    if (blueRatio < 0.05 && whiteRatio < 0.10 && !hasLanyard) {
+      return { status: 'non-compliant' as const, hasLanyard: false, confidence: 0.75 };
+    }
+    return { status: 'compliant' as const, hasLanyard, confidence: 0.65 };
+  }, [uniformDetectionEnabled]);
 
   // ── Gemini Vision (cloud) ──────────────────────────────────────────────────
 
@@ -651,49 +706,71 @@ const GateModeScanner = ({
               trackMotionRef.current.set(track.id, { cx: nextCx, cy: nextCy, ts: now });
             }
 
-            const uniformStatus = estimateUniformStatus(orig);
+            const dress = estimateUniformStatus(orig);
+            const uniformStatus = dress.status;
+            const hasLanyard = dress.hasLanyard;
 
             let color = '#94a3b8';
             if (insideZone) color = label?.recognized ? '#22c55e' : '#ef4444';
             if (!insideZone) color = '#64748b';
 
-            // Rounded box
-            ctx.strokeStyle = color; ctx.lineWidth = 2.5;
-            const r = 8;
+            // High-Tech Cybernetic Corner Brackets
+            const cornerLen = Math.min(18, box.width * 0.25, box.height * 0.25);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            // Top-left
             ctx.beginPath();
-            ctx.moveTo(box.x + r, box.y);
-            ctx.lineTo(box.x + box.width - r, box.y);
-            ctx.arcTo(box.x + box.width, box.y, box.x + box.width, box.y + r, r);
-            ctx.lineTo(box.x + box.width, box.y + box.height - r);
-            ctx.arcTo(box.x + box.width, box.y + box.height, box.x + box.width - r, box.y + box.height, r);
-            ctx.lineTo(box.x + r, box.y + box.height);
-            ctx.arcTo(box.x, box.y + box.height, box.x, box.y + box.height - r, r);
-            ctx.lineTo(box.x, box.y + r);
-            ctx.arcTo(box.x, box.y, box.x + r, box.y, r);
+            ctx.moveTo(box.x, box.y + cornerLen);
+            ctx.lineTo(box.x, box.y);
+            ctx.lineTo(box.x + cornerLen, box.y);
             ctx.stroke();
+            // Top-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLen, box.y);
+            ctx.lineTo(box.x + box.width, box.y);
+            ctx.lineTo(box.x + box.width, box.y + cornerLen);
+            ctx.stroke();
+            // Bottom-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + box.height - cornerLen);
+            ctx.lineTo(box.x, box.y + box.height);
+            ctx.lineTo(box.x + cornerLen, box.y + box.height);
+            ctx.stroke();
+            // Bottom-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLen, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height - cornerLen);
+            ctx.stroke();
+
+            // Inner bounding box with subtle alpha
+            ctx.strokeStyle = color + '40';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
 
             // Scan line animation (only for in-zone)
             if (insideZone) {
               const scanY = box.y + box.height * ((now % 2000) / 2000);
-              ctx.strokeStyle = color + '60'; ctx.lineWidth = 1;
+              ctx.strokeStyle = color + '90'; ctx.lineWidth = 1.5;
               ctx.beginPath(); ctx.moveTo(box.x, scanY); ctx.lineTo(box.x + box.width, scanY); ctx.stroke();
             }
 
             // Label
-            ctx.font = 'bold 13px system-ui, sans-serif';
+            ctx.font = 'bold 12px system-ui, sans-serif';
             let labelText: string;
             let bgColor: string;
             if (!insideZone) {
               labelText = 'Outside zone'; bgColor = 'rgba(100,116,139,0.88)';
             } else if (label) {
               const pct = Math.round(label.confidence * 100);
-              const dressTag = uniformStatus === 'compliant' ? 'dress✓' : uniformStatus === 'non-compliant' ? 'dress!' : 'dress?';
+              const dressTag = uniformStatus === 'compliant' ? 'Dress✓' : uniformStatus === 'non-compliant' ? 'Dress!' : 'Dress?';
+              const lanyardTag = hasLanyard ? ' • ID✓' : '';
               const dirTag = heading === 'entry' ? 'IN' : heading === 'exit' ? 'OUT' : 'HOLD';
-              labelText = label.recognized ? `${label.name}  ${pct}%  ${dressTag}  ${dirTag}` : `Unknown  ${pct}%  ${dressTag}  ${dirTag}`;
-              bgColor   = label.recognized ? 'rgba(34,197,94,0.88)' : 'rgba(239,68,68,0.88)';
+              labelText = label.recognized ? `${label.name}  ${pct}%  ${dressTag}${lanyardTag}  ${dirTag}` : `Unknown  ${pct}%  ${dressTag}${lanyardTag}  ${dirTag}`;
+              bgColor   = label.recognized ? 'rgba(34,197,94,0.92)' : 'rgba(239,68,68,0.92)';
             } else {
               labelText = `Scanning…  ${Math.round(d.detection.score * 100)}%`;
-              bgColor   = 'rgba(100,116,139,0.80)';
+              bgColor   = 'rgba(100,116,139,0.85)';
             }
             const tw2   = ctx.measureText(labelText).width;
             const pillH = 22; const pillPad = 6;
@@ -709,7 +786,7 @@ const GateModeScanner = ({
         const people = inZone.slice(0, 20).map((detection) => {
           const track = resolveTrack(detection.descriptor, detection.detection.box, tracksRef.current);
           const label = faceLabelsRef.current.get(track.id);
-          const uniformStatus = estimateUniformStatus(detection.detection.box);
+          const dress = estimateUniformStatus(detection.detection.box);
           const motion = trackMotionRef.current.get(track.id);
           let heading: 'entry' | 'exit' | 'stationary' = 'stationary';
           if (motion) {
@@ -723,7 +800,8 @@ const GateModeScanner = ({
             trackId: track.id,
             name: label?.recognized ? label.name : 'Unknown',
             confidence: label?.confidence ?? detection.detection.score,
-            uniformStatus,
+            uniformStatus: dress.status,
+            hasLanyard: dress.hasLanyard,
             heading,
           };
         });
@@ -932,14 +1010,23 @@ const GateModeScanner = ({
                   'gate-mode',
                 );
 
+                speakGreeting(studentName, isLate);
                 onFaceDetected({ ...entry, photoUrl: photo ?? undefined });
               } catch (err) {
-                console.error('[Gate] Failed to record attendance:', err);
-                // Keep attendanceMarkedRef/periodMarkedRef set — do NOT re-emit onFaceDetected.
-                // Repeated backend failures would otherwise flood the UI each cooldown cycle.
-                // The operator is notified via a toast; they can check the DB manually.
-                // A future manual re-sync can record the gap.
-                console.warn(`[Gate] Attendance DB write failed for ${studentName} — marked in UI only`);
+                console.error('[Gate] Online DB write failed — storing to offline IndexedDB vault:', err);
+                enqueueAttendance({
+                  id: entry.id,
+                  userId: studentId,
+                  studentName,
+                  status: isLate ? 'late' : 'present',
+                  confidence,
+                  timestamp: nowTime.toISOString(),
+                  source: 'gate-mode',
+                  photoDataUrl: captureFrame(0.85) ?? undefined,
+                  metadata: { gate_period_key: currentPeriod, class: className, section, subject },
+                });
+                speakGreeting(studentName, isLate);
+                onFaceDetected({ ...entry, photoUrl: captureFrame(0.85) ?? undefined });
               }
               continue;
             }

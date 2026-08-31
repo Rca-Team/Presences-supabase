@@ -104,8 +104,11 @@ const GateMode = () => {
   const [sessionId,        setSessionId]        = useState<string | null>(null);
   const [isFullscreen,     setIsFullscreen]     = useState(false);
   const [soundEnabled,     setSoundEnabled]     = useState(true);
+  const [voiceGreeting,    setVoiceGreeting]    = useState<'voice' | 'chime' | 'off'>('voice');
+  const [uniformDetectionEnabled, setUniformDetectionEnabled] = useState(true);
   const [aiEnhancerEnabled,setAiEnhancerEnabled]= useState(true);
   const [cloudOffline,     setCloudOffline]     = useState(false);
+  const [mobileStatsOpen,  setMobileStatsOpen]  = useState(false);
 
   const [entries,          setEntries]          = useState<GateEntry[]>([]);
   const [sessionEntries,   setSessionEntries]   = useState<GateEntry[]>([]);
@@ -122,8 +125,23 @@ const GateMode = () => {
   const [totalPresentToday,setTotalPresentToday]= useState(0);
   const [lateCount,        setLateCount]        = useState(0);
   const [pendingCount,     setPendingCount]     = useState(0);
-  const [mobileStatsOpen,  setMobileStatsOpen]  = useState(false);
-  const [smartMonitoring,  setSmartMonitoring]  = useState<SmartMonitoringPayload>({
+
+  const [smartMonitoring,  setSmartMonitoring]  = useState<{
+    people: Array<{
+      trackId: string;
+      name: string;
+      confidence: number;
+      uniformStatus: 'compliant' | 'non-compliant' | 'unknown';
+      hasLanyard?: boolean;
+      heading: 'entry' | 'exit' | 'stationary';
+    }>;
+    uniformCompliant: number;
+    uniformNonCompliant: number;
+    entryFlow: number;
+    exitFlow: number;
+    stationary: number;
+    timestamp: number;
+  }>({
     people: [],
     uniformCompliant: 0,
     uniformNonCompliant: 0,
@@ -486,14 +504,44 @@ const GateMode = () => {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Voice Greeting Mode */}
           <Button
             variant="ghost"
             size="sm"
             className="h-8 px-2.5 text-xs rounded-xl font-semibold text-muted-foreground hover:text-foreground"
-            onClick={() => setSoundEnabled(v => !v)}
+            onClick={() => setVoiceGreeting(curr => curr === 'voice' ? 'chime' : curr === 'chime' ? 'off' : 'voice')}
+            title="Toggle Voice Greeting: Voice Speech / Chime / Muted"
           >
-            {soundEnabled ? <Volume2 className="h-4 w-4 text-emerald-400 mr-1" /> : <VolumeX className="h-4 w-4 mr-1" />}
-            <span className="hidden sm:inline">{soundEnabled ? 'Audio On' : 'Muted'}</span>
+            {voiceGreeting === 'voice' ? (
+              <>
+                <Volume2 className="h-4 w-4 text-emerald-400 mr-1" />
+                <span className="hidden sm:inline">Voice TTS</span>
+              </>
+            ) : voiceGreeting === 'chime' ? (
+              <>
+                <Volume2 className="h-4 w-4 text-cyan-400 mr-1" />
+                <span className="hidden sm:inline">Chime</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Muted</span>
+              </>
+            )}
+          </Button>
+
+          {/* Uniform Compliance AI Toggle */}
+          <Button
+            variant={uniformDetectionEnabled ? 'default' : 'outline'}
+            size="sm"
+            className={`h-8 px-2.5 text-xs rounded-xl font-bold gap-1 ${
+              uniformDetectionEnabled ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40' : ''
+            }`}
+            onClick={() => setUniformDetectionEnabled(v => !v)}
+            title="Toggle Real-Time School Uniform & ID Lanyard AI Scanner"
+          >
+            <Shirt className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Uniform AI</span>
           </Button>
 
           <Button
@@ -548,6 +596,8 @@ const GateMode = () => {
             cutoffMinute={cutoffMinute}
             cameraSource={cameraSource}
             cctvStreamUrl={cctvStreamUrl}
+            voiceGreeting={voiceGreeting}
+            uniformDetectionEnabled={uniformDetectionEnabled}
           />
 
           {/* Entry feedback notification card */}

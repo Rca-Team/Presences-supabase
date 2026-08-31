@@ -102,7 +102,8 @@ const MATCH_THRESHOLD = 0.41;
  * ambiguous and will be rejected.
  * ratio = bestDist / secondBestDist; reject when ratio > AMBIGUITY_RATIO
  */
-const AMBIGUITY_RATIO = 0.80;
+const AMBIGUITY_RATIO = 0.78;
+const MIN_MARGIN_GAP = 0.08;
 
 /**
  * Auto-mark without manual confirmation only when confidence is this high.
@@ -128,6 +129,50 @@ function euclideanDistance(a: Float32Array, b: Float32Array): number {
     sum += d * d;
   }
   return Math.sqrt(sum);
+}
+
+/**
+ * Estimate face yaw angle from 68-landmark positions.
+ * Uses nose bridge vs jaw symmetry ratio to approximate yaw.
+ * Returns absolute yaw in degrees (0 = frontal).
+ */
+export function estimateYawFromLandmarks(landmarks: { x: number; y: number }[]): number {
+  if (!landmarks || landmarks.length < 68) return 0;
+  // Nose tip (point 30) vs left jaw (point 0) vs right jaw (point 16)
+  const noseTip = landmarks[30];
+  const leftJaw = landmarks[0];
+  const rightJaw = landmarks[16];
+  if (!noseTip || !leftJaw || !rightJaw) return 0;
+  const leftDist = Math.hypot(noseTip.x - leftJaw.x, noseTip.y - leftJaw.y);
+  const rightDist = Math.hypot(noseTip.x - rightJaw.x, noseTip.y - rightJaw.y);
+  const total = leftDist + rightDist;
+  if (total < 1) return 0;
+  // ratio of 0.5 = perfectly frontal, deviation maps to yaw
+  const ratio = leftDist / total;
+  const deviation = Math.abs(ratio - 0.5);
+  // Map deviation [0, 0.5] -> yaw [0, 90]
+  return deviation * 180;
+}
+
+/**
+ * Estimate face pitch from landmarks.
+ * Uses vertical position of nose tip relative to eye line and chin.
+ */
+export function estimatePitchFromLandmarks(landmarks: { x: number; y: number }[]): number {
+  if (!landmarks || landmarks.length < 68) return 0;
+  // Left eye center (avg of points 36-41), right eye center (avg of points 42-47)
+  const leftEye = landmarks.slice(36, 42).reduce((acc, p) => ({ x: acc.x + p.x / 6, y: acc.y + p.y / 6 }), { x: 0, y: 0 });
+  const rightEye = landmarks.slice(42, 48).reduce((acc, p) => ({ x: acc.x + p.x / 6, y: acc.y + p.y / 6 }), { x: 0, y: 0 });
+  const eyeCenter = { x: (leftEye.x + rightEye.x) / 2, y: (leftEye.y + rightEye.y) / 2 };
+  const chin = landmarks[8]; // Bottom of chin
+  const noseTip = landmarks[30];
+  if (!chin || !noseTip) return 0;
+  const faceHeight = Math.abs(chin.y - eyeCenter.y);
+  if (faceHeight < 1) return 0;
+  // Expected nose position is ~40% down from eyes to chin
+  const noseRatio = (noseTip.y - eyeCenter.y) / faceHeight;
+  const deviation = Math.abs(noseRatio - 0.4);
+  return deviation * 120; // Map to approximate degrees
 }
 
 /**
@@ -235,13 +280,23 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
         if (!data) continue;
         // Best distance across all stored samples for this user
         // Using ONLY Euclidean distance — do NOT mix with cosine distance for face-api.js vectors
-        let minDist = euclideanDistance(faceDescriptor, data.averagedDescriptor);
+        // Weighted prototype matching: combine centroid + per-sample distances
+        const centroidDist = euclideanDistance(faceDescriptor, data.averagedDescriptor);
+        let minSampleDist = centroidDist;
+        let sampleDistSum = 0;
+        let sampleCount = 0;
         for (const desc of data.descriptors) {
-          // Skip descriptors with mismatched dimensions (prevents NaN from corrupting ranking)
           if (desc.length !== faceDescriptor.length) continue;
           const d = euclideanDistance(faceDescriptor, desc);
-          if (d < minDist) minDist = d;
+          if (d < minSampleDist) minSampleDist = d;
+          sampleDistSum += d;
+          sampleCount++;
         }
+        // Harmonic fusion: weight best sample match heavily, penalize by centroid deviation
+        const avgSampleDist = sampleCount > 0 ? sampleDistSum / sampleCount : centroidDist;
+        const minDist = sampleCount >= 3
+          ? 0.65 * minSampleDist + 0.20 * centroidDist + 0.15 * avgSampleDist
+          : 0.70 * minSampleDist + 0.30 * centroidDist;
 
         // Guard: skip if distance is non-finite (indicates corrupt/mismatched descriptor data)
         if (!Number.isFinite(minDist)) {
@@ -290,10 +345,10 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
 
 
     // Ambiguity check: if second-best (different person) is almost as close, refuse to guess
-    if (second && best.distance / second.distance > AMBIGUITY_RATIO) {
+    if (second && (best.distance / second.distance > AMBIGUITY_RATIO || (second.distance - best.distance) < MIN_MARGIN_GAP)) {
       console.warn(
         `Ambiguous match rejected: best=${best.distance.toFixed(4)} (${best.userName}), ` +
-        `second=${second.distance.toFixed(4)}, ratio=${(best.distance / second.distance).toFixed(3)}`
+        `second=${second.distance.toFixed(4)}, ratio=${(best.distance / second.distance).toFixed(3)}, gap=${(second.distance - best.distance).toFixed(4)}`
       );
       return { recognized: false };
     }
