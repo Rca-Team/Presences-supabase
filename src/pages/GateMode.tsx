@@ -458,127 +458,194 @@ const GateMode = () => {
     <div ref={containerRef} className="fixed inset-0 bg-[#070b14] z-40 flex flex-col overflow-hidden text-foreground">
 
       {/* ── Top Command Bar ── */}
-      <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-card/80 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
-          
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 border border-primary/20">
-            <DoorOpen className="h-4 w-4 text-primary" />
-            <select
-              value={gateName}
-              onChange={(e) => setGateName(e.target.value)}
-              className="bg-transparent text-xs font-extrabold text-foreground focus:outline-none cursor-pointer"
-            >
-              <option value="Main Gate" className="bg-card text-foreground">Main Gate</option>
-              <option value="Gate 1 (North)" className="bg-card text-foreground">Gate 1 (North)</option>
-              <option value="Gate 2 (South)" className="bg-card text-foreground">Gate 2 (South)</option>
-              <option value="Bus Terminal Gate" className="bg-card text-foreground">Bus Terminal Gate</option>
-            </select>
+      {isMobile ? (
+        /* Mobile Dedicated Top Floating Header */
+        <div className="flex items-center justify-between px-3 py-2 bg-card/90 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 max-w-[130px]">
+              <DoorOpen className="h-3 w-3 text-primary flex-shrink-0" />
+              <select
+                value={gateName}
+                onChange={(e) => setGateName(e.target.value)}
+                className="bg-transparent text-[11px] font-extrabold text-foreground focus:outline-none cursor-pointer truncate"
+              >
+                <option value="Main Gate" className="bg-card text-foreground">Main Gate</option>
+                <option value="Gate 1 (North)" className="bg-card text-foreground">Gate 1</option>
+                <option value="Gate 2 (South)" className="bg-card text-foreground">Gate 2</option>
+                <option value="Bus Terminal Gate" className="bg-card text-foreground">Bus Gate</option>
+              </select>
+            </div>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-bold">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
+              Live
+            </Badge>
           </div>
 
-          <Badge variant="outline" className="hidden sm:inline-flex text-xs px-2 py-0.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-bold">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />
-            AI Gate Live
-          </Badge>
-
-          <Badge variant="outline" className="text-xs px-2 py-0.5 border-border/60 bg-background/50 font-medium">
-            <Cctv className="h-3.5 w-3.5 mr-1 text-primary" />
-            <select
-              value={cameraSource}
-              onChange={(e) => setCameraSource(e.target.value as any)}
-              className="bg-transparent text-[11px] font-bold text-foreground focus:outline-none cursor-pointer"
+          <div className="flex items-center gap-1">
+            {/* Voice Greeting Toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full text-foreground hover:bg-card/80"
+              onClick={() => setVoiceGreeting(curr => curr === 'voice' ? 'chime' : curr === 'chime' ? 'off' : 'voice')}
+              title={`Voice: ${voiceGreeting}`}
             >
-              <option value="webcam" className="bg-card text-foreground">Webcam</option>
-              <option value="cctv" className="bg-card text-foreground">CCTV Stream</option>
-              <option value="both" className="bg-card text-foreground">Dual Hybrid</option>
-            </select>
-          </Badge>
+              {voiceGreeting === 'voice' ? (
+                <Volume2 className="h-4 w-4 text-emerald-400" />
+              ) : voiceGreeting === 'chime' ? (
+                <Volume2 className="h-4 w-4 text-cyan-400" />
+              ) : (
+                <VolumeX className="h-4 w-4 text-muted-foreground" />
+              )}
+            </Button>
 
-          <Badge variant="outline" className="hidden md:inline-flex text-xs px-2 py-0.5 border-border/60 bg-background/50">
-            {isOnline
-              ? <Wifi className="h-3.5 w-3.5 mr-1 text-green-500" />
-              : <WifiOff className="h-3.5 w-3.5 mr-1 text-destructive" />
-            }
-            <span>{isOnline ? 'Online' : 'Offline'}</span>
-          </Badge>
+            {/* Uniform AI Toggle */}
+            <Button
+              variant={uniformDetectionEnabled ? 'default' : 'outline'}
+              size="icon"
+              className={`h-8 w-8 rounded-full ${
+                uniformDetectionEnabled ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40' : ''
+              }`}
+              onClick={() => setUniformDetectionEnabled(v => !v)}
+              title="Uniform AI"
+            >
+              <Shirt className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* Exit */}
+            <Button
+              variant="destructive"
+              size="icon"
+              className="h-8 w-8 rounded-full shadow-md shadow-destructive/20 ml-0.5"
+              onClick={() => navigate('/admin')}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
+      ) : (
+        /* Desktop Top Command Bar */
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-card/80 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
+            
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 border border-primary/20">
+              <DoorOpen className="h-4 w-4 text-primary" />
+              <select
+                value={gateName}
+                onChange={(e) => setGateName(e.target.value)}
+                className="bg-transparent text-xs font-extrabold text-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="Main Gate" className="bg-card text-foreground">Main Gate</option>
+                <option value="Gate 1 (North)" className="bg-card text-foreground">Gate 1 (North)</option>
+                <option value="Gate 2 (South)" className="bg-card text-foreground">Gate 2 (South)</option>
+                <option value="Bus Terminal Gate" className="bg-card text-foreground">Bus Terminal Gate</option>
+              </select>
+            </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Voice Greeting Mode */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2.5 text-xs rounded-xl font-semibold text-muted-foreground hover:text-foreground"
-            onClick={() => setVoiceGreeting(curr => curr === 'voice' ? 'chime' : curr === 'chime' ? 'off' : 'voice')}
-            title="Toggle Voice Greeting: Voice Speech / Chime / Muted"
-          >
-            {voiceGreeting === 'voice' ? (
-              <>
-                <Volume2 className="h-4 w-4 text-emerald-400 mr-1" />
-                <span className="hidden sm:inline">Voice TTS</span>
-              </>
-            ) : voiceGreeting === 'chime' ? (
-              <>
-                <Volume2 className="h-4 w-4 text-cyan-400 mr-1" />
-                <span className="hidden sm:inline">Chime</span>
-              </>
-            ) : (
-              <>
-                <VolumeX className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Muted</span>
-              </>
-            )}
-          </Button>
+            <Badge variant="outline" className="hidden sm:inline-flex text-xs px-2 py-0.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-bold">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />
+              AI Gate Live
+            </Badge>
 
-          {/* Uniform Compliance AI Toggle */}
-          <Button
-            variant={uniformDetectionEnabled ? 'default' : 'outline'}
-            size="sm"
-            className={`h-8 px-2.5 text-xs rounded-xl font-bold gap-1 ${
-              uniformDetectionEnabled ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40' : ''
-            }`}
-            onClick={() => setUniformDetectionEnabled(v => !v)}
-            title="Toggle Real-Time School Uniform & ID Lanyard AI Scanner"
-          >
-            <Shirt className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Uniform AI</span>
-          </Button>
+            <Badge variant="outline" className="text-xs px-2 py-0.5 border-border/60 bg-background/50 font-medium">
+              <Cctv className="h-3.5 w-3.5 mr-1 text-primary" />
+              <select
+                value={cameraSource}
+                onChange={(e) => setCameraSource(e.target.value as any)}
+                className="bg-transparent text-[11px] font-bold text-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="webcam" className="bg-card text-foreground">Webcam</option>
+                <option value="cctv" className="bg-card text-foreground">CCTV Stream</option>
+                <option value="both" className="bg-card text-foreground">Dual Hybrid</option>
+              </select>
+            </Badge>
 
-          <Button
-            variant={aiEnhancerEnabled ? 'default' : 'outline'}
-            size="sm"
-            className={`h-8 px-2.5 text-xs rounded-xl font-bold gap-1 ${
-              aiEnhancerEnabled ? 'bg-primary/20 text-primary border border-primary/40' : ''
-            }`}
-            onClick={() => setAiEnhancerEnabled(v => !v)}
-          >
-            <Wand2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">AI Enhance</span>
-          </Button>
+            <Badge variant="outline" className="hidden md:inline-flex text-xs px-2 py-0.5 border-border/60 bg-background/50">
+              {isOnline
+                ? <Wifi className="h-3.5 w-3.5 mr-1 text-green-500" />
+                : <WifiOff className="h-3.5 w-3.5 mr-1 text-destructive" />
+              }
+              <span>{isOnline ? 'Online' : 'Offline'}</span>
+            </Badge>
+          </div>
 
-          {!isMobile && (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Voice Greeting Mode */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2.5 text-xs rounded-xl font-semibold text-muted-foreground hover:text-foreground"
+              onClick={() => setVoiceGreeting(curr => curr === 'voice' ? 'chime' : curr === 'chime' ? 'off' : 'voice')}
+              title="Toggle Voice Greeting: Voice Speech / Chime / Muted"
+            >
+              {voiceGreeting === 'voice' ? (
+                <>
+                  <Volume2 className="h-4 w-4 text-emerald-400 mr-1" />
+                  <span className="hidden sm:inline">Voice TTS</span>
+                </>
+              ) : voiceGreeting === 'chime' ? (
+                <>
+                  <Volume2 className="h-4 w-4 text-cyan-400 mr-1" />
+                  <span className="hidden sm:inline">Chime</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Muted</span>
+                </>
+              )}
+            </Button>
+
+            {/* Uniform Compliance AI Toggle */}
+            <Button
+              variant={uniformDetectionEnabled ? 'default' : 'outline'}
+              size="sm"
+              className={`h-8 px-2.5 text-xs rounded-xl font-bold gap-1 ${
+                uniformDetectionEnabled ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40' : ''
+              }`}
+              onClick={() => setUniformDetectionEnabled(v => !v)}
+              title="Toggle Real-Time School Uniform & ID Lanyard AI Scanner"
+            >
+              <Shirt className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Uniform AI</span>
+            </Button>
+
+            <Button
+              variant={aiEnhancerEnabled ? 'default' : 'outline'}
+              size="sm"
+              className={`h-8 px-2.5 text-xs rounded-xl font-bold gap-1 ${
+                aiEnhancerEnabled ? 'bg-primary/20 text-primary border border-primary/40' : ''
+              }`}
+              onClick={() => setAiEnhancerEnabled(v => !v)}
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">AI Enhance</span>
+            </Button>
+
             <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={toggleFullscreen}>
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </Button>
-          )}
 
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-8 text-xs px-3 rounded-xl font-bold gap-1 shadow-md shadow-destructive/20"
-            onClick={() => navigate('/admin')}
-          >
-            <X className="h-3.5 w-3.5" />
-            <span>Exit</span>
-          </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs px-3 rounded-xl font-bold gap-1 shadow-md shadow-destructive/20"
+              onClick={() => navigate('/admin')}
+            >
+              <X className="h-3.5 w-3.5" />
+              <span>Exit</span>
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Main Layout Split (70% Video HUD / 30% Stats & Live Feed) ── */}
-      <div className={`flex-1 flex min-h-0 relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
+      <div className={`flex-1 flex min-h-0 relative ${isMobile ? 'flex-col h-[calc(100dvh-50px)]' : 'flex-row'}`}>
 
         {/* Left: Camera Feed & AI Recognition Box */}
-        <div className={isMobile ? 'flex-1 relative min-h-0' : 'flex-[68] relative min-h-0 bg-black/80 flex flex-col'}>
+        <div className={isMobile ? 'flex-1 relative min-h-0 w-full overflow-hidden' : 'flex-[68] relative min-h-0 bg-black/80 flex flex-col'}>
           <GateModeScanner
             onFaceDetected={handleFaceDetected}
             onSmartMonitoringUpdate={handleSmartMonitoringUpdate}
@@ -611,28 +678,39 @@ const GateMode = () => {
             )}
           </AnimatePresence>
 
-          {/* Mobile Bottom Bar */}
+          {/* Mobile Bottom Dock (Floating Action Capsule) */}
           {isMobile && !mobileStatsOpen && (
-            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-20">
+            <div className="absolute bottom-4 left-3 right-3 flex items-center justify-between z-20 pointer-events-auto">
+              {/* Left quick metric capsule */}
               <div className="flex items-center gap-1.5">
-                <div className="bg-card/95 backdrop-blur-xl border border-border/70 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-xl">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                  <span className="text-xs font-extrabold text-foreground">{totalPresentToday} Marked</span>
+                <div className="bg-[#0b101b]/90 backdrop-blur-2xl border border-border/80 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-2xl">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span className="text-xs font-black text-foreground tracking-tight">{totalPresentToday} Marked</span>
                 </div>
+                {smartMonitoring.uniformCompliant > 0 && (
+                  <div className="hidden xs:flex bg-indigo-500/20 backdrop-blur-2xl border border-indigo-500/40 rounded-full px-2.5 py-1.5 items-center gap-1 text-indigo-300 shadow-xl">
+                    <Shirt className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-bold">{smartMonitoring.uniformCompliant} Dress✓</span>
+                  </div>
+                )}
                 {unknownCount > 0 && (
-                  <div className="bg-destructive/90 backdrop-blur-xl rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-xl text-white">
+                  <div className="bg-destructive/90 backdrop-blur-2xl rounded-full px-2.5 py-1.5 flex items-center gap-1 shadow-xl text-white">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     <span className="text-xs font-bold">{unknownCount}</span>
                   </div>
                 )}
               </div>
+
+              {/* Right: Expand Feed Button */}
               <Button
                 variant="secondary"
                 size="sm"
-                className="h-8 rounded-full shadow-xl text-xs font-bold gap-1 bg-primary/20 border border-primary/40 text-primary"
+                className="h-9 px-3.5 rounded-full shadow-2xl text-xs font-extrabold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 transition-transform active:scale-95"
                 onClick={() => setMobileStatsOpen(true)}
               >
-                <ChevronUp className="h-3.5 w-3.5" /> Live Stats
+                <Activity className="h-3.5 w-3.5 animate-pulse" />
+                <span>Live Feed</span>
+                <ChevronUp className="h-3.5 w-3.5" />
               </Button>
             </div>
           )}
@@ -662,15 +740,28 @@ const GateMode = () => {
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-              className="absolute inset-x-0 bottom-0 top-16 bg-card/98 backdrop-blur-3xl rounded-t-3xl border-t border-border/80 shadow-2xl z-50 flex flex-col"
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 top-12 bg-[#0b101b]/98 backdrop-blur-3xl rounded-t-[28px] border-t border-border/80 shadow-2xl z-50 flex flex-col"
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-                <h3 className="font-extrabold text-sm text-foreground">Gate Intelligence & Live Feed</h3>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setMobileStatsOpen(false)}>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
+              {/* Drag Handle & Top Bar */}
+              <div className="px-4 pt-2 pb-3 border-b border-border/60 flex flex-col gap-1.5">
+                <div className="w-12 h-1.5 rounded-full bg-muted-foreground/30 mx-auto" />
+                <div className="flex items-center justify-between mt-1">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-xl bg-primary/20 text-primary">
+                      <Activity className="h-4 w-4 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm text-foreground">Gate Live Feed & Logs</h3>
+                      <p className="text-[10px] text-muted-foreground">{totalPresentToday} Total Verified Today</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-card" onClick={() => setMobileStatsOpen(false)}>
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                </div>
               </div>
+
               <div className="flex-1 min-h-0 overflow-hidden">
                 <GateStatsOverlay
                   totalStudents={totalStudents}
