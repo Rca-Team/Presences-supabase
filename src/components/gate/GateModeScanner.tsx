@@ -628,7 +628,7 @@ const GateModeScanner = ({
   // ── Main detection loop ────────────────────────────────────────────────────
 
   const detectLoop = useCallback(async () => {
-    if (processingRef.current || !videoRef.current || videoRef.current.paused) return;
+    if (processingRef.current || !videoRef.current || videoRef.current.paused || !areGateDetectionModelsLoaded()) return;
     processingRef.current = true;
     const startedAt = performance.now();
     const now       = Date.now();

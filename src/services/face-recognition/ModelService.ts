@@ -30,7 +30,7 @@ const CORE_NETS: NetName[] = [
   'faceLandmark68Net',
   'faceRecognitionNet',
 ];
-const GATE_NETS: NetName[] = ['ssdMobilenetv1', 'faceLandmark68Net'];
+const GATE_NETS: NetName[] = ['ssdMobilenetv1', 'faceLandmark68Net', 'faceRecognitionNet'];
 
 let loadPromise: Promise<void> | null = null;
 
