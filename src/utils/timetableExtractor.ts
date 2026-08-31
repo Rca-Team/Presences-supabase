@@ -350,34 +350,88 @@ Extraction Rules:
 Known subjects: ${knownSubjects.map((s) => s.short_name || s.name).join(', ')}.
 Known teachers: ${knownTeachers.map((t) => t.name).join(', ')}.`;
 
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    // Build candidate model endpoints dynamically & statically
+    const endpointCandidates: { url: string; useJsonMime: boolean }[] = [];
+
+    try {
+      // 1. Query available models for this specific API key
+      const listResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (listResp.ok) {
+        const listData = await listResp.json();
+        const availableModels: string[] = (listData.models || [])
+          .filter((m: any) => {
+            const methods = m.supportedGenerationMethods || [];
+            return methods.includes('generateContent') && m.name?.includes('gemini');
+          })
+          .map((m: any) => m.name.replace(/^models\//, ''));
+
+        availableModels.forEach((m) => {
+          endpointCandidates.push({
+            url: `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`,
+            useJsonMime: true,
+          });
+          endpointCandidates.push({
+            url: `https://generativelanguage.googleapis.com/v1/models/${m}:generateContent?key=${apiKey}`,
+            useJsonMime: true,
+          });
+        });
+      }
+    } catch {
+      // Ignore list fetch failure, proceed with known standard models
+    }
+
+    // Static fallback list
+    const staticEndpoints = [
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${apiKey}`, useJsonMime: true },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${apiKey}`, useJsonMime: false },
+    ];
+
+    staticEndpoints.forEach((ep) => {
+      if (!endpointCandidates.some((c) => c.url === ep.url)) {
+        endpointCandidates.push(ep);
+      }
+    });
+
     let lastErr = '';
 
-    for (const model of models) {
+    for (const ep of endpointCandidates) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const response = await fetch(url, {
+        const bodyPayload: any = {
+          contents: [
+            {
+              parts: [
+                { text: `${systemPrompt}\n\n${userText}` },
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+        };
+
+        if (ep.useJsonMime) {
+          bodyPayload.generationConfig = {
+            response_mime_type: 'application/json',
+            temperature: 0.1,
+          };
+        }
+
+        const response = await fetch(ep.url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: `${systemPrompt}\n\n${userText}` },
-                  {
-                    inline_data: {
-                      mime_type: mimeType,
-                      data: base64Data,
-                    },
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              response_mime_type: 'application/json',
-              temperature: 0.1,
-            },
-          }),
+          body: JSON.stringify(bodyPayload),
         });
 
         if (response.ok) {
