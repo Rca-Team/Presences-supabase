@@ -147,7 +147,7 @@ Enter your school's credentials:
 ```env
 # Supabase Cloud Configuration
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_KEY=your-supabase-anon-or-service-role-key
 
 # Hardware & Camera
 CAMERA_INDEX=0

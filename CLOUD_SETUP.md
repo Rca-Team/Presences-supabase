@@ -29,9 +29,7 @@ VITE_SUPABASE_URL=YOUR_LOVABLE_CLOUD_PROJECT_URL
 VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_LOVABLE_CLOUD_PUBLISHABLE_KEY
 ```
 
-This project currently points to backend ref:
-
-- `eiahucigcvsnuvviajqt`
+This project points to your configured project ref (e.g. `your-project-ref`).
 
 If you use a different Lovable Cloud project, update both env vars accordingly.
 

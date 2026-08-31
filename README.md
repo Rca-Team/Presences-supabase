@@ -60,8 +60,8 @@ This project is configured for Vercel out of the box. The `vercel.json` file spe
 Set these in your Vercel project settings (Settings → Environment Variables):
 
 ```
-VITE_SUPABASE_URL=https://eiahucigcvsnuvviajqt.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpYWh1Y2lnY3ZzbnV2dmlhanF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MDA5NDEsImV4cCI6MjA5MzQ3Njk0MX0.nPl7U5Sm5Rm2zFnwLO3RzjOnkrIbrzEfFzSgkbLnX_I
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 ```
 
 > The project already has a hardcoded fallback for the Lovable cloud Supabase project, but setting the env vars explicitly in Vercel is recommended for production.
