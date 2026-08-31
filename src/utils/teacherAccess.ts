@@ -164,22 +164,30 @@ export async function fetchTeacherCategories(userId: string): Promise<string[]> 
     if (combined) categories.add(combined);
   };
 
-  const permRows = await db
-    .from('teacher_permissions')
-    .select('category, class, section, teacher_id, user_id')
-    .or(`teacher_id.eq.${userId},user_id.eq.${userId}`);
-
-  if (!permRows.error && Array.isArray(permRows.data)) {
-    permRows.data.forEach(addFromRow);
+  try {
+    const res1 = await db.from('teacher_permissions').select('*').eq('user_id', userId);
+    if (!res1.error && Array.isArray(res1.data)) {
+      res1.data.forEach(addFromRow);
+    }
+    const res2 = await db.from('teacher_permissions').select('*').eq('teacher_id', userId);
+    if (!res2.error && Array.isArray(res2.data)) {
+      res2.data.forEach(addFromRow);
+    }
+  } catch (e) {
+    console.warn('Could not read teacher_permissions:', e);
   }
 
-  const classRows = await db
-    .from('class_teachers')
-    .select('category, class, section')
-    .eq('teacher_id', userId);
+  try {
+    const classRows = await db
+      .from('class_teachers')
+      .select('*')
+      .eq('teacher_id', userId);
 
-  if (!classRows.error && Array.isArray(classRows.data)) {
-    classRows.data.forEach(addFromRow);
+    if (!classRows.error && Array.isArray(classRows.data)) {
+      classRows.data.forEach(addFromRow);
+    }
+  } catch (e) {
+    console.warn('Could not read class_teachers:', e);
   }
 
   return [...categories];
@@ -191,13 +199,28 @@ export async function fetchTeacherCategories(userId: string): Promise<string[]> 
 export async function fetchTeacherPermissions(userId: string): Promise<TeacherPermissions> {
   const db = supabase as any;
   try {
-    const { data: rows, error } = await db
+    let rows: any[] | null = null;
+
+    const res1 = await db
       .from('teacher_permissions')
-      .select('can_take_attendance, can_edit_timetable, can_export_reports, metadata')
-      .or(`teacher_id.eq.${userId},user_id.eq.${userId}`)
+      .select('*')
+      .eq('user_id', userId)
       .limit(1);
 
-    if (error || !rows || rows.length === 0) {
+    if (!res1.error && res1.data && res1.data.length > 0) {
+      rows = res1.data;
+    } else {
+      const res2 = await db
+        .from('teacher_permissions')
+        .select('*')
+        .eq('teacher_id', userId)
+        .limit(1);
+      if (!res2.error && res2.data && res2.data.length > 0) {
+        rows = res2.data;
+      }
+    }
+
+    if (!rows || rows.length === 0) {
       return DEFAULT_TEACHER_PERMISSIONS;
     }
 

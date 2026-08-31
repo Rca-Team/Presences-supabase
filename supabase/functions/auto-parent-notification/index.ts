@@ -433,8 +433,15 @@ serve(async (req) => {
     });
 
     const channels = [results.emailSent && 'Email', results.whatsappSent && 'WhatsApp', results.smsSent && 'SMS', 'In-app'].filter(Boolean);
-    return new Response(JSON.stringify({ success: true, ...results, message: `Sent via: ${channels.join(', ')}` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+    return new Response(
+      JSON.stringify({ success: true, ...results, message: `Sent via: ${channels.join(', ')}` }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    );
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: 'Failed to send notification', details: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.error('auto-parent-notification error:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message || 'Notification service encountered an issue' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

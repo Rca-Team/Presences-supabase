@@ -44,6 +44,7 @@ import { parseClassSection } from '@/utils/teacherAccess';
 import { TimetablePhotoExtractorModal } from '@/components/admin/TimetablePhotoExtractorModal';
 import { ExtractedTimetableResult } from '@/utils/timetableExtractor';
 import SubstitutionReport from '@/components/admin/SubstitutionReport';
+import { cn } from '@/lib/utils';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
