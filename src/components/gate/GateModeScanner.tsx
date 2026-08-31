@@ -482,54 +482,104 @@ const GateModeScanner = ({
     const ctx = c.getContext('2d', { willReadFrequently: true });
     if (!ctx) return { status: 'unknown' as const, hasLanyard: false, confidence: 0 };
 
-    const sx = Math.max(0, Math.floor(box.x - box.width * 0.25));
+    // Sample upper torso from below chin to mid-chest (1.6x width, 1.8x height)
+    const sx = Math.max(0, Math.floor(box.x - box.width * 0.3));
     const sy = Math.max(0, Math.floor(box.y + box.height * 0.85));
-    const sw = Math.min(video.videoWidth - sx, Math.max(12, Math.floor(box.width * 1.5)));
-    const sh = Math.min(video.videoHeight - sy, Math.max(12, Math.floor(box.height * 1.4)));
-    if (sw < 12 || sh < 12) return { status: 'unknown' as const, hasLanyard: false, confidence: 0 };
+    const sw = Math.min(video.videoWidth - sx, Math.max(16, Math.floor(box.width * 1.6)));
+    const sh = Math.min(video.videoHeight - sy, Math.max(16, Math.floor(box.height * 1.8)));
+    if (sw < 16 || sh < 16) return { status: 'unknown' as const, hasLanyard: false, confidence: 0 };
 
     c.width = sw;
     c.height = sh;
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     const data = ctx.getImageData(0, 0, sw, sh).data;
 
-    let blueDominant = 0;
-    let brightWhite = 0;
-    let lanyardStripe = 0;
+    let redCollarPlacket = 0;    // Red/Crimson collar & central button strip
+    let navyPlaidCheck = 0;      // Navy blue pattern in checkered shirt
+    let whitePlaidCheck = 0;     // White/light pattern in checkered shirt
+    let greyWaistcoat = 0;       // Slate grey vest (girls uniform) or grey pants
+    let lanyardStripe = 0;       // ID card strap in central corridor
+    let textureEdges = 0;        // Checkered/plaid high-frequency grid transitions
+
     const total = data.length / 4;
     const centerX = Math.floor(sw / 2);
+    const collarZoneH = Math.floor(sh * 0.35); // Upper 35% is collar & neck region
 
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
       const px = (i / 4) % sw;
+      const py = Math.floor((i / 4) / sw);
 
-      // Navy Blue Uniform / Blazer detection
-      if (b > r + 18 && b > g + 10) blueDominant++;
-      // White shirt / Formal shirt detection
-      if (r > 165 && g > 165 && b > 165) brightWhite++;
+      // 1. Red / Crimson Collar & Central Button Placket (Signature KV Uniform Feature)
+      const isRedAccent = (r > 105 && r > g * 1.22 + 10 && r > b * 1.22 + 10);
+      if (isRedAccent) {
+        // Red in collar zone or central vertical button placket
+        if (py < collarZoneH || Math.abs(px - centerX) < sw * 0.16) {
+          redCollarPlacket++;
+        }
+      }
 
-      // ID Card Lanyard / Tie stripe in central vertical corridor
-      if (Math.abs(px - centerX) < sw * 0.18) {
-        if ((r > 130 && g < 80 && b < 80) || (b > 120 && r < 80) || (r < 50 && g < 50 && b < 50)) {
+      // 2. Navy Blue Checked/Plaid Fabric
+      if (b > r + 8 && b > g + 4 && (r < 110 || b > 90)) {
+        navyPlaidCheck++;
+      }
+
+      // 3. White / Light Checkered Grid Intersections
+      if (r > 140 && g > 140 && b > 140 && Math.abs(r - g) < 25 && Math.abs(g - b) < 25) {
+        whitePlaidCheck++;
+      }
+
+      // 4. Slate Grey Waistcoat / Koti / Tunic
+      const lum = (r + g + b) / 3;
+      if (lum > 65 && lum < 185 && Math.abs(r - g) < 18 && Math.abs(g - b) < 18 && Math.abs(r - b) < 20) {
+        greyWaistcoat++;
+      }
+
+      // 5. ID Card Lanyard in Central Corridor
+      if (Math.abs(px - centerX) < sw * 0.16 && py > collarZoneH * 0.5) {
+        if ((r > 130 && g < 75 && b < 75) || (b > 120 && r < 75) || (r < 40 && g < 40 && b < 40)) {
           lanyardStripe++;
         }
       }
+
+      // 6. Checkered Grid Texture Edges (Horizontal gradient)
+      if (px < sw - 1) {
+        const nextR = data[i + 4];
+        const nextG = data[i + 5];
+        const nextB = data[i + 6];
+        const diff = Math.abs(r - nextR) + Math.abs(g - nextG) + Math.abs(b - nextB);
+        if (diff > 55) textureEdges++;
+      }
     }
 
-    const blueRatio = blueDominant / Math.max(1, total);
-    const whiteRatio = brightWhite / Math.max(1, total);
-    const centerRatio = lanyardStripe / Math.max(1, total * 0.36);
-    const hasLanyard = centerRatio > 0.10;
+    const redRatio = redCollarPlacket / Math.max(1, total * 0.4);
+    const navyRatio = navyPlaidCheck / Math.max(1, total);
+    const whiteRatio = whitePlaidCheck / Math.max(1, total);
+    const greyRatio = greyWaistcoat / Math.max(1, total);
+    const edgeRatio = textureEdges / Math.max(1, total);
+    const centerRatio = lanyardStripe / Math.max(1, total * 0.32);
+    const hasLanyard = centerRatio > 0.08;
 
-    if (blueRatio > 0.15 || whiteRatio > 0.28 || (blueRatio > 0.08 && whiteRatio > 0.12)) {
-      return { status: 'compliant' as const, hasLanyard, confidence: Math.min(0.99, (blueRatio + whiteRatio) * 1.8) };
+    // Check KV Boys signature: Red collar/strip + Checkered Plaid (Navy & White edges)
+    const isKVBoysUniform = (redRatio > 0.04 || (navyRatio > 0.08 && whiteRatio > 0.08)) && (edgeRatio > 0.12 || redRatio > 0.03);
+    
+    // Check KV Girls signature: Slate Grey Waistcoat + Checkered Kurti + Red collar
+    const isKVGirlsUniform = (greyRatio > 0.22 && (navyRatio > 0.05 || whiteRatio > 0.05 || redRatio > 0.02));
+
+    // Combined KV uniform conformity index
+    const isCompliant = isKVBoysUniform || isKVGirlsUniform || (redRatio > 0.05) || ((navyRatio + whiteRatio) > 0.25 && edgeRatio > 0.10);
+    const isStrongMismatch = (!isCompliant && redRatio < 0.015 && navyRatio < 0.04 && greyRatio < 0.10 && edgeRatio < 0.08 && !hasLanyard);
+
+    if (isCompliant) {
+      const conf = Math.min(0.99, Math.max(0.70, (redRatio * 3 + navyRatio + greyRatio + edgeRatio * 0.5) * 1.5));
+      return { status: 'compliant' as const, hasLanyard, confidence: conf };
     }
-    if (blueRatio < 0.05 && whiteRatio < 0.10 && !hasLanyard) {
-      return { status: 'non-compliant' as const, hasLanyard: false, confidence: 0.75 };
+    if (isStrongMismatch) {
+      return { status: 'non-compliant' as const, hasLanyard: false, confidence: 0.82 };
     }
-    return { status: 'compliant' as const, hasLanyard, confidence: 0.65 };
+    return { status: 'compliant' as const, hasLanyard, confidence: 0.68 };
   }, [uniformDetectionEnabled]);
 
   // ── Gemini Vision (cloud) ──────────────────────────────────────────────────
