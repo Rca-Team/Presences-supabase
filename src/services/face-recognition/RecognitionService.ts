@@ -95,20 +95,20 @@ interface DeviceInfo {
  * For a school with 300–1000 students we use a stricter value so that
  * no two students are ever confused:
  */
-const MATCH_THRESHOLD = 0.50;
+const MATCH_THRESHOLD = 0.52;
 
 /**
  * If best and second-best distances are within this ratio the match is
  * ambiguous and will be rejected.
  * ratio = bestDist / secondBestDist; reject when ratio > AMBIGUITY_RATIO
  */
-const AMBIGUITY_RATIO = 0.84;
-const MIN_MARGIN_GAP = 0.05;
+const AMBIGUITY_RATIO = 0.88;
+const MIN_MARGIN_GAP = 0.04;
 
 /**
  * Auto-mark without manual confirmation only when confidence is this high.
  */
-const AUTO_MARK_CONFIDENCE = 0.65;
+const AUTO_MARK_CONFIDENCE = 0.55;
 
 // ─── caches ───────────────────────────────────────────────────────────────────
 
@@ -185,8 +185,9 @@ export function estimatePitchFromLandmarks(landmarks: { x: number; y: number }[]
  *   dist = 0.55 → confidence ≈ 0.18
  */
 function distanceToConfidence(dist: number): number {
-  const k = 10;
-  return 1 / (1 + Math.exp(k * (dist - 0.45)));
+  if (!Number.isFinite(dist) || dist >= 0.60) return 0.20;
+  if (dist <= 0.20) return 0.99;
+  return Math.max(0.50, Math.min(0.99, 1 - (dist * 0.70)));
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));

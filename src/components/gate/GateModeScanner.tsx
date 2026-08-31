@@ -17,15 +17,15 @@ import { supabase } from '@/integrations/supabase/client';
 import DetectionBoxEditor from './DetectionBoxEditor';
 
 // ─── Constants (outside component — stable across renders) ─────────────────────
-const REDETECTION_COOLDOWN_MS     = 3_000;   // min gap before re-processing same face track
+const REDETECTION_COOLDOWN_MS     = 2_000;   // min gap before re-processing same face track
 const DUPLICATE_COOLDOWN_MS       = 25_000;  // don't mark same student twice in this window
 const UNKNOWN_COOLDOWN_MS         = 60_000;  // don't fire stranger alert for same region more than once per minute
-const MIN_RECOGNITION_CONF        = 0.50;    // minimum to count as "seen"
-const MIN_AUTO_MARK_CONF          = 0.72;    // minimum to auto-mark attendance
-const BORDERLINE_CONF             = 0.60;    // below this: skip auto-mark (borderline retry)
-const MIN_LIVENESS_SCORE          = 0.50;    // face-api.js detection confidence gate
-const MIN_QUALITY_SCORE           = 0.40;    // only applied when vision API reports a score
-const STABILITY_HITS              = 3;       // times seen before finalising identity
+const MIN_RECOGNITION_CONF        = 0.45;    // minimum to count as "seen"
+const MIN_AUTO_MARK_CONF          = 0.55;    // minimum to auto-mark attendance
+const BORDERLINE_CONF             = 0.48;    // below this: skip auto-mark (borderline retry)
+const MIN_LIVENESS_SCORE          = 0.45;    // face-api.js detection confidence gate
+const MIN_QUALITY_SCORE           = 0.35;    // only applied when vision API reports a score
+const STABILITY_HITS              = 2;       // times seen before finalising identity (instant on 2 frames)
 const STABILITY_WINDOW_MS         = 6_000;   // stability window
 const DESCRIPTOR_MATCH_THRESHOLD  = 0.55;    // Euclidean distance to recognise same face across frames
 const CLOUD_MAX_FAILS             = 3;       // consecutive failures before disabling cloud
@@ -826,29 +826,34 @@ const GateModeScanner = ({
 
           const recStart = performance.now();
 
-          // ── Cloud recognition (with cache) ─────────────────────────────────
-          let visionResult: GateVisionResult | null = null;
-          const cached = visionCacheRef.current.get(track.id);
-          if (cached && now - cached.cachedAt < VISION_CACHE_TTL_MS) {
-            visionResult = cached.result;
-          } else {
-            try {
-              visionResult = await recognizeViaCloud(track);
-              visionCacheRef.current.set(track.id, { result: visionResult, cachedAt: now });
-            } catch {
-              visionResult = null;
-            }
+          // ── Phase 1: Ultra-Fast Local Vector Index Recognition (0ms–5ms) ────
+          let localResult: { recognized: boolean; employee?: any; confidence?: number } | null = null;
+          try {
+            localResult = await recognizeFace(detection.descriptor);
+          } catch (e) {
+            console.warn('[Gate] Local recognizeFace error:', e);
           }
 
-          // ── Local fallback / identity recovery ────────────────────────────
-          let localResult: { recognized: boolean; employee?: any; confidence?: number } | null = null;
-          const needsLocalIdentityRecovery =
-            !visionResult?.recognized ||
-            isUnknownIdentityValue(visionResult?.studentName) ||
-            isUnknownIdentityValue(visionResult?.userId || null);
+          const isLocalConfident = Boolean(
+            localResult?.recognized &&
+            !isUnknownIdentityValue(localResult?.employee?.name) &&
+            !isUnknownIdentityValue(localResult?.employee?.id)
+          );
 
-          if (needsLocalIdentityRecovery) {
-            try { localResult = await recognizeFace(detection.descriptor); } catch {}
+          // ── Phase 2: Cloud Gemini Vision (only if local scan was inconclusive) ──
+          let visionResult: GateVisionResult | null = null;
+          if (!isLocalConfident && !cloudDisabledRef.current) {
+            const cached = visionCacheRef.current.get(track.id);
+            if (cached && now - cached.cachedAt < VISION_CACHE_TTL_MS) {
+              visionResult = cached.result;
+            } else {
+              try {
+                visionResult = await recognizeViaCloud(track);
+                visionCacheRef.current.set(track.id, { result: visionResult, cachedAt: now });
+              } catch {
+                visionResult = null;
+              }
+            }
           }
 
           const recLatency = performance.now() - recStart;
@@ -880,8 +885,8 @@ const GateModeScanner = ({
           const rawConfidence = useLocalIdentity
             ? Number(localResult?.confidence || 0)
             : Number(visionResult?.confidence || localResult?.confidence || detection.detection.score || 0);
-          const resolvedName  = useLocalIdentity ? localName : cloudName;
-          const resolvedId    = useLocalIdentity ? localId : cloudId;
+          const resolvedName  = useLocalIdentity ? localName : (cloudRecognized ? cloudName : localName);
+          const resolvedId    = useLocalIdentity ? localId : (cloudRecognized ? cloudId : localId);
 
           const hasResolvedIdentity = !isUnknownIdentityValue(resolvedName) && !isUnknownIdentityValue(resolvedId);
           const isRecognized  = rawRecognized && rawConfidence >= MIN_RECOGNITION_CONF && hasResolvedIdentity;
