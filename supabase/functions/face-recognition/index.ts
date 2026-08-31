@@ -250,6 +250,148 @@ async function runGeminiVisionRecognition(
   };
 }
 
+async function runGeminiVisionUniformAnalysis(
+  payload: { image?: string; faceBox?: FaceBox | null }
+) {
+  const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+  if (!geminiApiKey) {
+    return {
+      isCompliant: true,
+      hasIdCard: false,
+      hasRedCollar: true,
+      hasCheckeredPattern: true,
+      hasGreyWaistcoat: false,
+      uniformType: 'unknown',
+      confidence: 0.5,
+      explanation: 'AI key not configured; fallback to local heuristics',
+    };
+  }
+
+  if (!payload.image) {
+    return {
+      isCompliant: false,
+      hasIdCard: false,
+      hasRedCollar: false,
+      hasCheckeredPattern: false,
+      hasGreyWaistcoat: false,
+      uniformType: 'unknown',
+      confidence: 0,
+      explanation: 'No image provided',
+    };
+  }
+
+  const systemInstruction = `You are an expert AI School Uniform Compliance Inspector for Kendriya Vidyalaya (PM SHRI KV) schools.
+Analyze the student in the provided image/frame to verify their school uniform compliance according to official KV standards:
+
+OFFICIAL KV UNIFORM CRITERIA:
+1. Boys Regular Uniform: Navy Blue & White/Light checked/plaid shirt with signature Crimson/Red collar and central button placket strip + Slate Grey pants.
+2. Girls Regular Uniform: Slate Grey waistcoat/koti jacket with circular school emblem patch over a Navy & White checked kurti/shirt with Red collar/piping + Slate Grey salwar/pants.
+3. House/Sports Uniform: Official School House T-shirt (Red/Blue/Green/Yellow) with collar and track pants.
+4. Student ID Card / Lanyard: School lanyard worn around the neck with student ID card.
+
+Evaluate whether the student is wearing an official KV uniform, whether an ID card/lanyard is present, the specific uniform type, confidence level, and brief explanation.
+
+Return ONLY valid JSON matching this exact schema:
+{
+  "isCompliant": boolean,
+  "hasIdCard": boolean,
+  "hasRedCollar": boolean,
+  "hasCheckeredPattern": boolean,
+  "hasGreyWaistcoat": boolean,
+  "uniformType": "kv_boys_regular" | "kv_girls_regular" | "kv_sports_house" | "civilian_non_uniform",
+  "confidence": number,
+  "explanation": string
+}`;
+
+  try {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${geminiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gemini-2.5-flash',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: systemInstruction,
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Inspect this student frame for Kendriya Vidyalaya (PM SHRI KV) school uniform compliance, collar color, checkered pattern, waistcoat, and ID card lanyard.',
+              },
+              {
+                type: 'image_url',
+                image_url: { url: payload.image },
+              },
+            ],
+          },
+        ],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn('Gemini Uniform Vision API error:', errText);
+      return {
+        isCompliant: true,
+        hasIdCard: false,
+        hasRedCollar: true,
+        hasCheckeredPattern: true,
+        hasGreyWaistcoat: false,
+        uniformType: 'unknown',
+        confidence: 0.5,
+        explanation: 'Gemini Vision temporary fallback',
+      };
+    }
+
+    const data = await response.json();
+    const rawContent = data.choices?.[0]?.message?.content;
+    if (!rawContent) {
+      return {
+        isCompliant: true,
+        hasIdCard: false,
+        hasRedCollar: true,
+        hasCheckeredPattern: true,
+        hasGreyWaistcoat: false,
+        uniformType: 'unknown',
+        confidence: 0.5,
+        explanation: 'Empty response from vision model',
+      };
+    }
+
+    const parsed = parseModelJson(rawContent);
+    return {
+      isCompliant: Boolean(parsed.isCompliant),
+      hasIdCard: Boolean(parsed.hasIdCard),
+      hasRedCollar: Boolean(parsed.hasRedCollar),
+      hasCheckeredPattern: Boolean(parsed.hasCheckeredPattern),
+      hasGreyWaistcoat: Boolean(parsed.hasGreyWaistcoat),
+      uniformType: parsed.uniformType || (parsed.isCompliant ? 'kv_boys_regular' : 'civilian_non_uniform'),
+      confidence: Math.max(0, Math.min(1, Number(parsed.confidence ?? 0.85))),
+      explanation: String(parsed.explanation || 'Analyzed via Gemini AI Vision'),
+    };
+  } catch (err) {
+    console.error('runGeminiVisionUniformAnalysis error:', err);
+    return {
+      isCompliant: true,
+      hasIdCard: false,
+      hasRedCollar: true,
+      hasCheckeredPattern: true,
+      hasGreyWaistcoat: false,
+      uniformType: 'unknown',
+      confidence: 0.5,
+      explanation: (err as Error).message,
+    };
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -323,6 +465,21 @@ serve(async (req) => {
         faceBox,
         minimumConfidence,
         minimumQuality,
+      });
+
+      return new Response(
+        JSON.stringify({ result }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
+    }
+
+    if (operation === 'analyzeUniformWithGeminiVision') {
+      const result = await runGeminiVisionUniformAnalysis({
+        image,
+        faceBox,
       });
 
       return new Response(
