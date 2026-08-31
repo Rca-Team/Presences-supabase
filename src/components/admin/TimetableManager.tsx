@@ -177,15 +177,15 @@ const STANDARD_CURRICULUM_SUBJECTS: Subject[] = [
   { id: 'subj-lib', name: 'Library & Values', short_name: 'Library', category: 'activity', weeklyDefault: 1 },
 ];
 
-const STANDARD_8_PERIODS: PeriodTiming[] = [
-  { period_number: 1, label: 'Period 1', start_time: '08:00', end_time: '08:45', is_break: false },
-  { period_number: 2, label: 'Period 2', start_time: '08:45', end_time: '09:30', is_break: false },
-  { period_number: 3, label: 'Period 3', start_time: '09:30', end_time: '10:15', is_break: false },
-  { period_number: 4, label: 'Period 4', start_time: '10:15', end_time: '11:00', is_break: false },
-  { period_number: 5, label: 'Period 5', start_time: '11:20', end_time: '12:00', is_break: false },
-  { period_number: 6, label: 'Period 6', start_time: '12:00', end_time: '12:40', is_break: false },
-  { period_number: 7, label: 'Period 7', start_time: '12:40', end_time: '13:20', is_break: false },
-  { period_number: 8, label: 'Period 8', start_time: '13:20', end_time: '14:00', is_break: false },
+export const STANDARD_8_PERIODS: PeriodTiming[] = [
+  { period_number: 1, label: 'Period 1', start_time: '07:20', end_time: '07:55', is_break: false },
+  { period_number: 2, label: 'Period 2', start_time: '07:55', end_time: '08:30', is_break: false },
+  { period_number: 3, label: 'Period 3', start_time: '08:30', end_time: '09:05', is_break: false },
+  { period_number: 4, label: 'Period 4', start_time: '09:05', end_time: '09:40', is_break: false },
+  { period_number: 5, label: 'Period 5', start_time: '10:00', end_time: '10:35', is_break: false },
+  { period_number: 6, label: 'Period 6', start_time: '10:35', end_time: '11:10', is_break: false },
+  { period_number: 7, label: 'Period 7', start_time: '11:10', end_time: '11:45', is_break: false },
+  { period_number: 8, label: 'Period 8', start_time: '11:45', end_time: '12:15', is_break: false },
 ];
 
 const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }) => {
@@ -773,7 +773,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                     <td colspan="6" class="break-cell">RECESS / LUNCH BREAK</td>
                   </tr>`;
                 }
-                return `<tr>
+                let rowHtml = `<tr>
                   <td><strong>Period ${p.period_number}</strong><br><small>${p.start_time?.slice(0, 5)} - ${p.end_time?.slice(0, 5)}</small></td>
                   ${DAYS.map((_, dIdx) => {
                     const day = dIdx + 1;
@@ -789,6 +789,15 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                     </td>`;
                   }).join('')}
                 </tr>`;
+
+                if (p.period_number === 4) {
+                  rowHtml += `<tr>
+                    <td class="break-cell"><strong>Lunch Break</strong><br><small>09:40 - 10:00</small></td>
+                    <td colspan="6" class="break-cell">🥪 RECESS & LUNCH BREAK (09:40 AM – 10:00 AM)</td>
+                  </tr>`;
+                }
+
+                return rowHtml;
               }).join('')}
             </tbody>
           </table>
@@ -1019,13 +1028,14 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                     }
 
                     return (
-                      <tr key={period.id || period.period_number} className="hover:bg-muted/30 transition-colors">
-                        <td className="p-3 font-semibold text-foreground bg-muted/20 border-r border-border/60">
-                          <div className="text-xs font-bold">{period.label || `Period ${period.period_number}`}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                            {period.start_time?.slice(0, 5)} – {period.end_time?.slice(0, 5)}
-                          </div>
-                        </td>
+                      <React.Fragment key={period.id || period.period_number}>
+                        <tr className="hover:bg-muted/30 transition-colors">
+                          <td className="p-3 font-semibold text-foreground bg-muted/20 border-r border-border/60">
+                            <div className="text-xs font-bold">{period.label || `Period ${period.period_number}`}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                              {period.start_time?.slice(0, 5)} – {period.end_time?.slice(0, 5)}
+                            </div>
+                          </td>
 
                         {DAYS.map((_, dIdx) => {
                           const day = dIdx + 1;
@@ -1075,6 +1085,24 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                           );
                         })}
                       </tr>
+
+                      {/* Recess / Lunch Break Banner between Period 4 and Period 5 */}
+                      {period.period_number === 4 && (
+                        <tr className="bg-amber-500/10 dark:bg-amber-500/15 border-y-2 border-amber-500/30">
+                          <td className="p-2.5 font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 border-r border-amber-500/30">
+                            <div className="text-xs font-extrabold flex items-center gap-1">
+                              🥪 Lunch Break
+                            </div>
+                            <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-semibold mt-0.5">
+                              09:40 – 10:00
+                            </div>
+                          </td>
+                          <td colSpan={6} className="p-2.5 text-center font-extrabold tracking-widest text-amber-700 dark:text-amber-300 text-xs bg-amber-500/5">
+                            🥪 RECESS & LUNCH BREAK • 09:40 AM – 10:00 AM (20 MIN)
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                     );
                   })}
                 </tbody>

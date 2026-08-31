@@ -14,8 +14,8 @@ import { Loader2, Clock, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const AttendanceCutoffSetting = () => {
-  const [hour, setHour] = useState<number>(9);
-  const [minute, setMinute] = useState<number>(0);
+  const [hour, setHour] = useState<number>(7);
+  const [minute, setMinute] = useState<number>(30);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -320,6 +320,16 @@ Return ONLY valid JSON matching this schema:
 
 Extraction Rules:
 - Number periods left-to-right from Roman numerals I, II, III, IV, V, VI, VII, VIII into 1, 2, 3, 4, 5, 6, 7, 8.
+- Default School Schedule: 07:20 to 12:15.
+  * Period 1: 07:20 - 07:55
+  * Period 2: 07:55 - 08:30
+  * Period 3: 08:30 - 09:05
+  * Period 4: 09:05 - 09:40
+  * RECESS / LUNCH BREAK: 09:40 - 10:00 (is_break=true)
+  * Period 5: 10:00 - 10:35
+  * Period 6: 10:35 - 11:10
+  * Period 7: 11:10 - 11:45
+  * Period 8: 11:45 - 12:15
 - If there is a RECESS / BREAK column between periods, mark period with is_break=true.
 - Preserve short subject codes exactly (e.g. Eng, Maths, SC, SST, AE, VE, Hindi, Yoga, Games, Comp, SKT, Lib, CLA).
 - Expand abbreviations to full names where obvious:
@@ -396,17 +406,33 @@ Known teachers: ${knownTeachers.map((t) => t.name).join(', ')}.`;
   const rawPeriods: any[] = Array.isArray(parsedRaw.periods) ? parsedRaw.periods : [];
   const rawSlots: any[] = Array.isArray(parsedRaw.slots) ? parsedRaw.slots : [];
 
+  // Default standard school timings (07:20 - 12:15, lunch at 09:40 - 10:00)
+  const defaultTimingsMap: Record<number, { start: string; end: string }> = {
+    1: { start: '07:20', end: '07:55' },
+    2: { start: '07:55', end: '08:30' },
+    3: { start: '08:30', end: '09:05' },
+    4: { start: '09:05', end: '09:40' },
+    5: { start: '10:00', end: '10:35' },
+    6: { start: '10:35', end: '11:10' },
+    7: { start: '11:10', end: '11:45' },
+    8: { start: '11:45', end: '12:15' },
+  };
+
   // Generate clean PeriodTimings
   const periods: ExtractedPeriod[] = (rawPeriods.length > 0
     ? rawPeriods
     : [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ period_number: n, label: `Period ${n}`, is_break: false }))
-  ).map((p: any, idx: number) => ({
-    period_number: p.period_number || idx + 1,
-    label: p.label || `Period ${p.period_number || idx + 1}`,
-    start_time: p.start_time || null,
-    end_time: p.end_time || null,
-    is_break: Boolean(p.is_break),
-  }));
+  ).map((p: any, idx: number) => {
+    const pNum = p.period_number || idx + 1;
+    const def = defaultTimingsMap[pNum];
+    return {
+      period_number: pNum,
+      label: p.label || `Period ${pNum}`,
+      start_time: p.start_time || def?.start || null,
+      end_time: p.end_time || def?.end || null,
+      is_break: Boolean(p.is_break),
+    };
+  });
 
   const slots: ExtractedSlot[] = [];
   const unmatchedSubjectsSet = new Set<string>();

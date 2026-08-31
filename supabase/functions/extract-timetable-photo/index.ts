@@ -94,6 +94,16 @@ Return ONLY valid JSON matching this schema:
 
 Extraction Rules:
 - Number periods left-to-right from Roman numerals I, II, III, IV, V, VI, VII, VIII into 1, 2, 3, 4, 5, 6, 7, 8.
+- Default School Schedule: 07:20 to 12:15.
+  * Period 1: 07:20 - 07:55
+  * Period 2: 07:55 - 08:30
+  * Period 3: 08:30 - 09:05
+  * Period 4: 09:05 - 09:40
+  * RECESS / LUNCH BREAK: 09:40 - 10:00 (is_break=true)
+  * Period 5: 10:00 - 10:35
+  * Period 6: 10:35 - 11:10
+  * Period 7: 11:10 - 11:45
+  * Period 8: 11:45 - 12:15
 - If there is a RECESS / BREAK column between periods (e.g. between period IV and V), mark period with is_break=true.
 - Preserve short subject codes exactly (e.g. Eng, Maths, SC, SST, AE, VE, Hindi, Yoga, Games, Comp, SKT, Lib, CLA).
 - Expand abbreviations to full names where obvious:

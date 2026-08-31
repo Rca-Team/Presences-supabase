@@ -378,14 +378,14 @@ const ClassTeacherManager: React.FC<Props> = ({ category, onBack }) => {
     setIsSaving(true);
     try {
       const defaultPeriods = [
-        { n: 1, start: '08:00', end: '08:45' },
-        { n: 2, start: '08:45', end: '09:30' },
-        { n: 3, start: '09:30', end: '10:15' },
-        { n: 4, start: '10:15', end: '11:00' },
-        { n: 5, start: '11:45', end: '12:30' },
-        { n: 6, start: '12:30', end: '13:15' },
-        { n: 7, start: '13:15', end: '14:00' },
-        { n: 8, start: '14:00', end: '14:45' },
+        { n: 1, start: '07:20', end: '07:55' },
+        { n: 2, start: '07:55', end: '08:30' },
+        { n: 3, start: '08:30', end: '09:05' },
+        { n: 4, start: '09:05', end: '09:40' },
+        { n: 5, start: '10:00', end: '10:35' },
+        { n: 6, start: '10:35', end: '11:10' },
+        { n: 7, start: '11:10', end: '11:45' },
+        { n: 8, start: '11:45', end: '12:15' },
       ];
 
       // Modern per-class shape

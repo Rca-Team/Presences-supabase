@@ -26,13 +26,13 @@ export const getCutoffTime = async (): Promise<string> => {
 
     if (error) {
       console.error('Error fetching cutoff time:', error);
-      return '09:00'; // Default cutoff time
+      return '07:30'; // Default cutoff time (school starts at 07:20)
     }
 
     if (data && data.value) {
       // Handle the value as a string (since it's stored as TEXT in the database)
       const value = data.value;
-      const resolved = typeof value === 'string' ? value : '09:00';
+      const resolved = typeof value === 'string' ? value : '07:30';
       cutoffTimeCache = {
         value: resolved,
         expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
@@ -41,13 +41,13 @@ export const getCutoffTime = async (): Promise<string> => {
     }
 
     cutoffTimeCache = {
-      value: '09:00',
+      value: '07:30',
       expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
     };
-    return '09:00'; // Default cutoff time if no data
+    return '07:30'; // Default cutoff time if no data
   } catch (error) {
     console.error('Error in getCutoffTime:', error);
-    return '09:00'; // Default cutoff time
+    return '07:30'; // Default cutoff time
   }
 };
 
@@ -104,12 +104,12 @@ export const getAttendanceCutoffTime = async (): Promise<{ hour: number; minute:
     const timeString = await getCutoffTime();
     const [hourStr, minuteStr] = timeString.split(':');
     return {
-      hour: parseInt(hourStr) || 9,
-      minute: parseInt(minuteStr) || 0
+      hour: parseInt(hourStr) || 7,
+      minute: parseInt(minuteStr) || 30
     };
   } catch (error) {
     console.error('Error getting attendance cutoff time:', error);
-    return { hour: 9, minute: 0 }; // Default to 9:00 AM
+    return { hour: 7, minute: 30 }; // Default to 7:30 AM
   }
 };
 
