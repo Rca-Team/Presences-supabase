@@ -227,7 +227,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         db.from('subjects').select('*').order('name'),
         db.from('profiles').select('id, user_id, display_name, full_name, username, role'),
         db.from('user_roles').select('user_id, role'),
-        db.from('class_teachers').select('teacher_id, teacher_name, teacher_email'),
+        db.from('class_teachers').select('*'),
       ]);
 
       // Set period timings if available
@@ -539,15 +539,15 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
           const teacher = teachers.find(t => t.id === v.teacherId);
           if (!teacher || !v.subjectId) return null;
           return {
+            category: selectedCategory,
             class: parsed?.className || null,
             section: parsed?.section || null,
-            day_of_week: day,
+            day_of_week: String(day),
             period_number: period,
             teacher_id: teacher.id,
             teacher_name: teacher.name,
             subject_id: v.subjectId,
             room: v.room || `Class ${selectedCategory}`,
-            notes: v.notes || null,
             metadata: {
               category: selectedCategory,
               class: parsed?.className || null,
@@ -556,6 +556,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
               teacher_name: teacher.name,
               subject_id: v.subjectId,
               room: v.room || `Class ${selectedCategory}`,
+              notes: v.notes || null,
             },
           };
         })
@@ -622,15 +623,15 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
             const teacher = teachers.find(t => t.id === v.teacherId);
             if (!teacher || !v.subjectId) return null;
             return {
+              category: selectedCategory,
               class: parsed?.className || null,
               section: parsed?.section || null,
-              day_of_week: day,
+              day_of_week: String(day),
               period_number: period,
               teacher_id: teacher.id,
               teacher_name: teacher.name,
               subject_id: v.subjectId,
               room: v.room || `Class ${selectedCategory}`,
-              notes: v.notes || null,
               metadata: {
                 category: selectedCategory,
                 class: parsed?.className || null,
@@ -639,6 +640,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                 teacher_name: teacher.name,
                 subject_id: v.subjectId,
                 room: v.room || `Class ${selectedCategory}`,
+                notes: v.notes || null,
               },
             };
           })

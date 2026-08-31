@@ -79,10 +79,13 @@ class PushNotificationService {
     }
   }
 
+  private subscriptionFailed = false;
+
   /**
    * Subscribe to push notifications
    */
   async subscribe(): Promise<PushSubscriptionData | null> {
+    if (this.subscriptionFailed) return null;
     if (!this.registration) {
       await this.registerServiceWorker();
     }
@@ -108,6 +111,7 @@ class PushNotificationService {
 
       return this.serializeSubscription(this.subscription);
     } catch (error) {
+      this.subscriptionFailed = true;
       console.warn('Push subscription unavailable in current environment:', error);
       return null;
     }

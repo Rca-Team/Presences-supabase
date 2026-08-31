@@ -148,7 +148,7 @@ const SubstitutionReport: React.FC = () => {
         supabase.from('timetable').select('*').eq('day_of_week', ttDayOfWeek),
         supabase.from('attendance_records').select('id, user_id, device_info, status, timestamp').eq('category', 'Teacher'),
         supabase.from('profiles').select('id, user_id, display_name, full_name, username, role'),
-        supabase.from('class_teachers').select('teacher_id, teacher_name, teacher_email'),
+        supabase.from('class_teachers').select('*'),
         supabase.from('substitutions').select('*').eq('date', today).order('period_number'),
       ]);
 

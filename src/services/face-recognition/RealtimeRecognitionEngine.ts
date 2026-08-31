@@ -345,6 +345,9 @@ export function createRecognitionEngine(
       }
       cctx.drawImage(video, sx, sy, sw, sh, 0, 0, 224, 224);
 
+      let det: { descriptor: Float32Array } | null = null;
+      let match: { userId: string; name: string; distance: number; confidence: number } | null = null;
+
       try {
         const tEmbed = performance.now();
 
@@ -356,7 +359,7 @@ export function createRecognitionEngine(
           onnxEmbedding = await embedFaceOnnx(cropCanvas);
         }
 
-        const det = onnxEmbedding
+        det = onnxEmbedding
           ? ({ descriptor: onnxEmbedding } as { descriptor: Float32Array })
           : await faceapi
               .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
@@ -370,7 +373,7 @@ export function createRecognitionEngine(
         }
 
         const tMatch = performance.now();
-        let match = await matchDescriptorIndexed(det.descriptor, matchThreshold, shortlist);
+        match = await matchDescriptorIndexed(det.descriptor, matchThreshold, shortlist);
 
         // Offload a parallel verification to the worker pool when available
         if (!match && isPoolInitialized()) {
@@ -398,6 +401,11 @@ export function createRecognitionEngine(
         }
       } finally {
         releaseCropCanvas(cropCanvas);
+      }
+
+      if (!det || !match) {
+        tracker.assignIdentity(track.id, null);
+        return;
       }
 
       tracker.assignIdentity(track.id, {
