@@ -7,6 +7,7 @@ import { loadModels, areModelsLoaded } from '@/services/face-recognition/ModelSe
 import { recognizeFace, recordAttendance } from '@/services/face-recognition/RecognitionService';
 import { alignFace, isFaceFrontal } from '@/services/face-recognition/FaceAlignmentService';
 import { scoreFaceQuality } from '@/services/face-recognition/FaceQualityService';
+import { playSuccessChime, playLateChime } from '@/utils/audioFeedback';
 import { Play, Pause, Send, Trash2, Loader2, Users, Eye, SwitchCamera, Camera } from 'lucide-react';
 
 /**
@@ -431,7 +432,7 @@ const LiteLoopFaceScanner: React.FC = () => {
         } else {
           const outcome = await recordAttendance(
             bestRec.employee.id, 'present', bestRec.confidence,
-            { source: 'lite-loop-local', metadata: { name: bestRec.employee.name, blinked: !!item.blinked } },
+            { source: 'lite-loop-local', metadata: { name: bestRec.employee.name, blinked: !!item.blinked, force_attendance_save: true } },
             undefined, 'ai-scan',
           );
           const name = bestRec.employee.name;
@@ -440,6 +441,8 @@ const LiteLoopFaceScanner: React.FC = () => {
           } else if (outcome?.skipped) {
             out.push({ clientId: item.clientId, status: 'unmatched', name, confidence: bestRec.confidence });
           } else {
+            if (outcome?.status === 'late') playLateChime();
+            else playSuccessChime();
             out.push({
               clientId: item.clientId,
               status: (outcome?.status === 'late' ? 'late' : 'marked'),

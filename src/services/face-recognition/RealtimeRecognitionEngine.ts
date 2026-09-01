@@ -195,17 +195,6 @@ export async function matchDescriptorIndexed(
   const best = ranked[0];
   if (!best || best.distance > matchThreshold) return null;
 
-  // Strict Ambiguity Guard:
-  // If the best match distance is within 84% of the second best match (different student)
-  // or the absolute margin gap is less than 0.05, reject to prevent lookalikes from misidentifying!
-  const second = ranked.find(
-    r => r.userId !== best.userId && r.name.trim().toLowerCase() !== best.name.trim().toLowerCase()
-  );
-  if (second && ((best.distance / second.distance) > 0.84 || (second.distance - best.distance) < 0.05)) {
-    console.log(`Rejecting ambiguous real-time match: best=${best.name} (${best.distance.toFixed(3)}) vs second=${second.name} (${second.distance.toFixed(3)})`);
-    return null;
-  }
-
   return {
     userId: best.userId,
     name: best.name,
@@ -315,8 +304,8 @@ export function createRecognitionEngine(
     options.onTracks?.(tracks.filter(t => t.missed === 0));
 
 
-    // Queue only NEW faces for recognition
-    for (const t of tracker.pendingRecognition()) {
+    // Queue only NEW faces for recognition (immediate on hit 1)
+    for (const t of tracker.pendingRecognition(1)) {
       if (!queue.includes(t.id)) queue.push(t.id);
     }
     void pumpQueue(video);
@@ -448,13 +437,12 @@ export function createRecognitionEngine(
       const matchingVotes = buf.votes.filter(v => v.userId === match!.userId);
       const agreementRatio = matchingVotes.length / Math.max(1, buf.votes.length);
 
-      // Require at least 2 consistent matching votes (or high confidence single vote)
-      const isConsensusReached =
-        (matchingVotes.length >= 2 && agreementRatio >= CONSENSUS_AGREEMENT) ||
-        (match.confidence >= 0.88);
+      // Instant Attendance Recognition:
+      // When a valid biometric match is found, mark instantly on the first frame
+      const isConsensusReached = match.confidence >= 0.50;
 
       if (!isConsensusReached) {
-        // Not enough consensus yet — keep tracking but don't finalize attendance
+        // Not enough confidence yet — keep tracking
         return;
       }
 
@@ -481,10 +469,20 @@ export function createRecognitionEngine(
         options.onIdentified?.(identified);
 
         // Thread 4: database updates run off the recognition path.
-        // A hard timeout guarantees one slow write can never occupy a queue slot
-        // and stall attendance marking for everybody behind it.
         if (options.markAttendance) {
-          const handler = options.markAttendance;
+          options.markAttendance(identified).catch(err => {
+            console.warn('markAttendance failed, queueing offline backup:', err);
+            enqueueWrite({
+              userId: match.userId,
+              studentName: match.name,
+              status: 'present',
+              confidence: match.confidence,
+              timestamp: new Date().toISOString(),
+              source: 'realtime-engine',
+              metadata: { trackId: track.id, matchDistance: match.distance },
+            });
+          });
+        } else {
           enqueueWrite({
             userId: match.userId,
             studentName: match.name,

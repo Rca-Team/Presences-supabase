@@ -6,6 +6,7 @@ import { sendAutoParentNotification } from '@/services/notification/AutoNotifica
 import { QrCode, Camera, CameraOff, RefreshCw } from 'lucide-react';
 import { useLiteFeedback } from '@/hooks/useLiteFeedback';
 import { LiteFeedbackControls, LiteFlashOverlay } from './LiteFeedbackControls';
+import { playSuccessChime, playLateChime } from '@/utils/audioFeedback';
 
 /**
  * LiteQRScanner
@@ -125,6 +126,8 @@ const LiteQRScanner: React.FC<{ autoStart?: boolean }> = ({ autoStart = true }) 
         scanned_at: new Date().toISOString(),
         metadata: { name: qr.name, employee_id: qr.employee_id },
       }, undefined, 'qr-scan');
+      if (st === 'late') playLateChime();
+      else playSuccessChime();
       signal(st === 'late' ? 'warn' : 'ok');
       setScans(prev => [{ name: qr.name, id: qr.employee_id || target.slice(0, 8), status: st, time: now }, ...prev].slice(0, 12));
       setStatus(`${qr.name} · ${st}`);

@@ -332,15 +332,6 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
     }
 
 
-    // Ambiguity check: if second-best (different person) is almost as close, refuse to guess
-    if (second && (best.distance / second.distance > AMBIGUITY_RATIO || (second.distance - best.distance) < MIN_MARGIN_GAP)) {
-      console.warn(
-        `Ambiguous match rejected: best=${best.distance.toFixed(4)} (${best.userName}), ` +
-        `second=${second.distance.toFixed(4)}, ratio=${(best.distance / second.distance).toFixed(3)}, gap=${(second.distance - best.distance).toFixed(4)}`
-      );
-      return { recognized: false };
-    }
-
     const confidence = clamp01(distanceToConfidence(best.distance));
     console.log(`Best match: ${best.userName}, dist=${best.distance.toFixed(4)}, confidence=${(confidence * 100).toFixed(1)}%`);
 
@@ -500,7 +491,7 @@ export async function recordAttendance(
   const shouldAutoNotifyParent =
     sourceHint !== 'qr-scanner' &&
     deviceInfo?.metadata?.suppress_auto_notification !== true;
-  const MIN_ATTENDANCE_CONFIDENCE = 0.65;
+  const MIN_ATTENDANCE_CONFIDENCE = 0.50;
   const isManual =
     Boolean(deviceInfo?.metadata?.manual_confirmation) ||
     Boolean(deviceInfo?.metadata?.force_attendance_save);

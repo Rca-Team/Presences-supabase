@@ -59,10 +59,10 @@ export async function storeFaceSample(
   confidence:     number
 ): Promise<boolean> {
   try {
-    // 1. Strict confidence gate (0.88+) for progressive training
-    if (confidence < 0.88 && confidence !== 1.0) {
+    // 1. Confidence gate for progressive training sample persistence
+    if (confidence < 0.60 && confidence !== 1.0) {
       console.log(
-        `Skipping training sample — confidence ${confidence.toFixed(2)} < 0.88`
+        `Skipping training sample — confidence ${confidence.toFixed(2)} < 0.60`
       );
       return false;
     }
@@ -90,10 +90,10 @@ export async function storeFaceSample(
         }
       }
 
-      // If the new capture is further than 0.35 from verified baseline, reject to prevent gallery contamination!
-      if (minDistanceToBaseline > 0.35 && confidence !== 1.0) {
+      // If the new capture is further than 0.45 from verified baseline, reject to prevent gallery contamination!
+      if (minDistanceToBaseline > 0.45 && confidence !== 1.0) {
         console.warn(
-          `Rejecting training sample: distance ${minDistanceToBaseline.toFixed(3)} > 0.35 from baseline`
+          `Rejecting training sample: distance ${minDistanceToBaseline.toFixed(3)} > 0.45 from baseline`
         );
         return false;
       }

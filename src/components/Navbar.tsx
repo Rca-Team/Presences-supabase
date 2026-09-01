@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import ProfileDropdown from './ProfileDropdown';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
+import LiteModeToggle from './LiteModeToggle';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -163,7 +164,8 @@ const Navbar = () => {
         </LayoutGroup>
         
         {/* Auth section - Only show on desktop */}
-        <div className="hidden md:flex items-center gap-3 animate-fade-in">
+        <div className="hidden md:flex items-center gap-2.5 animate-fade-in">
+          <LiteModeToggle variant="badge" />
           <Toggle 
             pressed={theme === 'dark'} 
             onPressedChange={toggleTheme}

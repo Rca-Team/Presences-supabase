@@ -239,7 +239,7 @@ const LoopFaceScanMode: React.FC = () => {
           rec.employee.id,
           'present',
           conf,
-          { source: 'loop-mode-local', metadata: { name: rec.employee.name } },
+          { source: 'loop-mode-local', metadata: { name: rec.employee.name, force_attendance_save: true } },
           item.imageDataUrl,
           'ai-scan',
         );

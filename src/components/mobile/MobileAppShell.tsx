@@ -6,6 +6,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import Logo from "@/components/Logo";
+import LiteModeToggle from "@/components/LiteModeToggle";
 
 type MobileAppShellProps = {
   children: React.ReactNode;
@@ -57,11 +58,14 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
   return (
     <div className="min-h-[100dvh] native-app-shell">
       <header className="fixed inset-x-0 top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-2xl safe-area-top native-app-chrome">
-        <div className="flex h-14 items-center justify-between px-4">
-          <Logo size="sm" className="gap-1.5 [&>div>span:last-child]:hidden [&>div>span:first-child]:text-sm [&>img]:h-7 [&>img]:w-7" />
-          <h1 className="text-base font-semibold tracking-tight text-foreground">
-            {routeTitles[location.pathname] ?? "Workspace"}
-          </h1>
+        <div className="flex h-14 items-center justify-between px-3 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Logo size="sm" className="gap-1.5 [&>div>span:last-child]:hidden [&>div>span:first-child]:text-sm [&>img]:h-7 [&>img]:w-7 shrink-0" />
+            <h1 className="text-sm font-semibold tracking-tight text-foreground truncate">
+              {routeTitles[location.pathname] ?? "Workspace"}
+            </h1>
+          </div>
+          <LiteModeToggle variant="badge" className="shrink-0 scale-90" />
         </div>
       </header>
 

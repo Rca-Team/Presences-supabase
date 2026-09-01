@@ -22,6 +22,7 @@ import { storeFaceSample } from '@/services/face-recognition/ProgressiveTraining
 import { supabase } from '@/integrations/supabase/client';
 
 import { getCutoffTime, isPastCutoffTime, getAttendanceCutoffTime } from '@/services/attendance/AttendanceSettingsService';
+import { playSuccessChime, playLateChime } from '@/utils/audioFeedback';
 import * as faceapi from 'face-api.js';
 import { loadNet } from '@/services/face-recognition/NetLoaderService';
 import { createRecognitionEngine } from '@/services/face-recognition/RealtimeRecognitionEngine';
@@ -74,11 +75,11 @@ interface PendingManualReview {
 }
 
 const EMBEDDING_DEDUPE_THRESHOLD = 0.46;
-const FACE_CROP_PADDING_PERCENT = 0;
+const FACE_CROP_PADDING_PERCENT = 25;
 /** Same person is not re-marked by the live scanner within this window. */
 const AUTO_MARK_COOLDOWN_MS = 5 * 60 * 1000;
 /** Minimum sharpness (gradient energy) for a crop to be kept as a training sample. */
-const AUTO_SAMPLE_MIN_SHARPNESS = 9;
+const AUTO_SAMPLE_MIN_SHARPNESS = 6;
 
 
 interface AutoMarkedEntry {
@@ -201,10 +202,10 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         console.warn('Auto notification follow-up failed:', err);
       }
 
-      // 3 — high-quality face sample for progressive training (strict 0.88+ confidence gate)
+      // 3 — high-quality face sample photo saved to Supabase storage & progressive training
       try {
         const isHighQuality =
-          job.confidence >= 0.88 && !!job.crop && job.crop.blurScore >= AUTO_SAMPLE_MIN_SHARPNESS;
+          job.confidence >= 0.60 && !!job.crop && job.crop.blurScore >= AUTO_SAMPLE_MIN_SHARPNESS;
         if (job.descriptor && isHighQuality && job.crop) {
           const blob = await (await fetch(job.crop.dataUrl)).blob();
           const stored = await storeFaceSample(job.userId, job.descriptor, blob, job.name, job.confidence);
@@ -379,7 +380,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                 // path; recordAttendance must not send a duplicate.
                 suppress_auto_notification: true,
               },
-            }
+            },
+            crop?.dataUrl,
+            'ai-scan'
           );
 
           if (outcome?.skipped) {
@@ -394,6 +397,18 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           }
 
           const entryId = `${face.userId}-${Date.now()}`;
+          
+          // Sound & tactile feedback upon successful face recognition
+          try {
+            if (status === 'late') {
+              playLateChime();
+            } else {
+              playSuccessChime();
+            }
+          } catch {
+            /* ignore */
+          }
+
           setAutoMarkedLog((prev) => {
             const next = [
               { id: entryId, name: face.name, status, confidence: face.confidence, at: Date.now() },
@@ -415,7 +430,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
             crop,
           });
 
-
           setRecognizedFaces((prev) => [
             ...prev.filter((f) => f.id !== face.userId),
             {
@@ -436,6 +450,12 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           toast({
             title: `${face.name} marked ${status}`,
             description: `Auto attendance · ${Math.round(face.confidence * 100)}% match`,
+          });
+
+          onScanComplete?.({
+            recognized: true,
+            name: face.name,
+            confidence: face.confidence,
           });
         } catch (err) {
           // Allow a retry on the next appearance if the write failed
@@ -506,6 +526,8 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
     canvas.width = cropW;
     canvas.height = cropH;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
     const imageData = ctx.getImageData(0, 0, cropW, cropH);
@@ -528,7 +550,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
     const blurScore = gradientSum / Math.max(1, (cropW * cropH) / 4);
     return {
-      dataUrl: canvas.toDataURL('image/jpeg', 0.95),
+      dataUrl: canvas.toDataURL('image/jpeg', 0.98),
       blurScore,
     };
   };
@@ -651,9 +673,11 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                     source: 'loop-face-capture',
                     stable_capture: true,
                     blur_score: Number(faceCrop.blurScore.toFixed(2)),
+                    force_attendance_save: true,
                   },
                 },
-                faceCrop.dataUrl
+                faceCrop.dataUrl,
+                'ai-scan'
               ),
               7000,
               'Loop attendance save timed out'
@@ -877,9 +901,11 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                         strict_mode: true,
                         strict_fused_score: strictScore,
                         strict_threshold_target: thresholdTarget,
+                        force_attendance_save: true,
                       },
                     },
                     faceCaptureImageDataUrl,
+                    'ai-scan'
                   ),
                   5000,
                   'Attendance recording timed out'
@@ -969,6 +995,10 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       // Set scan result for primary face (first recognized, or first in list)
       const primaryResult = results.find(r => r.status === 'present' || r.status === 'late' || r.status === 'review') || results[0];
       if (primaryResult && (primaryResult.status === 'present' || primaryResult.status === 'late')) {
+        try {
+          if (primaryResult.status === 'late') playLateChime();
+          else playSuccessChime();
+        } catch {}
         setScanResult({
           recognized: true,
           name: primaryResult.name,
@@ -1159,8 +1189,8 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           mirrored={facingMode === 'user'}
           videoConstraints={{
             facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 }
           }}
         />
 

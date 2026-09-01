@@ -1808,27 +1808,62 @@ tr, tbody tr {
 }
 
 /* =========================================================
-   LITE MODE — activated on low-end devices / slow networks.
-   Strips expensive visual effects while preserving layout.
+   LITE MODE — High Performance & Low Resource Mode
+   Optimized for low-end hardware, tablets, smart boards, and 2G/3G.
+   Strips GPU-heavy filters and continuous animations while preserving
+   100% layout integrity, high contrast, and smooth responsiveness.
    ========================================================= */
+html.lite-mode {
+  --radius: 0.75rem;
+}
+
 html.lite-mode *,
 html.lite-mode *::before,
 html.lite-mode *::after {
-  animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
-  animation-delay: 0ms !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  transition-duration: 120ms !important;
+  text-shadow: none !important;
 }
-html.lite-mode [class*="blur-["],
-html.lite-mode .neon-liquid-bg,
-html.lite-mode .neon-liquid-bg > * {
+
+/* Convert GPU-heavy glass layers into crisp, fast solid surfaces */
+html.lite-mode .liquid-glass-surface,
+html.lite-mode .liquid-glass-highlight,
+html.lite-mode [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* Neutralize background canvas effects and heavy gradient animations */
+html.lite-mode .neon-liquid-bg {
+  background: hsl(var(--background)) !important;
   filter: none !important;
-  opacity: 0 !important;
 }
-html.lite-mode .route-mount { animation: none !important; }
-html.lite-mode [data-decorative="true"] { display: none !important; }
+
+html.lite-mode .neon-liquid-bg > * {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Suppress expensive continuous infinite animations */
+html.lite-mode .animate-pulse-glow,
+html.lite-mode .animate-float,
+html.lite-mode .animate-spin-slow,
+html.lite-mode .animate-pulse-subtle {
+  animation: none !important;
+}
+
+/* Hide non-essential decorative backdrop orbs to save GPU */
+html.lite-mode [data-decorative="true"],
+html.lite-mode .fixed.inset-0.pointer-events-none.overflow-hidden {
+  display: none !important;
+}
+
+html.lite-mode .route-mount {
+  animation: none !important;
+  opacity: 1 !important;
+}
 
 
 /* =========================================================

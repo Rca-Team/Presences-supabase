@@ -124,7 +124,7 @@ export function createFaceTracker(options: TrackerOptions = {}) {
   }
 
   /** Tracks that still need a recognition pass (recognise only new faces) */
-  function pendingRecognition(minHits = 2): FaceTrack[] {
+  function pendingRecognition(minHits = 1): FaceTrack[] {
     return tracks.filter(
       t =>
         !t.identity &&
