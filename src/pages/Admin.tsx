@@ -325,7 +325,6 @@ const Admin = () => {
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', group: 'Overview' },
   { id: 'sections', icon: FolderKanban, label: 'Class', group: 'Overview' },
   { id: 'students', icon: Users, label: 'Students', group: 'Overview', badge: attendanceUpdated ? 'new' : undefined },
-  { id: 'calendar', icon: Calendar, label: 'Calendar', group: 'Overview' },
   { id: 'idcard', icon: Image, label: 'ID Extract', group: 'Registration' },
   { id: 'idcards', icon: CreditCard, label: 'ID Cards', group: 'Registration' },
   
@@ -373,14 +372,7 @@ const Admin = () => {
               setSelectedFaceId={(id) => {
                 haptic('selection');
                 setSelectedFaceId(id);
-                if (id) setActiveTab('calendar');
               }} />
-          </TabPanel>
-        );
-      case 'calendar':
-        return (
-          <TabPanel>
-            <AttendanceCalendar selectedFaceId={selectedFaceId} />
           </TabPanel>
         );
       case 'idcard':

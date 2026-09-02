@@ -64,44 +64,59 @@ export const pickPreferredPhotoCandidate = (
   return '';
 };
 
+const STORAGE_BUCKETS = ['face-images', 'student-registration-faces', 'attendance-training-faces', 'public'] as const;
+
 export const resolveStudentPhotoUrl = async (raw?: string | null): Promise<string> => {
   const value = raw?.toString().trim();
   if (!value) return '';
-  if (value.startsWith('data:')) return value;
+  if (value.startsWith('data:') || value.startsWith('blob:')) return value;
 
-  const storageRef = extractStorageRef(value);
-  if (!storageRef || !storageRef.path) {
-    // If it's an absolute URL pointing to an old Supabase project, rewrite to current project
-    if (/^https?:\/\//i.test(value)) {
-      return value.replace(/https:\/\/[a-z0-9-]+\.supabase\.co/gi, 'https://cvdcbcsonlianbfeessy.supabase.co').split('?')[0].replace('/storage/v1/object/sign/', '/storage/v1/object/public/');
-    }
+  // If already a valid signed URL with token, return directly
+  if (/^https?:\/\//i.test(value) && value.includes('token=')) {
     return value;
   }
 
-  const bucket = storageRef.bucket || FACE_BUCKET;
-  const bucketPath = storageRef.path;
-
-  const cacheKey = `${bucket}:${bucketPath}`;
+  const cacheKey = value;
   if (signedUrlCache.has(cacheKey)) return signedUrlCache.get(cacheKey)!;
 
-  try {
-    const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(bucketPath);
-    if (publicData?.publicUrl) {
-      signedUrlCache.set(cacheKey, publicData.publicUrl);
-      return publicData.publicUrl;
+  const storageRef = extractStorageRef(value);
+  const primaryBucket = storageRef?.bucket || FACE_BUCKET;
+  const bucketPath = storageRef?.path || unwrapPath(value).replace(/^(?:face-images|student-registration-faces|attendance-training-faces|public)\//, '');
+
+  if (!bucketPath) {
+    return value;
+  }
+
+  const bucketCandidates = Array.from(new Set([primaryBucket, ...STORAGE_BUCKETS]));
+
+  // Try creating signed URL across buckets first (works for both private & public buckets)
+  for (const bucket of bucketCandidates) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(bucketPath, 60 * 60 * 24 * 365);
+
+      if (!error && data?.signedUrl) {
+        signedUrlCache.set(cacheKey, data.signedUrl);
+        return data.signedUrl;
+      }
+    } catch {
+      // Continue to next bucket
     }
-  } catch (err) {
-    console.warn('Public URL resolution fallback:', err);
   }
 
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(bucketPath, 60 * 60 * 24 * 365);
-
-  if (!error && data?.signedUrl) {
-    signedUrlCache.set(cacheKey, data.signedUrl);
-    return data.signedUrl;
+  // Fallback: try public URL
+  for (const bucket of bucketCandidates) {
+    try {
+      const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(bucketPath);
+      if (publicData?.publicUrl) {
+        signedUrlCache.set(cacheKey, publicData.publicUrl);
+        return publicData.publicUrl;
+      }
+    } catch {
+      // Continue
+    }
   }
 
-  return `https://cvdcbcsonlianbfeessy.supabase.co/storage/v1/object/public/${bucket}/${bucketPath}`;
+  return value;
 };

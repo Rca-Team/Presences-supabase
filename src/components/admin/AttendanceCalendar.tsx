@@ -5,7 +5,7 @@ import StudentInfoCard from './StudentInfoCard';
 import DailyAttendanceDetails from './DailyAttendanceDetails';
 import AttendanceCalendarView from './AttendanceCalendarView';
 import ReportControls from './ReportControls';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, ChevronLeft, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,9 +19,17 @@ import { resolveStudentPhotoUrl } from '@/utils/studentPhotoResolver';
 
 interface AttendanceCalendarProps {
   selectedFaceId: string | null;
+  onBack?: () => void;
+  availableFaces?: Array<{ id: string; name: string; employee_id: string; department?: string; image_url?: string }>;
+  onSelectFaceId?: (id: string) => void;
 }
 
-const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ selectedFaceId }) => {
+const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ 
+  selectedFaceId,
+  onBack,
+  availableFaces,
+  onSelectFaceId
+}) => {
   const { toast } = useToast();
   const {
     attendanceDays,
@@ -362,7 +370,18 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ selectedFaceId 
 
   if (!selectedFaceId) {
     return (
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+        {onBack && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onBack}
+            className="gap-1.5 h-8 text-xs font-semibold rounded-xl"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to Student Directory
+          </Button>
+        )}
         <Card className="border-dashed">
           <CardContent className="py-10 sm:py-16 flex flex-col items-center gap-3 sm:gap-4">
             <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-muted flex items-center justify-center">
@@ -371,9 +390,25 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ selectedFaceId 
             <div className="text-center space-y-1">
               <h3 className="font-semibold text-base sm:text-lg">No student selected</h3>
               <p className="text-xs sm:text-sm text-muted-foreground max-w-xs px-4">
-                Select a student from the list to view their attendance calendar.
+                Select a student from the list or choose from the dropdown below to view their attendance calendar.
               </p>
             </div>
+            {availableFaces && availableFaces.length > 0 && onSelectFaceId && (
+              <div className="w-full max-w-xs pt-2">
+                <Select onValueChange={onSelectFaceId}>
+                  <SelectTrigger className="w-full h-9 rounded-xl text-xs">
+                    <SelectValue placeholder="Choose a student..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {availableFaces.map((f) => (
+                      <SelectItem key={f.id} value={f.id} className="text-xs">
+                        {f.name} ({f.employee_id})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -386,6 +421,40 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ selectedFaceId 
       animate={{ opacity: 1, y: 0 }}
       className="space-y-3 sm:space-y-4"
     >
+      {/* Top action bar when embedded in student section */}
+      {(onBack || (availableFaces && availableFaces.length > 0)) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-card/60 border border-border/60 p-2 rounded-2xl">
+          {onBack && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onBack}
+              className="gap-1.5 h-8 text-xs font-semibold rounded-xl bg-card"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to Student Directory
+            </Button>
+          )}
+          {availableFaces && availableFaces.length > 0 && onSelectFaceId && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs font-medium text-muted-foreground hidden sm:inline">Student:</span>
+              <Select value={selectedFaceId || ''} onValueChange={onSelectFaceId}>
+                <SelectTrigger className="h-8 w-48 sm:w-60 text-xs rounded-xl bg-card">
+                  <SelectValue placeholder="Switch student..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {availableFaces.map((f) => (
+                    <SelectItem key={f.id} value={f.id} className="text-xs">
+                      {f.name} ({f.employee_id})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Student Header + Report Actions */}
       <StudentInfoCard
         selectedFace={selectedFace}

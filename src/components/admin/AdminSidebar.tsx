@@ -71,13 +71,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
       color: 'from-green-500 to-emerald-500',
       badge: attendanceUpdated ? 'New' : undefined
     },
-    { 
-      id: 'calendar', 
-      icon: Calendar, 
-      label: 'Calendar',
-      description: 'Attendance records',
-      color: 'from-orange-500 to-red-500'
-    },
   ];
 
   const registrationItems = [

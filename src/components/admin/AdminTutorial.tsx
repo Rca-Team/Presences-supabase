@@ -41,19 +41,10 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'students',
     icon: Users,
-    title: 'Student Directory',
-    description: 'Browse all registered students with photos, names, and IDs. Click any student to view their attendance calendar.',
+    title: 'Student Directory & Calendar',
+    description: 'Browse all registered students with photos, names, and IDs, and inspect their full attendance calendar directly.',
     color: '#06b6d4',
     mobileLocation: 'bottom-nav',
-    desktopGroup: 'Overview',
-  },
-  {
-    id: 'calendar',
-    icon: Calendar,
-    title: 'Attendance Calendar',
-    description: 'Visual monthly calendar showing daily attendance (present, late, absent) for any selected student.',
-    color: '#10b981',
-    mobileLocation: 'more-menu',
     desktopGroup: 'Overview',
   },
   {

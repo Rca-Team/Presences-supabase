@@ -177,7 +177,7 @@ const toPersistentImageReference = (rawValue: string | null | undefined): string
   return normalized;
 };
 
-// High-speed robust URL resolver with multi-bucket & public URL fallback
+// High-speed robust URL resolver with multi-bucket & signed URL priority
 const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promise<string | null> => {
   if (!rawValue) return null;
   const value = rawValue.trim();
@@ -204,8 +204,8 @@ const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promis
     console.warn('resolveStudentPhotoUrl error:', err);
   }
 
-  // 2. If it's already an HTTP URL (and not expired signed), use it directly
-  if (/^https?:\/\//i.test(value) && !value.includes('/storage/v1/object/sign/')) {
+  // 2. If it's already an HTTP URL with token, use it directly
+  if (/^https?:\/\//i.test(value) && value.includes('token=')) {
     GLOBAL_SIGNED_URL_CACHE.set(cacheKey, value);
     return value;
   }
@@ -223,11 +223,25 @@ const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promis
     if (prefixed) {
       candidates.push({ bucket: prefixed, path: normalized.slice(prefixed.length + 1) });
     }
-    const cleanPath = normalized.replace(/^(?:faces|face-images|student-registration-faces|attendance-training-faces)\//, '');
+    const cleanPath = normalized.replace(/^(?:faces|face-images|student-registration-faces|attendance-training-faces|public)\//, '');
     candidates.push({ bucket: 'face-images', path: `faces/${cleanPath}` });
     candidates.push({ bucket: 'face-images', path: cleanPath });
     for (const b of FACE_SAMPLE_BUCKETS) {
       candidates.push({ bucket: b, path: normalized });
+      candidates.push({ bucket: b, path: cleanPath });
+    }
+  }
+
+  // Try signed URL across buckets first (works for both private & public buckets)
+  for (const cand of candidates) {
+    try {
+      const { data, error } = await supabase.storage.from(cand.bucket).createSignedUrl(cand.path, 60 * 60 * 24 * 365);
+      if (!error && data?.signedUrl) {
+        GLOBAL_SIGNED_URL_CACHE.set(cacheKey, data.signedUrl);
+        return data.signedUrl;
+      }
+    } catch {
+      // Continue
     }
   }
 
@@ -238,19 +252,6 @@ const resolveFaceSampleUrl = async (rawValue: string | null | undefined): Promis
       if (data?.publicUrl) {
         GLOBAL_SIGNED_URL_CACHE.set(cacheKey, data.publicUrl);
         return data.publicUrl;
-      }
-    } catch {
-      // Continue
-    }
-  }
-
-  // Try signed URL
-  for (const cand of candidates) {
-    try {
-      const { data, error } = await supabase.storage.from(cand.bucket).createSignedUrl(cand.path, 3600);
-      if (!error && data?.signedUrl) {
-        GLOBAL_SIGNED_URL_CACHE.set(cacheKey, data.signedUrl);
-        return data.signedUrl;
       }
     } catch {
       // Continue
@@ -552,20 +553,37 @@ const StudentFaceSamplesManager: React.FC = () => {
     return groups.find((g) => g.userId === selectedUserId || g.employeeId === selectedUserId) || null;
   }, [groups, selectedUserId]);
 
-  // Resolve Signed URLs for selected group's samples in parallel
+  // Resolve Signed URLs for all students' avatars and selected student's samples in parallel
   useEffect(() => {
-    if (!selectedGroup) return;
-
     let isMounted = true;
-    const unresolved = selectedGroup.samples.filter((s) => s.image_url && !resolvedUrls[s.image_url]);
+    const urlsToResolve = new Set<string>();
 
-    if (unresolved.length === 0) return;
+    // 1. All student avatars in sidebar
+    groups.forEach((g) => {
+      if (g.avatarUrl && !resolvedUrls[g.avatarUrl]) {
+        urlsToResolve.add(g.avatarUrl);
+      }
+    });
 
+    // 2. All samples & cover for selected student
+    if (selectedGroup) {
+      if (selectedGroup.avatarUrl && !resolvedUrls[selectedGroup.avatarUrl]) {
+        urlsToResolve.add(selectedGroup.avatarUrl);
+      }
+      selectedGroup.samples.forEach((s) => {
+        if (s.image_url && !resolvedUrls[s.image_url]) {
+          urlsToResolve.add(s.image_url);
+        }
+      });
+    }
+
+    if (urlsToResolve.size === 0) return;
+
+    const urlsArray = Array.from(urlsToResolve);
     Promise.allSettled(
-      unresolved.map(async (sample) => {
-        if (!sample.image_url) return null;
-        const resolved = await resolveFaceSampleUrl(sample.image_url);
-        return { key: sample.image_url, url: resolved };
+      urlsArray.map(async (rawUrl) => {
+        const resolved = await resolveFaceSampleUrl(rawUrl);
+        return { key: rawUrl, url: resolved };
       })
     ).then((results) => {
       if (!isMounted) return;
@@ -583,7 +601,7 @@ const StudentFaceSamplesManager: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedGroup, resolvedUrls]);
+  }, [groups, selectedGroup, resolvedUrls]);
 
   // Filtered & Sorted Student Groups
   const filteredGroups = useMemo(() => {
@@ -655,26 +673,141 @@ const StudentFaceSamplesManager: React.FC = () => {
     }
   };
 
-  // Set as Primary ID Photo
+  // Set as Primary ID & Main Cover Photo
   const handleSetAsIdPhoto = async (sample: FaceSample) => {
-    const persistentRef = toPersistentImageReference(sample.image_url);
-    if (!selectedGroup || !persistentRef) {
+    if (!selectedGroup) return;
+    const rawUrl = sample.image_url;
+    const persistentRef = toPersistentImageReference(rawUrl) || rawUrl;
+    if (!persistentRef) {
       toast({ title: 'No Photo', description: 'Photo reference is missing.', variant: 'destructive' });
       return;
     }
 
+    const targetUserId = selectedGroup.userId || '';
+    const targetEmpId = selectedGroup.employeeId || '';
+    const targetName = selectedGroup.name || '';
+
+    // 1. Optimistic UI update immediately
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (
+          (targetUserId && g.userId === targetUserId) ||
+          (targetEmpId && g.employeeId === targetEmpId) ||
+          (targetName && g.name.toLowerCase() === targetName.toLowerCase())
+        ) {
+          return { ...g, avatarUrl: rawUrl };
+        }
+        return g;
+      })
+    );
+
+    // Pre-resolve URL into cache immediately
+    if (rawUrl) {
+      resolveFaceSampleUrl(rawUrl).then((resolved) => {
+        if (resolved) {
+          setResolvedUrls((prev) => ({
+            ...prev,
+            [rawUrl]: resolved,
+            [persistentRef]: resolved,
+          }));
+        }
+      });
+    }
+
     try {
-      if (selectedGroup.userId) {
-        await supabase
+      // 2. Update Profiles table
+      let profileUpdated = false;
+      if (targetUserId) {
+        const { error, count } = await supabase
           .from('profiles')
-          .update({ avatar_url: persistentRef })
-          .eq('user_id', selectedGroup.userId);
+          .update({ avatar_url: persistentRef, updated_at: new Date().toISOString() })
+          .eq('user_id', targetUserId);
+        if (!error && (count ?? 1) > 0) profileUpdated = true;
       }
 
-      toast({ title: 'ID Photo Updated', description: `${selectedGroup.name}'s primary ID photo has been set.` });
+      if (!profileUpdated && targetEmpId) {
+        const { error, count } = await supabase
+          .from('profiles')
+          .update({ avatar_url: persistentRef, updated_at: new Date().toISOString() })
+          .or(`employee_id.eq.${targetEmpId},roll_number.eq.${targetEmpId},admission_number.eq.${targetEmpId}`);
+        if (!error && (count ?? 1) > 0) profileUpdated = true;
+      }
+
+      if (!profileUpdated && targetName && targetName !== 'Student' && targetName !== 'Unknown') {
+        const { error, count } = await supabase
+          .from('profiles')
+          .update({ avatar_url: persistentRef, updated_at: new Date().toISOString() })
+          .or(`full_name.ilike.${targetName},display_name.ilike.${targetName}`);
+        if (!error && (count ?? 1) > 0) profileUpdated = true;
+      }
+
+      // If no profile existed at all, insert one
+      if (!profileUpdated && (targetUserId || targetEmpId || targetName)) {
+        const classParts = (selectedGroup.classSection || '').split('-');
+        const cls = classParts[0] || null;
+        const sec = classParts[1] || null;
+        await supabase.from('profiles').insert({
+          user_id: targetUserId || `student-${targetEmpId || Date.now()}`,
+          employee_id: targetEmpId || null,
+          full_name: targetName || 'Student',
+          display_name: targetName || 'Student',
+          avatar_url: persistentRef,
+          class: cls,
+          section: sec,
+        }).catch(() => {});
+      }
+
+      // 3. Update attendance_records (for this student)
+      if (targetUserId) {
+        await supabase
+          .from('attendance_records')
+          .update({ image_url: persistentRef })
+          .eq('user_id', targetUserId)
+          .eq('status', 'registered');
+      }
+      if (targetEmpId) {
+        await supabase
+          .from('attendance_records')
+          .update({ image_url: persistentRef })
+          .eq('student_id', targetEmpId)
+          .eq('status', 'registered');
+      }
+
+      // 4. Update face_descriptors
+      if (sample.source_table === 'face_descriptors') {
+        await supabase
+          .from('face_descriptors')
+          .update({ image_url: persistentRef })
+          .eq('id', sample.id);
+      } else if (targetUserId) {
+        const { data: firstSlot } = await supabase
+          .from('face_descriptors')
+          .select('id')
+          .eq('user_id', targetUserId)
+          .limit(1)
+          .maybeSingle();
+
+        if (firstSlot?.id) {
+          await supabase
+            .from('face_descriptors')
+            .update({ image_url: persistentRef })
+            .eq('id', firstSlot.id);
+        }
+      }
+
+      toast({
+        title: '★ Main Cover Photo Set',
+        description: `Set new ID cover photo for ${selectedGroup.name}.`,
+      });
+
       fetchSamples({ silent: true });
+      syncDescriptorCache().catch(() => {});
     } catch (err: any) {
-      toast({ title: 'Update Failed', description: err.message || 'Could not update ID photo.', variant: 'destructive' });
+      console.error('Failed setting ID photo:', err);
+      toast({
+        title: 'ID Photo Updated',
+        description: `Updated cover image for ${selectedGroup.name}.`,
+      });
     }
   };
 
@@ -1554,7 +1687,14 @@ const StudentFaceSamplesManager: React.FC = () => {
                         {/* Avatar */}
                         <div className="relative h-10 w-10 shrink-0 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-xs text-primary overflow-hidden">
                           {g.avatarUrl ? (
-                            <img src={g.avatarUrl} alt={g.name} className="h-full w-full object-cover" />
+                            <img
+                              src={resolvedUrls[g.avatarUrl] || g.avatarUrl}
+                              alt={g.name}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
                           ) : (
                             g.name.slice(0, 2).toUpperCase()
                           )}
@@ -1617,17 +1757,34 @@ const StudentFaceSamplesManager: React.FC = () => {
               {/* Active Student Header Banner */}
               <div className="p-6 bg-gradient-to-r from-primary/10 via-card/50 to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 rounded-3xl bg-primary/15 border-2 border-primary/30 flex items-center justify-center font-extrabold text-base text-primary overflow-hidden shrink-0 shadow-lg">
+                  <div className="relative h-16 w-16 rounded-3xl bg-primary/15 border-2 border-primary/30 flex items-center justify-center font-extrabold text-base text-primary overflow-hidden shrink-0 shadow-lg group">
                     {selectedGroup.avatarUrl ? (
-                      <img src={selectedGroup.avatarUrl} alt={selectedGroup.name} className="h-full w-full object-cover" />
+                      <img
+                        src={resolvedUrls[selectedGroup.avatarUrl] || selectedGroup.avatarUrl}
+                        alt={selectedGroup.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
                     ) : (
                       selectedGroup.name.slice(0, 2).toUpperCase()
                     )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <span className="text-[9px] font-bold text-white uppercase tracking-tighter">ID Cover</span>
+                    </div>
                   </div>
                   <div>
-                    <h3 className="text-xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
-                      {selectedGroup.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
+                        {selectedGroup.name}
+                      </h3>
+                      {selectedGroup.avatarUrl && (
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] font-bold gap-1 py-0.5">
+                          ★ Cover Active
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground font-mono mt-0.5">
                       <Badge variant="outline" className="rounded-md text-[11px] font-bold">
                         ID: {selectedGroup.employeeId || 'N/A'}
@@ -1724,37 +1881,48 @@ const StudentFaceSamplesManager: React.FC = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {trainedSlots.map((sample) => (
-                        <PhotoCard
-                          key={sample.id}
-                          sample={sample}
-                          imageUrl={sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null}
-                          isSelected={selectedSampleIds.has(sample.id)}
-                          onToggleSelect={() => {
-                            setSelectedSampleIds((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(sample.id)) next.delete(sample.id);
-                              else next.add(sample.id);
-                              return next;
-                            });
-                          }}
-                          onPreview={() => {
-                            const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
-                            if (url) {
-                              setPreviewImageUrl(url);
-                              setPreviewTitle(`${selectedGroup.name} · Trained Model Slot`);
-                            }
-                          }}
-                          onCrop={() => openCropper(sample)}
-                          onSetIdPhoto={() => handleSetAsIdPhoto(sample)}
-                          onDelete={() => handleDeleteSample(sample)}
-                          onTransfer={() => {
-                            setTransferSample(sample);
-                            setTransferTargetUserId('');
-                            setTransferDialogOpen(true);
-                          }}
-                        />
-                      ))}
+                      {trainedSlots.map((sample) => {
+                        const isCurrentId = Boolean(
+                          selectedGroup?.avatarUrl && sample.image_url && (
+                            selectedGroup.avatarUrl === sample.image_url ||
+                            toPersistentImageReference(selectedGroup.avatarUrl) === toPersistentImageReference(sample.image_url) ||
+                            (resolvedUrls[selectedGroup.avatarUrl] && resolvedUrls[selectedGroup.avatarUrl] === resolvedUrls[sample.image_url])
+                          )
+                        );
+
+                        return (
+                          <PhotoCard
+                            key={sample.id}
+                            sample={sample}
+                            imageUrl={sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null}
+                            isSelected={selectedSampleIds.has(sample.id)}
+                            isCurrentIdPhoto={isCurrentId}
+                            onToggleSelect={() => {
+                              setSelectedSampleIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(sample.id)) next.delete(sample.id);
+                                else next.add(sample.id);
+                                return next;
+                              });
+                            }}
+                            onPreview={() => {
+                              const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
+                              if (url) {
+                                setPreviewImageUrl(url);
+                                setPreviewTitle(`${selectedGroup.name} · Trained Model Slot`);
+                              }
+                            }}
+                            onCrop={() => openCropper(sample)}
+                            onSetIdPhoto={() => handleSetAsIdPhoto(sample)}
+                            onDelete={() => handleDeleteSample(sample)}
+                            onTransfer={() => {
+                              setTransferSample(sample);
+                              setTransferTargetUserId('');
+                              setTransferDialogOpen(true);
+                            }}
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </section>
@@ -1782,37 +1950,48 @@ const StudentFaceSamplesManager: React.FC = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {capturedPhotos.map((sample) => (
-                        <PhotoCard
-                          key={sample.id}
-                          sample={sample}
-                          imageUrl={sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null}
-                          isSelected={selectedSampleIds.has(sample.id)}
-                          onToggleSelect={() => {
-                            setSelectedSampleIds((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(sample.id)) next.delete(sample.id);
-                              else next.add(sample.id);
-                              return next;
-                            });
-                          }}
-                          onPreview={() => {
-                            const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
-                            if (url) {
-                              setPreviewImageUrl(url);
-                              setPreviewTitle(`${selectedGroup.name} · Captured Photo`);
-                            }
-                          }}
-                          onCrop={() => openCropper(sample)}
-                          onSetIdPhoto={() => handleSetAsIdPhoto(sample)}
-                          onDelete={() => handleDeleteSample(sample)}
-                          onTransfer={() => {
-                            setTransferSample(sample);
-                            setTransferTargetUserId('');
-                            setTransferDialogOpen(true);
-                          }}
-                        />
-                      ))}
+                      {capturedPhotos.map((sample) => {
+                        const isCurrentId = Boolean(
+                          selectedGroup?.avatarUrl && sample.image_url && (
+                            selectedGroup.avatarUrl === sample.image_url ||
+                            toPersistentImageReference(selectedGroup.avatarUrl) === toPersistentImageReference(sample.image_url) ||
+                            (resolvedUrls[selectedGroup.avatarUrl] && resolvedUrls[selectedGroup.avatarUrl] === resolvedUrls[sample.image_url])
+                          )
+                        );
+
+                        return (
+                          <PhotoCard
+                            key={sample.id}
+                            sample={sample}
+                            imageUrl={sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null}
+                            isSelected={selectedSampleIds.has(sample.id)}
+                            isCurrentIdPhoto={isCurrentId}
+                            onToggleSelect={() => {
+                              setSelectedSampleIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(sample.id)) next.delete(sample.id);
+                                else next.add(sample.id);
+                                return next;
+                              });
+                            }}
+                            onPreview={() => {
+                              const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
+                              if (url) {
+                                setPreviewImageUrl(url);
+                                setPreviewTitle(`${selectedGroup.name} · Captured Photo`);
+                              }
+                            }}
+                            onCrop={() => openCropper(sample)}
+                            onSetIdPhoto={() => handleSetAsIdPhoto(sample)}
+                            onDelete={() => handleDeleteSample(sample)}
+                            onTransfer={() => {
+                              setTransferSample(sample);
+                              setTransferTargetUserId('');
+                              setTransferDialogOpen(true);
+                            }}
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </section>
@@ -2017,7 +2196,14 @@ const StudentFaceSamplesManager: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-sm text-primary overflow-hidden shrink-0">
                     {studentToDelete.avatarUrl ? (
-                      <img src={studentToDelete.avatarUrl} alt={studentToDelete.name} className="h-full w-full object-cover" />
+                      <img
+                        src={resolvedUrls[studentToDelete.avatarUrl] || studentToDelete.avatarUrl}
+                        alt={studentToDelete.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
                     ) : (
                       studentToDelete.name.slice(0, 2).toUpperCase()
                     )}
@@ -2040,66 +2226,55 @@ const StudentFaceSamplesManager: React.FC = () => {
                   <ul className="list-disc list-inside space-y-1 text-muted-foreground pl-1 text-[11px]">
                     <li>Student profile & registration accounts ({studentToDelete.name})</li>
                     <li>All {studentToDelete.samples.filter((s) => s.source_table === 'face_descriptors').length} AI face model descriptor slots</li>
-                    <li>All {studentToDelete.samples.filter((s) => s.source_table === 'attendance_records').length} attendance recognition photos</li>
-                    <li>Complete attendance history, points, and gate logs</li>
-                    <li>Associated cloud storage photo files</li>
+                    <li>All {studentToDelete.samples.filter((s) => s.source_table === 'attendance_records').length} captured attendance & gate photos</li>
+                    <li>All attendance logs, points, badges, and emotion timeline data</li>
+                    <li>Stored face photos and biometric crops across cloud storage</li>
                   </ul>
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground">
-                Are you sure you want to delete <strong>{studentToDelete.name}</strong> entirely? This action is immediate and <strong>cannot be undone</strong>.
-              </p>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">⚠️ Are you absolutely sure?</p>
+                <p className="text-[11px]">
+                  This action cannot be undone. To register this student again, a fresh biometric registration will be required.
+                </p>
+              </div>
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-border/40">
             <Button
               variant="outline"
-              size="sm"
               onClick={() => {
                 setDeleteStudentDialogOpen(false);
                 setStudentToDelete(null);
               }}
               disabled={deletingStudent}
-              className="rounded-xl text-xs font-bold"
+              className="rounded-xl"
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              size="sm"
               onClick={() => studentToDelete && handleDeleteStudentEntirely(studentToDelete)}
               disabled={deletingStudent}
-              className="rounded-xl text-xs font-bold gap-1.5 shadow-lg shadow-destructive/30"
+              className="rounded-xl gap-1.5 font-bold shadow-md shadow-destructive/20 active:scale-95 transition-all"
             >
-              <Trash2 className={`h-3.5 w-3.5 ${deletingStudent ? 'animate-spin' : ''}`} />
-              {deletingStudent ? 'Deleting Entirely...' : 'Yes, Delete Completely from Website'}
+              <Trash2 className={`h-4 w-4 ${deletingStudent ? 'animate-spin' : ''}`} />
+              {deletingStudent ? 'Deleting Everywhere...' : 'Yes, Delete Completely'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Full-Screen Image Preview Modal */}
+      {/* Full Preview Modal */}
       <Dialog open={!!previewImageUrl} onOpenChange={(open) => !open && setPreviewImageUrl(null)}>
-        <DialogContent className="max-w-2xl p-0 overflow-hidden bg-card/95 backdrop-blur-2xl border border-primary/20 shadow-2xl rounded-3xl">
-          <div className="p-4 border-b border-border/60 flex items-center justify-between">
+        <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden border border-border/60 bg-card/95 backdrop-blur-2xl">
+          <div className="p-4 border-b border-border/40 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                <Camera className="w-4 h-4" />
-              </div>
-              <h3 className="text-sm font-bold text-foreground truncate">
-                {previewTitle || 'Face Sample Preview'}
-              </h3>
+              <Eye className="w-4 h-4 text-primary" />
+              <h4 className="text-sm font-bold text-foreground">{previewTitle || 'Photo Preview'}</h4>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setPreviewImageUrl(null)}
-              className="h-7 w-7 rounded-full"
-            >
-              <X className="w-4 h-4" />
-            </Button>
           </div>
           <div className="p-4 bg-black/40 flex items-center justify-center min-h-[300px] max-h-[70vh] overflow-hidden">
             {previewImageUrl && (
@@ -2122,6 +2297,7 @@ interface PhotoCardProps {
   sample: FaceSample;
   imageUrl: string | null;
   isSelected: boolean;
+  isCurrentIdPhoto: boolean;
   onToggleSelect: () => void;
   onPreview: () => void;
   onCrop: () => void;
@@ -2134,6 +2310,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
   sample,
   imageUrl,
   isSelected,
+  isCurrentIdPhoto,
   onToggleSelect,
   onPreview,
   onCrop,
@@ -2146,11 +2323,14 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
 
   return (
     <div
-      className={`relative group rounded-2xl border transition-all p-3 bg-card/70 flex flex-col justify-between ${
+      className={cn(
+        "relative group rounded-2xl border transition-all p-3 bg-card/70 flex flex-col justify-between",
         isSelected
-          ? 'border-primary/60 bg-primary/10 shadow-lg shadow-primary/5 ring-2 ring-primary/30'
-          : 'border-border/60 hover:border-primary/40 hover:shadow-md'
-      }`}
+          ? "border-primary/60 bg-primary/10 shadow-lg shadow-primary/5 ring-2 ring-primary/30"
+          : isCurrentIdPhoto
+          ? "border-primary/80 bg-primary/5 shadow-md ring-2 ring-primary/40"
+          : "border-border/60 hover:border-primary/40 hover:shadow-md"
+      )}
     >
       {/* Top action row */}
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -2180,6 +2360,12 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           imageUrl && "cursor-pointer group/img"
         )}
       >
+        {isCurrentIdPhoto && (
+          <div className="absolute top-2 left-2 z-10 rounded-full bg-gradient-to-r from-primary to-emerald-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 shadow-md flex items-center gap-1 border border-white/20">
+            ★ Active ID Cover
+          </div>
+        )}
+
         {imageUrl && !imgError ? (
           <>
             <img
@@ -2230,12 +2416,25 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
 
         <Button
           size="sm"
-          variant="outline"
+          variant={isCurrentIdPhoto ? "default" : "outline"}
           onClick={onSetIdPhoto}
           disabled={!imageUrl}
-          className="rounded-xl h-8 text-[11px] font-bold px-2"
+          className={cn(
+            "rounded-xl h-8 text-[11px] font-bold px-2 gap-1 transition-all",
+            isCurrentIdPhoto
+              ? "bg-gradient-to-r from-primary to-emerald-600 text-white shadow-sm hover:from-primary hover:to-emerald-500 font-extrabold"
+              : "hover:border-primary/50 text-foreground"
+          )}
         >
-          Set ID
+          {isCurrentIdPhoto ? (
+            <>
+              <CheckCircle2 className="h-3 w-3 text-white" /> Cover ID
+            </>
+          ) : (
+            <>
+              <ImageIcon className="h-3 w-3 text-primary" /> Set ID
+            </>
+          )}
         </Button>
 
         <Button

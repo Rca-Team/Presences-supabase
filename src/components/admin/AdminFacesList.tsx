@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, User, UserCheck, UserX, Calendar, MoreVertical, Phone, Filter, ArrowUpDown, Clock, CheckCircle2, XCircle, SortAsc, SortDesc, Trash2, BellRing, X, BrainCircuit } from 'lucide-react';
+import { Search, User, Users, UserCheck, UserX, Calendar, MoreVertical, Phone, Filter, ArrowUpDown, Clock, CheckCircle2, XCircle, SortAsc, SortDesc, Trash2, BellRing, X, BrainCircuit } from 'lucide-react';
 import NotificationService from './NotificationService';
 import ExistingUserContactPopup from './ExistingUserContactPopup';
+import AttendanceCalendar from './AttendanceCalendar';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -73,6 +74,7 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
   setSelectedFaceId
 }) => {
   const { toast } = useToast();
+  const [subTab, setSubTab] = useState<'roster' | 'calendar'>('roster');
   const [isLoading, setIsLoading] = useState(true);
   const [faces, setFaces] = useState<RegisteredFace[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -566,210 +568,278 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
     <>
       <ExistingUserContactPopup />
       <div className="space-y-4">
-
-        {/* ── Status Pills ── */}
-        <div className="flex gap-2">
-          {([
-            { key: 'present' as StatusFilter, count: statusCounts.present, icon: CheckCircle2, label: 'Present', activeClass: 'bg-green-500/15 border-green-500/40 text-green-700 dark:text-green-400', dotClass: 'bg-green-500' },
-            { key: 'late' as StatusFilter, count: statusCounts.late, icon: Clock, label: 'Late', activeClass: 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400', dotClass: 'bg-amber-500' },
-            { key: 'absent' as StatusFilter, count: statusCounts.absent, icon: XCircle, label: 'Absent', activeClass: 'bg-red-500/15 border-red-500/40 text-red-700 dark:text-red-400', dotClass: 'bg-red-500' },
-          ]).map(item => (
-            <motion.button
-              key={item.key}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => setStatusFilter(statusFilter === item.key ? 'all' : item.key)}
+        {/* ── Sub-view Mode Switcher: Roster vs Attendance Calendar ── */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+          <div className="flex gap-1 p-1 rounded-2xl bg-muted/60 border border-border/50">
+            <button
+              onClick={() => setSubTab('roster')}
               className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-3 px-2 rounded-2xl border-2 transition-all duration-200 font-medium",
-                statusFilter === item.key
-                  ? item.activeClass
-                  : "bg-card border-border hover:border-muted-foreground/20 text-foreground"
+                "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all",
+                subTab === 'roster'
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className={cn("w-2 h-2 rounded-full", item.dotClass)} />
-              <span className="text-xl font-bold tabular-nums">{item.count}</span>
-              <span className="text-xs opacity-70 hidden sm:inline">{item.label}</span>
-            </motion.button>
-          ))}
+              <Users className="w-3.5 h-3.5" />
+              <span>Student Directory</span>
+              <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 ml-1">
+                {faces.length}
+              </Badge>
+            </button>
+            <button
+              onClick={() => {
+                setSubTab('calendar');
+                if (!selectedFaceId && faces.length > 0) {
+                  setSelectedFaceId(faces[0].id);
+                }
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all",
+                subTab === 'calendar'
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Attendance Calendar</span>
+              {selectedFaceId && (
+                <span className="w-1.5 h-1.5 rounded-full bg-primary ml-0.5" />
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* ── Attendance rate bar ── */}
-        <div className="relative h-2 rounded-full bg-muted overflow-hidden">
-          <motion.div
-            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-green-500 to-emerald-400"
-            initial={{ width: 0 }}
-            animate={{ width: `${attendanceRate}%` }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
+        {subTab === 'calendar' ? (
+          <AttendanceCalendar
+            selectedFaceId={selectedFaceId}
+            onBack={() => setSubTab('roster')}
+            availableFaces={faces}
+            onSelectFaceId={(id) => setSelectedFaceId(id)}
           />
-          <span className="absolute right-0 -top-5 text-[10px] font-medium text-muted-foreground">
-            {attendanceRate}% attendance
-          </span>
-        </div>
+        ) : (
+          <>
+            {/* ── Status Pills ── */}
+            <div className="flex gap-2">
+              {([
+                { key: 'present' as StatusFilter, count: statusCounts.present, icon: CheckCircle2, label: 'Present', activeClass: 'bg-green-500/15 border-green-500/40 text-green-700 dark:text-green-400', dotClass: 'bg-green-500' },
+                { key: 'late' as StatusFilter, count: statusCounts.late, icon: Clock, label: 'Late', activeClass: 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400', dotClass: 'bg-amber-500' },
+                { key: 'absent' as StatusFilter, count: statusCounts.absent, icon: XCircle, label: 'Absent', activeClass: 'bg-red-500/15 border-red-500/40 text-red-700 dark:text-red-400', dotClass: 'bg-red-500' },
+              ]).map(item => (
+                <motion.button
+                  key={item.key}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setStatusFilter(statusFilter === item.key ? 'all' : item.key)}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-3 px-2 rounded-2xl border-2 transition-all duration-200 font-medium",
+                    statusFilter === item.key
+                      ? item.activeClass
+                      : "bg-card border-border hover:border-muted-foreground/20 text-foreground"
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full", item.dotClass)} />
+                  <span className="text-xl font-bold tabular-nums">{item.count}</span>
+                  <span className="text-xs opacity-70 hidden sm:inline">{item.label}</span>
+                </motion.button>
+              ))}
+            </div>
 
-        {/* ── Search + Compact Filters ── */}
-        <div className="flex flex-col gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search students..."
-              className="pl-9 h-10 rounded-xl bg-muted/40 border-0 focus-visible:ring-1"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            <Select value={sectionFilter} onValueChange={setSectionFilter}>
-              <SelectTrigger className="w-auto min-w-[100px] h-8 text-xs rounded-lg border-dashed">
-                <SelectValue placeholder="Section" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sections</SelectItem>
-                {['A','B','C','D'].map(s => (
-                  <SelectItem key={s} value={s}>Section {s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className="w-auto min-w-[100px] h-8 text-xs rounded-lg border-dashed">
-                <SelectValue placeholder="Class" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
-                  <SelectItem key={g} value={String(g)}>Class {g}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg border-dashed gap-1">
-                  <ArrowUpDown className="h-3 w-3" />
-                  Sort
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuLabel className="text-xs">Sort By</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {[
-                  { field: 'name' as SortField, label: 'Name' },
-                  { field: 'status' as SortField, label: 'Status' },
-                  { field: 'attendance' as SortField, label: 'Attendance' },
-                  { field: 'lastSeen' as SortField, label: 'Last Seen' },
-                ].map(item => (
-                  <DropdownMenuItem key={item.field} onClick={() => toggleSort(item.field)} className="text-xs gap-2">
-                    {sortField === item.field ? (sortDir === 'asc' ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs rounded-lg gap-1 text-muted-foreground" onClick={() => { setStatusFilter('all'); setSectionFilter('all'); setClassFilter('all'); setSearchTerm(''); }}>
-                <X className="h-3 w-3" /> Clear
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* ── Face List ── */}
-        <div className="space-y-1.5">
-          {filteredAndSortedFaces.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-8">
-              <UserX className="mx-auto h-10 w-10 text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground">No students found</p>
-            </motion.div>
-          ) : (
-            filteredAndSortedFaces.map((face, index) => (
+            {/* ── Attendance rate bar ── */}
+            <div className="relative h-2 rounded-full bg-muted overflow-hidden">
               <motion.div
-                key={`${face.employee_id}-${face.user_id || face.id}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.02 }}
-                layout="position"
-              >
-                  <Card
-                    className={cn(
-                      "cursor-pointer transition-all duration-200 active:scale-[0.98] sm:hover:shadow-md overflow-hidden",
-                      selectedFaceId === face.id
-                        ? "ring-2 ring-primary shadow-md"
-                        : "hover:bg-accent/50"
-                    )}
-                    onClick={() => setSelectedFaceId(face.id === selectedFaceId ? null : face.id)}
-                  >
-                    <CardContent className="p-2.5 sm:p-3">
-                      <div className="flex items-center gap-2.5 sm:gap-3">
-                        <div className="relative shrink-0">
-                          <Avatar className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl border border-border">
-                            <AvatarImage src={face.image_url} alt={face.name} className="object-cover" />
-                            <AvatarFallback className="rounded-xl text-sm font-bold bg-muted">
-                              {face.name?.charAt(0) || '?'}
-                            </AvatarFallback>
-                          </Avatar>
-                          {/* Status dot */}
-                          <span className={cn(
-                            "absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border-2 border-card",
-                            todayStatuses[face.employee_id]?.status === 'present' ? 'bg-green-500' :
-                            todayStatuses[face.employee_id]?.status === 'late' ? 'bg-amber-500' :
-                            'bg-red-400'
-                          )} />
-                        </div>
+                className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-green-500 to-emerald-400"
+                initial={{ width: 0 }}
+                animate={{ width: `${attendanceRate}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+              />
+              <span className="absolute right-0 -top-5 text-[10px] font-medium text-muted-foreground">
+                {attendanceRate}% attendance
+              </span>
+            </div>
 
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate">{face.name}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">{face.employee_id}</span>
-                            {face.department !== 'N/A' && (
-                              <span className="text-[10px] text-muted-foreground truncate">· {face.department}</span>
-                            )}
+            {/* ── Search + Compact Filters ── */}
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search students..."
+                  className="pl-9 h-10 rounded-xl bg-muted/40 border-0 focus-visible:ring-1"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <Select value={sectionFilter} onValueChange={setSectionFilter}>
+                  <SelectTrigger className="w-auto min-w-[100px] h-8 text-xs rounded-lg border-dashed">
+                    <SelectValue placeholder="Section" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sections</SelectItem>
+                    {['A','B','C','D'].map(s => (
+                      <SelectItem key={s} value={s}>Section {s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={classFilter} onValueChange={setClassFilter}>
+                  <SelectTrigger className="w-auto min-w-[100px] h-8 text-xs rounded-lg border-dashed">
+                    <SelectValue placeholder="Class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Classes</SelectItem>
+                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
+                      <SelectItem key={g} value={String(g)}>Class {g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("h-8 text-xs rounded-lg border-dashed gap-1", sortField !== 'name' && "border-primary text-primary")}>
+                      <ArrowUpDown className="h-3 w-3" />
+                      <span className="hidden sm:inline">Sort:</span> {sortField === 'name' ? 'Name' : sortField === 'status' ? 'Status' : sortField === 'attendance' ? 'Attendance' : 'Recent'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase">Sort by</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => toggleSort('name')} className="text-xs justify-between">
+                      Name {sortField === 'name' && (sortDir === 'asc' ? <SortAsc className="h-3.5 w-3.5 text-primary" /> : <SortDesc className="h-3.5 w-3.5 text-primary" />)}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleSort('status')} className="text-xs justify-between">
+                      Today's Status {sortField === 'status' && (sortDir === 'asc' ? <SortAsc className="h-3.5 w-3.5 text-primary" /> : <SortDesc className="h-3.5 w-3.5 text-primary" />)}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleSort('attendance')} className="text-xs justify-between">
+                      Total Attendance {sortField === 'attendance' && (sortDir === 'asc' ? <SortAsc className="h-3.5 w-3.5 text-primary" /> : <SortDesc className="h-3.5 w-3.5 text-primary" />)}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleSort('lastSeen')} className="text-xs justify-between">
+                      Recently Marked {sortField === 'lastSeen' && (sortDir === 'asc' ? <SortAsc className="h-3.5 w-3.5 text-primary" /> : <SortDesc className="h-3.5 w-3.5 text-primary" />)}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-muted-foreground hover:text-foreground px-2"
+                    onClick={() => {
+                      setStatusFilter('all');
+                      setSectionFilter('all');
+                      setClassFilter('all');
+                      setSearchTerm('');
+                    }}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* ── Student List ── */}
+            <div className="space-y-2">
+              {filteredAndSortedFaces.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  <User className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm font-medium">No students found</p>
+                  <p className="text-xs mt-1">Try adjusting your filters</p>
+                </div>
+              ) : (
+                filteredAndSortedFaces.map((face, index) => (
+                  <motion.div
+                    key={face.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(index * 0.02, 0.3) }}
+                  >
+                    <Card
+                      className={cn(
+                        "cursor-pointer transition-all duration-200 active:scale-[0.98] sm:hover:shadow-md overflow-hidden",
+                        selectedFaceId === face.id
+                          ? "ring-2 ring-primary shadow-md"
+                          : "hover:bg-accent/50"
+                      )}
+                      onClick={() => {
+                        setSelectedFaceId(face.id);
+                        setSubTab('calendar');
+                      }}
+                    >
+                      <CardContent className="p-2.5 sm:p-3">
+                        <div className="flex items-center gap-2.5 sm:gap-3">
+                          <div className="relative shrink-0">
+                            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl border border-border">
+                              <AvatarImage src={face.image_url} alt={face.name} className="object-cover" />
+                              <AvatarFallback className="rounded-xl text-sm font-bold bg-muted">
+                                {face.name?.charAt(0) || '?'}
+                              </AvatarFallback>
+                            </Avatar>
+                            {/* Status dot */}
+                            <span className={cn(
+                              "absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border-2 border-card",
+                              todayStatuses[face.employee_id]?.status === 'present' ? 'bg-green-500' :
+                              todayStatuses[face.employee_id]?.status === 'late' ? 'bg-amber-500' :
+                              'bg-red-400'
+                            )} />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm truncate">{face.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-muted-foreground">{face.employee_id}</span>
+                              {face.department !== 'N/A' && (
+                                <span className="text-[10px] text-muted-foreground truncate">· {face.department}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Badge variant="outline" className="hidden md:inline-flex gap-1 text-[10px]">
+                              <BrainCircuit className="w-3 h-3" />
+                              {emotionStatsByStudent[face.employee_id]?.label?.replace('-', ' ') || 'neutral'}
+                            </Badge>
+                            {getStatusBadge(face.employee_id)}
+                            
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={e => e.stopPropagation()}>
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setSelectedFaceId(face.id); 
+                                  setSubTab('calendar');
+                                }} className="text-xs gap-2">
+                                  <Calendar className="h-3 w-3" /> View Calendar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openPromoteDialog(face); }} className="text-xs gap-2">
+                                  <UserCheck className="h-3 w-3" /> Make Teacher
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteFace(face.id); }} className="text-xs text-destructive gap-2">
+                                  <Trash2 className="h-3 w-3" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
+                      </CardContent>
+                    </Card>
+                </motion.div>
+              ))
+            )}
+          </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <Badge variant="outline" className="hidden md:inline-flex gap-1 text-[10px]">
-                            <BrainCircuit className="w-3 h-3" />
-                            {emotionStatsByStudent[face.employee_id]?.label?.replace('-', ' ') || 'neutral'}
-                          </Badge>
-                          {getStatusBadge(face.employee_id)}
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={e => e.stopPropagation()}>
-                                <MoreVertical className="h-3.5 w-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40">
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedFaceId(face.id); }} className="text-xs gap-2">
-                                <Calendar className="h-3 w-3" /> View Calendar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openPromoteDialog(face); }} className="text-xs gap-2">
-                                <UserCheck className="h-3 w-3" /> Make Teacher
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteFace(face.id); }} className="text-xs text-destructive gap-2">
-                                <Trash2 className="h-3 w-3" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-              </motion.div>
-            ))
-          )}
-        </div>
-
-        <p className="text-[10px] text-muted-foreground text-center pt-2">
-          {filteredAndSortedFaces.length} of {totalStudents} students
-        </p>
+          <p className="text-[10px] text-muted-foreground text-center pt-2">
+            {filteredAndSortedFaces.length} of {totalStudents} students
+          </p>
+        </>
+      )}
       </div>
 
       <Dialog open={promoteOpen} onOpenChange={setPromoteOpen}>

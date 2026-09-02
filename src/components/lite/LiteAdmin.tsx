@@ -57,7 +57,6 @@ const ALL_TABS: TabItem[] = [
   
   { id: 'students', label: 'Student Roster', category: 'Students & Classes', icon: Users },
   { id: 'sections', label: 'Class Sections', category: 'Students & Classes', icon: FolderKanban },
-  { id: 'calendar', label: 'Attendance Calendar', category: 'Students & Classes', icon: Calendar },
   { id: 'samples', label: 'Face Recognition Samples', category: 'Students & Classes', icon: Activity },
   { id: 'idcard', label: 'Batch ID Extractor', category: 'Students & Classes', icon: Image },
 
@@ -108,8 +107,6 @@ const LiteAdmin: React.FC<Props> = ({ stats }) => {
         return <StudentDetailsTable />;
       case 'sections':
         return <CategoryBasedView />;
-      case 'calendar':
-        return <AttendanceCalendar selectedFaceId={null} />;
       case 'samples':
         return <StudentFaceSamplesManager />;
       case 'idcard':
