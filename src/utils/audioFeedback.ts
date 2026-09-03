@@ -131,3 +131,28 @@ export function playWarningTone(gain = 0.18): void {
     }
   } catch {}
 }
+
+/**
+ * Play a high-tech synthesized sound when toggling between Lite and Standard mode
+ */
+export function playModeSwitchSound(mode: 'lite' | 'standard', gain = 0.2): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  if (mode === 'lite') {
+    // Futuristic downward quick slide (high-efficiency power saver engaged)
+    playTone(ctx, 740, 0.0, 0.07, gain, 'sine');
+    playTone(ctx, 493.88, 0.05, 0.14, gain * 1.1, 'sine');
+  } else {
+    // Futuristic upward shimmer chime (full graphics & 3D fidelity engaged)
+    playTone(ctx, 493.88, 0.0, 0.07, gain, 'sine');
+    playTone(ctx, 987.77, 0.06, 0.16, gain * 1.15, 'sine');
+  }
+
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(mode === 'lite' ? [25, 20] : [20, 25, 20]);
+    }
+  } catch {}
+}
+

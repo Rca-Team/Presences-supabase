@@ -1,4 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { playModeSwitchSound } from '@/utils/audioFeedback';
+import ModeSwitchTransitionHUD from '@/components/ModeSwitchTransitionHUD';
 
 type LitePref = 'auto' | 'on' | 'off';
 const STORAGE_KEY = 'presences:lite-mode';
@@ -17,8 +19,11 @@ interface PerformanceModeContextValue {
   liteMode: boolean;
   preference: LitePref;
   signals: PerfSignals;
+  isTransitioning: boolean;
+  targetMode: 'lite' | 'standard' | null;
   setPreference: (p: LitePref) => void;
   toggleLite: () => void;
+  dismissTransition: () => void;
 }
 
 const defaultSignals: PerfSignals = {
@@ -35,8 +40,11 @@ const PerformanceModeContext = createContext<PerformanceModeContextValue>({
   liteMode: false,
   preference: 'auto',
   signals: defaultSignals,
+  isTransitioning: false,
+  targetMode: null,
   setPreference: () => undefined,
   toggleLite: () => undefined,
+  dismissTransition: () => undefined,
 });
 
 function readSignals(): PerfSignals {
@@ -111,21 +119,54 @@ export const PerformanceModeProvider: React.FC<{ children: React.ReactNode }> = 
     else root.classList.remove('lite-mode');
   }, [liteMode]);
 
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [targetMode, setTargetMode] = useState<'lite' | 'standard' | null>(null);
+
+  const dismissTransition = useCallback(() => {
+    setIsTransitioning(false);
+  }, []);
+
   const setPreference = useCallback((p: LitePref) => {
     setPrefState(p);
     try { localStorage.setItem(STORAGE_KEY, p); } catch {}
-  }, []);
+
+    const nextIsLite = p === 'on' || (p === 'auto' && shouldAutoEnable(signals));
+    const nextTarget: 'lite' | 'standard' = nextIsLite ? 'lite' : 'standard';
+
+    setTargetMode(nextTarget);
+    setIsTransitioning(true);
+    playModeSwitchSound(nextTarget);
+  }, [signals]);
 
   const toggleLite = useCallback(() => {
-    setPreference(liteMode ? 'off' : 'on');
+    const nextMode = liteMode ? 'off' : 'on';
+    setPreference(nextMode);
   }, [liteMode, setPreference]);
 
   const value = useMemo(
-    () => ({ liteMode, preference, signals, setPreference, toggleLite }),
-    [liteMode, preference, signals, setPreference, toggleLite],
+    () => ({
+      liteMode,
+      preference,
+      signals,
+      isTransitioning,
+      targetMode,
+      setPreference,
+      toggleLite,
+      dismissTransition,
+    }),
+    [liteMode, preference, signals, isTransitioning, targetMode, setPreference, toggleLite, dismissTransition],
   );
 
-  return <PerformanceModeContext.Provider value={value}>{children}</PerformanceModeContext.Provider>;
+  return (
+    <PerformanceModeContext.Provider value={value}>
+      {children}
+      <ModeSwitchTransitionHUD
+        show={isTransitioning}
+        targetMode={targetMode}
+        onDismiss={dismissTransition}
+      />
+    </PerformanceModeContext.Provider>
+  );
 };
 
 export function usePerformanceMode() {

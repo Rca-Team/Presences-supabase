@@ -19,6 +19,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import LiteModeToggle from '@/components/LiteModeToggle';
 
 /**
  * LiteAttendanceMode
@@ -108,16 +109,9 @@ const LiteAttendanceMode: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-center">
+        <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
           <LiteFeedbackControls prefs={prefs} onToggle={toggle} />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPreference('off')}
-            className="text-xs h-8"
-          >
-            Switch to Full View
-          </Button>
+          <LiteModeToggle variant="segmented" />
         </div>
       </div>
 

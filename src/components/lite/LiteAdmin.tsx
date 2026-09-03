@@ -41,6 +41,7 @@ const EmergencyAlertPanel = lazyWithRetry(() => import('@/components/admin/Emerg
 const TimetableManager = lazyWithRetry(() => import('@/components/admin/TimetableManager'), 'admin-timetable');
 const AttendanceCutoffSetting = lazyWithRetry(() => import('@/components/admin/AttendanceCutoffSetting'), 'admin-cutoff');
 const AttendanceExport = lazyWithRetry(() => import('@/components/admin/AttendanceExport'), 'admin-export');
+import LiteModeToggle from '@/components/LiteModeToggle';
 
 interface TabItem {
   id: string;
@@ -150,15 +151,9 @@ const LiteAdmin: React.FC<Props> = ({ stats }) => {
             </div>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPreference('off')}
-            className="text-xs gap-1.5"
-          >
-            <Feather className="w-3.5 h-3.5" />
-            Switch to Full Admin
-          </Button>
+          <div className="flex items-center gap-2">
+            <LiteModeToggle variant="segmented" />
+          </div>
         </header>
 
         {/* Live Admin Stat Metrics */}
