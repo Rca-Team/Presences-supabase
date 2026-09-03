@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -184,18 +184,26 @@ function SeoHead() {
   );
 }
 
-// Optimized declarative router with scroll restoration and zero background memory leaks
+// Optimized declarative router with seamless concurrent transitions & zero chunk glitching
 function AnimatedRoutes() {
   const location = useLocation();
+  const [renderedLocation, setRenderedLocation] = useState(location);
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    // Avoid jarring pre-paint scroll jump; gently restore to top on route change
+    // Keep current page steady on screen while next chunk loads, preventing flash/glitch
+    startTransition(() => {
+      setRenderedLocation(location);
+    });
+  }, [location]);
+
+  useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [location.pathname]);
+  }, [renderedLocation.pathname]);
 
   return (
     <Suspense fallback={<RouteFallback />}>
-      <Routes location={location}>
+      <Routes location={renderedLocation}>
         <Route path="/" element={<Index />} />
         <Route path="/features" element={<Features />} />
         <Route path="/contact" element={<Contact />} />
