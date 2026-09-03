@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { ReactNode } from 'react';
+import { usePerformanceMode } from '@/hooks/usePerformanceMode';
 
 interface PageTransitionProps {
   children: ReactNode;
@@ -7,64 +8,62 @@ interface PageTransitionProps {
 }
 
 /**
- * Royal Page Transition — Silky smooth, crystal-clear page entrance
- * Designed for optimal 120fps compositor throughput with zero raster blur or layout shift.
+ * Silky Smooth Standard Page Transition
+ * Eliminates blank-frame blinking, reduces layout flicker,
+ * and delivers fluid 120fps GPU compositor performance.
  */
-const royalPageVariants = {
+const smoothPageVariants = {
   initial: {
-    opacity: 0,
-    y: 8,
+    opacity: 0.9,
+    y: 4,
   },
   animate: {
     opacity: 1,
     y: 0,
     transition: {
-      duration: 0.4,
-      ease: [0.22, 1, 0.36, 1], // Royal luxury cubic ease
+      duration: 0.22,
+      ease: [0.16, 1, 0.3, 1], // Fluid cubic ease
     },
   },
   exit: {
-    opacity: 0,
+    opacity: 0.95,
     transition: {
-      duration: 0.2,
+      duration: 0.12,
       ease: 'easeOut',
     },
   },
 };
 
-const royalSectionVariants = {
+const smoothSectionVariants = {
   initial: {
-    opacity: 0,
-    y: 12,
+    opacity: 0.92,
+    y: 6,
   },
   animate: {
     opacity: 1,
     y: 0,
     transition: {
-      duration: 0.45,
-      ease: [0.22, 1, 0.36, 1],
+      duration: 0.25,
+      ease: [0.16, 1, 0.3, 1],
     },
   },
 };
 
 export const PageTransition = ({ children, className = '' }: PageTransitionProps) => {
   const prefersReducedMotion = useReducedMotion();
+  const { liteMode } = usePerformanceMode();
+
+  const disableAnimation = prefersReducedMotion || liteMode;
 
   return (
     <motion.div
-      variants={prefersReducedMotion ? undefined : royalPageVariants}
-      initial={prefersReducedMotion ? false : 'initial'}
-      animate={prefersReducedMotion ? undefined : 'animate'}
-      exit={prefersReducedMotion ? undefined : 'exit'}
-      className={`relative ${className}`}
+      variants={disableAnimation ? undefined : smoothPageVariants}
+      initial={disableAnimation ? false : 'initial'}
+      animate={disableAnimation ? undefined : 'animate'}
+      exit={disableAnimation ? undefined : 'exit'}
+      className={`relative w-full ${className}`}
+      style={{ willChange: 'opacity, transform' }}
     >
-      {/* Subtle Royal Ambient Launch Glow */}
-      <div
-        className="pointer-events-none fixed inset-0 -z-10 opacity-20 dark:opacity-10"
-        style={{
-          background: 'radial-gradient(ellipse 80% 50% at 50% 10%, rgba(37, 99, 235, 0.12), transparent 75%)',
-        }}
-      />
       {children}
     </motion.div>
   );
@@ -72,11 +71,17 @@ export const PageTransition = ({ children, className = '' }: PageTransitionProps
 
 export const AnimatedSection = ({ children, className = '' }: PageTransitionProps) => {
   const prefersReducedMotion = useReducedMotion();
+  const { liteMode } = usePerformanceMode();
+
+  const disableAnimation = prefersReducedMotion || liteMode;
 
   return (
     <motion.div
-      variants={prefersReducedMotion ? undefined : royalSectionVariants}
+      variants={disableAnimation ? undefined : smoothSectionVariants}
+      initial={disableAnimation ? false : 'initial'}
+      animate={disableAnimation ? undefined : 'animate'}
       className={className}
+      style={{ willChange: 'opacity, transform' }}
     >
       {children}
     </motion.div>

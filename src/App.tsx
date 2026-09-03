@@ -8,6 +8,7 @@ import { Helmet, HelmetProvider } from "react-helmet-async";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import RouteFallback from "@/components/RouteFallback";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import { warmCommonRoutes } from "@/lib/preloadRoute";
 
 
 const Index = lazyWithRetry(() => import("./pages/Index"), "index");
@@ -187,8 +188,9 @@ function SeoHead() {
 function AnimatedRoutes() {
   const location = useLocation();
 
-  useLayoutEffect(() => {
-    window.scrollTo(0, 0);
+  useEffect(() => {
+    // Avoid jarring pre-paint scroll jump; gently restore to top on route change
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [location.pathname]);
 
   return (
@@ -317,6 +319,8 @@ function App() {
 
   useEffect(() => {
     const schedule = window.setTimeout(() => setMountNonCritical(true), 800);
+    // Pre-warm primary route chunks in the background to eliminate chunk load pauses & blinking
+    warmCommonRoutes(['/', '/attendance', '/admin', '/gate', '/register', '/profile', '/features', '/contact', '/parent', '/teacher']);
     return () => {
       window.clearTimeout(schedule);
     };

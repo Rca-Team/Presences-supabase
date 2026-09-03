@@ -7,6 +7,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import Logo from "@/components/Logo";
 import LiteModeToggle from "@/components/LiteModeToggle";
+import { preloadRoute } from "@/lib/preloadRoute";
 
 type MobileAppShellProps = {
   children: React.ReactNode;
@@ -85,6 +86,8 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
               <Link
                 key={tab.key}
                 to={tab.to}
+                onTouchStart={() => preloadRoute(tab.to)}
+                onMouseEnter={() => preloadRoute(tab.to)}
                 className={cn(
                   "macbook-dock-item dock-item-pop group flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-1 active:scale-90 transition-transform duration-200",
                   active ? "macbook-dock-item-active text-foreground" : "text-muted-foreground",
