@@ -1,5 +1,20 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Bot,
+  Code2,
+  Cpu,
+  Sparkles,
+  Zap,
+  Radio,
+  GraduationCap,
+  Binary,
+  Wrench,
+  CircuitBoard,
+  Layers,
+  Terminal,
+} from 'lucide-react';
+import { useTheme } from '@/hooks/use-theme';
 
 interface SplashAnimationProps {
   onComplete?: () => void;
@@ -16,9 +31,8 @@ const playWindows11Chime = () => {
       ctx.resume().catch(() => {});
     }
 
-    // Windows 11 style harmonic chime notes (frequencies in Hz): F#4, G#4, C#5, D#5, G#5
     const chordFrequencies = [369.99, 415.30, 554.37, 622.25, 830.61];
-    const startTime = ctx.currentTime + 0.1;
+    const startTime = ctx.currentTime + 0.08;
 
     chordFrequencies.forEach((freq, index) => {
       const osc = ctx.createOscillator();
@@ -27,9 +41,8 @@ const playWindows11Chime = () => {
       osc.type = index % 2 === 0 ? 'sine' : 'triangle';
       osc.frequency.setValueAtTime(freq, startTime + index * 0.04);
 
-      // Smooth envelope attack and long gentle decay
       gain.gain.setValueAtTime(0.0001, startTime + index * 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.045 / (index + 1), startTime + index * 0.04 + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.04 / (index + 1), startTime + index * 0.04 + 0.08);
       gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 2.2);
 
       osc.connect(gain);
@@ -39,20 +52,25 @@ const playWindows11Chime = () => {
       osc.stop(startTime + 2.3);
     });
   } catch {
-    // Audio auto-play might be restricted before user gesture; gracefully fallback silently
+    // Audio autoplays fail silently if user has not interacted
   }
 };
 
 export const SplashAnimation: React.FC<SplashAnimationProps> = ({
   onComplete,
-  duration = 2400,
+  duration = 2600,
 }) => {
+  const { theme } = useTheme();
+  const isDark =
+    theme === 'dark' ||
+    (typeof window !== 'undefined' &&
+      window.document.documentElement.classList.contains('dark'));
+
   const [phase, setPhase] = useState<'logo' | 'spinning' | 'welcome' | 'exiting'>('logo');
-  const [statusMessage, setStatusMessage] = useState('Starting Presence...');
+  const [statusMessage, setStatusMessage] = useState('Starting Presence OS...');
   const hasTriggeredChime = useRef(false);
 
   useEffect(() => {
-    // Phase 1: Logo & Chime
     if (!hasTriggeredChime.current) {
       hasTriggeredChime.current = true;
       playWindows11Chime();
@@ -60,12 +78,12 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
 
     const t1 = setTimeout(() => {
       setPhase('spinning');
-      setStatusMessage('Preparing smart school workspace...');
-    }, 600);
+      setStatusMessage('Initializing Robotics & AI Vision Modules...');
+    }, 650);
 
     const t2 = setTimeout(() => {
       setPhase('welcome');
-      setStatusMessage('Welcome to PM Shri KV NFC Vigyan Vihar');
+      setStatusMessage('Connecting ATL Innovation Lab & Smart Gate...');
     }, 1500);
 
     const t3 = setTimeout(() => {
@@ -82,13 +100,60 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
     };
   }, [duration, onComplete]);
 
-  // Click or Keypress skips instantly
   const handleSkip = () => {
     setPhase('exiting');
     setTimeout(() => {
       if (onComplete) onComplete();
     }, 200);
   };
+
+  // Thematic holographic stickers
+  const stickers = [
+    {
+      id: 'robotics',
+      title: 'ROBOTICS LAB',
+      subtitle: 'Autonomous Bots • ROS & Servos',
+      icon: Bot,
+      color: isDark ? 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30 text-emerald-400' : 'from-emerald-50 to-teal-100 border-emerald-300 text-emerald-700',
+      badge: 'ATL ROBOTICS',
+      pos: 'top-10 left-6 sm:top-14 sm:left-12',
+      rotation: -6,
+      delay: 0.15,
+    },
+    {
+      id: 'coding',
+      title: 'AI & CODING CORE',
+      subtitle: 'Python • ArcFace Vision • Neural Net',
+      icon: Terminal,
+      color: isDark ? 'from-cyan-500/20 to-blue-500/10 border-cyan-500/30 text-cyan-400' : 'from-cyan-50 to-blue-100 border-cyan-300 text-cyan-700',
+      badge: 'CODE CLUB',
+      pos: 'top-12 right-6 sm:top-16 sm:right-12',
+      rotation: 5,
+      delay: 0.25,
+    },
+    {
+      id: 'atl-lab',
+      title: 'PM SHRI ATL LAB',
+      subtitle: 'Tinkering • 3D Print • IoT Sensors',
+      icon: Sparkles,
+      color: isDark ? 'from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-400' : 'from-amber-50 to-orange-100 border-amber-300 text-amber-700',
+      badge: 'INNOVATION HUB',
+      pos: 'bottom-16 left-6 sm:bottom-20 sm:left-14',
+      rotation: 4,
+      delay: 0.35,
+    },
+    {
+      id: 'stem',
+      title: 'SMART BIOMETRICS',
+      subtitle: '3D Neural Mesh • Gate Vision',
+      icon: CircuitBoard,
+      color: isDark ? 'from-purple-500/20 to-indigo-500/10 border-purple-500/30 text-purple-400' : 'from-purple-50 to-indigo-100 border-purple-300 text-purple-700',
+      badge: 'STEM 2026',
+      pos: 'bottom-16 right-6 sm:bottom-20 sm:right-14',
+      rotation: -5,
+      delay: 0.45,
+    },
+  ];
 
   return (
     <AnimatePresence>
@@ -99,75 +164,126 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
           exit={{
             opacity: 0,
             scale: 1.05,
-            filter: 'blur(10px)',
+            filter: 'blur(12px)',
             transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
           }}
           onClick={handleSkip}
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#000000] text-white select-none overflow-hidden cursor-pointer"
+          className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center select-none overflow-hidden cursor-pointer transition-colors duration-500 ${
+            isDark
+              ? 'bg-[#04060d] text-white'
+              : 'bg-[#f4f7fb] text-slate-900'
+          }`}
         >
-          {/* Subtle Windows 11 ambient radial backdrop glow */}
+          {/* Subtle Ambient Radial Lighting Nebula */}
           <div
-            className="absolute inset-0 pointer-events-none"
+            className="absolute inset-0 pointer-events-none transition-opacity duration-700"
             style={{
-              background:
-                'radial-gradient(circle 480px at 50% 45%, rgba(0, 120, 215, 0.18) 0%, rgba(0, 60, 160, 0.08) 50%, transparent 80%)',
+              background: isDark
+                ? 'radial-gradient(circle 650px at 50% 45%, rgba(0, 168, 255, 0.16) 0%, rgba(99, 102, 241, 0.08) 45%, transparent 75%)'
+                : 'radial-gradient(circle 650px at 50% 45%, rgba(0, 140, 255, 0.14) 0%, rgba(147, 51, 234, 0.08) 50%, transparent 75%)',
             }}
           />
 
-          {/* Windows 11 Center Hero Container */}
-          <div className="relative z-10 flex flex-col items-center justify-center space-y-10 sm:space-y-12">
-            {/* Windows 11 4-Square Fluent Logo */}
+          {/* Blueprint Circuit Matrix Grid Lines */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.25]"
+            style={{
+              backgroundImage: isDark
+                ? `linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px)`
+                : `linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)`,
+              backgroundSize: '40px 40px',
+            }}
+          />
+
+          {/* Floating Thematic Hologram Stickers (Robotics, Coding, ATL Lab, Biometrics) */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {stickers.map((s) => {
+              const IconComp = s.icon;
+              return (
+                <motion.div
+                  key={s.id}
+                  initial={{ opacity: 0, scale: 0.7, y: 15 }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                    y: [0, -8, 0],
+                  }}
+                  transition={{
+                    opacity: { duration: 0.6, delay: s.delay },
+                    scale: { duration: 0.6, delay: s.delay },
+                    y: {
+                      duration: 3.5 + s.delay * 2,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    },
+                  }}
+                  style={{ transform: `rotate(${s.rotation}deg)` }}
+                  className={`absolute ${s.pos} hidden sm:flex items-center gap-3 p-3 rounded-2xl border backdrop-blur-xl bg-gradient-to-br shadow-2xl ${s.color}`}
+                >
+                  <div className={`p-2 rounded-xl border ${isDark ? 'bg-black/40 border-white/10' : 'bg-white/80 border-slate-200'}`}>
+                    <IconComp className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-0.5 pr-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-black tracking-wider uppercase">{s.title}</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full border bg-background/60">
+                        {s.badge}
+                      </span>
+                    </div>
+                    <p className={`text-[10px] font-medium font-mono ${isDark ? 'text-neutral-400' : 'text-slate-600'}`}>
+                      {s.subtitle}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Central Hero Windows 11 Flow with Presence Logo */}
+          <div className="relative z-10 flex flex-col items-center justify-center space-y-9 sm:space-y-11">
+            {/* Center Presence Logo Capsule with Windows 11 Glow */}
             <motion.div
-              initial={{ scale: 0.88, opacity: 0, y: 8 }}
+              initial={{ scale: 0.85, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="relative flex items-center justify-center"
+              className="relative flex flex-col items-center justify-center"
             >
-              {/* Soft logo aura */}
-              <div className="absolute -inset-6 rounded-3xl bg-[#0078d7]/20 blur-2xl pointer-events-none" />
+              {/* Vibrant Logo Aura Backdrop */}
+              <div
+                className={`absolute -inset-10 rounded-full blur-3xl pointer-events-none transition-opacity duration-700 ${
+                  isDark ? 'bg-cyan-500/20' : 'bg-blue-500/15'
+                }`}
+              />
 
-              {/* 2x2 Grid of Fluent Blue Tiles */}
-              <div className="grid grid-cols-2 gap-1.5 sm:gap-2 w-20 h-20 sm:w-24 sm:h-24 p-1">
-                {/* Top-Left Tile (Vibrant Sky Blue) */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: 0.1 }}
-                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#00d2ff] via-[#00adef] to-[#0094e8] shadow-[0_2px_10px_rgba(0,173,239,0.4)] relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/30" />
-                </motion.div>
-
-                {/* Top-Right Tile (Royal Blue) */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: 0.15 }}
-                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#009bf2] via-[#0078d7] to-[#0063b1] shadow-[0_2px_10px_rgba(0,120,215,0.4)] relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/20" />
-                </motion.div>
-
-                {/* Bottom-Left Tile (Ocean Blue) */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#00a2f8] via-[#008be3] to-[#0074c8] shadow-[0_2px_10px_rgba(0,139,227,0.4)] relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/25" />
-                </motion.div>
-
-                {/* Bottom-Right Tile (Sapphire Blue) */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: 0.25 }}
-                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#0074cf] via-[#005fa3] to-[#004880] shadow-[0_2px_10px_rgba(0,95,163,0.4)] relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/15" />
-                </motion.div>
+              {/* Glassmorphic Logo Shield */}
+              <div
+                className={`relative p-5 sm:p-6 rounded-3xl border shadow-2xl backdrop-blur-2xl transition-all duration-300 flex items-center justify-center ${
+                  isDark
+                    ? 'bg-slate-950/75 border-cyan-500/30 shadow-[0_16px_50px_-10px_rgba(0,180,255,0.3)]'
+                    : 'bg-white/85 border-blue-400/30 shadow-[0_16px_50px_-10px_rgba(37,99,235,0.2)]'
+                }`}
+              >
+                <img
+                  src="/logo.png"
+                  alt="Presence Logo"
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-xl"
+                />
               </div>
+
+              {/* Title Typography */}
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="mt-4 text-center"
+              >
+                <div className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 font-black text-2xl sm:text-3xl tracking-widest">
+                  PRESENCE
+                </div>
+                <div className="text-[11px] sm:text-xs font-bold tracking-[0.28em] uppercase text-muted-foreground mt-0.5">
+                  SMART SCHOOL AUTOMATION
+                </div>
+              </motion.div>
             </motion.div>
 
             {/* Authentic Windows 11 Orbital Dots Ring Spinner */}
@@ -177,7 +293,7 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
               transition={{ duration: 0.6, delay: 0.3 }}
               className="flex flex-col items-center justify-center space-y-6"
             >
-              {/* Windows 11 Ring of 5 Dots */}
+              {/* Ring of 5 Orbiting Dots */}
               <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
                 {[0, 1, 2, 3, 4].map((index) => (
                   <div
@@ -189,7 +305,11 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
                     }}
                   >
                     <span
-                      className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.85),0_0_14px_rgba(0,174,255,0.6)]"
+                      className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
+                        isDark
+                          ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.9),0_0_14px_rgba(0,180,255,0.7)]'
+                          : 'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6),0_0_12px_rgba(59,130,246,0.5)]'
+                      }`}
                       style={{
                         transform: 'translateY(1px)',
                       }}
@@ -198,28 +318,36 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
                 ))}
               </div>
 
-              {/* Status Typography */}
+              {/* Cycling Status Typography */}
               <motion.div
                 key={statusMessage}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.35 }}
-                className="text-center space-y-1.5 px-4"
+                className="text-center space-y-1 px-4 max-w-sm"
               >
-                <p className="text-xs sm:text-sm font-medium tracking-wide text-neutral-300 antialiased font-sans">
+                <p
+                  className={`text-xs sm:text-sm font-semibold tracking-wide antialiased ${
+                    isDark ? 'text-neutral-300' : 'text-slate-700'
+                  }`}
+                >
                   {statusMessage}
                 </p>
-                <p className="text-[10px] sm:text-xs text-neutral-500 font-mono tracking-wider uppercase">
-                  Presence OS • PM Shri KV Vigyan Vihar
-                </p>
+                <div className="flex items-center justify-center gap-1.5 text-[10px] sm:text-[11px] text-muted-foreground font-mono">
+                  <Sparkles className="h-3 w-3 text-cyan-500 animate-pulse" />
+                  <span>PM Shri KV NFC Vigyan Vihar</span>
+                </div>
               </motion.div>
             </motion.div>
           </div>
 
-          {/* Bottom subtle hint */}
-          <div className="absolute bottom-6 text-[10px] text-neutral-600 tracking-wider">
-            Click anywhere to skip
+          {/* Bottom Fast Skip / Mode Indicator Pill */}
+          <div className="absolute bottom-6 flex items-center gap-3 text-[10px] text-muted-foreground tracking-wider">
+            <span className="px-2 py-0.5 rounded-full border bg-background/50 font-mono">
+              {isDark ? '🌙 Dark Mode Active' : '☀️ Light Mode Active'}
+            </span>
+            <span>• Tap anywhere to launch</span>
           </div>
 
           {/* Authentic Windows 11 Orbital Keyframes Style */}
