@@ -72,14 +72,8 @@ export function playSuccessChime(gain = 0.22): void {
   playTone(ctx, 659.25, 0.08, 0.12, gain, 'sine');
   playTone(ctx, 783.99, 0.16, 0.25, gain * 1.1, 'sine');
 
-  // Trigger gentle tactile vibration if available
-  try {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([40, 30, 40]);
-    }
-  } catch {
-    // Ignore unsupported haptic errors
-  }
+  // Trigger gentle tactile vibration if user has interacted with the page
+  safeVibrate([40, 30, 40]);
 }
 
 /**
@@ -92,11 +86,7 @@ export function playLateChime(gain = 0.2): void {
   playTone(ctx, 440.0, 0.0, 0.14, gain, 'triangle');
   playTone(ctx, 392.0, 0.11, 0.2, gain, 'triangle');
 
-  try {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([60, 40, 60]);
-    }
-  } catch {}
+  safeVibrate([60, 40, 60]);
 }
 
 /**
@@ -108,11 +98,7 @@ export function playQRScanBeep(gain = 0.25): void {
 
   playTone(ctx, 1200, 0.0, 0.09, gain, 'sine');
 
-  try {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(35);
-    }
-  } catch {}
+  safeVibrate(35);
 }
 
 /**
@@ -125,11 +111,7 @@ export function playWarningTone(gain = 0.18): void {
   playTone(ctx, 349.23, 0.0, 0.12, gain, 'sawtooth');
   playTone(ctx, 311.13, 0.1, 0.16, gain, 'sawtooth');
 
-  try {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([80, 50, 80]);
-    }
-  } catch {}
+  safeVibrate([80, 50, 80]);
 }
 
 /**
@@ -145,14 +127,24 @@ export function playModeSwitchSound(mode: 'lite' | 'standard', gain = 0.2): void
     playTone(ctx, 493.88, 0.05, 0.14, gain * 1.1, 'sine');
   } else {
     // Futuristic upward shimmer chime (full graphics & 3D fidelity engaged)
-    playTone(ctx, 493.88, 0.0, 0.07, gain, 'sine');
+    playTone(ctx, 493.88, 0.07, 0.07, gain, 'sine');
     playTone(ctx, 987.77, 0.06, 0.16, gain * 1.15, 'sine');
   }
 
+  safeVibrate(mode === 'lite' ? [25, 20] : [20, 25, 20]);
+}
+
+function safeVibrate(pattern: number | number[]): void {
   try {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(mode === 'lite' ? [25, 20] : [20, 25, 20]);
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.vibrate === 'function' &&
+      (navigator.userActivation ? navigator.userActivation.hasBeenActive : true)
+    ) {
+      navigator.vibrate(pattern);
     }
-  } catch {}
+  } catch {
+    // Ignore unsupported haptic errors
+  }
 }
 

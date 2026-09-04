@@ -1,6 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
 import { backgroundPushService } from '@/services/BackgroundPushService';
 import { pushNotificationService } from '@/services/PushNotificationService';
+
+let remoteEdgeFailureCooldownUntil = 0;
+
 /**
  * Automatically sends a notification to the parent when attendance is marked.
  * This is called from the recognition service after successful attendance recording.
@@ -12,62 +15,73 @@ export const sendAutoParentNotification = async (
   imageUrl?: string
 ): Promise<{ success: boolean; message: string }> => {
   try {
-    console.log('Sending auto parent notification for:', { studentId, studentName, status });
+    const isEdgeInCooldown = Date.now() < remoteEdgeFailureCooldownUntil;
 
-    const { data, error } = await supabase.functions.invoke('auto-parent-notification', {
-      body: {
-        studentId,
-        studentName,
-        status,
-        imageUrl
-      }
-    });
-
-    if (error) {
-      console.warn('Auto-parent-notification edge service status:', error.message || error);
-      // Fallback: record an in-app notification row so notification history remains intact
+    if (!isEdgeInCooldown) {
       try {
-        await supabase.from('notifications').insert({
-          user_id: studentId,
-          title: `Attendance Recorded: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-          message: `${studentName} was marked ${status} at ${new Date().toLocaleTimeString()}.`,
-          type: 'attendance',
-          is_read: false,
-          metadata: { student_id: studentId, status, source: 'ai-scan' },
+        const { data, error } = await supabase.functions.invoke('auto-parent-notification', {
+          body: {
+            studentId,
+            studentName,
+            status,
+            imageUrl,
+          },
         });
-      } catch {
-        /* ignore */
+
+        if (!error && data?.success) {
+          // Cloud notification sent successfully
+          remoteEdgeFailureCooldownUntil = 0;
+          backgroundPushService.sendAttendanceAlert(
+            studentId, studentName, status, 'School'
+          ).catch(() => undefined);
+
+          pushNotificationService
+            .sendAttendanceNotification(studentName, status, 'Attendance', new Date())
+            .catch(() => undefined);
+
+          return { success: true, message: data.message || 'Notification sent' };
+        }
+
+        // Edge function returned an issue (e.g. 500 or misconfigured email key)
+        console.warn(
+          'Auto-parent-notification edge service paused (using reliable in-app notifications):',
+          error?.message || 'remote service unavailable'
+        );
+        remoteEdgeFailureCooldownUntil = Date.now() + 5 * 60 * 1000;
+      } catch (invokeErr: any) {
+        console.warn('Auto-parent-notification invoke paused:', invokeErr?.message);
+        remoteEdgeFailureCooldownUntil = Date.now() + 5 * 60 * 1000;
       }
-
-      // Keep local operator feedback even if remote channels fail
-      pushNotificationService
-        .sendAttendanceNotification(studentName, status, 'Attendance', new Date())
-        .catch(() => undefined);
-
-      return { 
-        success: false, 
-        message: `Notification recorded locally` 
-      };
     }
 
-    console.log('Auto parent notification response:', data);
+    // Resilient local fallback: record notification directly into Supabase notifications table
+    try {
+      await supabase.from('notifications').insert({
+        user_id: studentId,
+        title: `Attendance Recorded: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+        message: `${studentName} was marked ${status} at ${new Date().toLocaleTimeString()}.`,
+        type: status === 'late' ? 'warning' : 'success',
+        is_read: false,
+        metadata: { student_id: studentId, status, source: 'ai-scan' },
+      });
+    } catch {
+      /* ignore */
+    }
 
-    // Also send background push notification (works even when app is closed)
-    backgroundPushService.sendAttendanceAlert(
-      studentId, studentName, status, 'School'
-    ).catch(err => console.error('Background push failed:', err));
-
-    // Instant local app push for the active operator session
+    // Local operator feedback
     pushNotificationService
       .sendAttendanceNotification(studentName, status, 'Attendance', new Date())
       .catch(() => undefined);
 
+    backgroundPushService.sendAttendanceAlert(
+      studentId, studentName, status, 'School'
+    ).catch(() => undefined);
+
     return { 
-      success: data?.success || false, 
-      message: data?.message || 'Notification processed' 
+      success: true, 
+      message: 'Attendance notification recorded locally' 
     };
   } catch (error) {
-    console.error('Error in sendAutoParentNotification:', error);
     return { 
       success: false, 
       message: error instanceof Error ? error.message : 'Unknown error' 

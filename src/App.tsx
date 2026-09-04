@@ -288,7 +288,7 @@ function App() {
     } catch {
       return false;
     }
-    return false; // Skip blocking splash for immediate instant start
+    return true;
   });
   const chunkRecoveryKey = "presence:chunk-recovery";
 
@@ -353,7 +353,7 @@ function App() {
               <div className="premium-glass-app">
                 <BrowserRouter>
                   {showSplash ? (
-                    <SplashAnimation onComplete={handleSplashComplete} duration={700} />
+                    <SplashAnimation onComplete={handleSplashComplete} duration={2400} />
                   ) : (
                     <RoyalScrollProvider>
                       <NotificationPermissionGate>

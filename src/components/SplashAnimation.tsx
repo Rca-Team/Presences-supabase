@@ -1,184 +1,255 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Logo from '@/components/Logo';
 
 interface SplashAnimationProps {
   onComplete?: () => void;
   duration?: number;
 }
 
-const SplashAnimation: React.FC<SplashAnimationProps> = ({
+// Synthesize authentic warm Windows 11 startup harmonic chime using Web Audio API
+const playWindows11Chime = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    // Windows 11 style harmonic chime notes (frequencies in Hz): F#4, G#4, C#5, D#5, G#5
+    const chordFrequencies = [369.99, 415.30, 554.37, 622.25, 830.61];
+    const startTime = ctx.currentTime + 0.1;
+
+    chordFrequencies.forEach((freq, index) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = index % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime + index * 0.04);
+
+      // Smooth envelope attack and long gentle decay
+      gain.gain.setValueAtTime(0.0001, startTime + index * 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.045 / (index + 1), startTime + index * 0.04 + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 2.2);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime + index * 0.04);
+      osc.stop(startTime + 2.3);
+    });
+  } catch {
+    // Audio auto-play might be restricted before user gesture; gracefully fallback silently
+  }
+};
+
+export const SplashAnimation: React.FC<SplashAnimationProps> = ({
   onComplete,
-  duration = 2200,
+  duration = 2400,
 }) => {
-  const [progress, setProgress] = useState(0);
-  const [isExiting, setIsExiting] = useState(false);
+  const [phase, setPhase] = useState<'logo' | 'spinning' | 'welcome' | 'exiting'>('logo');
+  const [statusMessage, setStatusMessage] = useState('Starting Presence...');
+  const hasTriggeredChime = useRef(false);
 
   useEffect(() => {
-    const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) { clearInterval(progressInterval); return 100; }
-        return prev + 2.5;
-      });
-    }, duration / 50);
+    // Phase 1: Logo & Chime
+    if (!hasTriggeredChime.current) {
+      hasTriggeredChime.current = true;
+      playWindows11Chime();
+    }
 
-    const timer = setTimeout(() => {
-      setIsExiting(true);
-      setTimeout(() => { if (onComplete) onComplete(); }, 440);
+    const t1 = setTimeout(() => {
+      setPhase('spinning');
+      setStatusMessage('Preparing smart school workspace...');
+    }, 600);
+
+    const t2 = setTimeout(() => {
+      setPhase('welcome');
+      setStatusMessage('Welcome to PM Shri KV NFC Vigyan Vihar');
+    }, 1500);
+
+    const t3 = setTimeout(() => {
+      setPhase('exiting');
+      setTimeout(() => {
+        if (onComplete) onComplete();
+      }, 550);
     }, duration);
 
     return () => {
-      clearTimeout(timer);
-      clearInterval(progressInterval);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
     };
   }, [duration, onComplete]);
 
-  const loadingText =
-    progress < 30 ? 'Initializing presence core' :
-    progress < 60 ? 'Syncing intelligent modules' :
-    progress < 90 ? 'Preparing secure environment' :
-    'Launch ready';
+  // Click or Keypress skips instantly
+  const handleSkip = () => {
+    setPhase('exiting');
+    setTimeout(() => {
+      if (onComplete) onComplete();
+    }, 200);
+  };
 
   return (
     <AnimatePresence>
-      {!isExiting && (
+      {phase !== 'exiting' && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.45 }}
-          className="fixed inset-0 z-50 overflow-hidden"
+          exit={{
+            opacity: 0,
+            scale: 1.05,
+            filter: 'blur(10px)',
+            transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+          }}
+          onClick={handleSkip}
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#000000] text-white select-none overflow-hidden cursor-pointer"
         >
+          {/* Subtle Windows 11 ambient radial backdrop glow */}
           <div
-            className="absolute inset-0"
+            className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                'radial-gradient(120% 95% at 82% -10%, hsl(var(--neon-blue) / 0.22) 0%, transparent 62%), radial-gradient(110% 90% at -8% 110%, hsl(var(--neon-pink) / 0.24) 0%, transparent 58%), linear-gradient(142deg, hsl(var(--background)) 0%, hsl(var(--secondary) / 0.96) 48%, hsl(var(--accent) / 0.76) 100%)',
+                'radial-gradient(circle 480px at 50% 45%, rgba(0, 120, 215, 0.18) 0%, rgba(0, 60, 160, 0.08) 50%, transparent 80%)',
             }}
           />
 
-          <div
-            className="absolute inset-0 opacity-[0.32]"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(118deg, hsl(var(--foreground) / 0.03) 0 14px, transparent 14px 26px), repeating-linear-gradient(24deg, hsl(var(--neon-blue) / 0.06) 0 18px, transparent 18px 32px)',
-            }}
-          />
-
-          <motion.div
-            initial={{ x: '-130%' }}
-            animate={{ x: '140%' }}
-            transition={{ duration: 1.15, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute inset-y-0 w-[38%]"
-            style={{
-              transform: 'skewX(-28deg)',
-              background:
-                'linear-gradient(95deg, transparent 0%, hsl(var(--neon-cyan) / 0.24) 34%, hsl(var(--neon-pink) / 0.28) 64%, hsl(var(--neon-blue) / 0.24) 100%)',
-              filter: 'blur(8px)',
-            }}
-          />
-
-          {[...Array(10)].map((_, i) => (
+          {/* Windows 11 Center Hero Container */}
+          <div className="relative z-10 flex flex-col items-center justify-center space-y-10 sm:space-y-12">
+            {/* Windows 11 4-Square Fluent Logo */}
             <motion.div
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                width: i % 3 === 0 ? 6 : 4,
-                height: i % 3 === 0 ? 6 : 4,
-                background: i % 2 === 0 ? 'hsl(var(--neon-cyan) / 0.52)' : 'hsl(var(--neon-blue) / 0.48)',
-                boxShadow: i % 2 === 0 ? '0 0 16px hsl(var(--neon-cyan) / 0.42)' : '0 0 16px hsl(var(--neon-blue) / 0.4)',
-              }}
-              initial={{
-                x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 400),
-                y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 800),
-              }}
-              animate={{
-                y: [null, Math.random() * -180 - 80],
-                opacity: [0, 0.75, 0],
-              }}
-              transition={{
-                duration: 2.5 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-                ease: 'easeOut',
-              }}
-            />
-          ))}
-
-          <div className="relative h-full w-full grid grid-cols-1 md:grid-cols-[1.1fr_0.9fr]">
-            <motion.div
-              initial={{ x: -28, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col items-start justify-center px-8 sm:px-12 md:px-16 pt-20 md:pt-8"
+              initial={{ scale: 0.88, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="relative flex items-center justify-center"
             >
-              <div className="px-3 py-1 rounded-full border border-border/70 bg-card/70 text-[10px] tracking-[0.24em] uppercase text-muted-foreground mb-5">
-                Presence OS
-              </div>
-              <h1 className="font-bold text-4xl sm:text-5xl md:text-6xl leading-[0.95] tracking-tight text-foreground max-w-xl">
-                Presence
-                <span className="block text-[0.44em] font-normal tracking-[0.26em] uppercase text-muted-foreground mt-2">
-                  Smart School Automation
-                </span>
-              </h1>
-              <p className="mt-4 text-sm sm:text-base text-muted-foreground max-w-md">
-                {loadingText}
-              </p>
+              {/* Soft logo aura */}
+              <div className="absolute -inset-6 rounded-3xl bg-[#0078d7]/20 blur-2xl pointer-events-none" />
 
-              <div className="mt-8 w-full max-w-sm">
-                <div className="relative h-1.5 overflow-hidden rounded-full border border-white/15 bg-black/35">
-                  <motion.div
-                    className="absolute inset-y-0 left-0 rounded-full"
-                    style={{
-                      width: `${progress}%`,
-                      background: 'linear-gradient(90deg, hsl(var(--neon-cyan)) 0%, hsl(var(--neon-blue)) 58%, hsl(var(--neon-pink)) 100%)',
-                    }}
-                  />
-                  <motion.div
-                    animate={{ x: ['-100%', '180%'] }}
-                    transition={{ duration: 1.05, repeat: Infinity, ease: 'linear' }}
-                    className="absolute inset-y-0 w-[36%]"
-                    style={{
-                      background: 'linear-gradient(90deg, transparent 0%, hsl(var(--foreground) / 0.22) 50%, transparent 100%)',
-                    }}
-                  />
-                </div>
-                <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{Math.round(progress)}%</span>
-                  <span className="tracking-[0.2em] uppercase">Booting</span>
-                </div>
+              {/* 2x2 Grid of Fluent Blue Tiles */}
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2 w-20 h-20 sm:w-24 sm:h-24 p-1">
+                {/* Top-Left Tile (Vibrant Sky Blue) */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#00d2ff] via-[#00adef] to-[#0094e8] shadow-[0_2px_10px_rgba(0,173,239,0.4)] relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/30" />
+                </motion.div>
+
+                {/* Top-Right Tile (Royal Blue) */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.15 }}
+                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#009bf2] via-[#0078d7] to-[#0063b1] shadow-[0_2px_10px_rgba(0,120,215,0.4)] relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/20" />
+                </motion.div>
+
+                {/* Bottom-Left Tile (Ocean Blue) */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#00a2f8] via-[#008be3] to-[#0074c8] shadow-[0_2px_10px_rgba(0,139,227,0.4)] relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/25" />
+                </motion.div>
+
+                {/* Bottom-Right Tile (Sapphire Blue) */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.25 }}
+                  className="rounded-[3px] sm:rounded-[4px] bg-gradient-to-br from-[#0074cf] via-[#005fa3] to-[#004880] shadow-[0_2px_10px_rgba(0,95,163,0.4)] relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/15" />
+                </motion.div>
               </div>
             </motion.div>
 
+            {/* Authentic Windows 11 Orbital Dots Ring Spinner */}
             <motion.div
-              initial={{ x: 32, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ duration: 0.68, ease: [0.22, 1, 0.36, 1], delay: 0.06 }}
-              className="relative flex items-center justify-center px-8 pb-10 md:pb-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="flex flex-col items-center justify-center space-y-6"
             >
-              <div className="relative w-full max-w-[320px] aspect-square rounded-[28px] border border-border/70 bg-card/80 backdrop-blur-2xl overflow-hidden shadow-[0_28px_80px_-24px_hsl(var(--neon-pink)/0.35)]">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
-                  className="absolute inset-3 rounded-[22px] border border-border/70"
-                  style={{ borderStyle: 'dashed' }}
-                />
-                <motion.div
-                  animate={{ scale: [1, 1.06, 1], opacity: [0.28, 0.54, 0.28] }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute inset-8 rounded-2xl"
-                  style={{
-                    background: 'radial-gradient(circle, hsl(var(--neon-cyan) / 0.24) 0%, hsl(var(--neon-blue) / 0.2) 45%, hsl(var(--neon-pink) / 0.18) 100%)',
-                  }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-2xl border border-border/70 bg-card/85 px-5 py-4 backdrop-blur-xl">
-                    <Logo size="md" className="[&>div>span:last-child]:text-foreground [&>div>span:last-child]:tracking-wide" />
+              {/* Windows 11 Ring of 5 Dots */}
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                {[0, 1, 2, 3, 4].map((index) => (
+                  <div
+                    key={index}
+                    className="absolute inset-0 flex items-start justify-center"
+                    style={{
+                      animation: `win11Orbit 3.6s cubic-bezier(0.5, 0.2, 0, 1) infinite`,
+                      animationDelay: `${index * 0.16}s`,
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.85),0_0_14px_rgba(0,174,255,0.6)]"
+                      style={{
+                        transform: 'translateY(1px)',
+                      }}
+                    />
                   </div>
-                </div>
+                ))}
               </div>
+
+              {/* Status Typography */}
+              <motion.div
+                key={statusMessage}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.35 }}
+                className="text-center space-y-1.5 px-4"
+              >
+                <p className="text-xs sm:text-sm font-medium tracking-wide text-neutral-300 antialiased font-sans">
+                  {statusMessage}
+                </p>
+                <p className="text-[10px] sm:text-xs text-neutral-500 font-mono tracking-wider uppercase">
+                  Presence OS • PM Shri KV Vigyan Vihar
+                </p>
+              </motion.div>
             </motion.div>
           </div>
+
+          {/* Bottom subtle hint */}
+          <div className="absolute bottom-6 text-[10px] text-neutral-600 tracking-wider">
+            Click anywhere to skip
+          </div>
+
+          {/* Authentic Windows 11 Orbital Keyframes Style */}
+          <style>{`
+            @keyframes win11Orbit {
+              0% {
+                transform: rotate(0deg);
+                opacity: 1;
+                animation-timing-function: cubic-bezier(0.5, 0.2, 0, 1);
+              }
+              38% {
+                transform: rotate(270deg);
+                opacity: 1;
+                animation-timing-function: cubic-bezier(0.2, 0, 0.5, 1);
+              }
+              68% {
+                transform: rotate(720deg);
+                opacity: 1;
+                animation-timing-function: cubic-bezier(0.3, 0.2, 0, 1);
+              }
+              78% {
+                transform: rotate(760deg);
+                opacity: 0.7;
+              }
+              100% {
+                transform: rotate(1080deg);
+                opacity: 0;
+              }
+            }
+          `}</style>
         </motion.div>
       )}
     </AnimatePresence>
