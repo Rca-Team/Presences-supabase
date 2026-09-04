@@ -345,11 +345,11 @@ body {
   .premium-glass-app {
     @apply relative min-h-screen;
     background:
-      linear-gradient(128deg, hsl(var(--neon-orange) / 0.24), transparent 52%),
-      linear-gradient(220deg, hsl(var(--neon-pink) / 0.24), transparent 58%),
-      linear-gradient(42deg, hsl(var(--neon-violet) / 0.24), transparent 60%),
-      radial-gradient(1200px 760px at 50% -10%, hsl(var(--neon-amber) / 0.28), transparent 68%),
-      linear-gradient(160deg, hsl(var(--background)), hsl(var(--secondary) / 0.94));
+      linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent 50%),
+      linear-gradient(225deg, hsl(var(--neon-blue, 217 91% 60%) / 0.08), transparent 55%),
+      linear-gradient(45deg, hsl(var(--neon-cyan, 199 89% 48%) / 0.06), transparent 60%),
+      radial-gradient(1200px 760px at 50% -10%, hsl(var(--primary) / 0.09), transparent 70%),
+      linear-gradient(160deg, hsl(var(--background)), hsl(var(--secondary) / 0.85));
   }
 
   .premium-glass-app::before {

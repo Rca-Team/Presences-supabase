@@ -79,18 +79,18 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
     const t1 = setTimeout(() => {
       setPhase('spinning');
       setStatusMessage('Initializing Robotics & AI Vision Modules...');
-    }, 650);
+    }, 450);
 
     const t2 = setTimeout(() => {
       setPhase('welcome');
       setStatusMessage('Connecting ATL Innovation Lab & Smart Gate...');
-    }, 1500);
+    }, 1100);
 
     const t3 = setTimeout(() => {
       setPhase('exiting');
       setTimeout(() => {
         if (onComplete) onComplete();
-      }, 550);
+      }, 300);
     }, duration);
 
     return () => {
@@ -104,7 +104,7 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
     setPhase('exiting');
     setTimeout(() => {
       if (onComplete) onComplete();
-    }, 200);
+    }, 120);
   };
 
   // Thematic holographic stickers
@@ -163,9 +163,8 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({
           animate={{ opacity: 1 }}
           exit={{
             opacity: 0,
-            scale: 1.05,
-            filter: 'blur(12px)',
-            transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+            scale: 1.02,
+            transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
           }}
           onClick={handleSkip}
           className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center select-none overflow-hidden cursor-pointer transition-colors duration-500 ${

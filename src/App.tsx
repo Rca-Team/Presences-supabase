@@ -352,27 +352,26 @@ function App() {
             <HelmetProvider>
               <div className="premium-glass-app">
                 <BrowserRouter>
-                  {showSplash ? (
-                    <SplashAnimation onComplete={handleSplashComplete} duration={2400} />
-                  ) : (
-                    <RoyalScrollProvider>
-                      <NotificationPermissionGate>
-                        <MobileAppShell>
-                          <SeoHead />
-                          <LuminaScope />
-                          <AppErrorBoundary><AnimatedRoutes /></AppErrorBoundary>
-                        </MobileAppShell>
-                        {mountNonCritical && (
-                          <>
-                            <AppExperienceLayer />
-                            <PWAInstallPrompt />
-                          </>
-                        )}
-                        <EmergencyAlertListener />
-                        <RealtimeNotificationListener />
-                      </NotificationPermissionGate>
-                    </RoyalScrollProvider>
+                  {showSplash && (
+                    <SplashAnimation onComplete={handleSplashComplete} duration={1800} />
                   )}
+                  <RoyalScrollProvider>
+                    <NotificationPermissionGate>
+                      <MobileAppShell>
+                        <SeoHead />
+                        <LuminaScope />
+                        <AppErrorBoundary><AnimatedRoutes /></AppErrorBoundary>
+                      </MobileAppShell>
+                      {mountNonCritical && (
+                        <>
+                          <AppExperienceLayer />
+                          <PWAInstallPrompt />
+                        </>
+                      )}
+                      <EmergencyAlertListener />
+                      <RealtimeNotificationListener />
+                    </NotificationPermissionGate>
+                  </RoyalScrollProvider>
                 </BrowserRouter>
               </div>
             </HelmetProvider>

@@ -31,25 +31,25 @@ const PageLayout: React.FC<PageLayoutProps> = ({
       {theme !== 'dark' && (
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none" style={{ contain: 'strict' }} aria-hidden="true">
           <div 
-            className="absolute top-16 left-8 w-64 md:w-96 h-64 md:h-96 rounded-full opacity-40 blur-3xl pointer-events-none"
+            className="absolute top-16 left-8 w-64 md:w-96 h-64 md:h-96 rounded-full opacity-30 blur-3xl pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, hsl(var(--neon-orange, 17 96% 58%) / 0.18) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, hsl(var(--primary) / 0.12) 0%, transparent 70%)',
               transform: 'translate3d(0,0,0)',
               willChange: 'transform',
             }}
           />
           <div 
-            className="absolute bottom-20 right-8 w-72 md:w-[28rem] h-72 md:h-[28rem] rounded-full opacity-35 blur-3xl pointer-events-none"
+            className="absolute bottom-20 right-8 w-72 md:w-[28rem] h-72 md:h-[28rem] rounded-full opacity-25 blur-3xl pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, hsl(var(--neon-violet, 224 78% 57%) / 0.18) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, hsl(217 91% 60% / 0.10) 0%, transparent 70%)',
               transform: 'translate3d(0,0,0)',
               willChange: 'transform',
             }}
           />
           <div 
-            className="absolute top-1/3 right-1/4 w-80 md:w-[32rem] h-80 md:h-[32rem] rounded-full opacity-25 blur-3xl pointer-events-none"
+            className="absolute top-1/3 right-1/4 w-80 md:w-[32rem] h-80 md:h-[32rem] rounded-full opacity-20 blur-3xl pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, hsl(var(--neon-pink, 341 100% 82%) / 0.14) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, hsl(199 89% 48% / 0.08) 0%, transparent 70%)',
               transform: 'translate3d(0,0,0)',
               willChange: 'transform',
             }}
