@@ -438,8 +438,14 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               status,
               confidence: face.confidence,
               box: { ...face.box },
+              imageUrl: crop?.dataUrl,
             },
-          ].slice(-6));
+          ].slice(-4));
+
+          // Automatically clear ID plate after 4.5s
+          setTimeout(() => {
+            setRecognizedFaces((prev) => prev.filter((f) => f.id !== face.userId));
+          }, 4500);
 
           scanTelemetry.matched({
             name: face.name,
@@ -1206,6 +1212,8 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           faces={recognizedFaces}
           containerWidth={containerDimensions.width}
           containerHeight={containerDimensions.height}
+          videoWidth={webcamRef.current?.video?.videoWidth || 1280}
+          videoHeight={webcamRef.current?.video?.videoHeight || 720}
           mirrored={facingMode === 'user'}
         />
 
@@ -1376,45 +1384,98 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         </div>
       </div>
 
-      {/* Autonomous Hands-Free Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mt-4 px-2">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-xs font-semibold">100% Hands-Free Auto-Attendance Active</span>
-          </div>
-          {faceCount > 0 && (
-            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">
-              {faceCount} Face{faceCount > 1 ? 's' : ''} in View
-            </Badge>
-          )}
-        </div>
+      {/* Controls Bar */}
+      <div className="flex flex-wrap gap-3 mt-5 justify-center items-center">
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={() => setFacingMode(f => f === 'user' ? 'environment' : 'user')}
+          className="border-primary/35 text-primary hover:bg-primary/10"
+        >
+          <RefreshCw className="w-5 h-5 mr-2" />
+          Flip
+        </Button>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFacingMode(f => f === 'user' ? 'environment' : 'user')}
-            className="text-xs h-8 rounded-xl border-border/70 hover:bg-muted"
-            title="Switch camera"
-          >
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            Flip Camera
-          </Button>
-          {autoMarkedLog.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAutoMarkedLog([])}
-              className="text-xs h-8 text-muted-foreground hover:text-foreground"
-            >
-              Clear Log
-            </Button>
+        <Button
+          size="lg"
+          onClick={isScanning ? resetScanner : scanFace}
+          disabled={!modelsLoaded || (faceCount === 0 && !isScanning) || isLoopScanning}
+          className={`px-6 sm:px-8 ${
+            isScanning 
+              ? 'bg-destructive hover:bg-destructive/90' 
+              : faceCount > 0
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'bg-muted text-muted-foreground'
+          } shadow-lg ${isScanning ? 'shadow-destructive/25 text-destructive-foreground' : 'shadow-primary/25'}`}
+        >
+          {!modelsLoaded ? (
+            <>
+              <Cpu className="w-5 h-5 mr-2 animate-spin" />
+              Loading AI...
+            </>
+          ) : isScanning ? (
+            <>
+              <Power className="w-5 h-5 mr-2" />
+              Cancel
+            </>
+          ) : faceCount === 0 ? (
+            <>
+              <Eye className="w-5 h-5 mr-2" />
+              Position Face
+            </>
+          ) : (
+            <>
+              <Scan className="w-5 h-5 mr-2" />
+              Scan {faceCount} Face{faceCount > 1 ? 's' : ''}
+            </>
           )}
+        </Button>
+
+        <Button
+          size="lg"
+          variant={isLoopScanning ? 'destructive' : 'secondary'}
+          onClick={isLoopScanning ? stopLoopScan : startLoopScan}
+          disabled={!modelsLoaded || isScanning}
+          className="px-6 sm:px-8"
+        >
+          {isLoopScanning ? (
+            <>
+              <Pause className="w-5 h-5 mr-2" />
+              Stop Loop ({loopCapturedCount})
+            </>
+          ) : (
+            <>
+              <Play className="w-5 h-5 mr-2" />
+              Loop Scan
+            </>
+          )}
+        </Button>
+
+        {autoMarkedLog.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setAutoMarkedLog([])}
+            className="text-xs h-9 text-muted-foreground hover:text-foreground"
+          >
+            Clear Log
+          </Button>
+        )}
+      </div>
+
+      <div className="flex items-center justify-center gap-2 mt-3">
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          <span className="text-xs font-medium">Auto-Attendance Active</span>
         </div>
+        {faceCount > 0 && (
+          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">
+            {faceCount} Face{faceCount > 1 ? 's' : ''} in View
+          </Badge>
+        )}
       </div>
 
       {autoMarkedLog.length > 0 && (

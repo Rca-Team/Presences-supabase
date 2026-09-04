@@ -490,7 +490,9 @@ export async function recordAttendance(
   const sourceHint = deviceInfo?.source || deviceInfo?.metadata?.source;
   const shouldAutoNotifyParent =
     sourceHint !== 'qr-scanner' &&
-    deviceInfo?.metadata?.suppress_auto_notification !== true;
+    sourceHint !== 'live-face-id' &&
+    deviceInfo?.metadata?.suppress_auto_notification !== true &&
+    deviceInfo?.suppress_auto_notification !== true;
   const MIN_ATTENDANCE_CONFIDENCE = 0.50;
   const isManual =
     Boolean(deviceInfo?.metadata?.manual_confirmation) ||

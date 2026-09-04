@@ -358,20 +358,29 @@ export function createRecognitionEngine(
       try {
         const tEmbed = performance.now();
 
-        // Fast path: InsightFace/ArcFace via ONNX Runtime (WebGPU/WASM-SIMD).
-        // Only used when the gallery itself is 512-dim ArcFace, so embeddings are
-        // always compared within the same space.
-        let onnxEmbedding: Float32Array | null = null;
-        if (getVectorIndexStats().dimension === 512 && isOnnxEmbedderReady()) {
-          onnxEmbedding = await embedFaceOnnx(cropCanvas);
+        // 1. Primary path: face-api.js embedder (prioritized)
+        try {
+          det = await faceapi
+            .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        } catch (faceApiErr) {
+          console.warn('Primary face-api.js embedder failed, trying ArcFace ONNX fallback:', faceApiErr);
+          det = null;
         }
 
-        det = onnxEmbedding
-          ? ({ descriptor: onnxEmbedding } as { descriptor: Float32Array })
-          : await faceapi
-              .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
-              .withFaceLandmarks()
-              .withFaceDescriptor();
+        // 2. Fallback path: ArcFace ONNX (used only if face-api.js failed or returned null)
+        if (!det && isOnnxEmbedderReady()) {
+          try {
+            const onnxEmbedding = await embedFaceOnnx(cropCanvas);
+            if (onnxEmbedding) {
+              det = { descriptor: onnxEmbedding };
+            }
+          } catch (onnxErr) {
+            console.warn('ArcFace ONNX fallback also failed:', onnxErr);
+          }
+        }
+
         stats.embedMs = performance.now() - tEmbed;
 
         if (!det) {

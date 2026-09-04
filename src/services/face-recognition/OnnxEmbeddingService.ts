@@ -41,7 +41,7 @@ export async function initializeOnnxEmbedder(): Promise<boolean> {
     try {
       if (!(await modelExists())) {
         unavailable = true;
-        console.log('ArcFace ONNX model not present — using face-api.js embedder');
+        console.log('Primary embedder: face-api.js active (ArcFace ONNX model not loaded for fallback)');
         return false;
       }
 
@@ -57,7 +57,7 @@ export async function initializeOnnxEmbedder(): Promise<boolean> {
         executionProviders: providers,
         graphOptimizationLevel: 'all',
       });
-      console.log('ArcFace ONNX embedder ready:', providers.join(' → '));
+      console.log('ArcFace ONNX standby fallback ready:', providers.join(' → '));
       return true;
     } catch (err) {
       unavailable = true;
