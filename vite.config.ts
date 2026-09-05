@@ -50,9 +50,12 @@ export default defineConfig(({ mode }) => {
           categories: ["education", "productivity"],
         },
         workbox: {
-          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+          globPatterns: ["**/*.{js,css,ico,png,svg,woff2}"],
           maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MB limit
-          navigateFallbackDenylist: [/^\/~oauth/],
+          navigateFallbackDenylist: [/^\/~oauth/, /^\/assets\/.*/],
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,

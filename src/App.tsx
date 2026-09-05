@@ -294,35 +294,54 @@ function App() {
 
 
   useEffect(() => {
-    const onPreloadError = (event: Event) => {
-      const recoveryCount = Number(sessionStorage.getItem(chunkRecoveryKey) || "0");
-      if (recoveryCount >= 1) {
-        return;
-      }
-      sessionStorage.setItem(chunkRecoveryKey, String(recoveryCount + 1));
-      event.preventDefault();
-      void (async () => {
-        try {
-          if ("serviceWorker" in navigator) {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            await Promise.all(
-              regs.map(async (r) => {
-                const script = r.active?.scriptURL || "";
-                if (script.includes("/sw.js") || script.includes("/service-worker.js")) {
-                  await r.unregister();
-                }
-              }),
-            );
-          }
-        } catch (err) {
-          console.warn("Chunk recovery cleanup failed", err);
+    const handleChunkError = (err: any) => {
+      const errorMsg = String(err?.message || err?.reason?.message || err || '').toLowerCase();
+      const isChunkError =
+        errorMsg.includes('dynamically imported module') ||
+        errorMsg.includes('loading chunk') ||
+        errorMsg.includes('mime type') ||
+        errorMsg.includes('failed to fetch') ||
+        errorMsg.includes('importing a module script failed') ||
+        errorMsg.includes('expected a javascript-or-wasm');
+
+      if (isChunkError) {
+        const lastReload = Number(sessionStorage.getItem('presence:chunk_reload_ts') || '0');
+        const now = Date.now();
+        if (!lastReload || now - lastReload > 12000) {
+          sessionStorage.setItem('presence:chunk_reload_ts', String(now));
+          void (async () => {
+            try {
+              if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map((r) => r.unregister()));
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((k) => caches.delete(k)));
+              }
+            } catch (_) {}
+            window.location.reload();
+          })();
         }
-      })();
+      }
     };
 
-    window.addEventListener("vite:preloadError", onPreloadError);
-    return () => window.removeEventListener("vite:preloadError", onPreloadError);
-  }, [chunkRecoveryKey]);
+    const onPreloadError = (event: Event) => {
+      event.preventDefault();
+      handleChunkError('vite:preloadError');
+    };
+
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      handleChunkError(event.reason);
+    };
+
+    window.addEventListener('vite:preloadError', onPreloadError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    return () => {
+      window.removeEventListener('vite:preloadError', onPreloadError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    };
+  }, []);
 
 
   useEffect(() => {
