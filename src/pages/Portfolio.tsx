@@ -129,10 +129,14 @@ export function PublicPortfolioView({
   data,
   onUnlock,
   showGallery = true,
+  showProjects = true,
+  showAchievements = true,
 }: {
   data: PortfolioData;
   onUnlock?: () => void;
   showGallery?: boolean;
+  showProjects?: boolean;
+  showAchievements?: boolean;
 }) {
   const [selectedMember, setSelectedMember] = useState<PortfolioMember | null>(null);
 
@@ -284,7 +288,7 @@ export function PublicPortfolioView({
       </div>
 
       {/* Featured Projects */}
-      {data.projects.length > 0 && (
+      {showProjects && data.projects.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl md:text-2xl font-extrabold text-foreground flex items-center gap-2">
@@ -436,46 +440,48 @@ export function PublicPortfolioView({
       )}
 
       {/* Achievements + Skills Matrix */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {data.achievements.length > 0 && (
-          <Card className="rounded-3xl border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 shadow-lg backdrop-blur">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold text-slate-900 dark:text-foreground">
-                <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" /> Key Milestones & Achievements
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2.5 text-sm">
-                {data.achievements.map((a, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">{a}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
+      {showAchievements && (data.achievements.length > 0 || data.skills.length > 0) && (
+        <div className="grid gap-6 md:grid-cols-2">
+          {data.achievements.length > 0 && (
+            <Card className="rounded-3xl border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 shadow-lg backdrop-blur">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold text-slate-900 dark:text-foreground">
+                  <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" /> Key Milestones & Achievements
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2.5 text-sm">
+                  {data.achievements.map((a, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <span className="text-slate-700 dark:text-slate-300 font-medium">{a}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
-        {data.skills.length > 0 && (
-          <Card className="rounded-3xl border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 shadow-lg backdrop-blur">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold text-slate-900 dark:text-foreground">
-                <Sparkles className="h-5 w-5 text-primary" /> Technical Core & Capabilities
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {data.skills.map((s) => (
-                  <span key={s} className="rounded-full bg-primary/10 border border-primary/25 px-3.5 py-1 text-xs font-bold text-primary shadow-xs">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          {data.skills.length > 0 && (
+            <Card className="rounded-3xl border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 shadow-lg backdrop-blur">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold text-slate-900 dark:text-foreground">
+                  <Sparkles className="h-5 w-5 text-primary" /> Technical Core & Capabilities
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {data.skills.map((s) => (
+                    <span key={s} className="rounded-full bg-primary/10 border border-primary/25 px-3.5 py-1 text-xs font-bold text-primary shadow-xs">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Rebuilt Interactive Media & Campus Gallery Section */}
       {showGallery && data.gallery.length > 0 && (

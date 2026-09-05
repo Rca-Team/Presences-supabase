@@ -810,7 +810,7 @@ const Index = () => {
                   </p>
                 </div>
               </div>
-              <PublicPortfolioView data={portfolio} showGallery={false} onUnlock={() => navigate('/portfolio')} />
+              <PublicPortfolioView data={portfolio} showGallery={false} showProjects={false} onUnlock={() => navigate('/portfolio')} />
             </section>
           </RoyalReveal>
         )}
