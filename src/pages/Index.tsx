@@ -25,6 +25,10 @@ import {
   ArrowLeftRight,
   Scan,
   BookOpen,
+  Briefcase,
+  ExternalLink,
+  Github,
+  Trophy,
   Shield,
   Bell,
   BarChart3,
@@ -532,9 +536,185 @@ const Index = () => {
           </RoyalReveal>
         </section>
 
+        {/* ========================================================================= */}
+        {/* PORTFOLIO FEATURED PROJECTS & ARCHITECTURE SHOWCASE                       */}
+        {/* ========================================================================= */}
+        {portfolio.projects.length > 0 && (
+          <section className="pb-14">
+            <RoyalReveal effect="fade-up">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-primary/15 text-primary flex items-center justify-center font-bold shadow-md shrink-0">
+                    <Briefcase className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
+                      Featured Projects & Architecture
+                    </h2>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                      Flagship software engines and high-impact systems built by the team
+                    </p>
+                  </div>
+                </div>
 
+                <Button asChild variant="ghost" size="sm" className="text-xs font-bold text-primary hover:text-primary/80 self-start sm:self-auto gap-1 rounded-xl">
+                  <Link to="/portfolio">
+                    View Portfolio Studio <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {portfolio.projects.map((p) => (
+                  <motion.article
+                    key={p.id}
+                    whileHover={{ y: -4 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                    className="group relative overflow-hidden rounded-3xl border border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 backdrop-blur-2xl shadow-xl flex flex-col justify-between"
+                  >
+                    <div className="relative aspect-video overflow-hidden bg-muted/40 group-hover:shadow-lg transition-shadow">
+                      {p.image ? (
+                        <img
+                          src={p.image}
+                          alt={p.title}
+                          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-muted-foreground">
+                          <Sparkles className="h-8 w-8 opacity-40" />
+                        </div>
+                      )}
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+                      {p.year && (
+                        <span className="absolute right-3.5 top-3.5 rounded-full border border-white/20 bg-black/60 px-3 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-md">
+                          {p.year}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-6 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-lg font-extrabold text-foreground group-hover:text-primary transition-colors">
+                          {p.title}
+                        </h3>
+                        <p className="mt-2 line-clamp-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                          {p.description}
+                        </p>
+
+                        {(p.tags && p.tags.length > 0) || p.stack ? (
+                          <div className="mt-3.5 flex flex-wrap gap-1.5">
+                            {(p.tags && p.tags.length > 0 ? p.tags : p.stack.split(',').map((s) => s.trim()).filter(Boolean)).map((t) => (
+                              <span key={t} className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-6 pt-4 border-t border-border/40 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          {p.link && (
+                            <a
+                              href={p.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" /> Live Demo
+                            </a>
+                          )}
+                          {p.githubUrl && (
+                            <a
+                              href={p.githubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Github className="h-3.5 w-3.5" /> Code
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.article>
+                ))}
+              </div>
+            </RoyalReveal>
+          </section>
+        )}
 
         {/* ========================================================================= */}
+        {/* KEY MILESTONES & ACHIEVEMENTS + TECHNICAL CAPABILITIES                    */}
+        {/* ========================================================================= */}
+        {portfolio.achievements.length > 0 && (
+          <section className="pb-14">
+            <RoyalReveal effect="fade-up">
+              <div className="grid gap-6 md:grid-cols-2 items-stretch">
+                {/* Milestones Card */}
+                <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 p-6 sm:p-7 shadow-xl backdrop-blur-2xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/40">
+                      <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+                        <Trophy className="h-5 w-5 text-amber-400" /> Key Milestones & Achievements
+                      </h3>
+                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                        Milestones
+                      </span>
+                    </div>
+
+                    <ul className="space-y-3 text-xs sm:text-sm">
+                      {portfolio.achievements.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <span className="text-muted-foreground font-medium leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="pt-4 mt-6 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>PM Shri KV NFC Vigyan Vihar</span>
+                    <span className="font-semibold text-primary">High-Impact Delivery</span>
+                  </div>
+                </div>
+
+                {/* Technical Core & Capabilities Card */}
+                <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 p-6 sm:p-7 shadow-xl backdrop-blur-2xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/40">
+                      <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" /> Technical Core & Capabilities
+                      </h3>
+                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">
+                        Tech Stack
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {portfolio.skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 px-3.5 py-1.5 text-xs font-bold text-primary shadow-xs transition-colors"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 mt-6 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Modern Tech Architecture</span>
+                    <Link to="/portfolio" className="font-bold text-primary hover:underline flex items-center gap-1">
+                      Full Portfolio <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </RoyalReveal>
+          </section>
+        )}
         {/* PWA INSTALL CARD                                                          */}
         {/* ========================================================================= */}
         <RoyalReveal effect="fade-up">
