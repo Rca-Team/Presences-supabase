@@ -5,6 +5,7 @@ import { JarvisAuditTable } from "@/components/jarvis/JarvisAuditTable";
 import { jarvisAudit, AuditSummaryResult } from "@/services/jarvis/JarvisAuditService";
 import { jarvisAI, JarvisAnalysisResponse } from "@/services/jarvis/JarvisAIService";
 import { jarvisVoice } from "@/services/jarvis/JarvisVoiceService";
+import { presencesDataContext } from "@/services/jarvis/PresencesDataContext";
 import { jarvisSupabase, JarvisStudentAudit, JarvisSystemLog } from "@/integrations/jarvis/supabaseClient";
 import {
   ShieldCheck,
@@ -74,6 +75,9 @@ export default function Jarvis() {
 
   const loadPriorSnapshot = async () => {
     try {
+      // Query baseline telemetry from older Presences database
+      const liveSnapshot = await presencesDataContext.getLiveSnapshot();
+
       const { data: audits } = await jarvisSupabase
         .from("jarvis_student_audits")
         .select("*")
@@ -90,7 +94,7 @@ export default function Jarvis() {
 
       if (audits && audits.length > 0) {
         setAuditSummary({
-          totalStudentsChecked: audits.length,
+          totalStudentsChecked: liveSnapshot.totalStudents > 0 ? liveSnapshot.totalStudents : audits.length,
           missingPhotos: audits.filter((a) => a.issue_type === "missing_photo").length,
           missingFaceDescriptors: audits.filter((a) => a.issue_type === "missing_descriptor").length,
           missingParentContacts: audits.filter((a) => a.issue_type === "missing_parent_contact").length,
@@ -98,6 +102,18 @@ export default function Jarvis() {
           duplicateIdentifiers: audits.filter((a) => a.issue_type === "duplicate_identifier").length,
           systemErrorsFound: logs?.length || 0,
           studentAudits: audits,
+          systemLogs: logs || [],
+        });
+      } else if (liveSnapshot.totalStudents > 0) {
+        setAuditSummary({
+          totalStudentsChecked: liveSnapshot.totalStudents,
+          missingPhotos: liveSnapshot.missingPhotosCount,
+          missingFaceDescriptors: liveSnapshot.missingBiometricsCount,
+          missingParentContacts: liveSnapshot.missingParentContactsCount,
+          missingClassOrSection: 0,
+          duplicateIdentifiers: 0,
+          systemErrorsFound: logs?.length || 0,
+          studentAudits: [],
           systemLogs: logs || [],
         });
       }

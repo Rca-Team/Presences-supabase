@@ -1,5 +1,6 @@
 import { jarvisSupabase, JarvisDiagnostic, JarvisConversation } from "@/integrations/jarvis/supabaseClient";
 import { AuditSummaryResult } from "./JarvisAuditService";
+import { presencesDataContext } from "./PresencesDataContext";
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
@@ -72,9 +73,24 @@ export class JarvisAIService {
 
   // Deep Diagnostic Analysis of System & Student Data
   async analyzeAuditReport(audit: AuditSummaryResult): Promise<JarvisAnalysisResponse> {
+    let campusStatsStr = "";
+    try {
+      const snapshot = await presencesDataContext.getLiveSnapshot();
+      campusStatsStr = `
+LIVE INSTITUTIONAL TELEMETRY (PRIMARY DATABASE):
+- Total Registered Profiles: ${snapshot.totalStudents} students, ${snapshot.totalStaff} staff
+- Today's Attendance: ${snapshot.todayAttendance.present} Present, ${snapshot.todayAttendance.late} Late, ${snapshot.todayAttendance.absent} Absent (${snapshot.todayAttendance.attendanceRate}% Attendance Rate)
+- Active Classes in System: ${Object.keys(snapshot.classesBreakdown).join(", ") || "Standard Grades"}
+- Biometric Enrollment Coverage: ${snapshot.biometricCoverageRate}% (${snapshot.biometricsEnrolledCount} of ${snapshot.totalStudents} enrolled)
+`;
+    } catch (e) {
+      console.warn("[JarvisAI] Non-critical snapshot read error:", e);
+    }
+
     const prompt = `
 Sir, I have completed a diagnostic sweep of the campus registry and system telemetry. Here is the operational data:
-
+${campusStatsStr}
+AUDIT DEFECTS IDENTIFIED:
 - Total Students Analyzed: ${audit.totalStudentsChecked}
 - Students Missing Portrait Photos: ${audit.missingPhotos}
 - Students Missing Face Embeddings (Biometrics): ${audit.missingFaceDescriptors}
@@ -193,18 +209,31 @@ Return ONLY valid JSON.
     }
   }
 
-  // Interactive Voice & Text Dialogue
+  // Interactive Voice & Text Dialogue with live database telemetry
   async askJarvis(userPrompt: string, contextSnippet?: string): Promise<string> {
     const contents: any[] = [];
 
-    if (contextSnippet) {
+    // Query live telemetry and student profiles from older Supabase
+    let livePresencesContext = "";
+    try {
+      livePresencesContext = await presencesDataContext.buildPresencesPromptContext(userPrompt);
+    } catch (ctxErr) {
+      console.warn("[JarvisAI] Live context build error:", ctxErr);
+    }
+
+    const mergedContext = [
+      livePresencesContext,
+      contextSnippet ? `[ADDITIONAL AUDIT SUMMARY]\n${contextSnippet}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    if (mergedContext) {
       contents.push({
         role: "user",
-        parts: [{ text: `[CURRENT CAMPUS SYSTEM CONTEXT]\n${contextSnippet}` }],
+        parts: [{ text: mergedContext }],
       });
       contents.push({
         role: "model",
-        parts: [{ text: "Understood, Sir. I have loaded the live telemetry and registry context into my operational matrix." }],
+        parts: [{ text: "Understood, Sir. I have loaded the live Presences institutional database, student profiles, and attendance telemetry into my operational matrix. How may I assist you?" }],
       });
     }
 
