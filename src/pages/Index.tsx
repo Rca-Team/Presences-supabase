@@ -22,13 +22,9 @@ import NeuralOrbPanel from '@/components/home/NeuralOrbPanel';
 import { RoyalReveal, RoyalStaggerGroup, RoyalStaggerItem } from '@/components/RoyalReveal';
 import {
   ArrowRight,
-  ArrowUpRight,
   ArrowLeftRight,
   Scan,
   BookOpen,
-  Bot,
-  Terminal,
-  CircuitBoard,
   Shield,
   Bell,
   BarChart3,
@@ -513,83 +509,7 @@ const Index = () => {
           </RoyalReveal>
         </section>
 
-        {/* ========================================================================= */}
-        {/* PM SHRI ATAL TINKERING LAB (ATL) & ROBOTICS HUB                           */}
-        {/* ========================================================================= */}
-        <section className="pb-14">
-          <RoyalReveal effect="fade-up">
-            <div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card/60 shadow-xl backdrop-blur-2xl space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center font-bold shadow-md shrink-0">
-                    <Sparkles className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-                        PM Shri Atal Tinkering Lab & Robotics Hub
-                      </h2>
-                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                        STEM 2026
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                      Fostering curiosity, innovation, and technological mastery at PM Shri KV NFC Vigyan Vihar
-                    </p>
-                  </div>
-                </div>
 
-                <Button asChild variant="outline" size="sm" className="h-9 rounded-xl font-bold text-xs gap-1.5 self-start md:self-auto border-border/70 hover:bg-card">
-                  <Link to="/portfolio">
-                    Student Portfolios <ArrowUpRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
-                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                    <Bot className="h-5 w-5 text-emerald-500" />
-                    <span>Autonomous Robotics</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    ROS-enabled ground robots, servo kinematics, obstacle avoidance, and motorized smart assemblies.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
-                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                    <Terminal className="h-5 w-5 text-cyan-500" />
-                    <span>AI & Python Code Hub</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    ArcFace facial recognition pipelines, neural network models, and embedded computer vision algorithms.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
-                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                    <CircuitBoard className="h-5 w-5 text-amber-500" />
-                    <span>IoT & Sensor Systems</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    ESP32 microcontrollers, RFID gate telemetry, telemetry logs, and wireless environmental monitoring.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
-                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                    <Cpu className="h-5 w-5 text-purple-500" />
-                    <span>Rapid Prototyping</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    3D CAD modeling, 3D printing of custom brackets, sensor enclosures, and hardware integration.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </RoyalReveal>
-        </section>
 
         {/* ========================================================================= */}
         {/* PWA INSTALL CARD                                                          */}
