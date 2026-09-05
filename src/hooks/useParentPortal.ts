@@ -2,13 +2,16 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, isWeekend, startOfMonth, eachDayOfInterval, subDays } from 'date-fns';
+import { getStudentCoverPhoto, resolveStudentPhotoUrl } from '@/utils/studentPhotoResolver';
 
 export interface ChildProfile {
   id: string;
+  user_id?: string;
   name: string;
   employee_id: string;
   category: string;
   image_url: string;
+  cover_url?: string;
   roll_number?: string;
   parent_phone?: string;
   parent_email?: string;
@@ -116,6 +119,42 @@ export function useParentPortal() {
     }
   }, [activeChildId]);
 
+  // Auto-resolve cover photos for saved children on mount
+  useEffect(() => {
+    if (!savedChildren || savedChildren.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      let changed = false;
+      const updated = await Promise.all(
+        savedChildren.map(async (item) => {
+          if (item.image_url && item.image_url.startsWith('http') && !item.image_url.includes('/null')) {
+            return item;
+          }
+          const cover = await getStudentCoverPhoto(item.user_id || item.id, item.name, item.employee_id);
+          if (cover && cover !== item.image_url) {
+            changed = true;
+            return { ...item, image_url: cover, cover_url: cover };
+          }
+          return item;
+        })
+      );
+
+      if (!cancelled && changed) {
+        setSavedChildren(updated);
+        try {
+          localStorage.setItem(STORAGE_KEY_SAVED_CHILDREN, JSON.stringify(updated));
+        } catch {
+          /* ignore */
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Lookup function
   const lookupStudent = useCallback(
     async (studentIdQuery: string, phoneQuery: string, silent = false): Promise<boolean> => {
@@ -143,12 +182,18 @@ export function useParentPortal() {
         });
 
         if (!error && data?.found && data.student) {
+          const rawImg = data.student.image_url;
+          const cover =
+            (await getStudentCoverPhoto(data.student.id, data.student.name, data.student.employee_id)) ||
+            (rawImg ? await resolveStudentPhotoUrl(rawImg) : '');
+
           const profile: ChildProfile = {
             id: data.student.id,
             name: data.student.name,
             employee_id: data.student.employee_id,
             category: data.student.category,
-            image_url: data.student.image_url,
+            image_url: cover || rawImg || '',
+            cover_url: cover || rawImg || '',
             parent_phone: cleanPhone,
           };
 
@@ -190,12 +235,19 @@ export function useParentPortal() {
         if (matchedRecord) {
           const di = matchedRecord.device_info as any;
           const meta = di?.metadata || di || {};
+          const rawCandidate = meta.firebase_image_url || meta.id_card_photo_url || meta.avatar_url || meta.photo_url || matchedRecord.image_url;
+          const cover =
+            (await getStudentCoverPhoto(matchedRecord.user_id || matchedRecord.id, meta.name || meta.student_name, meta.employee_id || meta.roll_number || cleanId)) ||
+            (rawCandidate ? await resolveStudentPhotoUrl(rawCandidate) : '');
+
           const profile: ChildProfile = {
             id: matchedRecord.id,
+            user_id: matchedRecord.user_id,
             name: meta.name || meta.student_name || 'Student',
             employee_id: meta.employee_id || meta.roll_number || cleanId,
             category: matchedRecord.category || '6-A',
-            image_url: matchedRecord.image_url || '',
+            image_url: cover || rawCandidate || '',
+            cover_url: cover || rawCandidate || '',
             parent_phone: cleanPhone,
             blood_group: meta.blood_group,
           };

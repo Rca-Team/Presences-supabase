@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ChildProfile } from '@/hooks/useParentPortal';
+import { useStudentCoverPhoto } from '@/utils/studentPhotoResolver';
 
 interface ParentAuthCardProps {
   studentId: string;
@@ -33,6 +34,52 @@ interface ParentAuthCardProps {
   onSelectSibling: (sibling: ChildProfile) => void;
   onRemoveSibling?: (empId: string) => void;
 }
+
+const SavedSiblingItem: React.FC<{
+  sibling: ChildProfile;
+  onSelect: (sibling: ChildProfile) => void;
+  onRemove?: (empId: string) => void;
+}> = ({ sibling, onSelect, onRemove }) => {
+  const { coverUrl } = useStudentCoverPhoto(sibling);
+  const photo = coverUrl || sibling.image_url;
+
+  return (
+    <div className="flex items-center gap-1 p-1 pr-2 rounded-2xl bg-muted/60 hover:bg-primary/10 hover:border-primary/40 border border-border/60 transition-all text-left group">
+      <button
+        type="button"
+        onClick={() => onSelect(sibling)}
+        className="flex items-center gap-2.5 p-1 text-left flex-1"
+      >
+        <Avatar className="h-9 w-9 rounded-xl border border-border overflow-hidden shrink-0 shadow-xs">
+          <AvatarImage src={photo} className="object-cover" />
+          <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
+            {sibling.name.charAt(0)}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+            {sibling.name}
+          </p>
+          <p className="text-[10px] text-muted-foreground">Class {sibling.category}</p>
+        </div>
+      </button>
+
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(sibling.employee_id);
+          }}
+          className="h-6 w-6 rounded-full hover:bg-destructive/20 text-muted-foreground hover:text-destructive flex items-center justify-center transition-colors shrink-0"
+          title="Remove from saved"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+};
 
 export const ParentAuthCard: React.FC<ParentAuthCardProps> = ({
   studentId,
@@ -79,43 +126,12 @@ export const ParentAuthCard: React.FC<ParentAuthCardProps> = ({
           </div>
           <div className="flex flex-wrap gap-2.5">
             {savedChildren.map((sibling) => (
-              <div
+              <SavedSiblingItem
                 key={sibling.employee_id}
-                className="flex items-center gap-1 p-1 pr-2 rounded-2xl bg-muted/60 hover:bg-primary/10 hover:border-primary/40 border border-border/60 transition-all text-left group"
-              >
-                <button
-                  type="button"
-                  onClick={() => onSelectSibling(sibling)}
-                  className="flex items-center gap-2.5 p-1 text-left flex-1"
-                >
-                  <Avatar className="h-8 w-8 rounded-xl border border-border">
-                    <AvatarImage src={sibling.image_url} />
-                    <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
-                      {sibling.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
-                      {sibling.name}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Class {sibling.category}</p>
-                  </div>
-                </button>
-
-                {onRemoveSibling && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemoveSibling(sibling.employee_id);
-                    }}
-                    className="h-6 w-6 rounded-full hover:bg-destructive/20 text-muted-foreground hover:text-destructive flex items-center justify-center transition-colors shrink-0"
-                    title="Remove from saved"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
+                sibling={sibling}
+                onSelect={onSelectSibling}
+                onRemove={onRemoveSibling}
+              />
             ))}
           </div>
         </div>

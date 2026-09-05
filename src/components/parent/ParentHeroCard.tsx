@@ -24,6 +24,7 @@ import {
 import { motion } from 'framer-motion';
 import { ChildProfile, ParentSummaryStats } from '@/hooks/useParentPortal';
 import { format } from 'date-fns';
+import { useStudentCoverPhoto } from '@/utils/studentPhotoResolver';
 
 interface ParentHeroCardProps {
   child: ChildProfile;
@@ -97,6 +98,8 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
   };
 
   const StatusIcon = statusConfig.icon;
+  const { coverUrl } = useStudentCoverPhoto(child);
+  const displayPhoto = coverUrl || child.image_url;
 
   return (
     <motion.div
@@ -139,22 +142,46 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
       <Card
         className={`rounded-3xl border bg-card/95 backdrop-blur-2xl shadow-xl overflow-hidden relative ${statusConfig.borderGlow}`}
       >
+        {/* Student Cover Photo Banner */}
+        <div className="relative h-28 sm:h-36 md:h-44 w-full overflow-hidden bg-gradient-to-r from-primary/30 via-sky-500/20 to-indigo-500/25">
+          {displayPhoto ? (
+            <>
+              <img
+                src={displayPhoto}
+                alt={`${child.name} cover`}
+                className="h-full w-full object-cover object-center filter contrast-105 brightness-95 transition-transform duration-700 hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-accent/20 to-sky-500/20">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/30 via-transparent to-transparent" />
+            </div>
+          )}
+
+          {/* Cover Photo Badge */}
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-md px-3 py-1 text-[10px] sm:text-xs font-bold text-white border border-white/20 shadow-md">
+            <Sparkles className="h-3 w-3 text-amber-400" />
+            <span>Enrolled Student ID</span>
+          </div>
+        </div>
+
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
 
-        <CardContent className="p-5 sm:p-7 relative">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <CardContent className="p-5 sm:p-7 relative -mt-10 sm:-mt-14 z-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-5">
             {/* Child Profile & Live Presence */}
-            <div className="flex items-center gap-4 sm:gap-5">
-              <div className="relative">
-                <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-3xl border-2 border-border shadow-md">
-                  <AvatarImage src={child.image_url} className="object-cover" />
+            <div className="flex items-end gap-4 sm:gap-5">
+              <div className="relative shrink-0">
+                <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-3xl border-4 border-card bg-card shadow-2xl shrink-0 ring-2 ring-border/80">
+                  <AvatarImage src={displayPhoto} className="object-cover" />
                   <AvatarFallback className="text-2xl font-black bg-primary/20 text-primary">
                     {child.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
                 <div
-                  className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full border-2 border-background flex items-center justify-center ${statusConfig.badgeClass} shadow-xs`}
+                  className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full border-2 border-card flex items-center justify-center ${statusConfig.badgeClass} shadow-md`}
                 >
                   <span className={`h-2.5 w-2.5 rounded-full ${statusConfig.dotClass} animate-pulse`} />
                 </div>
