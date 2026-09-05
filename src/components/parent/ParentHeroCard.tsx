@@ -25,6 +25,7 @@ import { motion } from 'framer-motion';
 import { ChildProfile, ParentSummaryStats } from '@/hooks/useParentPortal';
 import { format } from 'date-fns';
 import { useStudentCoverPhoto } from '@/utils/studentPhotoResolver';
+import studentCampusBanner from '@/assets/student-campus-banner.jpg';
 
 interface ParentHeroCardProps {
   child: ChildProfile;
@@ -142,27 +143,18 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
       <Card
         className={`rounded-3xl border bg-card/95 backdrop-blur-2xl shadow-xl overflow-hidden relative ${statusConfig.borderGlow}`}
       >
-        {/* Student Cover Photo Banner */}
+        {/* Cinematic Smart Campus Background Banner */}
         <div className="relative h-28 sm:h-36 md:h-44 w-full overflow-hidden bg-gradient-to-r from-primary/30 via-sky-500/20 to-indigo-500/25">
-          {displayPhoto ? (
-            <>
-              <img
-                src={displayPhoto}
-                alt={`${child.name} cover`}
-                className="h-full w-full object-cover object-center filter contrast-105 brightness-95 transition-transform duration-700 hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
-            </>
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-accent/20 to-sky-500/20">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/30 via-transparent to-transparent" />
-            </div>
-          )}
-
-          {/* Cover Photo Badge */}
+          <img
+            src={studentCampusBanner}
+            alt="PM Shri KV NFC Vigyan Vihar Campus"
+            className="h-full w-full object-cover object-center filter brightness-90 contrast-105 transition-transform duration-700 hover:scale-105"
+            loading="eager"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-black/25" />
           <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-md px-3 py-1 text-[10px] sm:text-xs font-bold text-white border border-white/20 shadow-md">
             <Sparkles className="h-3 w-3 text-amber-400" />
-            <span>Enrolled Student ID</span>
+            <span>PM Shri KV NFC Vigyan Vihar</span>
           </div>
         </div>
 
