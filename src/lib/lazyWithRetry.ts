@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 
 // Retry a failed dynamic import and auto-recover from stale service workers / CDN hash updates
 export function lazyWithRetry<T extends React.ComponentType<any>>(
@@ -8,36 +8,43 @@ export function lazyWithRetry<T extends React.ComponentType<any>>(
   return React.lazy(async () => {
     const sessionKey = `retry_chunk_${retryKey}`;
     try {
-      return await importer();
+      const mod = await importer();
+      if (mod && typeof mod === "object" && "default" in mod && (mod as any).default) {
+        return mod;
+      }
+      if (mod && typeof (mod as any) === "function") {
+        return { default: mod as any };
+      }
+      return { default: ((mod as any)?.default || (mod as any) || (() => null)) };
     } catch (error: any) {
       console.warn(`[lazyWithRetry] Dynamic chunk load failed for ${retryKey}:`, error);
 
-      const hasReloaded = typeof window !== 'undefined' ? sessionStorage.getItem(sessionKey) : null;
-      const errorMsg = String(error?.message || error || '').toLowerCase();
+      const hasReloaded = typeof window !== "undefined" ? sessionStorage.getItem(sessionKey) : null;
+      const errorMsg = String(error?.message || error || "").toLowerCase();
       const isChunkError =
-        errorMsg.includes('dynamically imported module') ||
-        errorMsg.includes('loading chunk') ||
-        errorMsg.includes('mime type') ||
-        errorMsg.includes('failed to fetch') ||
-        errorMsg.includes('importing a module script failed') ||
-        errorMsg.includes('expected a javascript-or-wasm') ||
-        error?.name === 'TypeError';
+        errorMsg.includes("dynamically imported module") ||
+        errorMsg.includes("loading chunk") ||
+        errorMsg.includes("mime type") ||
+        errorMsg.includes("failed to fetch") ||
+        errorMsg.includes("importing a module script failed") ||
+        errorMsg.includes("expected a javascript-or-wasm") ||
+        error?.name === "TypeError";
 
-      const reloadKey = 'presence:global_chunk_reload';
-      const lastReload = typeof window !== 'undefined' ? Number(sessionStorage.getItem(reloadKey) || '0') : 0;
+      const reloadKey = "presence:global_chunk_reload";
+      const lastReload = typeof window !== "undefined" ? Number(sessionStorage.getItem(reloadKey) || "0") : 0;
       const now = Date.now();
 
       // If a deployment occurred and chunk hashes changed, clear SW & cache and reload once
-      if (isChunkError && typeof window !== 'undefined' && now - lastReload > 12000) {
+      if (isChunkError && typeof window !== "undefined" && now - lastReload > 12000) {
         sessionStorage.setItem(reloadKey, String(now));
 
-        if ('serviceWorker' in navigator) {
+        if ("serviceWorker" in navigator) {
           try {
             const regs = await navigator.serviceWorker.getRegistrations();
             await Promise.all(regs.map((reg) => reg.unregister()));
           } catch (_) {}
         }
-        if ('caches' in window) {
+        if ("caches" in window) {
           try {
             const keys = await caches.keys();
             await Promise.all(keys.map((k) => caches.delete(k)));
@@ -52,7 +59,14 @@ export function lazyWithRetry<T extends React.ComponentType<any>>(
       // One retry with slight backoff
       await new Promise((resolve) => setTimeout(resolve, 400));
       try {
-        return await importer();
+        const retryMod = await importer();
+        if (retryMod && typeof retryMod === "object" && "default" in retryMod && (retryMod as any).default) {
+          return retryMod;
+        }
+        if (retryMod && typeof (retryMod as any) === "function") {
+          return { default: retryMod as any };
+        }
+        return { default: ((retryMod as any)?.default || (retryMod as any) || (() => null)) };
       } catch (secondError) {
         console.error(`[lazyWithRetry] Error loading chunk ${retryKey}:`, secondError);
         throw secondError;

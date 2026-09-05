@@ -21,6 +21,7 @@ const importers: Record<string, Importer> = {
   '/parent': () => import('@/pages/ParentPortal'),
   '/unsubscribe': () => import('@/pages/Unsubscribe'),
   '/data': () => import('@/pages/DataBackup'),
+  '/jarvis': () => import('@/pages/Jarvis'),
 };
 
 const inflight: Record<string, Promise<unknown> | undefined> = {};

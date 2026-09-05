@@ -26,9 +26,17 @@ import {
   Trash2,
   Fingerprint,
 } from "lucide-react";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Jarvis() {
+  const { toast } = useToast();
+
+  const notify = {
+    info: (msg: string) => toast({ title: "J.A.R.V.I.S.", description: msg }),
+    success: (msg: string) => toast({ title: "System Updated", description: msg }),
+    error: (msg: string) => toast({ title: "System Alert", description: msg, variant: "destructive" }),
+  };
+
   const [isScanning, setIsScanning] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -103,7 +111,7 @@ export default function Jarvis() {
     if (isScanning) return;
     setIsScanning(true);
     jarvisVoice.playChime("scan");
-    toast.info("JARVIS: Diagnostic sweep initialized across campus registry.");
+    notify.info("JARVIS: Diagnostic sweep initialized across campus registry.");
 
     try {
       // 1. Audit student details, biometrics, and error logs
@@ -129,10 +137,10 @@ export default function Jarvis() {
       setIsSpeaking(true);
       await jarvisVoice.speak(aiResponse.spokenSummary, () => setIsSpeaking(false));
 
-      toast.success("Diagnostic sweep complete. Operational status updated.");
+      notify.success("Diagnostic sweep complete. Operational status updated.");
     } catch (err: any) {
       console.error("Diagnostic error:", err);
-      toast.error("Diagnostic encounter: " + (err?.message || "Unknown error"));
+      notify.error("Diagnostic encounter: " + (err?.message || "Unknown error"));
     } finally {
       setIsScanning(false);
     }
@@ -147,7 +155,7 @@ export default function Jarvis() {
     }
 
     if (!jarvisVoice.isSpeechRecognitionSupported()) {
-      toast.error("Microphone recognition is not supported in this browser. You can type commands below.");
+      notify.error("Microphone recognition is not supported in this browser. You can type commands below.");
       return;
     }
 
@@ -161,7 +169,7 @@ export default function Jarvis() {
       },
       (err) => {
         setIsListening(false);
-        toast.error("Microphone issue: " + String(err));
+        notify.error("Microphone issue: " + String(err));
       },
       () => {
         setIsListening(false);
@@ -174,7 +182,7 @@ export default function Jarvis() {
     if (isHealing) return;
     setIsHealing(true);
     jarvisVoice.playChime("scan");
-    toast.info("JARVIS: Initializing autonomous biometric descriptor enrollment...");
+    notify.info("JARVIS: Initializing autonomous biometric descriptor enrollment...");
 
     try {
       const result = await jarvisAudit.autoHealMissingBiometrics((curr, total, name) => {
@@ -196,9 +204,9 @@ export default function Jarvis() {
 
       // Refresh snapshot
       await handleRunDiagnosticSweep();
-      toast.success(`Autonomous enrollment complete: ${result.healed} enrolled.`);
+      notify.success(`Autonomous enrollment complete: ${result.healed} enrolled.`);
     } catch (err: any) {
-      toast.error("Auto-heal error: " + (err?.message || "Unknown error"));
+      notify.error("Auto-heal error: " + (err?.message || "Unknown error"));
     } finally {
       setIsHealing(false);
       setHealingProgress(null);
@@ -208,19 +216,19 @@ export default function Jarvis() {
   // Export Audit CSV Handler
   const handleExportCSV = () => {
     if (!auditSummary?.studentAudits?.length) {
-      toast.info("No audit findings available to export. Please run a diagnostic sweep first.");
+      notify.info("No audit findings available to export. Please run a diagnostic sweep first.");
       return;
     }
     jarvisAudit.exportAuditReportCSV(auditSummary.studentAudits, healthScore);
     jarvisVoice.playChime("affirm");
-    toast.success("Audit diagnostic report exported to CSV.");
+    notify.success("Audit diagnostic report exported to CSV.");
   };
 
   // Clear Resolved Handler
   const handleClearResolved = async () => {
     await jarvisAudit.clearResolvedAudits();
     await loadPriorSnapshot();
-    toast.success("Resolved anomaly records purged from database.");
+    notify.success("Resolved anomaly records purged from database.");
   };
 
   // Send Command / Question to Jarvis with action interception
@@ -273,7 +281,7 @@ export default function Jarvis() {
       setIsSpeaking(true);
       await jarvisVoice.speak(reply, () => setIsSpeaking(false));
     } catch (err: any) {
-      toast.error("Jarvis communication error: " + err.message);
+      notify.error("Jarvis communication error: " + err.message);
     }
   };
 
@@ -286,7 +294,7 @@ export default function Jarvis() {
         studentAudits: prev.studentAudits.map((a) => (a.id === auditId ? { ...a, status: "resolved" } : a)),
       };
     });
-    toast.success("Anomaly marked as resolved.");
+    notify.success("Anomaly marked as resolved.");
   };
 
   const handleIgnoreAudit = async (auditId: string) => {
@@ -298,7 +306,7 @@ export default function Jarvis() {
         studentAudits: prev.studentAudits.filter((a) => a.id !== auditId),
       };
     });
-    toast.info("Anomaly dismissed.");
+    notify.info("Anomaly dismissed.");
   };
 
   return (

@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { JarvisStudentAudit } from "@/integrations/jarvis/supabaseClient";
 import {
   CheckCircle2,
@@ -10,7 +10,7 @@ import {
   Check,
   Filter,
 } from "lucide-react";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 interface JarvisAuditTableProps {
   audits: JarvisStudentAudit[];
@@ -23,6 +23,7 @@ export const JarvisAuditTable: React.FC<JarvisAuditTableProps> = ({
   onResolve,
   onIgnore,
 }) => {
+  const { toast } = useToast();
   const [filter, setFilter] = useState<string>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -69,8 +70,10 @@ export const JarvisAuditTable: React.FC<JarvisAuditTableProps> = ({
         : "guardian contact telephone."
     }`;
     navigator.clipboard.writeText(text);
-    setCopiedId(audit.student_id || audit.details);
-    toast.success("Guardian notification text copied to clipboard!");
+    toast({
+      title: "Notification Copied",
+      description: "Guardian notification text copied to clipboard!",
+    });
     setTimeout(() => setCopiedId(null), 2500);
   };
 
