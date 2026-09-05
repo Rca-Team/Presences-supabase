@@ -242,9 +242,9 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
           </Button>
           <Button
             onClick={handlePrint}
-            className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex-1 shadow-md shadow-primary/20"
+            className="rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white flex-1 shadow-md shadow-blue-500/25 border-0"
           >
-            <Printer className="mr-1.5 h-4 w-4" /> Print / Save as PDF
+            <Printer className="mr-1.5 h-4 w-4 text-white" /> Print / Save as PDF
           </Button>
         </DialogFooter>
       </DialogContent>

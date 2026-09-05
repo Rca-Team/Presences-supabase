@@ -90,9 +90,9 @@ export const ParentLeaveManager: React.FC<ParentLeaveManagerProps> = ({
           <Button
             onClick={() => setShowForm(!showForm)}
             size="sm"
-            className="rounded-2xl text-xs font-bold bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 h-9"
+            className="rounded-2xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/25 h-9 border-0"
           >
-            <PlusCircle className="mr-1.5 h-4 w-4" />
+            <PlusCircle className="mr-1.5 h-4 w-4 text-white" />
             {showForm ? 'Cancel Application' : 'Apply for New Leave'}
           </Button>
         </div>
@@ -170,15 +170,15 @@ export const ParentLeaveManager: React.FC<ParentLeaveManagerProps> = ({
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full h-11 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
+                  className="w-full h-11 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white shadow-md shadow-blue-500/25 border-0"
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting Request...
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin text-white" /> Submitting Request...
                     </>
                   ) : (
                     <>
-                      <Send className="mr-2 h-4 w-4" /> Send Leave Request to Class Teacher
+                      <Send className="mr-2 h-4 w-4 text-white" /> Send Leave Request to Class Teacher
                     </>
                   )}
                 </Button>

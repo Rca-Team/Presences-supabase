@@ -174,19 +174,19 @@ export default function ParentPortal() {
                   <TabsList className="bg-card/80 backdrop-blur-xl border border-border/80 p-1 rounded-2xl h-11 inline-flex w-full sm:w-auto min-w-full sm:min-w-0 justify-start">
                     <TabsTrigger
                       value="attendance"
-                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-3.5"
+                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
                       <Calendar className="h-3.5 w-3.5" /> Attendance
                     </TabsTrigger>
                     <TabsTrigger
                       value="timetable"
-                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-3.5"
+                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
                       <Clock className="h-3.5 w-3.5" /> Timetable
                     </TabsTrigger>
                     <TabsTrigger
                       value="leaves"
-                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-3.5"
+                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
                       <FileText className="h-3.5 w-3.5" /> Apply Leave
                       {leaves.length > 0 && (
@@ -197,21 +197,21 @@ export default function ParentPortal() {
                     </TabsTrigger>
                     <TabsTrigger
                       value="gate"
-                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-3.5"
+                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
                       <DoorOpen className="h-3.5 w-3.5" /> Gate Logs
                     </TabsTrigger>
                     <TabsTrigger
                       value="teachers"
-                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-3.5"
+                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
                       <Users className="h-3.5 w-3.5" /> Teachers Desk
                     </TabsTrigger>
                     <TabsTrigger
                       value="achievements"
-                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground px-3.5"
+                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
-                      <Trophy className="h-3.5 w-3.5 text-amber-500" /> Badges
+                      <Trophy className="h-3.5 w-3.5 text-amber-300" /> Badges
                     </TabsTrigger>
                   </TabsList>
                 </div>

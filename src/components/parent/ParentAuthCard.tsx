@@ -159,15 +159,15 @@ export const ParentAuthCard: React.FC<ParentAuthCardProps> = ({
             <Button
               type="submit"
               disabled={isLoading || !studentId.trim() || !phone.trim()}
-              className="w-full h-12 rounded-2xl text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98] mt-2"
+              className="w-full h-12 rounded-2xl text-sm font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white shadow-lg shadow-blue-500/25 transition-all active:scale-[0.98] mt-2 border-0"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying School Records...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin text-white" /> Verifying School Records...
                 </>
               ) : (
                 <>
-                  View Child's Status <ArrowRight className="ml-2 h-4 w-4" />
+                  View Child's Status <ArrowRight className="ml-2 h-4 w-4 text-white" />
                 </>
               )}
             </Button>

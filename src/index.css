@@ -105,8 +105,8 @@
     --popover: 236 31% 13%;
     --popover-foreground: 26 64% 95%;
 
-    --primary: 17 96% 58%;
-    --primary-foreground: 240 45% 10%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 243 28% 20%;
     --secondary-foreground: 26 64% 95%;
@@ -121,22 +121,22 @@
     --destructive-foreground: 210 40% 98%;
 
     --success: 152 76% 50%;
-    --success-foreground: 222 47% 11%;
+    --success-foreground: 0 0% 100%;
 
     --warning: 38 96% 64%;
     --warning-foreground: 222 47% 11%;
 
     --border: 248 32% 27%;
     --input: 248 32% 27%;
-    --ring: 323 72% 56%;
+    --ring: 217 91% 60%;
 
     --gradient-start: rgba(13, 10, 33, 0.94);
     --gradient-end: rgba(24, 17, 52, 0.94);
 
     --sidebar-background: 238 35% 8%;
     --sidebar-foreground: 26 64% 95%;
-    --sidebar-primary: 17 96% 58%;
-    --sidebar-primary-foreground: 240 45% 10%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 323 72% 56%;
     --sidebar-accent-foreground: 17 100% 98%;
     --sidebar-border: 248 32% 27%;

@@ -196,35 +196,35 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
               <Button
                 onClick={onOpenLeaveModal}
                 size="sm"
-                className="rounded-2xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 text-xs h-10 px-4 flex-1 md:flex-initial"
+                className="rounded-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white shadow-md shadow-blue-500/25 text-xs h-10 px-4 flex-1 md:flex-initial border-0"
               >
-                <Calendar className="mr-1.5 h-4 w-4" /> Apply for Leave
+                <Calendar className="mr-1.5 h-4 w-4 text-white" /> Apply for Leave
               </Button>
               <div className="flex gap-2 flex-1 md:flex-initial">
                 <Button
                   onClick={onOpenTimetableTab}
                   variant="outline"
                   size="sm"
-                  className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80"
+                  className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80 text-foreground hover:text-primary"
                 >
-                  <Clock className="mr-1 h-3.5 w-3.5" /> Classes
+                  <Clock className="mr-1 h-3.5 w-3.5 text-primary" /> Classes
                 </Button>
                 <Button
                   onClick={onOpenPassModal}
                   variant="outline"
                   size="sm"
-                  className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80"
+                  className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80 text-foreground hover:text-primary"
                   title="Generate Digital Early Exit Gate Pass"
                 >
-                  <DoorOpen className="mr-1 h-3.5 w-3.5 text-primary" /> Gate Pass
+                  <DoorOpen className="mr-1 h-3.5 w-3.5 text-emerald-500" /> Gate Pass
                 </Button>
                 <Button
                   onClick={onOpenReportModal}
                   variant="outline"
                   size="sm"
-                  className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80"
+                  className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80 text-foreground hover:text-primary"
                 >
-                  <FileText className="mr-1 h-3.5 w-3.5" /> PDF
+                  <FileText className="mr-1 h-3.5 w-3.5 text-amber-500" /> PDF
                 </Button>
               </div>
             </div>
