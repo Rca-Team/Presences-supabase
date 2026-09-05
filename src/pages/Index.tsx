@@ -255,29 +255,52 @@ const Index = () => {
                   Face-recognition attendance, intelligent timetable substitution, kiosk security, parent portal & AI analytics — all in one unified, intelligent platform.
                 </p>
 
-                {/* Action CTAs */}
-                <div className="mt-8 sm:mt-10 flex flex-wrap gap-3 items-center">
-                  <Link to="/attendance">
-                    <Button className="h-12 sm:h-13 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 text-sm sm:text-base shadow-lg shadow-cyan-500/25 btn-spring gap-2">
-                      <Scan className="w-5 h-5" /> Launch Attendance <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                  <Link to="/parent">
-                    <Button variant="outline" className="h-12 sm:h-13 rounded-2xl border-border/80 bg-card/60 px-5 text-sm sm:text-base font-semibold text-foreground hover:bg-card/90 btn-spring gap-2">
-                      <Globe className="w-4 h-4 text-blue-500" /> Parent Portal
-                    </Button>
-                  </Link>
-                  <Link to="/gate">
-                    <Button variant="outline" className="h-12 sm:h-13 rounded-2xl border-border/80 bg-card/60 px-5 text-sm sm:text-base font-semibold text-foreground hover:bg-card/90 btn-spring gap-2">
-                      <DoorOpen className="w-4 h-4 text-purple-500" /> Gate Kiosk
-                    </Button>
-                  </Link>
-                  <Link to="/admin?tab=timetable">
-                    <Button variant="outline" className="h-12 sm:h-13 rounded-2xl border-border/80 bg-card/60 px-5 text-sm sm:text-base font-semibold text-foreground hover:bg-card/90 btn-spring gap-2">
-                      <BookOpen className="w-4 h-4 text-indigo-500" /> Timetable
-                    </Button>
-                  </Link>
-                  <ThemeToggle className="h-12 w-12 sm:h-13 sm:w-13 rounded-2xl border-border/80 bg-card/60 hover:bg-card/90 btn-spring" />
+                {/* Action CTAs — Rebuilt to precisely match capsule button layout */}
+                <div className="mt-8 sm:mt-10 space-y-3.5">
+                  {/* Row 1: Launch Attendance & Parent Portal */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link to="/attendance">
+                      <Button
+                        className="h-12 sm:h-13 rounded-full bg-[#22d3ee] hover:bg-[#06b6d4] text-slate-950 font-bold px-7 text-sm sm:text-base shadow-[0_0_24px_rgba(34,211,238,0.45)] hover:shadow-[0_0_32px_rgba(34,211,238,0.6)] transition-all duration-200 btn-spring gap-2.5"
+                      >
+                        <Scan className="w-5 h-5 stroke-[2.2]" />
+                        <span>Launch Attendance</span>
+                        <ArrowRight className="w-4 h-4 stroke-[2.2]" />
+                      </Button>
+                    </Link>
+                    <Link to="/parent">
+                      <Button
+                        variant="outline"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2"
+                      >
+                        <Globe className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                        <span>Parent Portal</span>
+                      </Button>
+                    </Link>
+                  </div>
+
+                  {/* Row 2: Gate Kiosk, Timetable & Theme Toggle */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link to="/gate">
+                      <Button
+                        variant="outline"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2"
+                      >
+                        <DoorOpen className="w-4 h-4 text-fuchsia-500 dark:text-fuchsia-400" />
+                        <span>Gate Kiosk</span>
+                      </Button>
+                    </Link>
+                    <Link to="/admin?tab=timetable">
+                      <Button
+                        variant="outline"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2"
+                      >
+                        <BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                        <span>Timetable</span>
+                      </Button>
+                    </Link>
+                    <ThemeToggle className="h-12 w-12 sm:h-13 sm:w-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md btn-spring text-slate-900 dark:text-white" />
+                  </div>
                 </div>
               </div>
 
