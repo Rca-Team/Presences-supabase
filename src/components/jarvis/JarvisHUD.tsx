@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Cpu, Mic, Volume2, Sparkles, AlertTriangle } from "lucide-react";
 
@@ -133,7 +133,7 @@ export const JarvisHUD: React.FC<JarvisHUDProps> = ({
 
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300">
           <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-          <span>GEMINI 2.5 FLASH</span>
+          <span>NEURAL SYNAPSE: ACTIVE</span>
         </div>
 
         {healthScore !== null && (

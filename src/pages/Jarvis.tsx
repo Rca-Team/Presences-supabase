@@ -339,7 +339,7 @@ export default function Jarvis() {
         <div className="flex items-center gap-2 sm:gap-3 text-[11px] font-mono">
           <div className="hidden md:flex items-center gap-1.5 text-slate-400">
             <Activity className="w-3.5 h-3.5 text-cyan-400" />
-            <span>SUPABASE: DEDICATED SYNCED</span>
+            <span>DIAGNOSTIC MATRIX: SYNCED</span>
           </div>
 
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
@@ -428,7 +428,7 @@ export default function Jarvis() {
                   Tactical Voice & Dialogue
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-slate-400">GEMINI 2.5 FLASH</span>
+              <span className="text-[10px] font-mono text-cyan-400/80">NEURAL INTERFACE</span>
             </div>
 
             {/* Chat Messages */}

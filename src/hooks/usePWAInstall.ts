@@ -18,6 +18,11 @@ export const usePWAInstall = () => {
       || (window.navigator as any).standalone === true;
     setIsInstalled(isStandalone);
 
+    // Skip interception if already in standalone app or on the dedicated Jarvis console
+    if (isStandalone || window.location.pathname.startsWith('/jarvis')) {
+      return;
+    }
+
     // Check if iOS
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(ios);
