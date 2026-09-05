@@ -22,9 +22,13 @@ import NeuralOrbPanel from '@/components/home/NeuralOrbPanel';
 import { RoyalReveal, RoyalStaggerGroup, RoyalStaggerItem } from '@/components/RoyalReveal';
 import {
   ArrowRight,
+  ArrowUpRight,
   ArrowLeftRight,
   Scan,
   BookOpen,
+  Bot,
+  Terminal,
+  CircuitBoard,
   Shield,
   Bell,
   BarChart3,
@@ -256,23 +260,28 @@ const Index = () => {
                 </p>
 
                 {/* Action CTAs */}
-                <div className="mt-8 sm:mt-10 flex flex-wrap gap-4 items-center">
+                <div className="mt-8 sm:mt-10 flex flex-wrap gap-3 items-center">
                   <Link to="/attendance">
-                    <Button className="h-14 rounded-2xl bg-primary px-8 text-base font-bold text-primary-foreground shadow-xl shadow-primary/30 hover:bg-primary/90 btn-spring">
-                      Launch Attendance <ArrowRight className="ml-2 h-5 w-5" />
+                    <Button className="h-12 sm:h-13 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 text-sm sm:text-base shadow-lg shadow-cyan-500/25 btn-spring gap-2">
+                      <Scan className="w-5 h-5" /> Launch Attendance <ArrowRight className="w-4 h-4" />
                     </Button>
                   </Link>
                   <Link to="/parent">
-                    <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-8 text-base font-bold text-foreground hover:bg-card/80 btn-spring">
-                      Parent Portal
+                    <Button variant="outline" className="h-12 sm:h-13 rounded-2xl border-border/80 bg-card/60 px-5 text-sm sm:text-base font-semibold text-foreground hover:bg-card/90 btn-spring gap-2">
+                      <Globe className="w-4 h-4 text-blue-500" /> Parent Portal
                     </Button>
                   </Link>
                   <Link to="/gate">
-                    <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-6 text-base font-bold text-foreground hover:bg-card/80 btn-spring gap-2">
-                      <DoorOpen className="h-5 w-5 text-warning" /> Gate Kiosk
+                    <Button variant="outline" className="h-12 sm:h-13 rounded-2xl border-border/80 bg-card/60 px-5 text-sm sm:text-base font-semibold text-foreground hover:bg-card/90 btn-spring gap-2">
+                      <DoorOpen className="w-4 h-4 text-purple-500" /> Gate Kiosk
                     </Button>
                   </Link>
-                  <ThemeToggle className="h-14 w-14 rounded-2xl border-border/70 bg-card/55 hover:bg-card/80 btn-spring" />
+                  <Link to="/admin?tab=timetable">
+                    <Button variant="outline" className="h-12 sm:h-13 rounded-2xl border-border/80 bg-card/60 px-5 text-sm sm:text-base font-semibold text-foreground hover:bg-card/90 btn-spring gap-2">
+                      <BookOpen className="w-4 h-4 text-indigo-500" /> Timetable
+                    </Button>
+                  </Link>
+                  <ThemeToggle className="h-12 w-12 sm:h-13 sm:w-13 rounded-2xl border-border/80 bg-card/60 hover:bg-card/90 btn-spring" />
                 </div>
               </div>
 
@@ -402,17 +411,17 @@ const Index = () => {
               </motion.div>
 
               {/* Right: Team Leadership & Members Grid */}
-              <div className="lg:col-span-6 flex flex-col justify-between gap-3 bg-card/60 p-6 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-2xl">
+              <div className="lg:col-span-6 flex flex-col justify-between gap-3 bg-white/85 dark:bg-card/60 p-6 rounded-3xl border border-border/80 dark:border-white/10 shadow-xl backdrop-blur-2xl">
                 <div>
                   <div className="flex items-center justify-between pb-3 mb-2 border-b border-border/40">
                     <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-amber-300" /> Creators & Core Architects
+                      <Sparkles className="h-4 w-4 text-amber-400" /> Creators & Core Architects
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate('/portfolio')}
-                      className="text-xs font-bold text-amber-300 hover:text-amber-200 hover:bg-amber-300/10 rounded-xl"
+                      className="text-xs font-bold text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-300/10 rounded-xl"
                     >
                       View Studio <ArrowRight className="ml-1 h-3.5 w-3.5" />
                     </Button>
@@ -422,7 +431,7 @@ const Index = () => {
                   <button
                     type="button"
                     onClick={() => creatorMembers[0] && setActiveProfile(creatorMembers[0])}
-                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent p-4 text-left transition-all hover:border-amber-300/60 hover:shadow-lg hover:shadow-amber-500/5 mb-3"
+                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/40 dark:border-amber-300/30 bg-amber-50/70 dark:bg-gradient-to-r dark:from-amber-500/15 dark:via-amber-500/5 dark:to-transparent p-4 text-left transition-all hover:border-amber-300/80 hover:shadow-md mb-3"
                   >
                     <div className="flex items-center gap-3.5">
                       <img
@@ -432,12 +441,12 @@ const Index = () => {
                         loading="lazy"
                       />
                       <div>
-                        <span className="inline-block text-[9px] font-black uppercase tracking-[0.2em] text-amber-300">Lead · Architect</span>
+                        <span className="inline-block text-[9px] font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-300">Lead · Architect</span>
                         <p className="text-base font-extrabold text-foreground">{creatorMembers[0]?.name || 'Gaurav'}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1">{creatorMembers[0]?.role || 'Full-Stack & AI Engineer'}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{creatorMembers[0]?.role || 'Developer & Team Leader'}</p>
                       </div>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-amber-300 shrink-0" />
+                    <ArrowRight className="h-5 w-5 text-amber-500 dark:text-amber-300 shrink-0" />
                   </button>
 
                   {/* Team Members List Header & Swap Button */}
@@ -450,14 +459,14 @@ const Index = () => {
                         variant="ghost"
                         size="sm"
                         onClick={handleSwapTeamMembers}
-                        className="h-6 px-2.5 text-[11px] font-semibold text-primary hover:text-primary hover:bg-primary/10 rounded-lg gap-1.5 transition-all active:scale-95 border border-primary/20 bg-primary/5 shadow-sm"
+                        className="h-6 px-2.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg gap-1.5 transition-all active:scale-95 border border-emerald-500/30 bg-emerald-500/10 shadow-xs"
                         title="Click to swap members"
                       >
                         <motion.div
                           animate={{ rotate: isSwapped ? 180 : 0 }}
                           transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                         >
-                          <ArrowLeftRight className="h-3 w-3 text-primary" />
+                          <ArrowLeftRight className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                         </motion.div>
                         <span>Click to Swap</span>
                       </Button>
@@ -473,7 +482,7 @@ const Index = () => {
                         type="button"
                         onClick={() => setActiveProfile(member)}
                         transition={{ type: 'spring', stiffness: 450, damping: 30, mass: 0.6 }}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3 text-left transition-all hover:border-amber-300/50 hover:bg-card/80 group"
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white/70 dark:bg-card/50 p-3 text-left transition-all hover:border-amber-300/50 hover:bg-accent/40 group shadow-xs"
                         aria-label={`Open ${member.name} profile`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -488,7 +497,7 @@ const Index = () => {
                             <p className="text-xs font-bold text-foreground truncate">{member.name}</p>
                           </div>
                         </div>
-                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all" />
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-amber-500 dark:group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all" />
                       </motion.button>
                     ))}
                   </div>
@@ -496,10 +505,88 @@ const Index = () => {
 
                 <div className="pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
                   <span>Presences AI Engine</span>
-                  <span className="font-mono text-primary font-bold">KV NFC Vigyan Vihar</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">KV NFC Vigyan Vihar</span>
                 </div>
               </div>
 
+            </div>
+          </RoyalReveal>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* PM SHRI ATAL TINKERING LAB (ATL) & ROBOTICS HUB                           */}
+        {/* ========================================================================= */}
+        <section className="pb-14">
+          <RoyalReveal effect="fade-up">
+            <div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card/60 shadow-xl backdrop-blur-2xl space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center font-bold shadow-md shrink-0">
+                    <Sparkles className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+                        PM Shri Atal Tinkering Lab & Robotics Hub
+                      </h2>
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                        STEM 2026
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                      Fostering curiosity, innovation, and technological mastery at PM Shri KV NFC Vigyan Vihar
+                    </p>
+                  </div>
+                </div>
+
+                <Button asChild variant="outline" size="sm" className="h-9 rounded-xl font-bold text-xs gap-1.5 self-start md:self-auto border-border/70 hover:bg-card">
+                  <Link to="/portfolio">
+                    Student Portfolios <ArrowUpRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
+                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <Bot className="h-5 w-5 text-emerald-500" />
+                    <span>Autonomous Robotics</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    ROS-enabled ground robots, servo kinematics, obstacle avoidance, and motorized smart assemblies.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
+                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <Terminal className="h-5 w-5 text-cyan-500" />
+                    <span>AI & Python Code Hub</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    ArcFace facial recognition pipelines, neural network models, and embedded computer vision algorithms.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
+                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <CircuitBoard className="h-5 w-5 text-amber-500" />
+                    <span>IoT & Sensor Systems</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    ESP32 microcontrollers, RFID gate telemetry, telemetry logs, and wireless environmental monitoring.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl border border-border/70 bg-background/50 backdrop-blur-sm space-y-2 card-hover-pop">
+                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <Cpu className="h-5 w-5 text-purple-500" />
+                    <span>Rapid Prototyping</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    3D CAD modeling, 3D printing of custom brackets, sensor enclosures, and hardware integration.
+                  </p>
+                </div>
+              </div>
             </div>
           </RoyalReveal>
         </section>
