@@ -17,6 +17,7 @@ import {
   GraduationCap,
   ArrowRight,
   User,
+  X,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ChildProfile } from '@/hooks/useParentPortal';
@@ -30,6 +31,7 @@ interface ParentAuthCardProps {
   onPhoneChange: (val: string) => void;
   onSearch: (studentId: string, phone: string) => void;
   onSelectSibling: (sibling: ChildProfile) => void;
+  onRemoveSibling?: (empId: string) => void;
 }
 
 export const ParentAuthCard: React.FC<ParentAuthCardProps> = ({
@@ -41,6 +43,7 @@ export const ParentAuthCard: React.FC<ParentAuthCardProps> = ({
   onPhoneChange,
   onSearch,
   onSelectSibling,
+  onRemoveSibling,
 }) => {
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -68,33 +71,51 @@ export const ParentAuthCard: React.FC<ParentAuthCardProps> = ({
         <div className="bg-card/70 backdrop-blur-xl border border-border/80 rounded-3xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3 px-1">
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-primary" /> Your Saved Children
+              <Users className="h-3.5 w-3.5 text-primary" /> Saved Profiles (Tap to Open)
             </span>
             <Badge variant="secondary" className="text-[10px] rounded-full px-2">
-              1-Tap Switch
+              {savedChildren.length} Saved
             </Badge>
           </div>
           <div className="flex flex-wrap gap-2.5">
             {savedChildren.map((sibling) => (
-              <button
+              <div
                 key={sibling.employee_id}
-                type="button"
-                onClick={() => onSelectSibling(sibling)}
-                className="flex items-center gap-2.5 p-2 pr-3.5 rounded-2xl bg-muted/60 hover:bg-primary/10 hover:border-primary/40 border border-border/60 transition-all text-left group"
+                className="flex items-center gap-1 p-1 pr-2 rounded-2xl bg-muted/60 hover:bg-primary/10 hover:border-primary/40 border border-border/60 transition-all text-left group"
               >
-                <Avatar className="h-8 w-8 rounded-xl border border-border">
-                  <AvatarImage src={sibling.image_url} />
-                  <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
-                    {sibling.name.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
-                    {sibling.name}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">Class {sibling.category}</p>
-                </div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectSibling(sibling)}
+                  className="flex items-center gap-2.5 p-1 text-left flex-1"
+                >
+                  <Avatar className="h-8 w-8 rounded-xl border border-border">
+                    <AvatarImage src={sibling.image_url} />
+                    <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
+                      {sibling.name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                      {sibling.name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Class {sibling.category}</p>
+                  </div>
+                </button>
+
+                {onRemoveSibling && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveSibling(sibling.employee_id);
+                    }}
+                    className="h-6 w-6 rounded-full hover:bg-destructive/20 text-muted-foreground hover:text-destructive flex items-center justify-center transition-colors shrink-0"
+                    title="Remove from saved"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>

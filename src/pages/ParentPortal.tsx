@@ -48,6 +48,7 @@ export default function ParentPortal() {
     setPhoneInput,
     lookupStudent,
     switchChild,
+    removeSavedChild,
     submitLeave,
     logout,
   } = useParentPortal();
@@ -116,7 +117,7 @@ export default function ParentPortal() {
                   className="rounded-xl text-xs text-muted-foreground hover:text-destructive h-8 px-2.5"
                 >
                   <LogOut className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Switch Child</span>
+                  <span className="hidden sm:inline">Enter Another Student</span>
                 </Button>
               </>
             )}
@@ -137,6 +138,7 @@ export default function ParentPortal() {
             onPhoneChange={setPhoneInput}
             onSearch={(id, phone) => lookupStudent(id, phone)}
             onSelectSibling={switchChild}
+            onRemoveSibling={removeSavedChild}
           />
         ) : (
           /* 2. Full Active Student Dashboard */

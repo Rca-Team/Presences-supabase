@@ -307,15 +307,14 @@ export function useParentPortal() {
     }
   };
 
-  // Auto-login to active child on mount if saved
-  useEffect(() => {
-    if (!child && savedChildren.length > 0) {
-      const target = savedChildren.find((c) => c.employee_id === activeChildId) || savedChildren[0];
-      if (target && target.parent_phone) {
-        lookupStudent(target.employee_id, target.parent_phone, true);
-      }
+  // Remove a child from saved list
+  const removeSavedChild = (empId: string) => {
+    setSavedChildren((prev) => prev.filter((c) => c.employee_id !== empId));
+    if (activeChildId === empId) {
+      setActiveChildId('');
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_CHILD_ID);
     }
-  }, [activeChildId, child, lookupStudent, savedChildren]);
+  };
 
   // Realtime synchronization for active child
   useEffect(() => {
@@ -439,6 +438,7 @@ export function useParentPortal() {
     setPhoneInput,
     lookupStudent,
     switchChild,
+    removeSavedChild,
     submitLeave,
     logout,
   };
