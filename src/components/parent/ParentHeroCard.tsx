@@ -32,6 +32,7 @@ interface ParentHeroCardProps {
   onOpenLeaveModal: () => void;
   onOpenTimetableTab: () => void;
   onOpenReportModal: () => void;
+  onOpenPassModal: () => void;
   savedChildren: ChildProfile[];
   onSelectSibling: (sibling: ChildProfile) => void;
   onLogout: () => void;
@@ -44,6 +45,7 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
   onOpenLeaveModal,
   onOpenTimetableTab,
   onOpenReportModal,
+  onOpenPassModal,
   savedChildren,
   onSelectSibling,
   onLogout,
@@ -205,7 +207,16 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
                   size="sm"
                   className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80"
                 >
-                  <Clock className="mr-1 h-3.5 w-3.5" /> Today's Classes
+                  <Clock className="mr-1 h-3.5 w-3.5" /> Classes
+                </Button>
+                <Button
+                  onClick={onOpenPassModal}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80"
+                  title="Generate Digital Early Exit Gate Pass"
+                >
+                  <DoorOpen className="mr-1 h-3.5 w-3.5 text-primary" /> Gate Pass
                 </Button>
                 <Button
                   onClick={onOpenReportModal}
@@ -213,7 +224,7 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
                   size="sm"
                   className="rounded-2xl text-xs font-semibold h-10 flex-1 border-border/80"
                 >
-                  <FileText className="mr-1 h-3.5 w-3.5" /> Download PDF
+                  <FileText className="mr-1 h-3.5 w-3.5" /> PDF
                 </Button>
               </div>
             </div>

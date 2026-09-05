@@ -28,6 +28,7 @@ import { ParentGateFeed } from '@/components/parent/ParentGateFeed';
 import { ParentFacultyDirectory } from '@/components/parent/ParentFacultyDirectory';
 import { ParentAchievementsHub } from '@/components/parent/ParentAchievementsHub';
 import { ParentReportCardModal } from '@/components/parent/ParentReportCardModal';
+import { ParentEmergencyPassModal } from '@/components/parent/ParentEmergencyPassModal';
 
 export default function ParentPortal() {
   const {
@@ -53,6 +54,7 @@ export default function ParentPortal() {
 
   const [activeTab, setActiveTab] = useState<'attendance' | 'timetable' | 'leaves' | 'gate' | 'teachers' | 'achievements'>('attendance');
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showPassModal, setShowPassModal] = useState(false);
 
   const handleRefresh = () => {
     if (child && child.parent_phone) {
@@ -155,6 +157,7 @@ export default function ParentPortal() {
                 onOpenLeaveModal={() => setActiveTab('leaves')}
                 onOpenTimetableTab={() => setActiveTab('timetable')}
                 onOpenReportModal={() => setShowReportModal(true)}
+                onOpenPassModal={() => setShowPassModal(true)}
                 savedChildren={savedChildren}
                 onSelectSibling={switchChild}
                 onLogout={logout}
@@ -250,13 +253,21 @@ export default function ParentPortal() {
 
       {/* Printable Report Modal */}
       {child && (
-        <ParentReportCardModal
-          isOpen={showReportModal}
-          onClose={() => setShowReportModal(false)}
-          child={child}
-          summary={summary}
-          attendance={attendance}
-        />
+        <>
+          <ParentReportCardModal
+            isOpen={showReportModal}
+            onClose={() => setShowReportModal(false)}
+            child={child}
+            summary={summary}
+            attendance={attendance}
+          />
+
+          <ParentEmergencyPassModal
+            isOpen={showPassModal}
+            onClose={() => setShowPassModal(false)}
+            child={child}
+          />
+        </>
       )}
     </div>
   );
