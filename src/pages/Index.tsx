@@ -225,7 +225,7 @@ const Index = () => {
             {/* Left Hero Main Card */}
             <RoyalReveal
               effect="fade-up"
-              className="liquid-glass-surface liquid-glass-highlight col-span-12 lg:col-span-7 rounded-3xl p-6 sm:p-10 md:p-12 lg:p-14 border border-white/10 shadow-2xl backdrop-blur-2xl flex flex-col justify-between"
+              className="liquid-glass-surface liquid-glass-highlight col-span-12 lg:col-span-7 rounded-3xl p-6 sm:p-10 md:p-12 lg:p-14 border border-border/80 dark:border-white/10 shadow-2xl backdrop-blur-2xl flex flex-col justify-between bg-white/90 dark:bg-card/75"
             >
               <div>
                 {/* Collaboration & Active Status Badges */}
@@ -234,7 +234,7 @@ const Index = () => {
                     <Building2 className="h-3.5 w-3.5" />
                     PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -245,17 +245,17 @@ const Index = () => {
 
                 {/* Hero Title */}
                 <h1
-                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.06] text-foreground tracking-tight"
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.06] text-slate-900 dark:text-foreground tracking-tight"
                   style={{ fontFamily: 'Sora, sans-serif' }}
                 >
                   Your School,
                   <br />
-                  <span className="text-gradient-neon">
+                  <span className="bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 dark:from-cyan-300 dark:via-sky-300 dark:to-indigo-300 bg-clip-text text-transparent">
                     Fully Automated
                   </span>
                 </h1>
 
-                <p className="mt-6 max-w-xl text-base sm:text-lg md:text-xl leading-relaxed text-muted-foreground font-medium">
+                <p className="mt-6 max-w-xl text-base sm:text-lg md:text-xl leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
                   Face-recognition attendance, intelligent timetable substitution, kiosk security, parent portal & AI analytics — all in one unified, intelligent platform.
                 </p>
 
@@ -309,18 +309,18 @@ const Index = () => {
               </div>
 
               {/* Desktop Live Speed & Trust Bar */}
-              <div className="mt-10 pt-6 border-t border-white/10 grid grid-cols-3 gap-3">
+              <div className="mt-10 pt-6 border-t border-border/70 dark:border-white/10 grid grid-cols-3 gap-3">
                 <div className="flex items-center gap-2.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                  <span className="text-xs font-semibold text-muted-foreground">99.9% Recognition</span>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">99.9% Recognition</span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <Zap className="h-4 w-4 text-amber-400 shrink-0" />
-                  <span className="text-xs font-semibold text-muted-foreground">&lt;120ms Fast Scan</span>
+                  <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">&lt;120ms Fast Scan</span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                  <span className="text-xs font-semibold text-muted-foreground">Offline AI Sync</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Offline AI Sync</span>
                 </div>
               </div>
             </RoyalReveal>
@@ -337,16 +337,16 @@ const Index = () => {
               <RoyalReveal
                 effect="fade-up"
                 delay={0.15}
-                className="liquid-glass-surface rounded-3xl p-6 sm:p-7 border border-white/10 shadow-2xl backdrop-blur-2xl flex-1 flex flex-col justify-between"
+                className="liquid-glass-surface rounded-3xl p-6 sm:p-7 border border-border/80 dark:border-white/10 shadow-2xl backdrop-blur-2xl flex-1 flex flex-col justify-between bg-white/90 dark:bg-card/75"
               >
                 <div>
                   <div className="mb-5 flex items-center justify-between">
-                    <span className="text-[11px] font-black uppercase tracking-[0.25em] text-muted-foreground flex items-center gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-600 dark:text-slate-400 flex items-center gap-2">
                       <Cpu className="h-3.5 w-3.5 text-primary" /> System Modules
                     </span>
                     <div className="flex gap-1.5 items-center">
-                      <span className="text-[10px] font-bold text-emerald-400 font-mono">LIVE</span>
-                      <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse" />
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">LIVE</span>
+                      <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse" />
                     </div>
                   </div>
 
@@ -357,7 +357,7 @@ const Index = () => {
                           type="button"
                           onClick={() => navigate(mod.to)}
                           aria-label={`Open ${mod.label}`}
-                          className="w-full rounded-2xl border border-border/60 bg-card/55 p-3.5 text-center transition-all hover:border-primary/50 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 card-hover-pop btn-spring"
+                          className="w-full rounded-2xl border border-border/80 dark:border-border/60 bg-white/80 dark:bg-card/55 p-3.5 text-center transition-all hover:border-primary/60 hover:bg-white dark:hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 card-hover-pop btn-spring shadow-xs"
                           whileHover={{ y: -3 }}
                           whileTap={{ scale: 0.97 }}
                           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
@@ -365,7 +365,7 @@ const Index = () => {
                           <div className={`mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl ${mod.tone}`}>
                             <mod.icon className="h-4 w-4" />
                           </div>
-                          <p className="text-[10px] font-bold uppercase tracking-tight text-foreground truncate">{mod.label}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-tight text-slate-800 dark:text-foreground truncate">{mod.label}</p>
                         </motion.button>
                       </RoyalStaggerItem>
                     ))}
@@ -434,17 +434,17 @@ const Index = () => {
               </motion.div>
 
               {/* Right: Team Leadership & Members Grid */}
-              <div className="lg:col-span-6 flex flex-col justify-between gap-3 bg-white/85 dark:bg-card/60 p-6 rounded-3xl border border-border/80 dark:border-white/10 shadow-xl backdrop-blur-2xl">
+              <div className="lg:col-span-6 flex flex-col justify-between gap-3 bg-white/90 dark:bg-card/75 p-6 rounded-3xl border border-border/80 dark:border-white/10 shadow-xl backdrop-blur-2xl">
                 <div>
-                  <div className="flex items-center justify-between pb-3 mb-2 border-b border-border/40">
-                    <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-amber-400" /> Creators & Core Architects
+                  <div className="flex items-center justify-between pb-3 mb-2 border-b border-border/50">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Creators &amp; Core Architects
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate('/portfolio')}
-                      className="text-xs font-bold text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-300/10 rounded-xl"
+                      className="text-xs font-bold text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-400/10 rounded-xl"
                     >
                       View Studio <ArrowRight className="ml-1 h-3.5 w-3.5" />
                     </Button>
@@ -454,27 +454,27 @@ const Index = () => {
                   <button
                     type="button"
                     onClick={() => creatorMembers[0] && setActiveProfile(creatorMembers[0])}
-                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/40 dark:border-amber-300/30 bg-amber-50/70 dark:bg-gradient-to-r dark:from-amber-500/15 dark:via-amber-500/5 dark:to-transparent p-4 text-left transition-all hover:border-amber-300/80 hover:shadow-md mb-3"
+                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/60 dark:border-amber-400/30 bg-amber-500/10 dark:bg-gradient-to-r dark:from-amber-500/15 dark:via-amber-500/5 dark:to-transparent p-4 text-left transition-all hover:border-amber-400 hover:shadow-md mb-3"
                   >
                     <div className="flex items-center gap-3.5">
                       <img
                         src={portfolio.profileImage || creatorMembers[0]?.image || gauravPhoto}
                         alt={creatorMembers[0]?.name || 'Gaurav'}
-                        className="h-12 w-12 rounded-2xl border-2 border-amber-300/50 object-cover shadow-md"
+                        className="h-12 w-12 rounded-2xl border-2 border-amber-400/60 object-cover shadow-md"
                         loading="lazy"
                       />
                       <div>
-                        <span className="inline-block text-[9px] font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-300">Lead · Architect</span>
-                        <p className="text-base font-extrabold text-foreground">{creatorMembers[0]?.name || 'Gaurav'}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1">{creatorMembers[0]?.role || 'Developer & Team Leader'}</p>
+                        <span className="inline-block text-[9px] font-black uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">Lead · Architect</span>
+                        <p className="text-base font-extrabold text-slate-900 dark:text-foreground">{creatorMembers[0]?.name || 'Gaurav'}</p>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 line-clamp-1">{creatorMembers[0]?.role || 'Developer & Team Leader'}</p>
                       </div>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-amber-500 dark:text-amber-300 shrink-0" />
+                    <ArrowRight className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
                   </button>
 
                   {/* Team Members List Header & Swap Button */}
                   <div className="flex items-center justify-between mt-3 mb-2 px-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                       Core Members
                     </span>
                     {displayedTeamMembers.length > 1 && (
@@ -482,14 +482,14 @@ const Index = () => {
                         variant="ghost"
                         size="sm"
                         onClick={handleSwapTeamMembers}
-                        className="h-6 px-2.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg gap-1.5 transition-all active:scale-95 border border-emerald-500/30 bg-emerald-500/10 shadow-xs"
+                        className="h-6 px-2.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:bg-emerald-500/15 rounded-lg gap-1.5 transition-all active:scale-95 border border-emerald-500/30 bg-emerald-500/10 shadow-xs"
                         title="Click to swap members"
                       >
                         <motion.div
                           animate={{ rotate: isSwapped ? 180 : 0 }}
                           transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                         >
-                          <ArrowLeftRight className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          <ArrowLeftRight className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
                         </motion.div>
                         <span>Click to Swap</span>
                       </Button>
@@ -505,7 +505,7 @@ const Index = () => {
                         type="button"
                         onClick={() => setActiveProfile(member)}
                         transition={{ type: 'spring', stiffness: 450, damping: 30, mass: 0.6 }}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white/70 dark:bg-card/50 p-3 text-left transition-all hover:border-amber-300/50 hover:bg-accent/40 group shadow-xs"
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-white dark:bg-card/50 p-3 text-left transition-all hover:border-amber-400/60 hover:bg-amber-50/40 dark:hover:bg-accent/40 group shadow-xs"
                         aria-label={`Open ${member.name} profile`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -516,19 +516,19 @@ const Index = () => {
                             fallbackClassName="text-xs font-bold"
                           />
                           <div className="min-w-0">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Team Member</p>
-                            <p className="text-xs font-bold text-foreground truncate">{member.name}</p>
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Team Member</p>
+                            <p className="text-xs font-bold text-slate-900 dark:text-foreground truncate">{member.name}</p>
                           </div>
                         </div>
-                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-amber-500 dark:group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all" />
+                        <ArrowRight className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
                       </motion.button>
                     ))}
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                <div className="pt-3 border-t border-border/50 flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400">
                   <span>Presences AI Engine</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">KV NFC Vigyan Vihar</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">KV NFC Vigyan Vihar</span>
                 </div>
               </div>
 
@@ -548,10 +548,10 @@ const Index = () => {
                     <Briefcase className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
-                      Featured Projects & Architecture
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
+                      Featured Projects &amp; Architecture
                     </h2>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium mt-0.5">
                       Flagship software engines and high-impact systems built by the team
                     </p>
                   </div>
@@ -570,7 +570,7 @@ const Index = () => {
                     key={p.id}
                     whileHover={{ y: -4 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                    className="group relative overflow-hidden rounded-3xl border border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 backdrop-blur-2xl shadow-xl flex flex-col justify-between"
+                    className="group relative overflow-hidden rounded-3xl border border-border/80 dark:border-white/10 bg-white/90 dark:bg-card/75 backdrop-blur-2xl shadow-xl flex flex-col justify-between"
                   >
                     <div className="relative aspect-video overflow-hidden bg-muted/40 group-hover:shadow-lg transition-shadow">
                       {p.image ? (
@@ -595,17 +595,17 @@ const Index = () => {
 
                     <div className="p-6 flex-1 flex flex-col justify-between">
                       <div>
-                        <h3 className="text-lg font-extrabold text-foreground group-hover:text-primary transition-colors">
+                        <h3 className="text-lg font-extrabold text-slate-900 dark:text-foreground group-hover:text-primary transition-colors">
                           {p.title}
                         </h3>
-                        <p className="mt-2 line-clamp-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                        <p className="mt-2 line-clamp-2 text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
                           {p.description}
                         </p>
 
                         {(p.tags && p.tags.length > 0) || p.stack ? (
                           <div className="mt-3.5 flex flex-wrap gap-1.5">
                             {(p.tags && p.tags.length > 0 ? p.tags : p.stack.split(',').map((s) => s.trim()).filter(Boolean)).map((t) => (
-                              <span key={t} className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+                              <span key={t} className="rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-bold text-primary">
                                 {t}
                               </span>
                             ))}
@@ -613,7 +613,7 @@ const Index = () => {
                         ) : null}
                       </div>
 
-                      <div className="mt-6 pt-4 border-t border-border/40 flex items-center justify-between">
+                      <div className="mt-6 pt-4 border-t border-border/50 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           {p.link && (
                             <a
@@ -630,7 +630,7 @@ const Index = () => {
                               href={p.githubUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-foreground transition-colors"
                             >
                               <Github className="h-3.5 w-3.5" /> Code
                             </a>
@@ -653,13 +653,13 @@ const Index = () => {
             <RoyalReveal effect="fade-up">
               <div className="grid gap-6 md:grid-cols-2 items-stretch">
                 {/* Milestones Card */}
-                <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 p-6 sm:p-7 shadow-xl backdrop-blur-2xl flex flex-col justify-between">
+                <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-white/90 dark:bg-card/75 p-6 sm:p-7 shadow-xl backdrop-blur-2xl flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/40">
-                      <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
-                        <Trophy className="h-5 w-5 text-amber-400" /> Key Milestones & Achievements
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/50">
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-foreground flex items-center gap-2">
+                        <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" /> Key Milestones &amp; Achievements
                       </h3>
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                         Milestones
                       </span>
                     </div>
@@ -667,25 +667,25 @@ const Index = () => {
                     <ul className="space-y-3 text-xs sm:text-sm">
                       {portfolio.achievements.map((item, idx) => (
                         <li key={idx} className="flex items-start gap-3">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                          <span className="text-muted-foreground font-medium leading-relaxed">{item}</span>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                          <span className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed">{item}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="pt-4 mt-6 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="pt-4 mt-6 border-t border-border/50 flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400">
                     <span>PM Shri KV NFC Vigyan Vihar</span>
-                    <span className="font-semibold text-primary">High-Impact Delivery</span>
+                    <span className="font-bold text-primary">High-Impact Delivery</span>
                   </div>
                 </div>
 
                 {/* Technical Core & Capabilities Card */}
-                <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 p-6 sm:p-7 shadow-xl backdrop-blur-2xl flex flex-col justify-between">
+                <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-white/90 dark:bg-card/75 p-6 sm:p-7 shadow-xl backdrop-blur-2xl flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/40">
-                      <h3 className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-primary" /> Technical Core & Capabilities
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/50">
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-foreground flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" /> Technical Core &amp; Capabilities
                       </h3>
                       <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">
                         Tech Stack
@@ -704,7 +704,7 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <div className="pt-4 mt-6 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="pt-4 mt-6 border-t border-border/50 flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400">
                     <span>Modern Tech Architecture</span>
                     <Link to="/portfolio" className="font-bold text-primary hover:underline flex items-center gap-1">
                       Full Portfolio <ArrowRight className="h-3 w-3" />
@@ -715,6 +715,8 @@ const Index = () => {
             </RoyalReveal>
           </section>
         )}
+
+        {/* ========================================================================= */}
         {/* PWA INSTALL CARD                                                          */}
         {/* ========================================================================= */}
         <RoyalReveal effect="fade-up">
@@ -728,11 +730,11 @@ const Index = () => {
           <RoyalStaggerGroup className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6" stagger={0.08}>
             {stats.map((stat) => (
               <RoyalStaggerItem key={stat.label}>
-                <div className="liquid-glass-surface rounded-3xl p-6 text-center card-hover-pop transition-transform duration-300 hover:-translate-y-1.5 border border-white/10 shadow-xl backdrop-blur-2xl">
-                  <p className="text-gradient-neon text-3xl md:text-5xl font-black" style={{ fontFamily: 'Sora, sans-serif' }}>
+                <div className="liquid-glass-surface rounded-3xl p-6 text-center card-hover-pop transition-transform duration-300 hover:-translate-y-1.5 border border-border/80 dark:border-white/10 shadow-xl backdrop-blur-2xl bg-white/90 dark:bg-card/75">
+                  <p className="text-3xl md:text-5xl font-black bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 dark:from-cyan-300 dark:via-sky-300 dark:to-indigo-300 bg-clip-text text-transparent" style={{ fontFamily: 'Sora, sans-serif' }}>
                     {stat.value}
                   </p>
-                  <p className="mt-2 text-xs md:text-sm font-bold text-muted-foreground">{stat.label}</p>
+                  <p className="mt-2 text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300">{stat.label}</p>
                 </div>
               </RoyalStaggerItem>
             ))}
@@ -748,21 +750,21 @@ const Index = () => {
               <div className="inline-flex rounded-2xl bg-primary/15 p-3 text-primary shadow-sm shadow-primary/20">
                 <cat.icon className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
                 {cat.category}
               </h2>
             </div>
             <RoyalStaggerGroup className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6" stagger={0.05}>
               {cat.features.map((feature) => (
                 <RoyalStaggerItem key={feature.title}>
-                  <div className="liquid-glass-surface liquid-glass-highlight group relative overflow-hidden rounded-3xl p-6 h-full transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-primary/15 border border-white/10 flex flex-col justify-between">
+                  <div className="liquid-glass-surface liquid-glass-highlight group relative overflow-hidden rounded-3xl p-6 h-full transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-primary/15 border border-border/80 dark:border-white/10 bg-white/90 dark:bg-card/75 flex flex-col justify-between">
                     <div>
                       <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-primary via-accent to-warning" />
                       <div className="mb-4 inline-flex rounded-2xl bg-primary/15 p-3 text-primary">
                         <feature.icon className="h-5 w-5" />
                       </div>
-                      <h3 className="text-base font-bold text-foreground">{feature.title}</h3>
-                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{feature.desc}</p>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-foreground">{feature.title}</h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 font-medium">{feature.desc}</p>
                     </div>
                   </div>
                 </RoyalStaggerItem>
@@ -798,12 +800,12 @@ const Index = () => {
                     <Sparkles className="h-3 w-3" /> Meet the Developer
                   </p>
                   <h2
-                    className="mt-2 text-3xl font-black text-foreground md:text-4xl"
+                    className="mt-2 text-3xl font-black text-slate-900 dark:text-foreground md:text-4xl"
                     style={{ fontFamily: 'Sora, sans-serif' }}
                   >
                     {portfolio.name || 'Gaurav Raj'}
                   </h2>
-                  <p className="mt-1 text-sm text-muted-foreground md:text-base">
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 font-medium md:text-base">
                     {portfolio.role || 'Developer & Team Leader'}
                   </p>
                 </div>
@@ -818,15 +820,15 @@ const Index = () => {
         {/* ========================================================================= */}
         <RoyalReveal effect="card-lift" className="pb-10">
           <section>
-            <div className="liquid-glass-surface relative overflow-hidden rounded-3xl p-8 sm:p-12 md:p-16 border border-white/15 shadow-2xl backdrop-blur-2xl text-center">
+            <div className="liquid-glass-surface relative overflow-hidden rounded-3xl p-8 sm:p-12 md:p-16 border border-border/80 dark:border-white/15 shadow-2xl backdrop-blur-2xl text-center bg-white/90 dark:bg-card/75">
               <div className="relative z-10 max-w-3xl mx-auto">
                 <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/15 px-4 py-2 text-xs font-bold uppercase tracking-wider text-primary">
                   <Smartphone className="h-4 w-4" /> Smart School Platform
                 </p>
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-foreground tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
                   Ready to Automate Your School?
                 </h2>
-                <p className="mx-auto mt-4 text-sm sm:text-base md:text-lg text-muted-foreground leading-relaxed">
+                <p className="mx-auto mt-4 text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
                   Attendance, timetable substitution, kiosk security, communication and analytics in one bright, powerful system.
                 </p>
                 <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
@@ -836,7 +838,7 @@ const Index = () => {
                     </Button>
                   </Link>
                   <Link to="/contact">
-                    <Button variant="outline" className="h-14 rounded-2xl border-border/70 bg-card/55 px-8 text-base font-bold text-foreground hover:bg-card/80 btn-spring">
+                    <Button variant="outline" className="h-14 rounded-2xl border-border/80 bg-white/80 dark:bg-card/55 px-8 text-base font-bold text-slate-900 dark:text-foreground hover:bg-white dark:hover:bg-card/80 btn-spring">
                       Contact Us
                     </Button>
                   </Link>

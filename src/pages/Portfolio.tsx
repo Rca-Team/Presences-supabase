@@ -248,27 +248,27 @@ export function PublicPortfolioView({
           </div>
 
           {/* Contact & Meta Strip */}
-          <div className="mt-6 pt-5 border-t border-border/40 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs font-medium">
+          <div className="mt-6 pt-5 border-t border-border/60 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs font-medium">
             {data.location && (
-              <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 min-w-0">
                 <MapPin className="h-4 w-4 text-primary shrink-0" />
                 <span className="truncate">{data.location}</span>
               </div>
             )}
             {data.email && (
-              <a href={`mailto:${data.email}`} className="flex items-center gap-2 text-muted-foreground hover:text-foreground min-w-0 transition">
+              <a href={`mailto:${data.email}`} className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-foreground min-w-0 transition">
                 <Mail className="h-4 w-4 text-primary shrink-0" />
                 <span className="truncate">{data.email}</span>
               </a>
             )}
             {data.phone && (
-              <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 min-w-0">
                 <Phone className="h-4 w-4 text-primary shrink-0" />
                 <span className="truncate">{data.phone}</span>
               </div>
             )}
             {data.website && (
-              <a href={data.website} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-muted-foreground hover:text-foreground min-w-0 transition">
+              <a href={data.website} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-foreground min-w-0 transition">
                 <Globe className="h-4 w-4 text-primary shrink-0" />
                 <span className="truncate">{data.website.replace(/^https?:\/\//, '')}</span>
               </a>
@@ -276,7 +276,7 @@ export function PublicPortfolioView({
           </div>
 
           {data.bio && (
-            <p className="mt-5 max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">
+            <p className="mt-5 max-w-3xl text-sm md:text-base text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
               {data.bio}
             </p>
           )}
@@ -438,10 +438,10 @@ export function PublicPortfolioView({
       {/* Achievements + Skills Matrix */}
       <div className="grid gap-6 md:grid-cols-2">
         {data.achievements.length > 0 && (
-          <Card className="rounded-3xl border-white/10 shadow-lg backdrop-blur">
+          <Card className="rounded-3xl border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 shadow-lg backdrop-blur">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold">
-                <Trophy className="h-5 w-5 text-amber-400" /> Key Milestones & Achievements
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold text-slate-900 dark:text-foreground">
+                <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" /> Key Milestones & Achievements
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -449,7 +449,7 @@ export function PublicPortfolioView({
                 {data.achievements.map((a, i) => (
                   <li key={i} className="flex items-start gap-2.5">
                     <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    <span className="text-muted-foreground font-medium">{a}</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">{a}</span>
                   </li>
                 ))}
               </ul>
@@ -458,9 +458,9 @@ export function PublicPortfolioView({
         )}
 
         {data.skills.length > 0 && (
-          <Card className="rounded-3xl border-white/10 shadow-lg backdrop-blur">
+          <Card className="rounded-3xl border-border/80 dark:border-white/10 bg-white/85 dark:bg-card/60 shadow-lg backdrop-blur">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold">
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg font-bold text-slate-900 dark:text-foreground">
                 <Sparkles className="h-5 w-5 text-primary" /> Technical Core & Capabilities
               </CardTitle>
             </CardHeader>
