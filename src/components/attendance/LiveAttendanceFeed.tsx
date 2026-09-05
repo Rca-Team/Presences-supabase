@@ -15,6 +15,12 @@ import {
   User,
 } from 'lucide-react';
 
+import {
+  getCachedStudentCoverPhoto,
+  getStudentCoverPhoto,
+  prefetchStudentCoverPhotos,
+} from '@/utils/studentPhotoResolver';
+
 const STORAGE_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/face-images/`;
 
 interface AttendanceRecord {
@@ -45,21 +51,25 @@ const LiveAttendanceFeed: React.FC = () => {
   };
 
   const getStudentImage = (record: AttendanceRecord): string | null => {
+    // 1. MUST prioritize student's registered cover photo (profiles.avatar_url or face_descriptors)
+    if (record.user_id) {
+      const cover = getCachedStudentCoverPhoto(record.user_id) || profileAvatarByUserId[record.user_id];
+      if (cover) return cover;
+    }
+
+    // 2. Check metadata for registered avatar
+    const metadata = record.device_info?.metadata;
+    if (metadata?.avatar_url && typeof metadata.avatar_url === 'string') return metadata.avatar_url;
+    if (metadata?.photo_url && typeof metadata.photo_url === 'string') return metadata.photo_url;
+    if (metadata?.firebase_image_url) return metadata.firebase_image_url;
+
+    // 3. Fallback: ONLY if no cover photo is found at all, show recognition image
     if (record.image_url) {
       if (record.image_url.startsWith('data:') || record.image_url.startsWith('http')) {
         return record.image_url;
       }
       return `${STORAGE_BASE_URL}${record.image_url}`;
     }
-    const metadata = record.device_info?.metadata;
-    if (metadata?.avatar_url && typeof metadata.avatar_url === 'string') return metadata.avatar_url;
-    if (metadata?.photo_url && typeof metadata.photo_url === 'string') return metadata.photo_url;
-    if (metadata?.image_url && typeof metadata.image_url === 'string') {
-      if (metadata.image_url.startsWith('data:') || metadata.image_url.startsWith('http')) return metadata.image_url;
-      return `${STORAGE_BASE_URL}${metadata.image_url}`;
-    }
-    if (metadata?.firebase_image_url) return metadata.firebase_image_url;
-    if (record.user_id && profileAvatarByUserId[record.user_id]) return profileAvatarByUserId[record.user_id];
     return null;
   };
 
@@ -107,18 +117,23 @@ const LiveAttendanceFeed: React.FC = () => {
       );
       if (!userIds.length) return;
 
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, user_id, avatar_url, photo_url')
-        .or(`id.in.(${userIds.join(',')}),user_id.in.(${userIds.join(',')})`);
+      // Preload cover photos for all students appearing in feed
+      await prefetchStudentCoverPhotos(userIds);
 
-      if (data) {
-        const nextMap: Record<string, string> = {};
-        data.forEach((p: any) => {
-          const img = p.photo_url || p.avatar_url;
-          if (p.id && img) nextMap[p.id] = img;
-          if (p.user_id && img) nextMap[p.user_id] = img;
-        });
+      const nextMap: Record<string, string> = { ...profileAvatarByUserId };
+      let changed = false;
+
+      for (const uid of userIds) {
+        if (!nextMap[uid]) {
+          const cover = getCachedStudentCoverPhoto(uid) || (await getStudentCoverPhoto(uid));
+          if (cover) {
+            nextMap[uid] = cover;
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
         setProfileAvatarByUserId(nextMap);
       }
     };

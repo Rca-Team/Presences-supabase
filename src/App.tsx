@@ -30,6 +30,7 @@ const Backup = lazyWithRetry(() => import('./pages/Backup'), 'backup');
 const FaceModelValidator = lazyWithRetry(() => import('./pages/FaceModelValidator'), 'face-model-validator');
 const TeacherPortal = lazyWithRetry(() => import('./pages/TeacherPortal'), 'teacher-portal');
 const Portfolio = lazyWithRetry(() => import('./pages/Portfolio'), 'portfolio');
+const Jarvis = lazyWithRetry(() => import('./pages/Jarvis'), 'jarvis');
 
 import { AttendanceProvider } from './contexts/AttendanceContext';
 import { ThemeProvider } from './hooks/use-theme';
@@ -119,6 +120,11 @@ const ROUTE_SEO: Record<string, { title: string; description: string }> = {
     title: "Data Backup | Presences",
     description:
       "1-Click full cloud backup and restore engine for Database tables, Auth accounts, and Storage files.",
+  },
+  "/jarvis": {
+    title: "J.A.R.V.I.S. AI Diagnostics | Presences",
+    description:
+      "Autonomous on-demand AI monitoring, registry anomaly detection, and voice-assisted administrative diagnostics.",
   },
 };
 
@@ -266,6 +272,11 @@ function AnimatedRoutes() {
         <Route path="/__admin/face-model-validator" element={
           <ProtectedRoute requireRoles={["admin"]}>
             <FaceModelValidator />
+          </ProtectedRoute>
+        } />
+        <Route path="/jarvis" element={
+          <ProtectedRoute requireRoles={["admin"]}>
+            <Jarvis />
           </ProtectedRoute>
         } />
         <Route path="*" element={<NotFound />} />

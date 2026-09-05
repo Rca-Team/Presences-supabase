@@ -71,7 +71,9 @@ class BackgroundPushService {
         return { success: false, sent: 0 };
       }
 
-      console.log('Push sent:', data);
+      if (data?.sent) {
+        console.log(`Push delivered to ${data.sent} device(s)`);
+      }
       return { success: true, sent: data?.sent || 0 };
     } catch (err) {
       console.error('Failed to send push:', err);

@@ -10,6 +10,7 @@ import { Search, Filter, Calendar, Download, Eye, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getCachedStudentCoverPhoto, prefetchStudentCoverPhotos } from '@/utils/studentPhotoResolver';
 
 interface AttendanceRecord {
   id: string;
@@ -64,6 +65,17 @@ const AttendanceGallery = () => {
 
       if (error) throw error;
 
+      const userIds = Array.from(
+        new Set((data || []).map((r: any) => r.user_id).filter(Boolean))
+      ) as string[];
+      if (userIds.length > 0) {
+        try {
+          await prefetchStudentCoverPhotos(userIds);
+        } catch {
+          /* ignore */
+        }
+      }
+
       // Process records
       const processedRecords = await Promise.all(
         (data || []).map(async (record) => {
@@ -85,12 +97,15 @@ const AttendanceGallery = () => {
             }
           }
 
+          // MUST prioritize student's registered cover photo
+          const coverPhoto = record.user_id ? getCachedStudentCoverPhoto(record.user_id) : null;
+
           return {
             id: record.id,
             name: username,
             timestamp: record.timestamp,
             status: record.status === 'present' ? 'Present' : record.status === 'late' ? 'Late' : 'Absent',
-            image_url: record.image_url,
+            image_url: coverPhoto || record.image_url,
             confidence_score: record.confidence_score
           };
         })

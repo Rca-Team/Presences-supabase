@@ -13,22 +13,24 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { Link } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Users, 
   FolderKanban, 
-  Calendar,
-  UserPlus,
-  Bell,
-  Settings,
-  Shield,
-  FileText,
-  Image,
-  UserCog,
-  Download,
-  GraduationCap,
-  Sparkles,
-  ChevronRight
+  Calendar, 
+  UserPlus, 
+  Bell, 
+  Settings, 
+  Shield, 
+  FileText, 
+  Image, 
+  UserCog, 
+  Download, 
+  GraduationCap, 
+  Sparkles, 
+  ChevronRight,
+  Cpu
 } from 'lucide-react';
 import { AnimatedNotificationBadge } from '@/components/ui/animated-notification-badge';
 
@@ -251,7 +253,26 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </SidebarGroup>
       </SidebarContent>
 
-      <div className="mt-auto p-4 border-t border-blue-100 dark:border-blue-900/50">
+      <div className="mt-auto p-3 border-t border-blue-100 dark:border-blue-900/50 space-y-2">
+        <Link
+          to="/jarvis"
+          className="group relative flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-r from-cyan-950/60 to-blue-950/60 hover:from-cyan-900/80 hover:to-blue-900/80 border border-cyan-500/30 transition-all shadow-sm shadow-cyan-500/10"
+        >
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center shrink-0">
+            <Cpu className="w-4 h-4 text-cyan-300 animate-pulse" />
+          </div>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 font-mono text-xs font-bold tracking-wider text-cyan-300">
+                <span>J.A.R.V.I.S.</span>
+                <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-400 text-slate-950 font-bold uppercase">
+                  AI
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400 truncate">24/7 Diagnostics Matrix</div>
+            </div>
+          )}
+        </Link>
         <SidebarTrigger className="w-full" />
       </div>
     </Sidebar>

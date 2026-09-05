@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getCachedStudentCoverPhoto, prefetchStudentCoverPhotos } from '@/utils/studentPhotoResolver';
 
 type AttendanceRecord = {
   id: string;
@@ -55,11 +56,23 @@ export const AttendanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       
       if (attendanceData && attendanceData.length > 0) {
+        const userIds = Array.from(
+          new Set(attendanceData.map((r: any) => r.user_id).filter(Boolean))
+        ) as string[];
+        if (userIds.length > 0) {
+          try {
+            await prefetchStudentCoverPhotos(userIds);
+          } catch {
+            /* ignore */
+          }
+        }
+
         const processedRecords: AttendanceRecord[] = attendanceData.map((record: any) => {
           let username = record.student_name || 'Student';
-          let photoUrl = record.image_url || '';
+          // 1. MUST prioritize student's registered cover photo
+          let photoUrl = (record.user_id ? getCachedStudentCoverPhoto(record.user_id) : null) || '';
           
-          if (record.device_info) {
+          if (!photoUrl && record.device_info) {
             try {
               const deviceInfo = typeof record.device_info === 'string' 
                 ? JSON.parse(record.device_info) 
@@ -67,7 +80,7 @@ export const AttendanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               
               if (deviceInfo?.metadata && typeof deviceInfo.metadata === 'object') {
                 username = deviceInfo.metadata.name || username;
-                photoUrl = deviceInfo.metadata.firebase_image_url || photoUrl;
+                photoUrl = deviceInfo.metadata.avatar_url || deviceInfo.metadata.photo_url || deviceInfo.metadata.firebase_image_url || photoUrl;
               } else if (deviceInfo?.name) {
                 username = deviceInfo.name;
               }
@@ -78,6 +91,11 @@ export const AttendanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             } catch {
               // ignore json parse error
             }
+          }
+
+          // Fallback only if no cover photo was ever registered
+          if (!photoUrl && record.image_url) {
+            photoUrl = record.image_url;
           }
           
           const normalizedStatus = typeof record.status === 'string' 

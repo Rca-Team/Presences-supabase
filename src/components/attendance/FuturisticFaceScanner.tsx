@@ -48,6 +48,11 @@ import {
   Pause
 } from 'lucide-react';
 import LiveFaceOverlay, { RecognizedFaceData } from './LiveFaceOverlay';
+import {
+  getStudentCoverPhoto,
+  getCachedStudentCoverPhoto,
+  prefetchStudentCoverPhotos,
+} from '@/utils/studentPhotoResolver';
 
 interface FuturisticFaceScannerProps {
   onScanComplete?: (result: { recognized: boolean; name?: string; confidence?: number }) => void;
@@ -225,6 +230,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       try {
         if (!areModelsLoaded()) await loadModels();
         setModelsLoaded(true);
+        void prefetchStudentCoverPhotos();
       } catch (e) {
         console.error('Face model load failed:', e);
       }
@@ -430,6 +436,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
             crop,
           });
 
+          // Look up student's registered cover photo (NOT the live recognition webcam crop)
+          const cachedCover = getCachedStudentCoverPhoto(face.userId);
+
           setRecognizedFaces((prev) => [
             ...prev.filter((f) => f.id !== face.userId),
             {
@@ -438,9 +447,19 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               status,
               confidence: face.confidence,
               box: { ...face.box },
-              imageUrl: crop?.dataUrl,
+              imageUrl: cachedCover || undefined,
             },
           ].slice(-4));
+
+          if (!cachedCover) {
+            void getStudentCoverPhoto(face.userId, face.name).then((resolved) => {
+              if (resolved) {
+                setRecognizedFaces((prev) =>
+                  prev.map((f) => (f.id === face.userId ? { ...f, imageUrl: resolved } : f))
+                );
+              }
+            });
+          }
 
           // Automatically clear ID plate after 4.5s
           setTimeout(() => {
