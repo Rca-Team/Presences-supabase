@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
 import { Button } from '@/components/ui/button';
-import { fetchUnifiedAttendanceStats, type UnifiedAttendanceStats } from '@/utils/attendanceStatsHelper';
-import { supabase } from '@/integrations/supabase/client';
 import {
   Scan,
   QrCode,
@@ -19,20 +17,21 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  TrendingUp,
   UserCheck,
   FileSpreadsheet,
   Layers,
   Globe,
   GraduationCap,
   ShieldCheck,
-  Activity,
   UserPlus,
-  RefreshCw,
   Sparkles,
-  Wifi,
+  Bot,
+  Terminal,
+  CircuitBoard,
+  Cpu,
   ChevronRight,
-  Radio,
+  MessageSquare,
+  Award,
 } from 'lucide-react';
 import PageLayout from '@/components/layouts/PageLayout';
 import LiteModeToggle from '@/components/LiteModeToggle';
@@ -101,7 +100,7 @@ const MODULES_LIST: ModuleItem[] = [
     to: '/teacher',
     icon: GraduationCap,
     label: 'Teacher Classroom Portal',
-    desc: 'Dedicated teacher workspace for section roll-call, grading, and attendance overrides',
+    desc: 'Dedicated teacher workspace for section roll-call, grading, and attendance register',
     category: 'Academic',
     badge: 'Portal',
     colorScheme: 'blue',
@@ -141,7 +140,7 @@ const MODULES_LIST: ModuleItem[] = [
     to: '/admin?tab=emergency',
     icon: Bell,
     label: 'Emergency Alert Command',
-    desc: 'One-click campus lockdown, audible siren, fire alerts and instant parent SMS broadcasts',
+    desc: 'One-click campus lockdown, audible siren, fire alerts and instant parent broadcasts',
     category: 'Safety',
     badge: 'Emergency',
     colorScheme: 'rose',
@@ -161,7 +160,7 @@ const MODULES_LIST: ModuleItem[] = [
     to: '/admin',
     icon: BarChart3,
     label: 'Principal Command Suite',
-    desc: 'Centralized school analytics, daily attendance rates, risk prediction and operational audits',
+    desc: 'Centralized school analytics, daily attendance rates, risk prediction and audits',
     category: 'Admin',
     badge: 'Command',
     colorScheme: 'indigo',
@@ -185,95 +184,19 @@ const MODULES_LIST: ModuleItem[] = [
   },
 ];
 
-interface RecentScan {
-  id: string;
-  name: string;
-  time: string;
-  status: 'present' | 'late';
-  confidence?: number;
-}
-
 const CATEGORIES = [
   { id: 'All', label: 'All Modules' },
   { id: 'Attendance', label: 'Attendance & Gate' },
-  { id: 'Academic', label: 'Academic & Schedule' },
+  { id: 'Academic', label: 'Academic & Timetable' },
   { id: 'Students', label: 'Students & Classes' },
-  { id: 'Safety', label: 'Safety & Emergency' },
-  { id: 'Admin', label: 'Admin & Reports' },
+  { id: 'Safety', label: 'Safety & Parent' },
+  { id: 'Admin', label: 'Admin & Operations' },
 ] as const;
 
 export const LiteHome: React.FC = () => {
-  const { signals, setPreference } = usePerformanceMode();
+  const { setPreference } = usePerformanceMode();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [stats, setStats] = useState<UnifiedAttendanceStats>({
-    totalRegistered: 0,
-    presentToday: 0,
-    lateToday: 0,
-    absentToday: 0,
-    attendanceRate: 0,
-  });
-
-  const loadData = async () => {
-    setIsRefreshing(true);
-    try {
-      // 1. Fetch KPI metrics
-      const data = await fetchUnifiedAttendanceStats();
-      setStats(data);
-
-      // 2. Fetch last 5 marked students for live activity ticker
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const { data: records } = await supabase
-        .from('attendance_records')
-        .select('id, student_name, device_info, timestamp, status, confidence')
-        .gte('timestamp', today.toISOString())
-        .in('status', ['present', 'late'])
-        .order('timestamp', { ascending: false })
-        .limit(5);
-
-      if (records) {
-        const formatted: RecentScan[] = records.map((r: any) => {
-          const name = r.student_name || r.device_info?.metadata?.name || 'Verified Student';
-          const time = new Date(r.timestamp).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-          return {
-            id: r.id,
-            name,
-            time,
-            status: r.status as 'present' | 'late',
-            confidence: r.confidence ? Math.round(r.confidence * 100) : undefined,
-          };
-        });
-        setRecentScans(formatted);
-      }
-    } catch (e) {
-      console.warn('LiteHome data load warning:', e);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-
-    // Supabase Real-time updates
-    const channel = supabase
-      .channel('lite-home-feed-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
-        loadData();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   const filteredModules = useMemo(() => {
     return MODULES_LIST.filter((m) => {
@@ -294,39 +217,39 @@ export const LiteHome: React.FC = () => {
     switch (scheme) {
       case 'emerald':
         return {
-          iconBg: 'bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-emerald-950',
-          badge: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
+          iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white',
+          badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
           borderHover: 'hover:border-emerald-500/40',
         };
       case 'blue':
         return {
-          iconBg: 'bg-blue-500/10 text-blue-500 group-hover:bg-blue-500 group-hover:text-white',
-          badge: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25',
+          iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white',
+          badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/25',
           borderHover: 'hover:border-blue-500/40',
         };
       case 'purple':
         return {
-          iconBg: 'bg-purple-500/10 text-purple-500 group-hover:bg-purple-500 group-hover:text-white',
-          badge: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25',
+          iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white',
+          badge: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/25',
           borderHover: 'hover:border-purple-500/40',
         };
       case 'amber':
         return {
-          iconBg: 'bg-amber-500/10 text-amber-500 group-hover:bg-amber-500 group-hover:text-amber-950',
-          badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
+          iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500 group-hover:text-white',
+          badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/25',
           borderHover: 'hover:border-amber-500/40',
         };
       case 'rose':
         return {
-          iconBg: 'bg-rose-500/10 text-rose-500 group-hover:bg-rose-500 group-hover:text-white',
-          badge: 'bg-rose-500/15 text-rose-500 border-rose-500/25',
+          iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:bg-rose-600 group-hover:text-white',
+          badge: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/25',
           borderHover: 'hover:border-rose-500/40',
         };
       case 'indigo':
       default:
         return {
-          iconBg: 'bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white',
-          badge: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
+          iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white',
+          badge: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/25',
           borderHover: 'hover:border-indigo-500/40',
         };
     }
@@ -334,217 +257,269 @@ export const LiteHome: React.FC = () => {
 
   return (
     <PageLayout className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 space-y-5">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-8 sm:space-y-10">
 
         {/* ========================================================================= */}
-        {/* 1. TOP INSTITUTIONAL COMMAND BAR                                          */}
+        {/* 1. HERO BANNER: GENUINE INSTITUTIONAL LANDING SECTION                     */}
         {/* ========================================================================= */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border border-border bg-card/90 shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center shrink-0">
-              <Zap className="h-5 w-5 fill-current" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
-                  PM Shri KV NFC Vigyan Vihar
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                  </span>
-                  AI Campus Active
-                </span>
+        <div className="relative rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/5 p-6 sm:p-10 md:p-12 shadow-sm overflow-hidden">
+          {/* Subtle Ambient Light Glow in Corner */}
+          <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+          <div className="absolute -left-20 -bottom-20 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 max-w-3xl space-y-5">
+            {/* Institution Badge + Campus Status */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-1 text-xs font-bold text-primary">
+                <Building2 className="h-3.5 w-3.5" />
+                PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
               </div>
-              <p className="text-xs text-muted-foreground">
-                Presences AI · High-Efficiency Workstation Edition (60 FPS Locked)
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-end sm:self-center">
-            <LiteModeToggle variant="segmented" />
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 2. HERO BENTO GRID: PRIMARY TERMINAL + ATTENDANCE GAUGE + TELEMETRY      */}
-        {/* ========================================================================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
-          {/* Card A: Primary Action Workstation (7 Cols) */}
-          <div className="lg:col-span-7 rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-4">
-            <div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/15 text-primary border border-primary/20 text-[11px] font-bold">
-                  <Scan className="w-3.5 h-3.5" /> Primary Station
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
-                <span className="text-[11px] font-mono text-emerald-500 flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Audio Chime Active
-                </span>
-              </div>
-
-              <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight mt-3">
-                Smart Autonomous Face Terminal
-              </h2>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1 leading-relaxed">
-                Millisecond AI face recognition with instant synthesized success chimes, continuous multi-face
-                tracking, and automatic parental SMS notifications.
-              </p>
+                Smart Campus Active
+              </span>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-2">
-              <Button asChild size="default" className="gap-2 font-bold shadow-sm shadow-primary/25">
+            {/* Main Headline */}
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-foreground tracking-tight leading-[1.08]">
+              Your School,{' '}
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 dark:from-cyan-400 dark:via-blue-500 dark:to-indigo-400">
+                Fully Automated
+              </span>
+            </h1>
+
+            {/* Narrative Subtitle */}
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground leading-relaxed max-w-2xl">
+              Next-generation smart school automation with instant face recognition attendance, intelligent timetable
+              substitution, perimeter gate security, and real-time parent updates.
+            </p>
+
+            {/* Primary Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Button asChild size="lg" className="h-12 px-6 rounded-2xl font-bold shadow-md shadow-primary/25 gap-2">
                 <Link to="/attendance">
-                  <Scan className="w-4 h-4" /> Launch Face Camera <ArrowRight className="w-4 h-4" />
+                  <Scan className="w-4 h-4" /> Launch Attendance <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="default" className="gap-2 font-medium">
-                <Link to="/attendance?mode=qr&autostart=1">
-                  <QrCode className="w-4 h-4" /> QR Barcode Mode
+
+              <Button asChild variant="outline" size="lg" className="h-12 px-5 rounded-2xl font-semibold gap-2 border-border/80 bg-card hover:bg-muted">
+                <Link to="/parent">
+                  <Globe className="w-4 h-4 text-blue-500" /> Parent Portal
                 </Link>
               </Button>
-              <Button asChild variant="ghost" size="default" className="gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+
+              <Button asChild variant="outline" size="lg" className="h-12 px-5 rounded-2xl font-semibold gap-2 border-border/80 bg-card hover:bg-muted">
                 <Link to="/gate">
-                  <DoorOpen className="w-4 h-4" /> Gate Kiosk
+                  <DoorOpen className="w-4 h-4 text-purple-500" /> Gate Kiosk
                 </Link>
               </Button>
-            </div>
-          </div>
 
-          {/* Card B: Attendance Rate Pulse Gauge (5 Cols) */}
-          <div className="lg:col-span-5 rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-xs flex flex-col justify-between space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Today's Attendance Rate
-              </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-500">
-                <TrendingUp className="w-3.5 h-3.5" /> Realtime Metric
-              </span>
-            </div>
+              <Button asChild variant="outline" size="lg" className="h-12 px-5 rounded-2xl font-semibold gap-2 border-border/80 bg-card hover:bg-muted">
+                <Link to="/admin?tab=timetable">
+                  <BookOpen className="w-4 h-4 text-indigo-500" /> Timetable
+                </Link>
+              </Button>
 
-            <div className="flex items-baseline gap-3 my-1">
-              <span className="text-4xl sm:text-5xl font-black text-foreground tracking-tight">
-                {stats.attendanceRate}%
-              </span>
-              <span className="text-xs text-muted-foreground font-medium">
-                {stats.presentToday + stats.lateToday} of {stats.totalRegistered} checked in
-              </span>
-            </div>
-
-            {/* Attendance Progress Bar */}
-            <div className="w-full bg-muted/60 rounded-full h-2.5 overflow-hidden p-0.5 border border-border/60">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-blue-500 to-indigo-500 transition-all duration-500"
-                style={{ width: `${Math.min(100, Math.max(0, stats.attendanceRate))}%` }}
-              />
-            </div>
-
-            {/* Mini Stat Breakdown Strips */}
-            <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-center">
-              <div className="rounded-xl bg-purple-500/5 p-2 border border-purple-500/20">
-                <span className="text-[10px] text-muted-foreground block uppercase">Enrolled</span>
-                <span className="text-sm font-bold text-foreground">{stats.totalRegistered}</span>
+              <div className="ml-auto flex items-center gap-2">
+                <LiteModeToggle variant="segmented" />
               </div>
-              <div className="rounded-xl bg-emerald-500/5 p-2 border border-emerald-500/20">
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block uppercase">Present</span>
-                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{stats.presentToday}</span>
+            </div>
+
+            {/* Key Quality Pillars Bar */}
+            <div className="pt-4 border-t border-border/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-semibold text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span>AI Face Recognition</span>
               </div>
-              <div className="rounded-xl bg-amber-500/5 p-2 border border-amber-500/20">
-                <span className="text-[10px] text-amber-600 dark:text-amber-400 block uppercase">Late</span>
-                <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{stats.lateToday}</span>
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500 shrink-0" />
+                <span>Zero-Conflict Timetable</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-blue-500 shrink-0" />
+                <span>Perimeter Gate Mode</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4 text-indigo-500 shrink-0" />
+                <span>ATL Innovation Ready</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* 3. LIVE ACTIVITY TICKER (Instant Attendance Stream)                       */}
+        {/* 2. CORE PLATFORM PILLARS (GENUINE SCHOOL SHOWCASE)                        */}
         {/* ========================================================================= */}
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Live Attendance Stream
-              </span>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <div>
+              <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
+                Integrated School Capabilities
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Unified AI operations designed for administrators, teachers, parents, and security staff
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* Pillar 1: Attendance */}
+            <div className="p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 transition-all shadow-2xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <Scan className="h-5 w-5" />
+              </div>
+              <h3 className="font-extrabold text-sm text-foreground">AI Face Attendance</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Millisecond continuous face tracking at campus terminals with immediate synthesized chime confirmation.
+              </p>
+              <Link to="/attendance" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline pt-1">
+                Open Terminal <ChevronRight className="h-3 w-3" />
+              </Link>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={loadData}
-                disabled={isRefreshing}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                title="Refresh Stream"
-              >
-                <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-primary' : ''}`} />
-                Sync
-              </button>
-              <Link
-                to="/attendance"
-                className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
-              >
-                Full Live Terminal <ChevronRight className="w-3.5 h-3.5" />
+            {/* Pillar 2: Timetable */}
+            <div className="p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 transition-all shadow-2xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <h3 className="font-extrabold text-sm text-foreground">Timetable & Substitution</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                1-click automated AI timetable generation with automatic teacher absence substitution.
+              </p>
+              <Link to="/admin?tab=timetable" className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline pt-1">
+                Manage Timetable <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+
+            {/* Pillar 3: Security & Gate */}
+            <div className="p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 transition-all shadow-2xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                <DoorOpen className="h-5 w-5" />
+              </div>
+              <h3 className="font-extrabold text-sm text-foreground">Gate Mode & Safety</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Kiosk-ready campus boundary defense with stranger detection and instant emergency broadcasts.
+              </p>
+              <Link to="/gate" className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline pt-1">
+                Launch Gate Mode <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+
+            {/* Pillar 4: Parent Portal */}
+            <div className="p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 transition-all shadow-2xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                <Globe className="h-5 w-5" />
+              </div>
+              <h3 className="font-extrabold text-sm text-foreground">Parent Portal Link</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Direct parental access for instant arrival notifications, digital circulars, and student registers.
+              </p>
+              <Link to="/parent" className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline pt-1">
+                Visit Portal <ChevronRight className="h-3 w-3" />
               </Link>
             </div>
           </div>
-
-          {recentScans.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
-              {recentScans.map((scan) => (
-                <div
-                  key={scan.id}
-                  className="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 transition-colors text-xs"
-                >
-                  <div className="min-w-0 pr-2">
-                    <p className="font-bold text-foreground truncate">{scan.name}</p>
-                    <p className="text-[10px] text-muted-foreground font-mono">{scan.time}</p>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase shrink-0 ${
-                      scan.status === 'late'
-                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                        : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                    }`}
-                  >
-                    {scan.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-4 text-center text-xs text-muted-foreground">
-              No students recorded yet today. Launch the terminal to begin scanning.
-            </div>
-          )}
         </div>
 
         {/* ========================================================================= */}
-        {/* 4. UNIFIED SEARCH & CATEGORY FILTER BAR                                   */}
+        {/* 3. ATAL TINKERING LAB (ATL) & ROBOTICS INNOVATION HUB                     */}
         {/* ========================================================================= */}
-        <div className="space-y-3">
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tools, timetables, rosters, substitutions, or emergency alerts..."
-              className="w-full pl-10 pr-10 py-2.5 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-2xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground hover:text-foreground"
-              >
-                Clear
-              </button>
-            )}
+        <div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-11 w-11 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-base sm:text-lg text-foreground">
+                    PM Shri ATL Innovation & Robotics Lab
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                    STEM 2026
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Atal Tinkering Lab powered by student-led engineering, 3D prototyping & neural biometrics
+                </p>
+              </div>
+            </div>
+
+            <Button asChild variant="outline" size="sm" className="rounded-xl text-xs font-bold gap-1.5">
+              <Link to="/portfolio">
+                Explore Portfolios <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+            <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <Bot className="h-4 w-4 text-emerald-500" /> Robotics Lab
+              </div>
+              <p className="text-[11px] text-muted-foreground">Autonomous bots, ROS, servo arrays & microcontrollers</p>
+            </div>
+
+            <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <Terminal className="h-4 w-4 text-cyan-500" /> Coding Hub
+              </div>
+              <p className="text-[11px] text-muted-foreground">Python, ArcFace neural models & real-time embedded code</p>
+            </div>
+
+            <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <CircuitBoard className="h-4 w-4 text-amber-500" /> IoT & Sensors
+              </div>
+              <p className="text-[11px] text-muted-foreground">ESP32 boards, RFID gate sync & smart environmental sensors</p>
+            </div>
+
+            <div className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <Cpu className="h-4 w-4 text-purple-500" /> Neural Biometrics
+              </div>
+              <p className="text-[11px] text-muted-foreground">High-precision facial recognition running 100% locally on campus</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 4. WORKSTATION DIRECTORY: QUICK MODULE ACCESS                             */}
+        {/* ========================================================================= */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
+                System Workstations & Tools
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Instant access to all modules, administrative controls, and class rosters
+              </p>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tools & rosters..."
+                className="w-full pl-9 pr-8 py-2 rounded-xl border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Category Filter Pills */}
@@ -566,21 +541,8 @@ export const LiteHome: React.FC = () => {
               );
             })}
           </div>
-        </div>
 
-        {/* ========================================================================= */}
-        {/* 5. WORKSTATION MODULES DIRECTORY GRID                                     */}
-        {/* ========================================================================= */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              {CATEGORIES.find((c) => c.id === selectedCategory)?.label} ({filteredModules.length})
-            </h3>
-            <span className="text-[11px] font-mono text-muted-foreground">
-              Instant 60fps Dispatch
-            </span>
-          </div>
-
+          {/* Modules Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredModules.map((m) => {
               const colors = getColorClasses(m.colorScheme);
@@ -588,7 +550,7 @@ export const LiteHome: React.FC = () => {
                 <Link
                   key={m.label}
                   to={m.to}
-                  className={`group relative flex flex-col justify-between p-4 rounded-2xl border border-border bg-card transition-all shadow-2xs ${colors.borderHover}`}
+                  className={`group relative flex flex-col justify-between p-4 rounded-2xl border border-border bg-card transition-all shadow-2xs hover:shadow-sm ${colors.borderHover}`}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2.5">
@@ -611,7 +573,7 @@ export const LiteHome: React.FC = () => {
                   </div>
 
                   <div className="pt-3 mt-3 border-t border-border/50 flex items-center justify-between text-xs font-semibold text-muted-foreground group-hover:text-primary transition-colors">
-                    <span>Open Workstation</span>
+                    <span>Open Tool</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </Link>
@@ -621,14 +583,14 @@ export const LiteHome: React.FC = () => {
         </div>
 
         {/* ========================================================================= */}
-        {/* 6. PWA & OFFLINE-READY INSTALLATION CARD                                  */}
+        {/* 5. PWA & OFFLINE-READY INSTALLATION CARD                                  */}
         {/* ========================================================================= */}
         <HomeInstallCard />
 
         {/* ========================================================================= */}
-        {/* 7. INSTITUTIONAL CREDITS & SYSTEM STATUS FOOTER                           */}
+        {/* 6. INSTITUTIONAL CREDITS & FOOTER                                         */}
         {/* ========================================================================= */}
-        <footer className="pt-4 pb-10 border-t border-border text-center space-y-2.5 text-xs text-muted-foreground">
+        <footer className="pt-6 pb-12 border-t border-border text-center space-y-3 text-xs text-muted-foreground">
           <div className="flex items-center justify-center gap-2 text-foreground font-semibold">
             <Building2 className="w-4 h-4 text-primary" />
             <span>PM Shri Kendriya Vidyalaya NFC Vigyan Vihar · Delhi</span>
@@ -646,6 +608,10 @@ export const LiteHome: React.FC = () => {
             <span>•</span>
             <Link to="/contact" className="hover:text-foreground transition-colors">
               Help & Support
+            </Link>
+            <span>•</span>
+            <Link to="/portfolio" className="hover:text-foreground transition-colors">
+              Team Portfolios
             </Link>
           </div>
         </footer>
