@@ -179,11 +179,19 @@ export function matchSubject(rawName: string, knownSubjects: { id: string; name:
 export function matchOrAssignTeacher(
   rawTeacherName: string | null | undefined,
   matchedSubject: { id: string; name: string } | null,
-  knownTeachers: { id: string; name: string; specialization?: string }[]
+  knownTeachers: { id: string; name: string; specialization?: string }[],
+  classSubjectTeachers?: Record<string, string>
 ): { id: string; name: string } | null {
   if (knownTeachers.length === 0) return null;
 
-  // 1. If OCR extracted a teacher name, match it against registered teachers
+  // 1. If class has a designated fixed subject teacher, use that first!
+  if (matchedSubject && classSubjectTeachers && classSubjectTeachers[matchedSubject.id]) {
+    const fixedTeacherId = classSubjectTeachers[matchedSubject.id];
+    const fixedTeacher = knownTeachers.find((t) => t.id === fixedTeacherId);
+    if (fixedTeacher) return fixedTeacher;
+  }
+
+  // 2. If OCR extracted a teacher name, match it against registered teachers
   if (rawTeacherName && rawTeacherName.trim().length > 1) {
     const rawNorm = rawTeacherName.toLowerCase().trim().replace(/^(mr\.|mrs\.|ms\.|dr\.|prof\.)\s*/i, '');
     
@@ -202,7 +210,7 @@ export function matchOrAssignTeacher(
     }
   }
 
-  // 2. If no teacher name in image or no match found: AUTO-ASSIGN by subject specialization
+  // 3. If no teacher name in image or no match found: AUTO-ASSIGN by subject specialization
   if (matchedSubject) {
     const subjNorm = matchedSubject.name.toLowerCase();
     
@@ -229,7 +237,7 @@ export function matchOrAssignTeacher(
     }
   }
 
-  // 3. Fallback to first available teacher
+  // 4. Fallback to first available teacher
   return knownTeachers[0] || null;
 }
 
@@ -242,9 +250,10 @@ export async function extractTimetableFromImage(options: {
   section?: string;
   knownSubjects: { id: string; name: string; short_name?: string | null }[];
   knownTeachers: { id: string; name: string; specialization?: string }[];
+  classSubjectTeachers?: Record<string, string>;
   geminiApiKey?: string;
 }): Promise<ExtractedTimetableResult> {
-  const { fileData, className, section, knownSubjects, knownTeachers, geminiApiKey } = options;
+  const { fileData, className, section, knownSubjects, knownTeachers, classSubjectTeachers, geminiApiKey } = options;
 
   let parsedRaw: any = null;
 
@@ -472,21 +481,44 @@ Known teachers: ${knownTeachers.map((t) => t.name).join(', ')}.`;
     8: { start: '11:45', end: '12:15' },
   };
 
-  // Generate clean PeriodTimings
-  const periods: ExtractedPeriod[] = (rawPeriods.length > 0
+  // Generate clean, strictly deduplicated PeriodTimings (periods 1 to 8)
+  const periodMap = new Map<number, ExtractedPeriod>();
+  const candidatePeriods = rawPeriods.length > 0
     ? rawPeriods
-    : [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ period_number: n, label: `Period ${n}`, is_break: false }))
-  ).map((p: any, idx: number) => {
-    const pNum = p.period_number || idx + 1;
-    const def = defaultTimingsMap[pNum];
-    return {
-      period_number: pNum,
-      label: p.label || `Period ${pNum}`,
-      start_time: p.start_time || def?.start || null,
-      end_time: p.end_time || def?.end || null,
-      is_break: Boolean(p.is_break),
-    };
+    : [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ period_number: n, label: `Period ${n}`, is_break: false }));
+
+  candidatePeriods.forEach((p: any, idx: number) => {
+    const pNum = Number(p.period_number) || (idx + 1);
+    const isBreak = Boolean(p.is_break);
+    if (pNum >= 1 && pNum <= 8 && !isBreak && !periodMap.has(pNum)) {
+      const def = defaultTimingsMap[pNum];
+      periodMap.set(pNum, {
+        period_number: pNum,
+        label: p.label || `Period ${pNum}`,
+        start_time: p.start_time || def?.start || null,
+        end_time: p.end_time || def?.end || null,
+        is_break: false,
+      });
+    }
   });
+
+  // Guarantee standard periods 1 through 8 exist without duplicates
+  for (let n = 1; n <= 8; n++) {
+    if (!periodMap.has(n)) {
+      const def = defaultTimingsMap[n];
+      periodMap.set(n, {
+        period_number: n,
+        label: `Period ${n}`,
+        start_time: def?.start || null,
+        end_time: def?.end || null,
+        is_break: false,
+      });
+    }
+  }
+
+  const periods: ExtractedPeriod[] = Array.from(periodMap.values()).sort(
+    (a, b) => a.period_number - b.period_number
+  );
 
   const slots: ExtractedSlot[] = [];
   const unmatchedSubjectsSet = new Set<string>();
@@ -502,8 +534,8 @@ Known teachers: ${knownTeachers.map((t) => t.name).join(', ')}.`;
       unmatchedSubjectsSet.add(s.subject);
     }
 
-    // Match or Auto-assign Teacher by Subject
-    const assignedTeacher = matchOrAssignTeacher(s.teacher, matchedSubj, knownTeachers);
+    // Match or Auto-assign Teacher by Subject (using class faculty assignment if configured)
+    const assignedTeacher = matchOrAssignTeacher(s.teacher, matchedSubj, knownTeachers, classSubjectTeachers);
 
     slots.push({
       day: s.day || 'Monday',

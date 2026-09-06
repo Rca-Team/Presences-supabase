@@ -21,6 +21,11 @@ import {
   ChevronDown,
   Camera,
   FileImage,
+  Layers,
+  UserCheck,
+  UserPlus,
+  ShieldCheck,
+  ArrowRight,
 } from 'lucide-react';
 import {
   Dialog,
@@ -43,10 +48,12 @@ import { ALL_CLASS_SECTIONS, getCategoryLabel } from '@/constants/schoolConfig';
 import { parseClassSection } from '@/utils/teacherAccess';
 import { TimetablePhotoExtractorModal } from '@/components/admin/TimetablePhotoExtractorModal';
 import { ExtractedTimetableResult } from '@/utils/timetableExtractor';
+import { FacultyManagementPanel, FacultyTeacher } from '@/components/admin/FacultyManagementPanel';
+import { TeacherTimetableWeeklyView } from '@/components/admin/TeacherTimetableWeeklyView';
 import SubstitutionReport from '@/components/admin/SubstitutionReport';
 import { cn } from '@/lib/utils';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const getSubjectTheme = (name?: string | null) => {
   const normName = (name || '').toLowerCase();
@@ -130,7 +137,7 @@ export const getSubjectTheme = (name?: string | null) => {
   };
 };
 
-interface PeriodTiming {
+export interface PeriodTiming {
   id?: string;
   period_number: number;
   start_time: string;
@@ -139,13 +146,17 @@ interface PeriodTiming {
   label: string | null;
 }
 
-interface Teacher {
+export interface Teacher {
   id: string;
   name: string;
   specialization?: string;
+  employee_id?: string;
+  role?: string;
+  email?: string;
+  phone?: string;
 }
 
-interface Subject {
+export interface Subject {
   id: string;
   name: string;
   short_name: string | null;
@@ -166,7 +177,7 @@ interface TimetableManagerProps {
 
 const db = supabase as any;
 
-const STANDARD_CURRICULUM_SUBJECTS: Subject[] = [
+export const STANDARD_CURRICULUM_SUBJECTS: Subject[] = [
   { id: 'subj-math', name: 'Mathematics', short_name: 'Math', category: 'core', weeklyDefault: 6 },
   { id: 'subj-sci', name: 'Science & EVS', short_name: 'Science', category: 'core', weeklyDefault: 6 },
   { id: 'subj-eng', name: 'English Language', short_name: 'English', category: 'language', weeklyDefault: 5 },
@@ -189,7 +200,7 @@ export const STANDARD_8_PERIODS: PeriodTiming[] = [
   { period_number: 8, label: 'Period 8', start_time: '11:45', end_time: '12:15', is_break: false },
 ];
 
-const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }) => {
+export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }) => {
   const { toast } = useToast();
   const categoryOptions = allowedCategories && allowedCategories.length > 0 ? allowedCategories : ALL_CLASS_SECTIONS;
 
@@ -198,13 +209,19 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>(STANDARD_CURRICULUM_SUBJECTS);
   const [draftSlots, setDraftSlots] = useState<Record<string, DraftSlot>>({});
+  const [allTimetableRecords, setAllTimetableRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isExtractorModalOpen, setIsExtractorModalOpen] = useState(false);
-  const [activeManagerTab, setActiveManagerTab] = useState<'timetable' | 'substitutions'>('timetable');
 
-  // Quick Slot Edit Modal (when user clicks any cell in the preview)
+  // 4 Top Navigation Tabs:
+  // 'class_timetable' | 'teacher_timetable' | 'faculty_panel' | 'substitutions'
+  const [activeManagerTab, setActiveManagerTab] = useState<
+    'class_timetable' | 'teacher_timetable' | 'faculty_panel' | 'substitutions'
+  >('class_timetable');
+
+  // Quick Slot Edit Modal
   const [editingSlot, setEditingSlot] = useState<{ day: number; periodNumber: number } | null>(null);
   const [slotTeacherId, setSlotTeacherId] = useState<string>('');
   const [slotSubjectId, setSlotSubjectId] = useState<string>('');
@@ -215,54 +232,116 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
 
   const slotKey = (day: number, period: number) => `${day}-${period}`;
 
-  // Load all teachers and current timetable
+  // Clean deduplicated periods strictly 1 to 8
+  const cleanPeriods = useMemo(() => {
+    const map = new Map<number, PeriodTiming>();
+    periods.forEach((p) => {
+      const num = Number(p.period_number);
+      if (num >= 1 && num <= 8 && !p.is_break && !map.has(num)) {
+        map.set(num, p);
+      }
+    });
+
+    for (let i = 1; i <= 8; i++) {
+      if (!map.has(i)) {
+        const def = STANDARD_8_PERIODS.find((sp) => sp.period_number === i);
+        if (def) map.set(i, def);
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.period_number - b.period_number);
+  }, [periods]);
+
+  // Load class faculty assignments cache
+  const classAssignmentsMap = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('class_faculty_assignments');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, [activeManagerTab, selectedCategory]);
+
+  // Load all teachers, subjects, and timetable data
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [periodRes, teacherAttRes, subjectRes, profilesRes, rolesRes, classTeachersRes] = await Promise.all([
-        db.from('period_timings').select('*'),
-        db.from('attendance_records')
-          .select('id, user_id, device_info')
-          .eq('status', 'registered')
-          .eq('category', 'Teacher'),
-        db.from('subjects').select('*').order('name'),
-        db.from('profiles').select('id, user_id, display_name, full_name, username, role'),
-        db.from('user_roles').select('user_id, role'),
-        db.from('class_teachers').select('*'),
-      ]);
+      const [periodRes, teacherAttRes, subjectRes, profilesRes, rolesRes, classTeachersRes, allTtRes] =
+        await Promise.all([
+          db.from('period_timings').select('*'),
+          db.from('attendance_records').select('id, user_id, device_info').eq('status', 'registered').eq('category', 'Teacher'),
+          db.from('subjects').select('*').order('name'),
+          db.from('profiles').select('id, user_id, display_name, full_name, username, role, phone, email'),
+          db.from('user_roles').select('user_id, role'),
+          db.from('class_teachers').select('*'),
+          db.from('timetable').select('*'),
+        ]);
 
-      // Set period timings if available
+      setAllTimetableRecords(allTtRes.data || []);
+
+      // 1. Cleanly set period timings (strictly deduplicated by period_number 1 to 8)
       const rawPeriods = periodRes.data || [];
       if (rawPeriods.length > 0) {
-        const mappedPeriods: PeriodTiming[] = rawPeriods.map((p: any) => {
+        const periodMap = new Map<number, PeriodTiming>();
+        rawPeriods.forEach((p: any) => {
           const meta = p.metadata || {};
-          return {
-            id: p.id,
-            period_number: p.period_number ?? meta.period_number ?? 0,
-            start_time: p.start_time,
-            end_time: p.end_time,
-            is_break: p.is_break ?? meta.is_break ?? false,
-            label: p.label ?? meta.label ?? p.period_name ?? null,
-          };
-        }).sort((a: PeriodTiming, b: PeriodTiming) => a.period_number - b.period_number);
-        setPeriods(mappedPeriods);
+          const num = Number(p.period_number ?? meta.period_number ?? 0);
+          const isBreak = Boolean(p.is_break ?? meta.is_break ?? false);
+          if (num >= 1 && num <= 8 && !isBreak && !periodMap.has(num)) {
+            periodMap.set(num, {
+              id: p.id,
+              period_number: num,
+              start_time: p.start_time || '08:00',
+              end_time: p.end_time || '08:45',
+              is_break: false,
+              label: p.label ?? meta.label ?? p.period_name ?? `Period ${num}`,
+            });
+          }
+        });
+
+        for (let i = 1; i <= 8; i++) {
+          if (!periodMap.has(i)) {
+            const def = STANDARD_8_PERIODS.find((sp) => sp.period_number === i);
+            if (def) periodMap.set(i, def);
+          }
+        }
+
+        const mapped = Array.from(periodMap.values()).sort((a, b) => a.period_number - b.period_number);
+        setPeriods(mapped);
       } else {
         setPeriods(STANDARD_8_PERIODS);
       }
 
-      // Collect teachers across all sources
-      const teacherMap = new Map<string, string>();
+      // 2. Collect teachers across all sources
+      const teacherMap = new Map<string, Teacher>();
 
       (teacherAttRes.data || []).forEach((r: any) => {
         const meta = (r.device_info as any)?.metadata || {};
         const name = meta.name || (r.device_info as any)?.name;
         const id = r.user_id || r.id;
-        if (id && name) teacherMap.set(id, name);
+        if (id && name && !teacherMap.has(id)) {
+          teacherMap.set(id, {
+            id,
+            name,
+            specialization: meta.specialization || meta.subject,
+            employee_id: meta.employee_id || `EMP-${id.slice(0, 4)}`,
+            role: meta.role || 'Faculty',
+            email: meta.email,
+            phone: meta.phone,
+          });
+        }
       });
 
       (classTeachersRes.data || []).forEach((ct: any) => {
-        if (ct.teacher_id && ct.teacher_name) {
-          teacherMap.set(ct.teacher_id, ct.teacher_name);
+        if (ct.teacher_id && ct.teacher_name && !teacherMap.has(ct.teacher_id)) {
+          teacherMap.set(ct.teacher_id, {
+            id: ct.teacher_id,
+            name: ct.teacher_name,
+            specialization: ct.subject || ct.metadata?.specialization,
+            employee_id: ct.employee_id || `EMP-${ct.teacher_id.slice(0, 4)}`,
+            role: ct.role === 'class_teacher' ? 'Class Teacher' : 'Faculty',
+            email: ct.teacher_email,
+          });
         }
       });
 
@@ -276,28 +355,36 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
       (profilesRes.data || []).forEach((p: any) => {
         const id = p.user_id || p.id;
         const name = p.display_name || p.full_name || p.username;
-        if (p.role === 'teacher' || p.role === 'faculty' || teacherUserIds.has(id)) {
-          if (id && name && !teacherMap.has(id)) {
-            teacherMap.set(id, name);
+        if ((p.role === 'teacher' || p.role === 'faculty' || teacherUserIds.has(id)) && id && name) {
+          if (!teacherMap.has(id)) {
+            teacherMap.set(id, {
+              id,
+              name,
+              specialization: 'General',
+              employee_id: `EMP-${id.slice(0, 4)}`,
+              role: p.role || 'Teacher',
+              email: p.email,
+              phone: p.phone,
+            });
           }
         }
       });
 
       // Default faculties if none registered yet
       if (teacherMap.size === 0) {
-        teacherMap.set('teacher-1', 'Ritu Dahiya (Mathematics)');
-        teacherMap.set('teacher-2', 'Manoj Kumar (Science)');
-        teacherMap.set('teacher-3', 'Sunita Sharma (English)');
-        teacherMap.set('teacher-4', 'Anil Verma (Hindi)');
-        teacherMap.set('teacher-5', 'Priya Singh (Social Science)');
-        teacherMap.set('teacher-6', 'Vikram Rathore (Computer)');
-        teacherMap.set('teacher-7', 'Rajesh Gupta (PE / Sports)');
+        teacherMap.set('teacher-1', { id: 'teacher-1', name: 'Ritu Dahiya', specialization: 'Mathematics', employee_id: 'EMP-01', role: 'PGT Math' });
+        teacherMap.set('teacher-2', { id: 'teacher-2', name: 'Manoj Kumar', specialization: 'Science', employee_id: 'EMP-02', role: 'TGT Science' });
+        teacherMap.set('teacher-3', { id: 'teacher-3', name: 'Sunita Sharma', specialization: 'English', employee_id: 'EMP-03', role: 'TGT English' });
+        teacherMap.set('teacher-4', { id: 'teacher-4', name: 'Anil Verma', specialization: 'Hindi', employee_id: 'EMP-04', role: 'TGT Hindi' });
+        teacherMap.set('teacher-5', { id: 'teacher-5', name: 'Priya Singh', specialization: 'Social Science', employee_id: 'EMP-05', role: 'TGT Social Studies' });
+        teacherMap.set('teacher-6', { id: 'teacher-6', name: 'Vikram Rathore', specialization: 'Computer', employee_id: 'EMP-06', role: 'PGT Computer Science' });
+        teacherMap.set('teacher-7', { id: 'teacher-7', name: 'Rajesh Gupta', specialization: 'PE / Sports', employee_id: 'EMP-07', role: 'PET' });
       }
 
-      const teacherList: Teacher[] = Array.from(teacherMap.entries()).map(([id, name]) => ({ id, name }));
+      const teacherList = Array.from(teacherMap.values());
       setTeachers(teacherList);
 
-      // Load DB subjects or standard curriculum
+      // 3. Load DB subjects or standard curriculum
       const dbSubjects = (subjectRes.data || []).map((s: any) => ({
         id: s.id,
         name: s.name,
@@ -306,13 +393,10 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         weeklyDefault: 5,
       }));
 
-      if (dbSubjects.length > 0) {
-        setSubjects(dbSubjects);
-      } else {
-        setSubjects(STANDARD_CURRICULUM_SUBJECTS);
-      }
+      const finalSubjects = dbSubjects.length > 0 ? dbSubjects : STANDARD_CURRICULUM_SUBJECTS;
+      setSubjects(finalSubjects);
 
-      // Load existing timetable for selected class
+      // 4. Load existing timetable for selected class
       const parsed = parseClassSection(selectedCategory);
       let ttData: any[] = [];
       const modernRes = parsed
@@ -326,16 +410,49 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         ttData = legacyRes.data || [];
       }
 
+      // Check designated class subject teachers from storage or class_teachers
+      const designatedSubjectTeachers: Record<string, string> =
+        classAssignmentsMap[selectedCategory]?.subjectTeachers || {};
+
       const nextDraft: Record<string, DraftSlot> = {};
       ttData.forEach((t: any) => {
-        if (!t.day_of_week || !t.period_number) return;
+        const day = Number(t.day_of_week);
+        const period = Number(t.period_number);
+        if (!day || !period) return;
+
         const meta = t.metadata || {};
-        const teacherId = t.teacher_id || t.teacher_record_id || meta.teacher_record_id;
-        if (!teacherId) return;
-        nextDraft[slotKey(t.day_of_week, t.period_number)] = {
-          teacherId,
-          subjectId: t.subject_id || meta.subject_id || '',
-          room: t.room ?? meta.room ?? '',
+        let teacherId = t.teacher_id || t.teacher_record_id || meta.teacher_record_id || meta.teacher_id;
+        const subjectId = t.subject_id || meta.subject_id || '';
+
+        // If teacher is empty, check if class has designated fixed teacher for this subject!
+        if (!teacherId && subjectId && designatedSubjectTeachers[subjectId]) {
+          teacherId = designatedSubjectTeachers[subjectId];
+        }
+
+        // If still empty, auto-pair with best matching teacher for this subject
+        if (!teacherId && subjectId) {
+          const matchedSubject = finalSubjects.find((s: any) => s.id === subjectId);
+          if (matchedSubject) {
+            const sNorm = matchedSubject.name.toLowerCase();
+            const matchingTeacher = teacherList.find((tc) => {
+              const tNorm = `${tc.name} ${tc.specialization || ''}`.toLowerCase();
+              return (
+                (sNorm.includes('math') && tNorm.includes('math')) ||
+                (sNorm.includes('sci') && tNorm.includes('sci')) ||
+                (sNorm.includes('eng') && tNorm.includes('eng')) ||
+                (sNorm.includes('hin') && tNorm.includes('hin')) ||
+                (sNorm.includes('comp') && (tNorm.includes('comp') || tNorm.includes('cs'))) ||
+                (sNorm.includes('pe') && (tNorm.includes('pe') || tNorm.includes('sport')))
+              );
+            });
+            if (matchingTeacher) teacherId = matchingTeacher.id;
+          }
+        }
+
+        nextDraft[slotKey(day, period)] = {
+          teacherId: teacherId || '',
+          subjectId,
+          room: t.room ?? meta.room ?? `Room ${selectedCategory}`,
           notes: t.notes ?? meta.notes ?? '',
         };
       });
@@ -346,7 +463,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
     } finally {
       setIsLoading(false);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, classAssignmentsMap]);
 
   useEffect(() => {
     loadData();
@@ -354,32 +471,88 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
 
   const getSubjectName = (subjectId: string | null) => {
     if (!subjectId) return null;
-    const s = subjects.find(s => s.id === subjectId);
-    return s ? (s.short_name || s.name) : null;
+    const s = subjects.find((s) => s.id === subjectId);
+    return s ? s.short_name || s.name : null;
   };
 
   const getTeacherName = (teacherId: string | null) => {
     if (!teacherId) return null;
-    const t = teachers.find(t => t.id === teacherId);
+    const t = teachers.find((t) => t.id === teacherId);
     return t ? t.name : null;
   };
 
-  // 1-CLICK FULLY AUTOMATED AI TIMETABLE GENERATOR
+  // Sync fixed subject teachers from Class Faculty setup to current timetable slots
+  const handleSyncFixedTeachers = async () => {
+    const currentAssignments = classAssignmentsMap[selectedCategory]?.subjectTeachers || {};
+    if (Object.keys(currentAssignments).length === 0) {
+      toast({
+        title: 'No Class Assignments Set',
+        description: 'Please configure fixed subject teachers in "Faculty & Class Assignments" tab first.',
+      });
+      return;
+    }
+
+    let updatedCount = 0;
+    const nextDraft = { ...draftSlots };
+
+    Object.entries(nextDraft).forEach(([key, slot]) => {
+      if (slot.subjectId && currentAssignments[slot.subjectId]) {
+        const designatedTeacherId = currentAssignments[slot.subjectId];
+        if (slot.teacherId !== designatedTeacherId) {
+          slot.teacherId = designatedTeacherId;
+          updatedCount++;
+        }
+      }
+    });
+
+    setDraftSlots(nextDraft);
+    toast({
+      title: '✨ Fixed Teachers Synced',
+      description: `Assigned ${updatedCount} period slot(s) to the designated subject teachers for ${getCategoryLabel(selectedCategory)}. Click "Save Timetable" to persist.`,
+    });
+  };
+
+  // Handle applying subject teachers from FacultyManagementPanel
+  const handleApplySubjectTeachersToTimetable = async (
+    category: string,
+    subjectTeachers: Record<string, string>
+  ) => {
+    if (category === selectedCategory) {
+      const nextDraft = { ...draftSlots };
+      let updatedCount = 0;
+      Object.entries(nextDraft).forEach(([key, slot]) => {
+        if (slot.subjectId && subjectTeachers[slot.subjectId]) {
+          slot.teacherId = subjectTeachers[slot.subjectId];
+          updatedCount++;
+        }
+      });
+      setDraftSlots(nextDraft);
+      toast({
+        title: 'Timetable Updated',
+        description: `Bound ${updatedCount} slot(s) to designated faculty. Click "Save Timetable" to publish.`,
+      });
+    }
+  };
+
+  // 1-Click AI Automated Timetable Generator
   const handleAiAutoGenerate = (preset = aiPreset) => {
     setIsAiGenerating(true);
     setTimeout(() => {
       try {
-        const workingPeriods = periods.filter(p => !p.is_break).map(p => p.period_number);
-        if (workingPeriods.length === 0) {
-          toast({ title: 'No periods configured', description: 'Using standard 8 periods.', variant: 'destructive' });
-          setPeriods(STANDARD_8_PERIODS);
-        }
+        const workingPeriods = cleanPeriods.map((p) => p.period_number);
 
         // Map teachers to subjects smartly
         const subjectTeacherMap = new Map<string, string>();
+        const designatedTeachers = classAssignmentsMap[selectedCategory]?.subjectTeachers || {};
+
         subjects.forEach((subj, idx) => {
-          const matchingTeacher = teachers.find(t => {
-            const tNorm = t.name.toLowerCase();
+          if (designatedTeachers[subj.id]) {
+            subjectTeacherMap.set(subj.id, designatedTeachers[subj.id]);
+            return;
+          }
+
+          const matchingTeacher = teachers.find((t) => {
+            const tNorm = `${t.name} ${t.specialization || ''}`.toLowerCase();
             const sNorm = subj.name.toLowerCase();
             if (sNorm.includes('math') && tNorm.includes('math')) return true;
             if (sNorm.includes('sci') && tNorm.includes('sci')) return true;
@@ -390,12 +563,12 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
             return false;
           });
 
-          subjectTeacherMap.set(subj.id, matchingTeacher?.id || teachers[idx % teachers.length]?.id || teachers[0]?.id || 'faculty-1');
+          subjectTeacherMap.set(subj.id, matchingTeacher?.id || teachers[idx % teachers.length]?.id || teachers[0]?.id || 'teacher-1');
         });
 
         // Set frequencies based on AI preset
         const subjectQuotas: Record<string, number> = {};
-        subjects.forEach(s => {
+        subjects.forEach((s) => {
           const normN = s.name.toLowerCase();
           if (preset === 'stem') {
             if (normN.includes('math')) subjectQuotas[s.id] = 7;
@@ -429,9 +602,9 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         const morningPool: { subjectId: string; teacherId: string }[] = [];
         const afternoonPool: { subjectId: string; teacherId: string }[] = [];
 
-        subjects.forEach(s => {
+        subjects.forEach((s) => {
           const quota = subjectQuotas[s.id] || s.weeklyDefault || 4;
-          const teacherId = subjectTeacherMap.get(s.id) || teachers[0]?.id || 'faculty-1';
+          const teacherId = subjectTeacherMap.get(s.id) || teachers[0]?.id || 'teacher-1';
           const item = { subjectId: s.id, teacherId };
 
           if (s.category === 'core' || s.category === 'language') {
@@ -442,20 +615,24 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         });
 
         const nextSlots: Record<string, DraftSlot> = {};
-        const pList = periods.filter(p => !p.is_break).map(p => p.period_number);
-        const midPoint = Math.ceil(pList.length / 2);
-        const morningPeriods = pList.slice(0, midPoint);
-        const afternoonPeriods = pList.slice(midPoint);
+        const midPoint = Math.ceil(workingPeriods.length / 2);
+        const morningPeriods = workingPeriods.slice(0, midPoint);
+        const afternoonPeriods = workingPeriods.slice(midPoint);
 
         const daySubjectTracker: Record<number, Set<string>> = {
-          1: new Set(), 2: new Set(), 3: new Set(), 4: new Set(), 5: new Set(), 6: new Set()
+          1: new Set(),
+          2: new Set(),
+          3: new Set(),
+          4: new Set(),
+          5: new Set(),
+          6: new Set(),
         };
 
         // Morning Core Distribution
         for (const pNum of morningPeriods) {
           for (let day = 1; day <= 6; day++) {
             if (morningPool.length > 0) {
-              let pickedIdx = morningPool.findIndex(item => !daySubjectTracker[day].has(item.subjectId));
+              let pickedIdx = morningPool.findIndex((item) => !daySubjectTracker[day].has(item.subjectId));
               if (pickedIdx === -1) pickedIdx = 0;
               const picked = morningPool.splice(pickedIdx, 1)[0];
               daySubjectTracker[day].add(picked.subjectId);
@@ -473,7 +650,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         for (const pNum of afternoonPeriods) {
           for (let day = 1; day <= 6; day++) {
             if (remainingPool.length > 0) {
-              let pickedIdx = remainingPool.findIndex(item => !daySubjectTracker[day].has(item.subjectId));
+              let pickedIdx = remainingPool.findIndex((item) => !daySubjectTracker[day].has(item.subjectId));
               if (pickedIdx === -1) pickedIdx = 0;
               const picked = remainingPool.splice(pickedIdx, 1)[0];
               daySubjectTracker[day].add(picked.subjectId);
@@ -496,28 +673,27 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
       } finally {
         setIsAiGenerating(false);
       }
-    }, 400);
+    }, 350);
   };
 
   // AI Auto-Fill Empty Slots
   const handleAiFillBlankSlots = () => {
     const next = { ...draftSlots };
     let filled = 0;
-    const workingPeriods = periods.filter(p => !p.is_break).map(p => p.period_number);
+    const workingPeriods = cleanPeriods.map((p) => p.period_number);
+    const designatedTeachers = classAssignmentsMap[selectedCategory]?.subjectTeachers || {};
 
     for (let day = 1; day <= 6; day++) {
       for (const pNum of workingPeriods) {
         const key = slotKey(day, pNum);
         if (!next[key] || !next[key].subjectId) {
-          // pick a suitable subject
           const subjIdx = (day + pNum) % subjects.length;
           const subj = subjects[subjIdx] || subjects[0];
-          const tIdx = subjIdx % teachers.length;
-          const teacher = teachers[tIdx] || teachers[0];
+          const teacherId = designatedTeachers[subj.id] || teachers[subjIdx % teachers.length]?.id || teachers[0]?.id || 'teacher-1';
 
           next[key] = {
             subjectId: subj.id,
-            teacherId: teacher.id,
+            teacherId,
             room: `Room ${selectedCategory}`,
           };
           filled++;
@@ -537,8 +713,13 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
       const rowsToSave = Object.entries(draftSlots)
         .map(([key, v]) => {
           const [day, period] = key.split('-').map(Number);
-          const teacher = teachers.find(t => t.id === v.teacherId);
-          if (!teacher || !v.subjectId) return null;
+          if (!v.subjectId) return null;
+
+          let teacher = teachers.find((t) => t.id === v.teacherId);
+          if (!teacher) {
+            teacher = teachers[0] || { id: 'teacher-1', name: 'Faculty' };
+          }
+
           return {
             category: selectedCategory,
             class: parsed?.className || null,
@@ -548,7 +729,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
             teacher_id: teacher.id,
             teacher_name: teacher.name,
             subject_id: v.subjectId,
-            room: v.room || `Class ${selectedCategory}`,
+            room: v.room || `Room ${selectedCategory}`,
             metadata: {
               category: selectedCategory,
               class: parsed?.className || null,
@@ -556,24 +737,23 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
               teacher_record_id: teacher.id,
               teacher_name: teacher.name,
               subject_id: v.subjectId,
-              room: v.room || `Class ${selectedCategory}`,
+              room: v.room || `Room ${selectedCategory}`,
               notes: v.notes || null,
             },
           };
         })
         .filter(Boolean);
 
-      // 1. Clear old records
+      // Clear old records
       if (parsed) {
         await db.from('timetable').delete().eq('class', parsed.className).eq('section', parsed.section);
       }
       await db.from('timetable').delete().eq('category', selectedCategory);
 
-      // 2. Insert new records
+      // Insert new records
       if (rowsToSave.length > 0) {
         const { error } = await db.from('timetable').insert(rowsToSave);
         if (error) {
-          // Fallback legacy insert
           const legacyRows = rowsToSave.map((r: any) => ({
             category: selectedCategory,
             day_of_week: r.day_of_week,
@@ -600,13 +780,21 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
 
   // Apply extracted timetable from photo
   const handleApplyExtractedTimetable = async (result: ExtractedTimetableResult, autoSaveToCloud = false) => {
+    const designatedTeachers = classAssignmentsMap[selectedCategory]?.subjectTeachers || {};
     const nextDraft: Record<string, DraftSlot> = {};
+
     result.slots.forEach((s) => {
       if (s.dayNumber && s.period_number && s.subjectId) {
+        const teacherId =
+          s.teacherId ||
+          designatedTeachers[s.subjectId] ||
+          teachers[0]?.id ||
+          '';
+
         nextDraft[slotKey(s.dayNumber, s.period_number)] = {
-          teacherId: s.teacherId || teachers[0]?.id || '',
+          teacherId,
           subjectId: s.subjectId,
-          room: s.room || `Class ${selectedCategory}`,
+          room: s.room || `Room ${selectedCategory}`,
           notes: s.notes || '',
         };
       }
@@ -621,27 +809,26 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         const rowsToSave = Object.entries(nextDraft)
           .map(([key, v]) => {
             const [day, period] = key.split('-').map(Number);
-            const teacher = teachers.find(t => t.id === v.teacherId);
-            if (!teacher || !v.subjectId) return null;
+            const teacher = teachers.find((t) => t.id === v.teacherId) || teachers[0];
+            if (!v.subjectId) return null;
             return {
               category: selectedCategory,
               class: parsed?.className || null,
               section: parsed?.section || null,
               day_of_week: String(day),
               period_number: period,
-              teacher_id: teacher.id,
-              teacher_name: teacher.name,
+              teacher_id: teacher?.id || 'teacher-1',
+              teacher_name: teacher?.name || 'Faculty',
               subject_id: v.subjectId,
-              room: v.room || `Class ${selectedCategory}`,
+              room: v.room || `Room ${selectedCategory}`,
               metadata: {
                 category: selectedCategory,
                 class: parsed?.className || null,
                 section: parsed?.section || null,
-                teacher_record_id: teacher.id,
-                teacher_name: teacher.name,
+                teacher_record_id: teacher?.id,
+                teacher_name: teacher?.name,
                 subject_id: v.subjectId,
-                room: v.room || `Class ${selectedCategory}`,
-                notes: v.notes || null,
+                room: v.room || `Room ${selectedCategory}`,
               },
             };
           })
@@ -653,23 +840,12 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
         await db.from('timetable').delete().eq('category', selectedCategory);
 
         if (rowsToSave.length > 0) {
-          const { error } = await db.from('timetable').insert(rowsToSave);
-          if (error) {
-            const legacyRows = rowsToSave.map((r: any) => ({
-              category: selectedCategory,
-              day_of_week: r.day_of_week,
-              period_number: r.period_number,
-              teacher_record_id: r.teacher_id,
-              teacher_name: r.teacher_name,
-              subject_id: r.subject_id,
-            }));
-            await db.from('timetable').insert(legacyRows);
-          }
+          await db.from('timetable').insert(rowsToSave);
         }
 
         toast({
-          title: '✅ Timetable Extracted & Saved to Cloud',
-          description: `Successfully configured and published timetable for ${getCategoryLabel(selectedCategory)}.`,
+          title: '✅ Extracted & Saved to Cloud',
+          description: `Successfully configured timetable for ${getCategoryLabel(selectedCategory)}.`,
         });
         loadData();
       } catch (e: any) {
@@ -680,7 +856,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
     } else {
       toast({
         title: '✨ Timetable Configured from Photo',
-        description: 'Schedule extracted and teachers assigned by subject. Review and click Save Timetable when ready.',
+        description: 'Schedule extracted and teachers assigned. Review and click Save Timetable when ready.',
       });
     }
   };
@@ -692,20 +868,20 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
     setEditingSlot({ day, periodNumber });
     setSlotTeacherId(existing?.teacherId || teachers[0]?.id || '');
     setSlotSubjectId(existing?.subjectId || subjects[0]?.id || '');
-    setSlotRoom(existing?.room || `Class ${selectedCategory}`);
+    setSlotRoom(existing?.room || `Room ${selectedCategory}`);
   };
 
   const handleSaveCellEdit = () => {
     if (!editingSlot) return;
     const key = slotKey(editingSlot.day, editingSlot.periodNumber);
     if (!slotSubjectId || !slotTeacherId) {
-      setDraftSlots(prev => {
+      setDraftSlots((prev) => {
         const next = { ...prev };
         delete next[key];
         return next;
       });
     } else {
-      setDraftSlots(prev => ({
+      setDraftSlots((prev) => ({
         ...prev,
         [key]: {
           teacherId: slotTeacherId,
@@ -718,10 +894,31 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
     toast({ title: 'Slot Updated', description: 'Click Save Timetable to persist changes.' });
   };
 
+  // Apply teacher to all periods of this subject in current class
+  const handleApplyTeacherToAllSubjectSlots = () => {
+    if (!slotSubjectId || !slotTeacherId) return;
+    let count = 0;
+    setDraftSlots((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (next[k].subjectId === slotSubjectId) {
+          next[k].teacherId = slotTeacherId;
+          count++;
+        }
+      });
+      return next;
+    });
+    setEditingSlot(null);
+    toast({
+      title: 'Teacher Applied',
+      description: `Assigned ${getTeacherName(slotTeacherId)} to ${count} ${getSubjectName(slotSubjectId)} period(s) in ${selectedCategory}.`,
+    });
+  };
+
   const handleClearCell = () => {
     if (!editingSlot) return;
     const key = slotKey(editingSlot.day, editingSlot.periodNumber);
-    setDraftSlots(prev => {
+    setDraftSlots((prev) => {
       const next = { ...prev };
       delete next[key];
       return next;
@@ -765,17 +962,11 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
             <thead>
               <tr>
                 <th class="period-th">Period & Time</th>
-                ${DAYS.map(d => `<th>${d}</th>`).join('')}
+                ${DAYS.map((d) => `<th>${d}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
-              ${periods.map(p => {
-                if (p.is_break) {
-                  return `<tr>
-                    <td><strong>${p.label || 'Break'}</strong><br><small>${p.start_time?.slice(0, 5)} - ${p.end_time?.slice(0, 5)}</small></td>
-                    <td colspan="6" class="break-cell">RECESS / LUNCH BREAK</td>
-                  </tr>`;
-                }
+              ${cleanPeriods.map((p) => {
                 let rowHtml = `<tr>
                   <td><strong>Period ${p.period_number}</strong><br><small>${p.start_time?.slice(0, 5)} - ${p.end_time?.slice(0, 5)}</small></td>
                   ${DAYS.map((_, dIdx) => {
@@ -784,11 +975,11 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                     const slot = draftSlots[key];
                     if (!slot || !slot.subjectId) return '<td>—</td>';
                     const sName = getSubjectName(slot.subjectId) || 'Subject';
-                    const tName = teachers.find(t => t.id === slot.teacherId)?.name || 'Teacher';
+                    const tName = teachers.find((t) => t.id === slot.teacherId)?.name || 'Teacher';
                     return `<td>
                       <div class="subj">${sName}</div>
                       <div class="teacher">${tName}</div>
-                      ${slot.room ? `<div class="room">Room: ${slot.room}</div>` : ''}
+                      ${slot.room ? `<div class="room">${slot.room}</div>` : ''}
                     </td>`;
                   }).join('')}
                 </tr>`;
@@ -824,23 +1015,54 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
     }
   };
 
-  const totalAllocated = Object.values(draftSlots).filter(s => s.subjectId && s.teacherId).length;
+  const totalAllocated = Object.values(draftSlots).filter((s) => s.subjectId && s.teacherId).length;
 
   return (
     <div className="space-y-4">
-      {/* Top View Mode Switcher */}
-      <div className="flex items-center justify-between gap-3 p-1.5 rounded-2xl bg-card/60 border border-border/40 backdrop-blur-xl">
-        <div className="flex items-center gap-1.5">
+      {/* Top 4-Segment Modern Sub-Navigation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 rounded-3xl bg-card/60 border border-border/60 backdrop-blur-xl shadow-xs">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button
             size="sm"
-            variant={activeManagerTab === 'timetable' ? 'default' : 'ghost'}
-            onClick={() => setActiveManagerTab('timetable')}
+            variant={activeManagerTab === 'class_timetable' ? 'default' : 'ghost'}
+            onClick={() => setActiveManagerTab('class_timetable')}
             className={cn(
-              'h-8 px-3.5 text-xs font-bold rounded-xl gap-1.5 transition-all',
-              activeManagerTab === 'timetable' ? 'shadow-md shadow-primary/20' : 'text-muted-foreground hover:text-foreground'
+              'h-9 px-3.5 text-xs font-bold rounded-2xl gap-1.5 transition-all',
+              activeManagerTab === 'class_timetable' ? 'shadow-md shadow-primary/20' : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <CalendarDays className="h-3.5 w-3.5" /> Class Timetables
+            <CalendarDays className="h-4 w-4" />
+            <span>Class Timetables</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant={activeManagerTab === 'teacher_timetable' ? 'default' : 'ghost'}
+            onClick={() => setActiveManagerTab('teacher_timetable')}
+            className={cn(
+              'h-9 px-3.5 text-xs font-bold rounded-2xl gap-1.5 transition-all',
+              activeManagerTab === 'teacher_timetable'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <GraduationCap className="h-4 w-4" />
+            <span>Teacher Timetables</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant={activeManagerTab === 'faculty_panel' ? 'default' : 'ghost'}
+            onClick={() => setActiveManagerTab('faculty_panel')}
+            className={cn(
+              'h-9 px-3.5 text-xs font-bold rounded-2xl gap-1.5 transition-all',
+              activeManagerTab === 'faculty_panel'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/20'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Users className="h-4 w-4" />
+            <span>Faculty & Class Assignments</span>
           </Button>
 
           <Button
@@ -848,18 +1070,28 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
             variant={activeManagerTab === 'substitutions' ? 'default' : 'ghost'}
             onClick={() => setActiveManagerTab('substitutions')}
             className={cn(
-              'h-8 px-3.5 text-xs font-bold rounded-xl gap-1.5 transition-all',
-              activeManagerTab === 'substitutions' ? 'bg-gradient-to-r from-rose-600 to-purple-600 text-white shadow-md shadow-rose-600/20' : 'text-muted-foreground hover:text-foreground'
+              'h-9 px-3.5 text-xs font-bold rounded-2xl gap-1.5 transition-all',
+              activeManagerTab === 'substitutions'
+                ? 'bg-gradient-to-r from-rose-600 to-purple-600 text-white shadow-md shadow-rose-600/20'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Users className="h-3.5 w-3.5" /> Faculty Substitutions & Leave
+            <UserCheck className="h-4 w-4" />
+            <span>Faculty Substitutions & Leave</span>
           </Button>
         </div>
+
+        {activeManagerTab === 'class_timetable' && (
+          <div className="flex items-center gap-2 pr-2">
+            <Badge variant="outline" className="text-[11px] font-mono border-primary/30 text-primary bg-primary/5">
+              {totalAllocated}/48 Slots Scheduled
+            </Badge>
+          </div>
+        )}
       </div>
 
-      {activeManagerTab === 'substitutions' ? (
-        <SubstitutionReport />
-      ) : (
+      {/* Tab 1: Class Timetables Matrix & Editor */}
+      {activeManagerTab === 'class_timetable' && (
         <>
           {/* Top AI Automation Command Bar */}
           <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 border border-primary/20 backdrop-blur-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -870,253 +1102,293 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
-                    AI Smart Timetable Generator
+                    Smart Timetable Generator
                   </h2>
                   <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 text-xs font-semibold">
                     {totalAllocated}/48 Periods Active
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  1-Click automated scheduling with zero human effort • Balanced pedagogy & teacher allocation
+                  1-Click automated scheduling, fixed subject faculty mapping & photo extraction
                 </p>
               </div>
             </div>
 
-        {/* 1-Click AI Actions */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Preset Selector */}
-          <Select value={aiPreset} onValueChange={(val: any) => setAiPreset(val)}>
-            <SelectTrigger className="h-9 text-xs rounded-xl bg-background/80 border-border/80 w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="standard" className="text-xs">🏫 CBSE Standard</SelectItem>
-              <SelectItem value="stem" className="text-xs">🔬 STEM & Science</SelectItem>
-              <SelectItem value="sports" className="text-xs">🏃 Sports & Activity</SelectItem>
-              <SelectItem value="exam" className="text-xs">📖 Revision Mode</SelectItem>
-            </SelectContent>
-          </Select>
+            {/* 1-Click AI Actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={aiPreset} onValueChange={(val: any) => setAiPreset(val)}>
+                <SelectTrigger className="h-9 text-xs rounded-xl bg-background/80 border-border/80 w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard" className="text-xs">
+                    ⚖️ Balanced Routine
+                  </SelectItem>
+                  <SelectItem value="stem" className="text-xs">
+                    🔬 STEM & Math Focus
+                  </SelectItem>
+                  <SelectItem value="sports" className="text-xs">
+                    ⚽ Sports & Arts
+                  </SelectItem>
+                  <SelectItem value="exam" className="text-xs">
+                    📝 Revision Focus
+                  </SelectItem>
+                </SelectContent>
+              </Select>
 
-          {/* Extract Timetable from Photo Button */}
-          <Button
-            size="sm"
-            onClick={() => setIsExtractorModalOpen(true)}
-            className="h-9 px-3.5 text-xs font-extrabold bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-700 hover:to-rose-700 text-white rounded-xl shadow-lg shadow-purple-600/25 gap-1.5 transition-all hover:scale-105 active:scale-95"
-            title="Scan or upload photo of printed timetable"
-          >
-            <Camera className="h-4 w-4" />
-            Extract from Photo
-          </Button>
+              {/* Extract Timetable from Photo Button */}
+              <Button
+                size="sm"
+                onClick={() => setIsExtractorModalOpen(true)}
+                className="h-9 px-3.5 text-xs font-extrabold bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-700 hover:to-rose-700 text-white rounded-xl shadow-lg shadow-purple-600/25 gap-1.5 transition-all hover:scale-105 active:scale-95"
+                title="Scan or upload photo of printed timetable"
+              >
+                <Camera className="h-4 w-4" />
+                Extract from Photo
+              </Button>
 
-          {/* Glowing 1-Click Auto-Generate Button */}
-          <Button
-            size="sm"
-            onClick={() => handleAiAutoGenerate()}
-            disabled={isAiGenerating}
-            className="h-9 px-4 text-xs font-extrabold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg shadow-indigo-600/30 gap-1.5 transition-all hover:scale-105 active:scale-95"
-          >
-            {isAiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-            AI Auto-Schedule (1-Click)
-          </Button>
+              {/* Sync Fixed Teachers Button */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSyncFixedTeachers}
+                className="h-9 px-3 text-xs rounded-xl border-primary/40 text-primary hover:bg-primary/10 font-bold gap-1.5"
+                title="Auto-assign assigned subject teachers from Class Faculty setup into matching slots"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Sync Fixed Teachers
+              </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleAiFillBlankSlots}
-            className="h-9 px-3 text-xs rounded-xl border-border/80 hover:bg-muted font-semibold gap-1.5"
-            title="Auto-fill empty period slots"
-          >
-            <Zap className="h-3.5 w-3.5 text-amber-500" />
-            Auto-Fill Blanks
-          </Button>
+              {/* Glowing 1-Click Auto-Generate Button */}
+              <Button
+                size="sm"
+                onClick={() => handleAiAutoGenerate()}
+                disabled={isAiGenerating}
+                className="h-9 px-4 text-xs font-extrabold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg shadow-indigo-600/30 gap-1.5 transition-all hover:scale-105 active:scale-95"
+              >
+                {isAiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                AI Auto-Schedule
+              </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handlePrintTimetable}
-            className="h-9 px-3 text-xs rounded-xl border-border/80 hover:bg-muted font-semibold gap-1.5"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            Print
-          </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAiFillBlankSlots}
+                className="h-9 px-3 text-xs rounded-xl border-border/80 hover:bg-muted font-semibold gap-1.5"
+                title="Auto-fill empty period slots"
+              >
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                Fill Blanks
+              </Button>
 
-          <Button
-            size="sm"
-            onClick={handleSaveTimetable}
-            disabled={isSaving}
-            className="h-9 px-4 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md shadow-emerald-600/25 gap-1.5"
-          >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            Save Timetable
-          </Button>
-        </div>
-      </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handlePrintTimetable}
+                className="h-9 px-3 text-xs rounded-xl border-border/80 hover:bg-muted font-semibold gap-1.5"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print
+              </Button>
 
-      {/* Class Selector Bar if multiple classes available */}
-      {categoryOptions.length > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-xs font-semibold text-muted-foreground shrink-0">Class:</span>
-          {categoryOptions.map(cat => (
-            <Button
-              key={cat}
-              size="sm"
-              variant={selectedCategory === cat ? 'default' : 'outline'}
-              onClick={() => setSelectedCategory(cat)}
-              className={`text-xs h-7 rounded-xl ${selectedCategory === cat ? 'bg-blue-600 text-white font-bold shadow-sm' : ''}`}
-            >
-              {getCategoryLabel(cat)}
-            </Button>
-          ))}
-        </div>
-      )}
-
-      {/* Main Interactive Visual Schedule Grid */}
-      <Card className="rounded-3xl border shadow-lg bg-card/70 backdrop-blur-xl overflow-hidden">
-        <CardHeader className="pb-3 border-b bg-gradient-to-r from-muted/40 to-muted/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              Live Weekly Timetable — {getCategoryLabel(selectedCategory)}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Click any period slot to easily change faculty or subject in one tap
-            </CardDescription>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Math
-            <span className="inline-block w-2 h-2 rounded-full bg-cyan-500 ml-2" /> Science
-            <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 ml-2" /> English
-            <span className="inline-block w-2 h-2 rounded-full bg-purple-500 ml-2" /> CS / AI
-            <span className="inline-block w-2 h-2 rounded-full bg-lime-500 ml-2" /> Sports
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-3 sm:p-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <Button
+                size="sm"
+                onClick={handleSaveTimetable}
+                disabled={isSaving}
+                className="h-9 px-4 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md shadow-emerald-600/25 gap-1.5"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Save Timetable
+              </Button>
             </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border bg-background/50">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="bg-muted/60 border-b">
-                    <th className="p-3 text-left font-extrabold text-muted-foreground min-w-[110px]">
-                      Period / Time
-                    </th>
-                    {DAYS.map(day => (
-                      <th key={day} className="p-3 text-center font-extrabold text-foreground min-w-[145px]">
-                        {day}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {periods.map(period => {
-                    if (period.is_break) {
-                      return (
-                        <tr key={period.id || period.period_number} className="bg-amber-500/10 border-y border-amber-500/20">
-                          <td className="p-3 font-bold text-amber-700 dark:text-amber-300">
-                            {period.label || 'Break'}
-                            <div className="text-[10px] text-muted-foreground font-normal">
-                              {period.start_time?.slice(0, 5)} – {period.end_time?.slice(0, 5)}
-                            </div>
-                          </td>
-                          <td colSpan={6} className="p-3 text-center font-bold tracking-wider text-amber-700 dark:text-amber-300 text-xs">
-                            🥪 RECESS / LUNCH BREAK
-                          </td>
-                        </tr>
-                      );
-                    }
+          </div>
 
-                    return (
-                      <React.Fragment key={period.id || period.period_number}>
-                        <tr className="hover:bg-muted/30 transition-colors">
-                          <td className="p-3 font-semibold text-foreground bg-muted/20 border-r border-border/60">
-                            <div className="text-xs font-bold">{period.label || `Period ${period.period_number}`}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                              {period.start_time?.slice(0, 5)} – {period.end_time?.slice(0, 5)}
-                            </div>
-                          </td>
-
-                        {DAYS.map((_, dIdx) => {
-                          const day = dIdx + 1;
-                          const key = slotKey(day, period.period_number);
-                          const slot = draftSlots[key];
-                          const subjectName = getSubjectName(slot?.subjectId || null);
-                          const teacherName = getTeacherName(slot?.teacherId || null);
-                          const theme = getSubjectTheme(subjectName);
-
-                          if (!slot || !slot.subjectId) {
-                            return (
-                              <td key={dIdx} className="p-1.5 border-r border-border/40 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenCellEditor(day, period.period_number)}
-                                  className="w-full py-3 rounded-xl border border-dashed border-border/60 text-[11px] text-muted-foreground/60 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all"
-                                >
-                                  + Assign
-                                </button>
-                              </td>
-                            );
-                          }
-
-                          return (
-                            <td key={dIdx} className="p-1.5 border-r border-border/40 align-top">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenCellEditor(day, period.period_number)}
-                                className={`w-full text-left p-2.5 rounded-2xl border ${theme.bg} ${theme.border} transition-all hover:scale-[1.02] hover:shadow-md active:scale-95 space-y-1`}
-                              >
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className={`font-extrabold text-xs truncate ${theme.text}`}>
-                                    {subjectName}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium truncate">
-                                  <Users className="h-3 w-3 shrink-0 opacity-70" />
-                                  <span className="truncate">{teacherName || 'Faculty'}</span>
-                                </div>
-                                {slot.room && (
-                                  <div className="text-[10px] text-muted-foreground/80 font-mono">
-                                    📍 {slot.room}
-                                  </div>
-                                )}
-                              </button>
-                            </td>
-                          );
-                        })}
-                      </tr>
-
-                      {/* Recess / Lunch Break Banner between Period 4 and Period 5 */}
-                      {period.period_number === 4 && (
-                        <tr className="bg-amber-500/10 dark:bg-amber-500/15 border-y-2 border-amber-500/30">
-                          <td className="p-2.5 font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 border-r border-amber-500/30">
-                            <div className="text-xs font-extrabold flex items-center gap-1">
-                              🥪 Lunch Break
-                            </div>
-                            <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-semibold mt-0.5">
-                              09:40 – 10:00
-                            </div>
-                          </td>
-                          <td colSpan={6} className="p-2.5 text-center font-extrabold tracking-widest text-amber-700 dark:text-amber-300 text-xs bg-amber-500/5">
-                            🥪 RECESS & LUNCH BREAK • 09:40 AM – 10:00 AM (20 MIN)
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+          {/* Class Selector Bar */}
+          {categoryOptions.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="text-xs font-bold text-muted-foreground shrink-0">Class:</span>
+              {categoryOptions.map((cat) => (
+                <Button
+                  key={cat}
+                  size="sm"
+                  variant={selectedCategory === cat ? 'default' : 'outline'}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    'text-xs h-7 rounded-xl font-bold transition-all',
+                    selectedCategory === cat ? 'bg-primary text-primary-foreground shadow-sm' : 'border-border/60'
+                  )}
+                >
+                  {getCategoryLabel(cat)}
+                </Button>
+              ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+
+          {/* Main Interactive Visual Schedule Grid */}
+          <Card className="rounded-3xl border shadow-lg bg-card/70 backdrop-blur-xl overflow-hidden">
+            <CardHeader className="pb-3 border-b bg-gradient-to-r from-muted/40 to-muted/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  Live Weekly Timetable — {getCategoryLabel(selectedCategory)}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Click any period slot to change faculty or subject in one tap • Strictly unique periods 1 to 8
+                </CardDescription>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> Math
+                <span className="inline-block w-2 h-2 rounded-full bg-cyan-500 ml-2" /> Science
+                <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 ml-2" /> English
+                <span className="inline-block w-2 h-2 rounded-full bg-purple-500 ml-2" /> CS / AI
+                <span className="inline-block w-2 h-2 rounded-full bg-lime-500 ml-2" /> Sports
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-3 sm:p-4">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border bg-background/50">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-muted/60 border-b">
+                        <th className="p-3 text-left font-extrabold text-muted-foreground min-w-[120px]">
+                          Period / Time
+                        </th>
+                        {DAYS.map((day) => (
+                          <th key={day} className="p-3 text-center font-extrabold text-foreground min-w-[145px]">
+                            {day}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {cleanPeriods.map((period) => {
+                        return (
+                          <React.Fragment key={period.period_number}>
+                            <tr className="hover:bg-muted/30 transition-colors">
+                              <td className="p-3 font-semibold text-foreground bg-muted/20 border-r border-border/60">
+                                <div className="text-xs font-bold">{period.label || `Period ${period.period_number}`}</div>
+                                <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                  {period.start_time?.slice(0, 5)} – {period.end_time?.slice(0, 5)}
+                                </div>
+                              </td>
+
+                              {DAYS.map((_, dIdx) => {
+                                const day = dIdx + 1;
+                                const key = slotKey(day, period.period_number);
+                                const slot = draftSlots[key];
+                                const subjectName = getSubjectName(slot?.subjectId || null);
+                                const teacherName = getTeacherName(slot?.teacherId || null);
+                                const theme = getSubjectTheme(subjectName);
+
+                                if (!slot || !slot.subjectId) {
+                                  return (
+                                    <td key={dIdx} className="p-1.5 border-r border-border/40 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenCellEditor(day, period.period_number)}
+                                        className="w-full py-3 rounded-xl border border-dashed border-border/60 text-[11px] text-muted-foreground/60 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all"
+                                      >
+                                        + Assign
+                                      </button>
+                                    </td>
+                                  );
+                                }
+
+                                return (
+                                  <td key={dIdx} className="p-1.5 border-r border-border/40 align-top">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenCellEditor(day, period.period_number)}
+                                      className={cn(
+                                        'w-full text-left p-2.5 rounded-2xl border transition-all hover:scale-[1.02] hover:shadow-md active:scale-95 space-y-1',
+                                        theme.bg,
+                                        theme.border
+                                      )}
+                                    >
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className={cn('font-extrabold text-xs truncate', theme.text)}>
+                                          {subjectName}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium truncate">
+                                        <Users className="h-3 w-3 shrink-0 opacity-70" />
+                                        <span className="truncate">{teacherName || 'Faculty Assigned'}</span>
+                                      </div>
+                                      {slot.room && (
+                                        <div className="text-[10px] text-muted-foreground/80 font-mono">
+                                          📍 {slot.room}
+                                        </div>
+                                      )}
+                                    </button>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+
+                            {/* Recess / Lunch Break Banner strictly once between Period 4 and Period 5 */}
+                            {period.period_number === 4 && (
+                              <tr className="bg-amber-500/10 dark:bg-amber-500/15 border-y-2 border-amber-500/30">
+                                <td className="p-2.5 font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 border-r border-amber-500/30">
+                                  <div className="text-xs font-extrabold flex items-center gap-1">
+                                    🥪 Lunch Break
+                                  </div>
+                                  <div className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-semibold mt-0.5">
+                                    09:40 – 10:00
+                                  </div>
+                                </td>
+                                <td colSpan={6} className="p-2.5 text-center font-extrabold tracking-widest text-amber-700 dark:text-amber-300 text-xs bg-amber-500/5">
+                                  🥪 RECESS & LUNCH BREAK • 09:40 AM – 10:00 AM (20 MIN)
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Tab 2: Teacher Personal Weekly Timetables */}
+      {activeManagerTab === 'teacher_timetable' && (
+        <TeacherTimetableWeeklyView
+          teachers={teachers}
+          periods={cleanPeriods}
+        />
+      )}
+
+      {/* Tab 3: Faculty Management Panel & Class Assignments */}
+      {activeManagerTab === 'faculty_panel' && (
+        <FacultyManagementPanel
+          teachers={teachers as FacultyTeacher[]}
+          subjects={subjects}
+          timetableData={allTimetableRecords}
+          initialSelectedCategory={selectedCategory}
+          onRefreshTeachers={loadData}
+          onApplySubjectTeachersToTimetable={handleApplySubjectTeachersToTimetable}
+        />
+      )}
+
+      {/* Tab 4: Faculty Substitutions & Leave Manager */}
+      {activeManagerTab === 'substitutions' && (
+        <SubstitutionReport
+          onNavigateToTimetable={() => setActiveManagerTab('class_timetable')}
+          onNavigateToTeacherTimetable={() => setActiveManagerTab('teacher_timetable')}
+        />
+      )}
 
       {/* Quick Cell Edit Modal */}
-      <Dialog open={Boolean(editingSlot)} onOpenChange={open => !open && setEditingSlot(null)}>
+      <Dialog open={Boolean(editingSlot)} onOpenChange={(open) => !open && setEditingSlot(null)}>
         <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-base flex items-center gap-2">
@@ -1124,7 +1396,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
               Edit Period Slot — {editingSlot ? `${DAYS[editingSlot.day - 1]} Period ${editingSlot.periodNumber}` : ''}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Select the subject and faculty teacher for this specific period slot
+              Select the subject and faculty teacher for this specific period slot in {getCategoryLabel(selectedCategory)}.
             </DialogDescription>
           </DialogHeader>
 
@@ -1136,7 +1408,7 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                   <SelectValue placeholder="Select Subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map(s => (
+                  {subjects.map((s) => (
                     <SelectItem key={s.id} value={s.id} className="text-xs">
                       {s.name}
                     </SelectItem>
@@ -1151,10 +1423,10 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                 <SelectTrigger className="h-9 text-xs mt-1 rounded-xl">
                   <SelectValue placeholder="Select Teacher" />
                 </SelectTrigger>
-                <SelectContent>
-                  {teachers.map(t => (
+                <SelectContent className="max-h-60">
+                  {teachers.map((t) => (
                     <SelectItem key={t.id} value={t.id} className="text-xs">
-                      {t.name}
+                      {t.name} {t.specialization ? `(${t.specialization})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1166,25 +1438,37 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
               <input
                 type="text"
                 value={slotRoom}
-                onChange={e => setSlotRoom(e.target.value)}
-                placeholder="e.g. Science Lab 2"
-                className="w-full h-9 px-3 text-xs rounded-xl border bg-background mt-1"
+                onChange={(e) => setSlotRoom(e.target.value)}
+                placeholder={`Room ${selectedCategory}`}
+                className="w-full h-9 px-3 rounded-xl border border-input bg-background text-xs mt-1 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+
+            {slotSubjectId && slotTeacherId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleApplyTeacherToAllSubjectSlots}
+                className="w-full text-xs font-bold text-primary border-primary/30 hover:bg-primary/5 rounded-xl gap-1.5"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Assign {getTeacherName(slotTeacherId)} to ALL {getSubjectName(slotSubjectId)} slots in this class
+              </Button>
+            )}
           </div>
 
-          <DialogFooter className="flex items-center justify-between sm:justify-between gap-2">
+          <DialogFooter className="flex items-center justify-between sm:justify-between gap-2 pt-2">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={handleClearCell}
-              className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-xl"
+              className="text-xs text-destructive hover:bg-destructive/10 rounded-xl"
             >
-              <Trash2 className="h-3.5 w-3.5 mr-1" />
-              Clear Slot
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear Slot
             </Button>
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1198,24 +1482,23 @@ const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCategories }
                 type="button"
                 size="sm"
                 onClick={handleSaveCellEdit}
-                className="text-xs bg-primary hover:bg-primary/90 text-white font-bold rounded-xl px-4"
+                className="text-xs rounded-xl font-bold"
               >
-                Apply Slot
+                Done
               </Button>
             </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </>
-      )}
 
-      {/* AI Timetable Photo Extractor Modal */}
+      {/* OCR Timetable Photo Extractor Modal */}
       <TimetablePhotoExtractorModal
         open={isExtractorModalOpen}
         onOpenChange={setIsExtractorModalOpen}
         selectedCategory={selectedCategory}
         knownSubjects={subjects}
         knownTeachers={teachers}
+        classSubjectTeachers={classAssignmentsMap[selectedCategory]?.subjectTeachers}
         onApply={handleApplyExtractedTimetable}
       />
     </div>

@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* Smartboard canvas background styles */
+.canvas-bg-chalkboard {
+  background-color: #1a3c2c;
+  background-image: radial-gradient(#24533c 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-bg-slate {
+  background-color: #0d1117;
+  background-image: radial-gradient(#1c2433 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.canvas-bg-whiteboard {
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-bg-lined {
+  background-color: #fcfbf9;
+  background-image: repeating-linear-gradient(#fcfbf9, #fcfbf9 31px, #93c5fd 32px);
+}
+
+.canvas-bg-grid {
+  background-color: #0f172a;
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.1) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.canvas-bg-dots {
+  background-color: #111827;
+  background-image: radial-gradient(#4b5563 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+
+/* Custom scrollbars for smartboard touch */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.8);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 1);
+}

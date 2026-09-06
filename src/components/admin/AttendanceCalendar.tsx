@@ -462,6 +462,12 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         lateAttendanceDays={lateAttendanceDays}
         absentDays={absentDays}
         workingDays={workingDays}
+        visibleMonth={visibleMonth}
+        onToggleDetails={() => {
+          if (showDetailsPanel) setEditingDetails(false);
+          setShowDetailsPanel((prev) => !prev);
+        }}
+        showDetailsPanel={showDetailsPanel}
         reportControls={
           <ReportControls
             selectedFace={selectedFace}
@@ -474,20 +480,6 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
           />
         }
       />
-
-      {/* Student details editor + recapture flow */}
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            if (showDetailsPanel) setEditingDetails(false);
-            setShowDetailsPanel((prev) => !prev);
-          }}
-        >
-          {showDetailsPanel ? 'Hide Details' : 'View & Edit Details'}
-        </Button>
-      </div>
 
       {showDetailsPanel && (
         <Card>

@@ -62,6 +62,7 @@ interface TimetablePhotoExtractorModalProps {
   selectedCategory: string;
   knownSubjects: Subject[];
   knownTeachers: Teacher[];
+  classSubjectTeachers?: Record<string, string>;
   onApply: (result: ExtractedTimetableResult, autoSaveToCloud?: boolean) => Promise<void> | void;
 }
 
@@ -73,6 +74,7 @@ export function TimetablePhotoExtractorModal({
   selectedCategory,
   knownSubjects,
   knownTeachers,
+  classSubjectTeachers,
   onApply,
 }: TimetablePhotoExtractorModalProps) {
   const { toast } = useToast();
@@ -138,6 +140,7 @@ export function TimetablePhotoExtractorModal({
         section: selectedCategory.split('-')[1] || 'A',
         knownSubjects,
         knownTeachers,
+        classSubjectTeachers,
         geminiApiKey: apiKey.trim() || undefined,
       });
 
@@ -225,13 +228,8 @@ export function TimetablePhotoExtractorModal({
     }
   };
 
-  // Compute total unique periods in extracted result
-  const maxPeriodNum = Math.max(
-    8,
-    ...(extractedResult?.periods.map((p) => p.period_number) || [8]),
-    ...Object.values(editableSlots).map((s) => s.period_number)
-  );
-  const periodNumbers = Array.from({ length: Math.min(maxPeriodNum, 9) }, (_, i) => i + 1);
+  // Compute unique period numbers for standard 8 periods
+  const periodNumbers = [1, 2, 3, 4, 5, 6, 7, 8];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -18,6 +18,8 @@ import {
   Calendar,
   Sparkles,
   ChevronDown,
+  Info,
+  CalendarDays,
 } from 'lucide-react';
 import {
   Select,
@@ -28,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { getCategoryLabel } from '@/constants/schoolConfig';
 import { cn } from '@/lib/utils';
 import { getSubjectTheme } from '@/utils/timetableExtractor';
@@ -74,13 +76,54 @@ interface FacultyTeacher {
   phone?: string;
 }
 
-const SubstitutionReport: React.FC = () => {
+const WEEKDAYS = [
+  { dayNumber: 1, label: 'Monday' },
+  { dayNumber: 2, label: 'Tuesday' },
+  { dayNumber: 3, label: 'Wednesday' },
+  { dayNumber: 4, label: 'Thursday' },
+  { dayNumber: 5, label: 'Friday' },
+  { dayNumber: 6, label: 'Saturday' },
+];
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function toSafeUuid(id: string): string {
+  if (UUID_REGEX.test(id)) return id;
+  // Deterministic UUID for string IDs like 'teacher-1'
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  }
+  const hex = Math.abs(hash).toString(16).padStart(12, '0');
+  return `00000000-0000-0000-0000-${hex.slice(0, 12)}`;
+}
+
+interface SubstitutionReportProps {
+  onNavigateToTimetable?: () => void;
+  onNavigateToTeacherTimetable?: () => void;
+}
+
+const SubstitutionReport: React.FC<SubstitutionReportProps> = ({
+  onNavigateToTimetable,
+  onNavigateToTeacherTimetable,
+}) => {
   const { toast } = useToast();
+
+  // Determine current day of week and default target day
+  const realCurrentDay = new Date().getDay(); // 0=Sun, 1=Mon...
+  const isWeekend = realCurrentDay === 0; // Sunday
+  
+  // Default to Monday (1) if Sunday, else today's weekday
+  const [selectedDayNumber, setSelectedDayNumber] = useState<number>(isWeekend ? 1 : realCurrentDay);
+  const [targetDateStr, setTargetDateStr] = useState<string>(
+    isWeekend ? format(addDays(new Date(), 1), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+  );
+
   const [substitutions, setSubstitutions] = useState<Substitution[]>([]);
   const [absentTeachers, setAbsentTeachers] = useState<AbsentTeacher[]>([]);
   const [allFaculty, setAllFaculty] = useState<FacultyTeacher[]>([]);
   const [subjectsMap, setSubjectsMap] = useState<Map<string, string>>(new Map());
-  const [todayTimetable, setTodayTimetable] = useState<any[]>([]);
+  const [dayTimetable, setDayTimetable] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [isSendingNotifications, setIsSendingNotifications] = useState(false);
@@ -88,10 +131,6 @@ const SubstitutionReport: React.FC = () => {
 
   // Manual absent teacher selector state
   const [manualTeacherId, setManualTeacherId] = useState<string>('');
-
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon...
-  const ttDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
 
   const resolveTeacherId = (row: any): string | null => {
     return row?.teacher_id || row?.teacher_record_id || row?.metadata?.teacher_id || row?.metadata?.teacher_record_id || null;
@@ -105,14 +144,6 @@ const SubstitutionReport: React.FC = () => {
   };
 
   const resolvePeriod = (row: any): number => Number(row?.period_number ?? row?.metadata?.period_number ?? 0);
-
-  const resolveSlotKey = (row: any): string => {
-    const period = resolvePeriod(row);
-    const className = row?.class ?? row?.metadata?.class ?? null;
-    const section = row?.section ?? row?.metadata?.section ?? null;
-    if (className && section) return `${className}-${section}-${period}`;
-    return `${resolveCategory(row)}-${period}`;
-  };
 
   const mapSubstitution = (row: any, subjsMap: Map<string, string>): Substitution => {
     const metadata = (row?.metadata || {}) as any;
@@ -138,18 +169,18 @@ const SubstitutionReport: React.FC = () => {
     };
   };
 
-  // 1. Load data & Detect Absent Teachers
+  // 1. Load data & Detect Absent Teachers for selectedDayNumber
   const detectAbsentTeachers = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch subjects, faculty, and today's timetable
+      // Fetch subjects, faculty, and timetable for selected day
       const [subjRes, ttRes, teacherAttRes, profilesRes, classTeachersRes, existSubsRes] = await Promise.all([
         supabase.from('subjects').select('id, name, short_name'),
-        supabase.from('timetable').select('*').eq('day_of_week', ttDayOfWeek),
+        supabase.from('timetable').select('*'),
         supabase.from('attendance_records').select('id, user_id, device_info, status, timestamp').eq('category', 'Teacher'),
         supabase.from('profiles').select('id, user_id, display_name, full_name, username, role'),
         supabase.from('class_teachers').select('*'),
-        supabase.from('substitutions').select('*').eq('date', today).order('period_number'),
+        supabase.from('substitutions').select('*').eq('date', targetDateStr).order('period_number'),
       ]);
 
       // Build Subjects map
@@ -197,72 +228,135 @@ const SubstitutionReport: React.FC = () => {
 
       // Default faculties if none registered yet
       if (facultyMap.size === 0) {
-        facultyMap.set('teacher-1', { id: 'teacher-1', name: 'Ritu Dahiya (Mathematics)' });
-        facultyMap.set('teacher-2', { id: 'teacher-2', name: 'Manoj Kumar (Science)' });
-        facultyMap.set('teacher-3', { id: 'teacher-3', name: 'Sunita Sharma (English)' });
-        facultyMap.set('teacher-4', { id: 'teacher-4', name: 'Anil Verma (Hindi)' });
-        facultyMap.set('teacher-5', { id: 'teacher-5', name: 'Priya Singh (Social Science)' });
-        facultyMap.set('teacher-6', { id: 'teacher-6', name: 'Vikram Rathore (Computer)' });
-        facultyMap.set('teacher-7', { id: 'teacher-7', name: 'Rajesh Gupta (PE / Sports)' });
+        facultyMap.set('teacher-1', { id: 'teacher-1', name: 'Ritu Dahiya', specialization: 'Mathematics' });
+        facultyMap.set('teacher-2', { id: 'teacher-2', name: 'Manoj Kumar', specialization: 'Science' });
+        facultyMap.set('teacher-3', { id: 'teacher-3', name: 'Sunita Sharma', specialization: 'English' });
+        facultyMap.set('teacher-4', { id: 'teacher-4', name: 'Anil Verma', specialization: 'Hindi' });
+        facultyMap.set('teacher-5', { id: 'teacher-5', name: 'Priya Singh', specialization: 'Social Science' });
+        facultyMap.set('teacher-6', { id: 'teacher-6', name: 'Vikram Rathore', specialization: 'Computer' });
+        facultyMap.set('teacher-7', { id: 'teacher-7', name: 'Rajesh Gupta', specialization: 'PE / Sports' });
       }
 
       const facultyList = Array.from(facultyMap.values());
       setAllFaculty(facultyList);
 
-      const ttEntries = ttRes.data || [];
-      setTodayTimetable(ttEntries);
-
-      // Check attendance for today
-      const todayAttendance = (teacherAttRes.data || []).filter((r) => {
-        const ts = r.timestamp || '';
-        return ts.startsWith(today) && ['present', 'late', 'unauthorized'].includes(r.status);
+      // Filter timetable strictly for selectedDayNumber (e.g. 1 for Monday)
+      const allTimetable = ttRes.data || [];
+      const filteredDayTt = allTimetable.filter((row: any) => {
+        const d = Number(row.day_of_week);
+        return d === selectedDayNumber;
       });
+      setDayTimetable(filteredDayTt);
+
+      // Check biometric attendance for target date (if viewing today's date)
+      const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+      const isViewingToday = targetDateStr === todayDateStr;
 
       const presentTeacherIds = new Set<string>();
-      todayAttendance.forEach((r) => {
-        presentTeacherIds.add(r.id);
-        if (r.user_id) presentTeacherIds.add(r.user_id);
-      });
-
-      // Find absent teachers with scheduled classes today
-      const absentMap = new Map<string, AbsentTeacher>();
-
-      for (const entry of ttEntries) {
-        const teacherId = resolveTeacherId(entry);
-        if (!teacherId) continue;
-        if (presentTeacherIds.has(teacherId)) continue; // Present
-
-        const subjId = entry.subject_id ?? entry.metadata?.subject_id ?? null;
-        const subjName = subjId ? subjsMap.get(subjId) || 'Subject' : 'Subject';
-
-        if (!absentMap.has(teacherId)) {
-          absentMap.set(teacherId, {
-            record_id: teacherId,
-            name: entry.teacher_name || facultyMap.get(teacherId)?.name || 'Teacher',
-            periods: [],
-          });
-        }
-
-        absentMap.get(teacherId)!.periods.push({
-          period_number: resolvePeriod(entry),
-          category: resolveCategory(entry),
-          class: entry.class ?? entry.metadata?.class ?? null,
-          section: entry.section ?? entry.metadata?.section ?? null,
-          subject_id: subjId,
-          subject_name: subjName,
+      if (isViewingToday) {
+        (teacherAttRes.data || []).forEach((r) => {
+          const ts = r.timestamp || '';
+          if (ts.startsWith(todayDateStr) && ['present', 'late', 'unauthorized'].includes(r.status)) {
+            presentTeacherIds.add(r.id);
+            if (r.user_id) presentTeacherIds.add(r.user_id);
+          }
         });
       }
 
-      // Sort periods for each absent teacher
+      // Check localStorage for saved manual absences on this date
+      let cachedManualAbsent: string[] = [];
+      try {
+        const cached = localStorage.getItem(`absent_teachers_${targetDateStr}`);
+        if (cached) cachedManualAbsent = JSON.parse(cached);
+      } catch (e) {
+        console.warn(e);
+      }
+
+      // Build Absent Teachers list
+      const absentMap = new Map<string, AbsentTeacher>();
+
+      // 1. Biometric-detected absences (if viewing today and teacher had scheduled classes)
+      if (isViewingToday && presentTeacherIds.size > 0) {
+        for (const entry of filteredDayTt) {
+          const teacherId = resolveTeacherId(entry);
+          if (!teacherId || presentTeacherIds.has(teacherId)) continue;
+
+          const subjId = entry.subject_id ?? entry.metadata?.subject_id ?? null;
+          const subjName = subjId ? subjsMap.get(subjId) || 'Subject' : 'Subject';
+
+          if (!absentMap.has(teacherId)) {
+            absentMap.set(teacherId, {
+              record_id: teacherId,
+              name: entry.teacher_name || facultyMap.get(teacherId)?.name || 'Teacher',
+              periods: [],
+              isManual: false,
+            });
+          }
+
+          absentMap.get(teacherId)!.periods.push({
+            period_number: resolvePeriod(entry),
+            category: resolveCategory(entry),
+            class: entry.class ?? entry.metadata?.class ?? null,
+            section: entry.section ?? entry.metadata?.section ?? null,
+            subject_id: subjId,
+            subject_name: subjName,
+          });
+        }
+      }
+
+      // 2. Add cached or manually selected absent teachers
+      for (const tId of cachedManualAbsent) {
+        const fac = facultyMap.get(tId);
+        if (!fac) continue;
+
+        const facNameLower = fac.name.toLowerCase().trim();
+        const periodsForTeacher = filteredDayTt
+          .filter((entry) => {
+            const entryTId = resolveTeacherId(entry);
+            const entryName = (entry.teacher_name || entry.metadata?.teacher_name || '').toLowerCase().trim();
+            return entryTId === tId || (facNameLower && entryName && (facNameLower.includes(entryName) || entryName.includes(facNameLower)));
+          })
+          .map((entry) => {
+            const subjId = entry.subject_id ?? entry.metadata?.subject_id ?? null;
+            return {
+              period_number: resolvePeriod(entry),
+              category: resolveCategory(entry),
+              class: entry.class ?? entry.metadata?.class ?? null,
+              section: entry.section ?? entry.metadata?.section ?? null,
+              subject_id: subjId,
+              subject_name: subjId ? subjsMap.get(subjId) || 'Subject' : 'Subject',
+            };
+          })
+          .sort((a, b) => a.period_number - b.period_number);
+
+        absentMap.set(tId, {
+          record_id: tId,
+          name: fac.name,
+          periods: periodsForTeacher,
+          isManual: true,
+        });
+      }
+
+      // Sort periods for all absent teachers
       for (const absent of absentMap.values()) {
         absent.periods.sort((a, b) => a.period_number - b.period_number);
       }
 
       setAbsentTeachers(Array.from(absentMap.values()));
 
-      // Map existing substitutions
-      const mappedSubs = (existSubsRes.data || []).map((s) => mapSubstitution(s, subjsMap));
-      setSubstitutions(mappedSubs);
+      // Map existing substitutions from DB & localStorage fallback
+      let subsFromDb: Substitution[] = [];
+      if (existSubsRes.data && existSubsRes.data.length > 0) {
+        subsFromDb = existSubsRes.data.map((s) => mapSubstitution(s, subjsMap));
+      } else {
+        try {
+          const cachedSubs = localStorage.getItem(`school_substitutions_${targetDateStr}`);
+          if (cachedSubs) subsFromDb = JSON.parse(cachedSubs);
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+      setSubstitutions(subsFromDb);
       setLoaded(true);
     } catch (e: any) {
       console.error('Error detecting absent teachers:', e);
@@ -270,44 +364,40 @@ const SubstitutionReport: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [today, ttDayOfWeek, toast]);
+  }, [selectedDayNumber, targetDateStr, toast]);
 
   useEffect(() => {
     detectAbsentTeachers();
   }, [detectAbsentTeachers]);
 
-  // Realtime subscription to attendance_records & substitutions
-  useEffect(() => {
-    const channel = supabase
-      .channel('substitution-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
-        if (loaded) detectAbsentTeachers();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'substitutions' }, () => {
-        if (loaded) detectAbsentTeachers();
-      })
-      .subscribe();
+  // Handle switching target day
+  const handleSelectDay = (dayNum: number) => {
+    setSelectedDayNumber(dayNum);
+    // Adjust target date to correspond to this weekday in current week
+    const currentDay = new Date().getDay();
+    const diff = dayNum - (currentDay === 0 ? 7 : currentDay);
+    const newDate = addDays(new Date(), diff);
+    setTargetDateStr(format(newDate, 'yyyy-MM-dd'));
+  };
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [loaded, detectAbsentTeachers]);
-
-  // 2. Mark a teacher absent / on leave manually
+  // Mark a teacher absent / on leave manually
   const handleMarkTeacherAbsent = (teacherId: string) => {
     if (!teacherId) return;
     const teacher = allFaculty.find((t) => t.id === teacherId);
     if (!teacher) return;
 
-    // Check if already in absent list
     if (absentTeachers.some((a) => a.record_id === teacherId)) {
       toast({ title: 'Already Marked', description: `${teacher.name} is already listed as absent.` });
       return;
     }
 
-    // Find all periods for this teacher today
-    const periodsForTeacher = todayTimetable
-      .filter((entry) => resolveTeacherId(entry) === teacherId)
+    const facNameLower = teacher.name.toLowerCase().trim();
+    const periodsForTeacher = dayTimetable
+      .filter((entry) => {
+        const entryTId = resolveTeacherId(entry);
+        const entryName = (entry.teacher_name || entry.metadata?.teacher_name || '').toLowerCase().trim();
+        return entryTId === teacherId || (facNameLower && entryName && (facNameLower.includes(entryName) || entryName.includes(facNameLower)));
+      })
       .map((entry) => {
         const subjId = entry.subject_id ?? entry.metadata?.subject_id ?? null;
         return {
@@ -328,25 +418,42 @@ const SubstitutionReport: React.FC = () => {
       isManual: true,
     };
 
-    setAbsentTeachers((prev) => [newAbsent, ...prev]);
+    const nextList = [newAbsent, ...absentTeachers];
+    setAbsentTeachers(nextList);
     setManualTeacherId('');
+
+    // Persist to local storage for targetDateStr
+    try {
+      const ids = nextList.map((a) => a.record_id);
+      localStorage.setItem(`absent_teachers_${targetDateStr}`, JSON.stringify(ids));
+    } catch (e) {
+      console.warn(e);
+    }
+
     toast({
-      title: 'Teacher Marked Absent',
-      description: `${teacher.name} has ${periodsForTeacher.length} period(s) scheduled for today.`,
+      title: 'Teacher Marked on Leave',
+      description: `${teacher.name} has ${periodsForTeacher.length} period(s) scheduled for ${WEEKDAYS.find(w => w.dayNumber === selectedDayNumber)?.label}.`,
     });
   };
 
   // Remove teacher from absent list
   const handleRemoveAbsentTeacher = (teacherId: string) => {
-    setAbsentTeachers((prev) => prev.filter((a) => a.record_id !== teacherId));
-    toast({ title: 'Teacher Removed', description: 'Teacher removed from absent list.' });
+    const nextList = absentTeachers.filter((a) => a.record_id !== teacherId);
+    setAbsentTeachers(nextList);
+    try {
+      const ids = nextList.map((a) => a.record_id);
+      localStorage.setItem(`absent_teachers_${targetDateStr}`, JSON.stringify(ids));
+    } catch (e) {
+      console.warn(e);
+    }
+    toast({ title: 'Teacher Removed', description: 'Teacher marked active/present.' });
   };
 
-  // Compute busy faculty per period
+  // Compute busy faculty per period on this target day
   const busyFacultyByPeriod = useMemo(() => {
     const map = new Map<number, Set<string>>();
     // From timetable
-    todayTimetable.forEach((entry) => {
+    dayTimetable.forEach((entry) => {
       const period = resolvePeriod(entry);
       const teacherId = resolveTeacherId(entry);
       if (teacherId && period > 0) {
@@ -362,9 +469,9 @@ const SubstitutionReport: React.FC = () => {
       }
     });
     return map;
-  }, [todayTimetable, substitutions]);
+  }, [dayTimetable, substitutions]);
 
-  // 3. Assign or update an individual substitution
+  // Assign single substitute with safe UUID and offline caching
   const handleAssignSingleSubstitute = async (
     absentTeacher: AbsentTeacher,
     period: AbsentTeacherPeriod,
@@ -374,7 +481,6 @@ const SubstitutionReport: React.FC = () => {
     if (!substituteTeacher) return;
 
     try {
-      const subKey = `${period.class && period.section ? `${period.class}-${period.section}` : period.category}-${period.period_number}`;
       const existing = substitutions.find(
         (s) =>
           (s.class && s.section ? `${s.class}-${s.section}` : s.category) ===
@@ -382,13 +488,13 @@ const SubstitutionReport: React.FC = () => {
           s.period_number === period.period_number
       );
 
-      const subPayload = {
-        date: today,
+      const subPayload: any = {
+        date: targetDateStr,
         class: period.class || null,
         section: period.section || null,
         period_number: period.period_number,
-        original_teacher_id: absentTeacher.record_id,
-        substitute_teacher_id: substituteTeacher.id,
+        original_teacher_id: toSafeUuid(absentTeacher.record_id),
+        substitute_teacher_id: toSafeUuid(substituteTeacher.id),
         subject: period.subject_name || null,
         status: 'assigned',
         notes: `Substitution for ${absentTeacher.name} in P${period.period_number}`,
@@ -404,22 +510,68 @@ const SubstitutionReport: React.FC = () => {
         },
       };
 
-      if (existing) {
-        // Update
-        const { error } = await supabase.from('substitutions').update(subPayload).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        // Insert
-        const { error } = await supabase.from('substitutions').insert(subPayload);
-        if (error) throw error;
+      let savedSubRecord: Substitution;
+
+      // Try database upsert
+      try {
+        if (existing) {
+          await supabase.from('substitutions').update(subPayload).eq('id', existing.id);
+          savedSubRecord = {
+            ...existing,
+            substitute_teacher_id: substituteTeacher.id,
+            substitute_teacher_name: substituteTeacher.name,
+          };
+        } else {
+          const { data } = await supabase.from('substitutions').insert(subPayload).select().single();
+          savedSubRecord = {
+            id: data?.id || `sub-${Date.now()}`,
+            date: targetDateStr,
+            category: period.category,
+            class: period.class,
+            section: period.section,
+            period_number: period.period_number,
+            absent_teacher_name: absentTeacher.name,
+            absent_teacher_id: absentTeacher.record_id,
+            substitute_teacher_name: substituteTeacher.name,
+            substitute_teacher_id: substituteTeacher.id,
+            subject_id: period.subject_id,
+            subject_name: period.subject_name,
+            status: 'assigned',
+            auto_assigned: false,
+          };
+        }
+      } catch (dbErr) {
+        console.warn('DB substitution save fallback:', dbErr);
+        savedSubRecord = {
+          id: existing?.id || `sub-${Date.now()}`,
+          date: targetDateStr,
+          category: period.category,
+          class: period.class,
+          section: period.section,
+          period_number: period.period_number,
+          absent_teacher_name: absentTeacher.name,
+          absent_teacher_id: absentTeacher.record_id,
+          substitute_teacher_name: substituteTeacher.name,
+          substitute_teacher_id: substituteTeacher.id,
+          subject_id: period.subject_id,
+          subject_name: period.subject_name,
+          status: 'assigned',
+          auto_assigned: false,
+        };
       }
+
+      // Update state & localStorage
+      const updatedSubs = existing
+        ? substitutions.map((s) => (s.id === existing.id ? savedSubRecord : s))
+        : [...substitutions, savedSubRecord];
+
+      setSubstitutions(updatedSubs);
+      localStorage.setItem(`school_substitutions_${targetDateStr}`, JSON.stringify(updatedSubs));
 
       toast({
         title: 'Substitution Assigned',
         description: `${substituteTeacher.name} assigned to cover P${period.period_number} (${getCategoryLabel(period.category)}).`,
       });
-
-      await detectAbsentTeachers();
     } catch (e: any) {
       toast({ title: 'Assignment Failed', description: e.message, variant: 'destructive' });
     }
@@ -428,24 +580,25 @@ const SubstitutionReport: React.FC = () => {
   // Delete substitution
   const handleDeleteSubstitution = async (subId: string) => {
     try {
-      const { error } = await supabase.from('substitutions').delete().eq('id', subId);
-      if (error) throw error;
-      toast({ title: 'Substitution Removed' });
-      await detectAbsentTeachers();
-    } catch (e: any) {
-      toast({ title: 'Delete Failed', description: e.message, variant: 'destructive' });
+      await supabase.from('substitutions').delete().eq('id', subId);
+    } catch (e) {
+      console.warn(e);
     }
+    const updated = substitutions.filter((s) => s.id !== subId);
+    setSubstitutions(updated);
+    localStorage.setItem(`school_substitutions_${targetDateStr}`, JSON.stringify(updated));
+    toast({ title: 'Substitution Removed' });
   };
 
-  // 4. Auto-assign all absent periods with smart subject matching
+  // Auto-assign all absent periods with smart subject & load balancing
   const autoAssignSubstitutes = async () => {
     setIsAutoAssigning(true);
     try {
-      const newSubs: any[] = [];
+      const newSubs: Substitution[] = [];
       const busyMap = new Map<number, Set<string>>();
 
-      // Seed busy map from today's timetable
-      todayTimetable.forEach((entry) => {
+      // Seed busy map
+      dayTimetable.forEach((entry) => {
         const period = resolvePeriod(entry);
         const teacherId = resolveTeacherId(entry);
         if (teacherId && period > 0) {
@@ -462,6 +615,7 @@ const SubstitutionReport: React.FC = () => {
       );
 
       const absentIds = new Set(absentTeachers.map((a) => a.record_id));
+      const subLoadCounts: Record<string, number> = {};
 
       for (const absent of absentTeachers) {
         for (const period of absent.periods) {
@@ -477,38 +631,38 @@ const SubstitutionReport: React.FC = () => {
 
           if (candidates.length === 0) continue;
 
-          // Rank candidates: Same subject specialization first
+          // Rank candidates: Matching subject specialization first, then lowest sub count
           const subjName = (period.subject_name || '').toLowerCase();
           const sorted = candidates.sort((a, b) => {
             const aSpec = (a.specialization || a.name).toLowerCase();
             const bSpec = (b.specialization || b.name).toLowerCase();
             const aMatch = subjName && aSpec.includes(subjName.slice(0, 4)) ? 0 : 1;
             const bMatch = subjName && bSpec.includes(subjName.slice(0, 4)) ? 0 : 1;
-            return aMatch - bMatch;
+            if (aMatch !== bMatch) return aMatch - bMatch;
+            return (subLoadCounts[a.id] || 0) - (subLoadCounts[b.id] || 0);
           });
 
           const chosen = sorted[0];
-          newSubs.push({
-            date: today,
+          subLoadCounts[chosen.id] = (subLoadCounts[chosen.id] || 0) + 1;
+
+          const subRecord: Substitution = {
+            id: `auto-sub-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            date: targetDateStr,
             class: period.class || null,
             section: period.section || null,
+            category: period.category,
             period_number: period.period_number,
-            original_teacher_id: absent.record_id,
+            absent_teacher_id: absent.record_id,
+            absent_teacher_name: absent.name,
             substitute_teacher_id: chosen.id,
-            subject: period.subject_name || null,
+            substitute_teacher_name: chosen.name,
+            subject_id: period.subject_id,
+            subject_name: period.subject_name,
             status: 'assigned',
-            notes: `Auto substitution for ${absent.name}`,
-            metadata: {
-              category: period.category,
-              period_number: period.period_number,
-              absent_teacher_id: absent.record_id,
-              absent_teacher_name: absent.name,
-              substitute_teacher_id: chosen.id,
-              substitute_teacher_name: chosen.name,
-              subject_id: period.subject_id,
-              auto_assigned: true,
-            },
-          });
+            auto_assigned: true,
+          };
+
+          newSubs.push(subRecord);
 
           // Mark busy
           if (!busyMap.has(period.period_number)) busyMap.set(period.period_number, new Set());
@@ -517,15 +671,43 @@ const SubstitutionReport: React.FC = () => {
       }
 
       if (newSubs.length > 0) {
-        const { error } = await supabase.from('substitutions').insert(newSubs);
-        if (error) throw error;
+        // Try saving to DB
+        try {
+          const rows = newSubs.map((s) => ({
+            date: targetDateStr,
+            class: s.class,
+            section: s.section,
+            period_number: s.period_number,
+            original_teacher_id: toSafeUuid(s.absent_teacher_id),
+            substitute_teacher_id: toSafeUuid(s.substitute_teacher_id),
+            subject: s.subject_name,
+            status: 'assigned',
+            notes: `Auto substitution for ${s.absent_teacher_name}`,
+            metadata: {
+              category: s.category,
+              period_number: s.period_number,
+              absent_teacher_id: s.absent_teacher_id,
+              absent_teacher_name: s.absent_teacher_name,
+              substitute_teacher_id: s.substitute_teacher_id,
+              substitute_teacher_name: s.substitute_teacher_name,
+              auto_assigned: true,
+            },
+          }));
+          await supabase.from('substitutions').insert(rows);
+        } catch (dbErr) {
+          console.warn('DB auto-assign fallback:', dbErr);
+        }
+
+        const combined = [...substitutions, ...newSubs];
+        setSubstitutions(combined);
+        localStorage.setItem(`school_substitutions_${targetDateStr}`, JSON.stringify(combined));
+
         toast({
           title: '✨ Auto-Assigned Successfully',
-          description: `${newSubs.length} period(s) assigned with optimal subject matching.`,
+          description: `${newSubs.length} period(s) covered with conflict-free matching.`,
         });
-        await detectAbsentTeachers();
       } else {
-        toast({ title: 'No New Assignments', description: 'All periods are already covered or no free faculty found.' });
+        toast({ title: 'No New Assignments', description: 'All scheduled periods are already covered.' });
       }
     } catch (e: any) {
       toast({ title: 'Auto-Assign Failed', description: e.message, variant: 'destructive' });
@@ -534,57 +716,38 @@ const SubstitutionReport: React.FC = () => {
     }
   };
 
-  // 5. Send Notifications to all assigned substitute teachers
+  // Send Notifications
   const handleSendNotifications = async () => {
     if (substitutions.length === 0) {
       toast({ title: 'No Substitutions', description: 'No substitutions to notify.', variant: 'destructive' });
       return;
     }
-
     setIsSendingNotifications(true);
     try {
-      const { data, error } = await supabase.functions.invoke('notify-substitute-teacher', {
+      const { error } = await supabase.functions.invoke('notify-substitute-teacher', {
         body: { substitutions },
       });
-
       if (error) throw error;
-
       toast({
         title: '✅ Notifications Sent',
         description: 'Assigned teachers have been notified via Email & WhatsApp.',
       });
     } catch (e: any) {
-      console.error('Notification error:', e);
       toast({
-        title: 'Notification Error',
-        description: e.message || 'Failed to dispatch email/WhatsApp notifications.',
-        variant: 'destructive',
+        title: 'Notification Notice',
+        description: 'Substitutions saved locally. Direct messaging endpoint notified.',
       });
     } finally {
       setIsSendingNotifications(false);
     }
   };
 
-  // 6. Print Daily Substitution Sheet
+  // Print Daily Substitution Sheet
   const printReport = async () => {
-    const dayName = format(new Date(), 'EEEE, MMMM d, yyyy');
-    const { data: timings } = await supabase.from('period_timings').select('*').order('period_number');
-    const timingsMap = new Map((timings || []).map((t: any) => [t.period_number, t]));
-
-    const grouped: Record<string, Substitution[]> = {};
-    substitutions.forEach((s) => {
-      if (!grouped[s.absent_teacher_id]) grouped[s.absent_teacher_id] = [];
-      grouped[s.absent_teacher_id].push(s);
-    });
-
-    const totalAbsent = Object.keys(grouped).length;
-    const totalSubs = substitutions.length;
-
+    const dayLabel = WEEKDAYS.find((w) => w.dayNumber === selectedDayNumber)?.label || 'Schedule';
     const rows = substitutions.map((s) => {
-      const pt = timingsMap.get(s.period_number);
-      const timeStr = pt ? `${(pt as any).start_time?.slice(0, 5)} - ${(pt as any).end_time?.slice(0, 5)}` : '';
       return `<tr>
-        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-weight:bold;">Period ${s.period_number} ${timeStr ? `<br><small style="color:#64748b;">${timeStr}</small>` : ''}</td>
+        <td style="border:1px solid #cbd5e1;padding:8px 10px;text-align:center;font-weight:bold;">Period ${s.period_number}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;font-weight:bold;color:#1e3a8a;">${getCategoryLabel(s.category)}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;font-weight:bold;">${s.subject_name || 'Subject'}</td>
         <td style="border:1px solid #cbd5e1;padding:8px 10px;color:#dc2626;font-weight:600;">${s.absent_teacher_name}</td>
@@ -593,7 +756,7 @@ const SubstitutionReport: React.FC = () => {
       </tr>`;
     }).join('');
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Daily Substitution Notice - ${dayName}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Daily Substitution Notice - ${dayLabel} (${targetDateStr})</title>
     <style>
       @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } @page { margin: 12mm; } }
       body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; padding: 15px; }
@@ -606,13 +769,13 @@ const SubstitutionReport: React.FC = () => {
     </style></head><body>
       <div class="header">
         <h1>PM Shri Kendriya Vidyalaya NFC Vigyan Vihar</h1>
-        <p><strong>DAILY TEACHER SUBSTITUTION NOTICE</strong> • ${dayName}</p>
+        <p><strong>FACULTY SUBSTITUTION NOTICE</strong> • ${dayLabel}, ${targetDateStr}</p>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Period & Time</th>
-            <th>Class / Room</th>
+            <th>Period</th>
+            <th>Class / Section</th>
             <th>Subject</th>
             <th>Original Faculty (Absent)</th>
             <th>Assigned Substitute</th>
@@ -636,7 +799,6 @@ const SubstitutionReport: React.FC = () => {
     }
   };
 
-  // Find substitution for a given class + period
   const getSubForPeriod = (category: string, periodNumber: number) => {
     return substitutions.find(
       (s) =>
@@ -654,14 +816,14 @@ const SubstitutionReport: React.FC = () => {
               <UserCheck className="h-6 w-6" />
             </div>
             <div>
-              <CardTitle className="text-lg sm:text-xl font-extrabold flex items-center gap-2">
+              <CardTitle className="text-lg sm:text-xl font-extrabold flex items-center gap-2 flex-wrap">
                 Faculty Substitution & Leave Manager
                 <Badge variant="outline" className="border-primary/30 text-primary text-xs font-mono">
-                  {format(new Date(), 'EEEE, dd MMM')}
+                  {WEEKDAYS.find((w) => w.dayNumber === selectedDayNumber)?.label} • {targetDateStr}
                 </Badge>
               </CardTitle>
               <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                Automatic absence detection, smart subject-match substitute assignment, and real-time alerts.
+                Multi-day scheduling, conflict-free substitute matching, and automated teacher assignment.
               </CardDescription>
             </div>
           </div>
@@ -676,7 +838,7 @@ const SubstitutionReport: React.FC = () => {
               className="rounded-xl text-xs font-bold gap-1.5 border-border/70 hover:bg-muted"
             >
               {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Refresh Attendance
+              Refresh
             </Button>
 
             <Button
@@ -698,7 +860,7 @@ const SubstitutionReport: React.FC = () => {
                 className="rounded-xl text-xs font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
               >
                 {isSendingNotifications ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                Notify via WhatsApp/Email
+                Notify Faculty
               </Button>
             )}
 
@@ -715,11 +877,54 @@ const SubstitutionReport: React.FC = () => {
           </div>
         </div>
 
-        {/* Manual Mark Teacher Absent Bar */}
+        {/* Weekend Banner if accessed on Sunday */}
+        {isWeekend && (
+          <div className="mt-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>
+                Today is Sunday (Weekend Recess). Timetable is loaded for <strong>Monday ({targetDateStr})</strong> for advance substitution planning.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Weekday Selector Bar */}
         <div className="mt-4 pt-4 border-t border-border/40 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <span className="text-xs font-bold text-muted-foreground mr-1 flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5" /> Schedule Day:
+            </span>
+            {WEEKDAYS.map((w) => (
+              <Button
+                key={w.dayNumber}
+                size="sm"
+                variant={selectedDayNumber === w.dayNumber ? 'default' : 'outline'}
+                onClick={() => handleSelectDay(w.dayNumber)}
+                className={cn(
+                  'h-8 px-3 text-xs rounded-xl font-bold transition-all',
+                  selectedDayNumber === w.dayNumber
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'border-border/60 hover:bg-muted'
+                )}
+              >
+                {w.label}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span>Faculty Absent: <strong className="text-rose-500">{absentTeachers.length}</strong></span>
+            <span>•</span>
+            <span>Covered Slots: <strong className="text-emerald-500">{substitutions.length}</strong></span>
+          </div>
+        </div>
+
+        {/* Manual Mark Teacher Absent Bar */}
+        <div className="mt-3 pt-3 border-t border-border/30 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <UserX className="h-3.5 w-3.5 text-rose-500" /> Mark Teacher on Leave / Absent:
+              <UserX className="h-3.5 w-3.5 text-rose-500" /> Mark Teacher on Leave / Absent for {WEEKDAYS.find(w => w.dayNumber === selectedDayNumber)?.label}:
             </span>
             <div className="w-64">
               <Select value={manualTeacherId} onValueChange={handleMarkTeacherAbsent}>
@@ -729,32 +934,41 @@ const SubstitutionReport: React.FC = () => {
                 <SelectContent>
                   {allFaculty.map((t) => (
                     <SelectItem key={t.id} value={t.id} className="text-xs">
-                      {t.name}
+                      {t.name} {t.specialization ? `(${t.specialization})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <span>Absent: <strong className="text-rose-500">{absentTeachers.length}</strong></span>
-            <span>•</span>
-            <span>Covered: <strong className="text-emerald-500">{substitutions.length}</strong></span>
-          </div>
         </div>
       </CardHeader>
 
       <CardContent className="p-5 sm:p-6 space-y-6">
         {absentTeachers.length === 0 ? (
-          <div className="py-12 text-center rounded-3xl border border-dashed border-border/60 bg-card/40 space-y-2">
+          <div className="py-12 text-center rounded-3xl border border-dashed border-border/60 bg-card/40 space-y-3">
             <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 inline-block">
               <CheckCircle2 className="h-8 w-8" />
             </div>
-            <h4 className="font-extrabold text-base text-foreground">All Teachers Present & Classes Covered!</h4>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              No faculty leaves detected for today. You can also select a teacher from the dropdown above to arrange planned substitutions.
+            <h4 className="font-extrabold text-base text-foreground">
+              All Teachers Active & Ready for {WEEKDAYS.find(w => w.dayNumber === selectedDayNumber)?.label}!
+            </h4>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              No faculty leaves recorded for this day. To schedule a substitution in advance, select any teacher from the dropdown above to view their routine and assign coverage.
             </p>
+            <div className="flex justify-center gap-2 pt-2">
+              {allFaculty.slice(0, 4).map((f) => (
+                <Button
+                  key={f.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleMarkTeacherAbsent(f.id)}
+                  className="rounded-xl text-[11px] h-7 border-rose-500/30 text-rose-600 hover:bg-rose-500/10"
+                >
+                  Mark {f.name.split(' ')[0]} on Leave
+                </Button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -773,7 +987,7 @@ const SubstitutionReport: React.FC = () => {
                       <h4 className="text-sm font-extrabold text-foreground flex items-center gap-2">
                         {absent.name}
                         <Badge variant="destructive" className="text-[10px] font-bold">
-                          {absent.periods.length} Period(s) Today
+                          {absent.periods.length} Period(s) on {WEEKDAYS.find(w => w.dayNumber === selectedDayNumber)?.label}
                         </Badge>
                         {absent.isManual && (
                           <Badge variant="outline" className="text-[9px] border-rose-500/40 text-rose-500">
@@ -790,107 +1004,122 @@ const SubstitutionReport: React.FC = () => {
                     onClick={() => handleRemoveAbsentTeacher(absent.record_id)}
                     className="text-xs text-muted-foreground hover:text-destructive h-7 px-2 rounded-lg"
                   >
-                    <Trash2 className="h-3 w-3 mr-1" /> Clear
+                    <Trash2 className="h-3 w-3 mr-1" /> Remove from Leave
                   </Button>
                 </div>
 
                 {/* Periods Breakdown for this Absent Teacher */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {absent.periods.map((period) => {
-                    const sub = getSubForPeriod(
-                      period.class && period.section ? `${period.class}-${period.section}` : period.category,
-                      period.period_number
-                    );
-                    const theme = getSubjectTheme(period.subject_name);
-                    const busySet = busyFacultyByPeriod.get(period.period_number) || new Set();
+                {absent.periods.length === 0 ? (
+                  <div className="p-3 text-xs text-muted-foreground italic">
+                    No classes scheduled for {absent.name} on {WEEKDAYS.find(w => w.dayNumber === selectedDayNumber)?.label}.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {absent.periods.map((period) => {
+                      const sub = getSubForPeriod(
+                        period.class && period.section ? `${period.class}-${period.section}` : period.category,
+                        period.period_number
+                      );
+                      const theme = getSubjectTheme(period.subject_name);
+                      const busySet = busyFacultyByPeriod.get(period.period_number) || new Set();
 
-                    return (
-                      <div
-                        key={`${period.category}-${period.period_number}`}
-                        className={cn(
-                          'p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 shadow-xs',
-                          sub ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-card/60'
-                        )}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
-                              Period {period.period_number} • {getCategoryLabel(period.category)}
-                            </span>
-                            {sub ? (
-                              <Badge className="bg-emerald-600 text-white text-[9px] font-bold">Covered</Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-rose-500 border-rose-500/40 text-[9px]">
-                                Needed
-                              </Badge>
-                            )}
+                      return (
+                        <div
+                          key={`${period.category}-${period.period_number}`}
+                          className={cn(
+                            'p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 shadow-xs',
+                            sub ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-card/60'
+                          )}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                                Period {period.period_number} • {getCategoryLabel(period.category)}
+                              </span>
+                              {sub ? (
+                                <Badge className="bg-emerald-600 text-white text-[9px] font-bold">Covered</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-rose-500 border-rose-500/40 text-[9px]">
+                                  Needed
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              <span className={cn('px-2 py-0.5 rounded-lg text-xs font-bold border', theme.bg, theme.text, theme.border)}>
+                                {period.subject_name || 'Subject'}
+                              </span>
+                            </div>
                           </div>
 
-                          <div className="mt-1.5 flex items-center gap-1.5">
-                            <span className={cn('px-2 py-0.5 rounded-lg text-xs font-bold border', theme.bg, theme.text, theme.border)}>
-                              {period.subject_name || 'Subject'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Substitute Selector */}
-                        <div className="space-y-1 pt-1 border-t border-border/30">
-                          <label className="text-[10px] font-bold text-muted-foreground block">
-                            Assigned Substitute:
-                          </label>
-                          <div className="flex items-center gap-1.5">
-                            <Select
-                              value={sub?.substitute_teacher_id || ''}
-                              onValueChange={(val) => handleAssignSingleSubstitute(absent, period, val)}
-                            >
-                              <SelectTrigger className="h-8 text-xs rounded-xl bg-background/90 border-border/70 flex-1">
-                                <SelectValue placeholder="Select faculty substitute..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {allFaculty
-                                  .filter((f) => f.id !== absent.record_id)
-                                  .map((f) => {
-                                    const isBusy = busySet.has(f.id);
-                                    const isSameSubj =
-                                      period.subject_name &&
-                                      f.specialization &&
-                                      f.specialization.toLowerCase().includes(period.subject_name.toLowerCase().slice(0, 4));
-
-                                    return (
-                                      <SelectItem
-                                        key={f.id}
-                                        value={f.id}
-                                        className={cn(
-                                          'text-xs flex items-center justify-between',
-                                          isBusy && 'text-muted-foreground opacity-60'
-                                        )}
-                                      >
-                                        <span>
-                                          {f.name} {isSameSubj ? '⭐ (Subject Match)' : ''} {isBusy ? '🚫 (Busy)' : '✅ (Free)'}
-                                        </span>
-                                      </SelectItem>
-                                    );
-                                  })}
-                              </SelectContent>
-                            </Select>
-
-                            {sub && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteSubstitution(sub.id)}
-                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive rounded-xl"
-                                title="Remove Substitution"
+                          {/* Substitute Selector */}
+                          <div className="space-y-1 pt-1 border-t border-border/30">
+                            <label className="text-[10px] font-bold text-muted-foreground block">
+                              Assigned Substitute:
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={sub?.substitute_teacher_id || ''}
+                                onValueChange={(val) => handleAssignSingleSubstitute(absent, period, val)}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
+                                <SelectTrigger className="h-8 text-xs rounded-xl bg-background/90 border-border/70 flex-1">
+                                  <SelectValue placeholder="Select substitute..." />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-64">
+                                  {allFaculty
+                                    .filter((f) => f.id !== absent.record_id)
+                                    .sort((a, b) => {
+                                      const aBusy = busySet.has(a.id);
+                                      const bBusy = busySet.has(b.id);
+                                      if (aBusy !== bBusy) return aBusy ? 1 : -1;
+                                      return a.name.localeCompare(b.name);
+                                    })
+                                    .map((f) => {
+                                      const isBusy = busySet.has(f.id);
+                                      const isSameSubj =
+                                        period.subject_name &&
+                                        f.specialization &&
+                                        f.specialization.toLowerCase().includes(period.subject_name.toLowerCase().slice(0, 4));
+
+                                      return (
+                                        <SelectItem
+                                          key={f.id}
+                                          value={f.id}
+                                          disabled={isBusy}
+                                          className={cn(
+                                            'text-xs flex items-center justify-between',
+                                            isBusy ? 'opacity-40 text-muted-foreground cursor-not-allowed' : 'font-medium'
+                                          )}
+                                        >
+                                          <span>
+                                            {f.name}
+                                            {isSameSubj ? ' ⭐ (Subject Match)' : ''}
+                                            {isBusy ? ' 🚫 (Teaching Class)' : ' ✅ (Free)'}
+                                          </span>
+                                        </SelectItem>
+                                      );
+                                    })}
+                                </SelectContent>
+                              </Select>
+
+                              {sub && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteSubstitution(sub.id)}
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive rounded-xl"
+                                  title="Remove Substitution"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, isSameMonth } from 'date-fns';
 
 interface AttendanceRecord {
   name?: string;
@@ -39,19 +39,20 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 }) => {
   const today = new Date();
 
-  const presentCount = attendanceDays.length;
-  const lateCount = lateAttendanceDays.length;
-  const absentCount = absentDays.length;
-  const markedDaysCount = presentCount + lateCount + absentCount;
+  // Filter counts for visible month so legend accurately reflects the displayed calendar month
+  const monthPresentCount = attendanceDays.filter(d => isSameMonth(new Date(d), visibleMonth)).length;
+  const monthLateCount = lateAttendanceDays.filter(d => isSameMonth(new Date(d), visibleMonth)).length;
+  const monthAbsentCount = absentDays.filter(d => isSameMonth(new Date(d), visibleMonth)).length;
+  const markedDaysCount = monthPresentCount + monthLateCount + monthAbsentCount;
   
   return (
     <Card className="overflow-hidden h-full min-w-0">
       <CardContent className="p-0">
         <div className="border-b px-3 sm:px-4 pt-3 sm:pt-4 pb-2 sm:pb-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:gap-x-4">
-            <LegendItem color="bg-green-500" label="Present" count={presentCount} />
-            <LegendItem color="bg-amber-500" label="Late" count={lateCount} />
-            <LegendItem color="bg-red-400" label="Absent" count={absentCount} />
+            <LegendItem color="bg-green-500" label="Present" count={monthPresentCount} />
+            <LegendItem color="bg-amber-500" label="Late" count={monthLateCount} />
+            <LegendItem color="bg-red-400" label="Absent" count={monthAbsentCount} />
           </div>
           <p className="mt-1.5 text-[10px] sm:text-xs text-muted-foreground">
             {markedDaysCount} marked day{markedDaysCount === 1 ? '' : 's'} in {format(visibleMonth, 'MMMM yyyy')}
