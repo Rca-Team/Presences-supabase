@@ -43,6 +43,7 @@ import {
   ExtractedSlot,
   getSubjectTheme,
 } from '@/utils/timetableExtractor';
+import { deduplicateSubjects } from '@/constants/classSubjectsConfig';
 
 interface Teacher {
   id: string;
@@ -91,6 +92,8 @@ export function TimetablePhotoExtractorModal({
 
   // Editable slots map for fine-tuning
   const [editableSlots, setEditableSlots] = useState<Record<string, ExtractedSlot>>({});
+
+  const cleanSubjects = useMemo(() => deduplicateSubjects(knownSubjects), [knownSubjects]);
 
   const slotKey = (dayNum: number, pNum: number) => `${dayNum}-${pNum}`;
 
@@ -472,7 +475,7 @@ export function TimetablePhotoExtractorModal({
                                     <Select
                                       value={slot.subjectId || slot.subject}
                                       onValueChange={(val) => {
-                                        const subj = knownSubjects.find((s) => s.id === val || s.name === val);
+                                        const subj = cleanSubjects.find((s) => s.id === val || s.name === val);
                                         updateSlot(dayNum, pNum, {
                                           subjectId: subj?.id || val,
                                           subject: subj?.name || val,
@@ -483,7 +486,7 @@ export function TimetablePhotoExtractorModal({
                                         <SelectValue placeholder={slot.subject_short || slot.subject} />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {knownSubjects.map((s) => (
+                                        {cleanSubjects.map((s) => (
                                           <SelectItem key={s.id} value={s.id} className="text-xs">
                                             {s.name}
                                           </SelectItem>

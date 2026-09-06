@@ -52,6 +52,11 @@ import { FacultyManagementPanel, FacultyTeacher } from '@/components/admin/Facul
 import { TeacherTimetableWeeklyView } from '@/components/admin/TeacherTimetableWeeklyView';
 import SubstitutionReport from '@/components/admin/SubstitutionReport';
 import { cn } from '@/lib/utils';
+import {
+  getSubjectsForClass,
+  deduplicateSubjects,
+  resolveSubjectIdentifier,
+} from '@/constants/classSubjectsConfig';
 
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -207,7 +212,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
   const [selectedCategory, setSelectedCategory] = useState<string>(categoryOptions[0]);
   const [periods, setPeriods] = useState<PeriodTiming[]>(STANDARD_8_PERIODS);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>(STANDARD_CURRICULUM_SUBJECTS);
+  const [subjects, setSubjects] = useState<Subject[]>(() => getSubjectsForClass(categoryOptions[0]));
   const [draftSlots, setDraftSlots] = useState<Record<string, DraftSlot>>({});
   const [allTimetableRecords, setAllTimetableRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -390,7 +395,8 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
       const teacherList = Array.from(teacherMap.values());
       setTeachers(teacherList);
 
-      // 3. Load DB subjects or standard curriculum
+      // 3. Load tailored class-specific curriculum subjects & deduplicate strictly
+      const classCurriculumSubjects = getSubjectsForClass(selectedCategory);
       const dbSubjects = (subjectRes.data || []).map((s: any) => ({
         id: s.id,
         name: s.name,
@@ -399,7 +405,8 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
         weeklyDefault: 5,
       }));
 
-      const finalSubjects = dbSubjects.length > 0 ? dbSubjects : STANDARD_CURRICULUM_SUBJECTS;
+      // Strictly deduplicate subjects so no duplicate names or codes exist
+      const finalSubjects = deduplicateSubjects([...classCurriculumSubjects, ...dbSubjects]);
       setSubjects(finalSubjects);
 
       // 4. Load existing timetable for selected class
@@ -428,7 +435,9 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
 
         const meta = t.metadata || {};
         let teacherId = t.teacher_id || t.teacher_record_id || meta.teacher_record_id || meta.teacher_id;
-        const subjectId = t.subject_id || meta.subject_id || '';
+        const rawSubject = t.subject_id || t.subject || meta.subject_id || meta.subject || '';
+        const resolvedSubj = resolveSubjectIdentifier(rawSubject, finalSubjects);
+        const subjectId = resolvedSubj?.id || rawSubject;
 
         // If teacher is empty, check if class has designated fixed teacher for this subject!
         if (!teacherId && subjectId && designatedSubjectTeachers[subjectId]) {
@@ -477,6 +486,8 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
 
   const getSubjectName = (subjectId: string | null) => {
     if (!subjectId) return null;
+    const resolved = resolveSubjectIdentifier(subjectId, subjects);
+    if (resolved) return resolved.short_name || resolved.name;
     const s = subjects.find((s) => s.id === subjectId);
     return s ? s.short_name || s.name : null;
   };

@@ -41,6 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ALL_CLASS_SECTIONS, getCategoryLabel, CLASSES, SECTIONS } from '@/constants/schoolConfig';
 import { parseClassSection } from '@/utils/teacherAccess';
+import { getSubjectsForClass, deduplicateSubjects } from '@/constants/classSubjectsConfig';
 import { cn } from '@/lib/utils';
 
 export interface FacultyTeacher {
@@ -158,6 +159,11 @@ export const FacultyManagementPanel: React.FC<FacultyManagementPanelProps> = ({
       }
     );
   }, [classAssignments, selectedClass]);
+
+  const classSubjects = useMemo(() => {
+    const tailored = getSubjectsForClass(selectedClass);
+    return deduplicateSubjects(tailored);
+  }, [selectedClass]);
 
   const handleSetClassTeacher = (teacherId: string, isCo = false) => {
     setClassAssignments((prev) => {
@@ -510,7 +516,7 @@ export const FacultyManagementPanel: React.FC<FacultyManagementPanelProps> = ({
                   </p>
                 </div>
                 <Badge variant="secondary" className="text-xs font-mono">
-                  {Object.values(currentAssignment.subjectTeachers).filter(Boolean).length} / {subjects.length} Subjects Assigned
+                  {Object.values(currentAssignment.subjectTeachers).filter(Boolean).length} / {classSubjects.length} Subjects Assigned
                 </Badge>
               </div>
 
@@ -525,7 +531,7 @@ export const FacultyManagementPanel: React.FC<FacultyManagementPanelProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {subjects.map((subj, idx) => {
+                    {classSubjects.map((subj, idx) => {
                       const assignedTeacherId = currentAssignment.subjectTeachers[subj.id];
                       const assignedTeacher = teachers.find((t) => t.id === assignedTeacherId);
 
