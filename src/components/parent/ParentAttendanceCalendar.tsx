@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AttendanceItem, ParentSummaryStats } from '@/hooks/useParentPortal';
+import { isWorkingDayForSchool } from '@/utils/workingDays';
 import {
   format,
   startOfMonth,
@@ -92,7 +93,7 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
   const selectedDayRecord = useMemo(() => {
     if (!selectedDay) return null;
     const key = format(selectedDay, 'yyyy-MM-dd');
-    const isWk = isWeekend(selectedDay);
+    const isSchoolWork = isWorkingDayForSchool(selectedDay);
     const data = attendanceDayMap[key];
     const isPast = selectedDay < new Date() && !isToday(selectedDay);
 
@@ -100,7 +101,7 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
     // 1. Live/Recorded attendance ALWAYS takes first precedence
     if (data) {
       status = data.status;
-    } else if (isWk) {
+    } else if (!isSchoolWork) {
       status = 'weekend';
     } else if (isPast) {
       status = 'absent';
@@ -152,20 +153,26 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
         </div>
 
         {/* 75% CBSE Attendance Meter */}
+        {/* 75% CBSE Attendance Meter */}
         <div className="mt-4 p-3.5 rounded-2xl bg-muted/40 border border-border/60">
-          <div className="flex items-center justify-between text-xs mb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1.5 mb-2">
             <span className="font-bold text-foreground flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-primary" /> CBSE 75% Attendance Minimum Requirement
+              <TrendingUp className="h-3.5 w-3.5 text-primary" /> CBSE 75% Attendance Requirement
             </span>
-            <span
-              className={`font-black text-xs ${
-                summary.attendanceRate >= 75
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-rose-600 dark:text-rose-400'
-              }`}
-            >
-              {summary.attendanceRate}% {summary.attendanceRate >= 75 ? '✅ Eligible' : '⚠️ Shortage Risk'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {summary.presentDays + summary.lateDays} attended / {summary.workingDays} working days
+              </span>
+              <span
+                className={`font-black text-xs ${
+                  summary.attendanceRate >= 75
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-rose-600 dark:text-rose-400'
+                }`}
+              >
+                {summary.attendanceRate}% {summary.attendanceRate >= 75 ? '✅ Eligible' : '⚠️ Shortage Risk'}
+              </span>
+            </div>
           </div>
           <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden relative">
             <div
@@ -204,7 +211,7 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
 
             {calendarDays.days.map((day) => {
               const dayKey = format(day, 'yyyy-MM-dd');
-              const isWk = isWeekend(day);
+              const isSchoolWork = isWorkingDayForSchool(day);
               const rec = attendanceDayMap[dayKey];
               const isPast = day < new Date() && !isToday(day);
               const isCurrentDay = isToday(day);
@@ -222,10 +229,11 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
                 // Explicitly marked absent by teacher
                 bgClass = 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20 hover:bg-rose-500/20';
                 dotClass = 'bg-rose-500';
-              } else if (isWk) {
+              } else if (!isSchoolWork) {
+                // School holiday / Weekend (Sundays and 2nd Saturdays)
                 bgClass = 'bg-muted/20 text-muted-foreground/40 border-transparent';
               } else if (isPast) {
-                // Past weekday with no record → inferred absent
+                // Past school working day with no check-in record → Absent
                 bgClass = 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20 hover:bg-rose-500/20';
                 dotClass = 'bg-rose-500';
               }
@@ -248,7 +256,7 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground pt-1">
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs text-muted-foreground pt-1">
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
             <span>Present ({summary.presentDays})</span>
@@ -257,12 +265,14 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
             <span>Late ({summary.lateDays})</span>
           </div>
-          {summary.absentDays > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-              <span>Absent ({summary.absentDays})</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+            <span>Absent ({summary.absentDays})</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
+            <span className="font-medium text-foreground">Working Days ({summary.workingDays} MTD / {summary.totalMonthWorkingDays || 25} Total)</span>
+          </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
             <span>Weekend / Non-Instructional</span>

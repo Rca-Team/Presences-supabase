@@ -249,45 +249,75 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
             </div>
           </div>
 
-          {/* Quick Metrics Ribbon (3 Key Stats) */}
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 mt-6 pt-5 border-t border-border/60">
-            {/* Attendance Rate */}
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-3 sm:p-3.5 text-center">
-              <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                Monthly Rate
-              </p>
-              <p className="text-lg sm:text-2xl font-black text-primary mt-0.5">
-                {summary.attendanceRate}%
-              </p>
-              <p className="text-[10px] text-muted-foreground font-medium">
-                {summary.attendanceRate >= 75 ? '✅ CBSE Safe' : '⚠️ Below 75%'}
-              </p>
+          {/* Quick Metrics Ribbon (4 Key Stats + School Hours bar) */}
+          <div className="mt-6 pt-5 border-t border-border/60 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+              {/* Attendance Rate */}
+              <div className="rounded-2xl border border-border/70 bg-background/60 p-3 text-center">
+                <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Monthly Rate
+                </p>
+                <p className="text-lg sm:text-2xl font-black text-primary mt-0.5">
+                  {summary.attendanceRate}%
+                </p>
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  {summary.attendanceRate >= 75 ? '✅ CBSE Safe' : '⚠️ Below 75%'}
+                </p>
+              </div>
+
+              {/* Present Days */}
+              <div className="rounded-2xl border border-border/70 bg-background/60 p-3 text-center">
+                <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Present Days
+                </p>
+                <p className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {summary.presentDays} <span className="text-xs font-normal text-muted-foreground">days</span>
+                </p>
+                <p className="text-[10px] text-emerald-600/90 dark:text-emerald-400/90 font-medium">
+                  On-Time Checkins
+                </p>
+              </div>
+
+              {/* Late / Absent */}
+              <div className="rounded-2xl border border-border/70 bg-background/60 p-3 text-center">
+                <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Late / Absent
+                </p>
+                <p className="text-lg sm:text-2xl font-black mt-0.5">
+                  <span className="text-amber-600 dark:text-amber-400">{summary.lateDays}L</span>
+                  <span className="text-muted-foreground text-sm font-normal mx-1">•</span>
+                  <span className="text-rose-600 dark:text-rose-400">{summary.absentDays}A</span>
+                </p>
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  {summary.lateDays} Late • {summary.absentDays} Missed
+                </p>
+              </div>
+
+              {/* Total Working Days */}
+              <div className="rounded-2xl border border-border/70 bg-background/60 p-3 text-center">
+                <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Working Days
+                </p>
+                <p className="text-lg sm:text-2xl font-black text-foreground mt-0.5">
+                  {summary.workingDays} <span className="text-xs font-normal text-muted-foreground">/ {summary.totalMonthWorkingDays || 25}</span>
+                </p>
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  {summary.workingDays} MTD • {summary.totalMonthWorkingDays || 25} Total
+                </p>
+              </div>
             </div>
 
-            {/* Present Days */}
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-3 sm:p-3.5 text-center">
-              <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                Present Days
-              </p>
-              <p className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
-                {summary.presentDays} <span className="text-xs font-normal text-muted-foreground">/ {summary.workingDays}</span>
-              </p>
-              <p className="text-[10px] text-muted-foreground font-medium">
-                This month
-              </p>
-            </div>
-
-            {/* School Timing */}
-            <div className="rounded-2xl border border-border/70 bg-background/60 p-3 sm:p-3.5 text-center">
-              <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                School Hours
-              </p>
-              <p className="text-xs sm:text-base font-black text-foreground mt-1">
-                07:20 – 12:15
-              </p>
-              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                Lunch 09:40–10:00
-              </p>
+            {/* School Hours & Schedule Badge */}
+            <div className="flex flex-wrap items-center justify-between text-xs px-3.5 py-2 rounded-xl bg-muted/40 border border-border/60 text-muted-foreground gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-primary" />
+                <span className="font-semibold text-foreground">Official School Hours:</span>
+                <span className="font-mono font-medium">07:20 – 12:15</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium">(Lunch: 09:40–10:00)</span>
+              </div>
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                Attended: {summary.presentDays + summary.lateDays} of {summary.workingDays} working days
+              </span>
             </div>
           </div>
         </CardContent>

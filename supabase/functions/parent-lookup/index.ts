@@ -14,6 +14,29 @@ function normalizeStatus(status: string): string {
   return s;
 }
 
+function isSecondSaturday(date: Date): boolean {
+  if (date.getDay() !== 6) return false;
+  const dayOfMonth = date.getDate();
+  return dayOfMonth >= 8 && dayOfMonth <= 14;
+}
+
+function isWorkingDayForSchool(date: Date): boolean {
+  const dayOfWeek = date.getDay();
+  if (dayOfWeek === 0) return false; // Sunday
+  if (dayOfWeek === 6) return !isSecondSaturday(date); // Saturday except 2nd Saturday
+  return true; // Monday-Friday
+}
+
+function generateWorkingDays(year: number, month: number): number {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let count = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    if (isWorkingDayForSchool(date)) count++;
+  }
+  return count;
+}
+
 function buildMonthlySummary(dayMap: Record<string, { status: string; timestamp: string }>) {
   const now = new Date();
   const year = now.getFullYear();
@@ -24,49 +47,46 @@ function buildMonthlySummary(dayMap: Record<string, { status: string; timestamp:
   let workingDays = 0;
   let presentDays = 0;
   let lateDays = 0;
+  let absentDays = 0;
 
-  // Determine effective session start: first date with an attendance record, or month start
-  let effectiveStart = monthStart;
-  for (let d = new Date(monthStart); d <= now; d.setDate(d.getDate() + 1)) {
-    const key = d.toISOString().slice(0, 10);
-    if (dayMap[key]) {
-      effectiveStart = new Date(d);
-      break;
-    }
-  }
+  const totalMonthWorkingDays = generateWorkingDays(year, month);
 
   for (let d = new Date(monthStart); d <= now; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().slice(0, 10);
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const isSchoolWork = isWorkingDayForSchool(d);
+    const isCurrentDay = key === todayKey;
     const status = dayMap[key]?.status;
 
-    // 1. If student attended (present or late) on any day (including Saturday sessions):
-    if (status === 'present' || status === 'late') {
+    if (status === 'present') {
       workingDays += 1;
-      if (status === 'present') presentDays += 1;
-      if (status === 'late') lateDays += 1;
-    }
-    // 2. Explicitly marked absent:
-    else if (status === 'absent') {
+      presentDays += 1;
+    } else if (status === 'late') {
       workingDays += 1;
-    }
-    // 3. Regular active session day after effective start:
-    else if (d >= effectiveStart && !isWeekend) {
+      lateDays += 1;
+    } else if (status === 'absent') {
       workingDays += 1;
+      absentDays += 1;
+    } else if (isSchoolWork) {
+      if (!isCurrentDay) {
+        workingDays += 1;
+        absentDays += 1;
+      } else if (now.getHours() >= 12) {
+        workingDays += 1;
+        absentDays += 1;
+      }
     }
   }
 
-  const absentDays = Math.max(0, workingDays - presentDays - lateDays);
   const attendanceRate = workingDays > 0 ? Math.round(((presentDays + lateDays) / workingDays) * 100) : 100;
 
   let streak = 0;
   for (let d = new Date(now); d >= monthStart; d.setDate(d.getDate() - 1)) {
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const isWk = !isWorkingDayForSchool(d);
     const key = d.toISOString().slice(0, 10);
     const status = dayMap[key]?.status;
     if (status === 'present' || status === 'late') {
       streak += 1;
-    } else if (isWeekend) {
+    } else if (isWk) {
       // Don't break streak on inactive weekends if preceding days were attended
       continue;
     } else if (key !== todayKey) {
@@ -74,10 +94,11 @@ function buildMonthlySummary(dayMap: Record<string, { status: string; timestamp:
     }
   }
 
-  const todayStatus = dayMap[todayKey]?.status || ((now.getDay() === 0 || now.getDay() === 6) ? 'weekend' : 'absent');
+  const todayIsWorking = isWorkingDayForSchool(now);
+  const todayStatus = dayMap[todayKey]?.status || (!todayIsWorking ? 'weekend' : (now.getHours() >= 12 ? 'absent' : 'weekend'));
   const todayCheckinTime = dayMap[todayKey]?.timestamp || null;
 
-  return { workingDays, presentDays, lateDays, absentDays, attendanceRate, streak, todayStatus, todayCheckinTime };
+  return { workingDays, totalMonthWorkingDays, presentDays, lateDays, absentDays, attendanceRate, streak, todayStatus, todayCheckinTime };
 }
 
 Deno.serve(async (req) => {

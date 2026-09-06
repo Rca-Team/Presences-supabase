@@ -87,8 +87,8 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
             }
             .metrics-grid {
               display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 12px;
+              grid-template-columns: repeat(5, 1fr);
+              gap: 10px;
               margin-bottom: 25px;
               text-align: center;
             }
@@ -99,13 +99,13 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
               background: #ffffff;
             }
             .metric-val {
-              font-size: 22px;
+              font-size: 20px;
               font-weight: 800;
               color: #0284c7;
               margin-top: 4px;
             }
             .metric-lbl {
-              font-size: 11px;
+              font-size: 10px;
               font-weight: 600;
               color: #64748b;
               text-transform: uppercase;
@@ -115,30 +115,32 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
               border: 1px solid #a7f3d0;
               border-radius: 8px;
               padding: 14px;
-              font-size: 13px;
+              margin-bottom: 35px;
+              font-size: 12px;
+              line-height: 1.5;
               color: #065f46;
-              font-weight: 600;
-              margin-bottom: 40px;
             }
             .signatures {
               display: flex;
               justify-content: space-between;
               margin-top: 60px;
-              font-size: 12px;
-              color: #475569;
+              padding-top: 20px;
             }
             .sign-line {
-              border-top: 1px solid #94a3b8;
-              width: 180px;
+              border-top: 1px solid #64748b;
+              width: 160px;
               text-align: center;
+              font-size: 11px;
+              color: #475569;
               padding-top: 6px;
             }
           </style>
         </head>
         <body>
           <div class="header">
-            <div class="school-name">PM Shri Kendriya Vidyalaya NFC Vigyan Vihar</div>
-            <div class="doc-title">Official Student Attendance & Presence Statement • Academic Session 2026–2027</div>
+            <h1>PM SHRI KENDRIYA VIDYALAYA NFC VIGYAN VIHAR</h1>
+            <p>Affiliated to CBSE • Senior Secondary Section • Delhi Region</p>
+            <p style="margin-top: 6px; font-weight: 600; color: #0284c7;">STUDENT OFFICIAL ATTENDANCE & BIOMETRIC REPORT</p>
           </div>
 
           <div class="student-info">
@@ -160,6 +162,10 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
             <div class="metric-card">
               <div class="metric-lbl">Late Arrivals</div>
               <div class="metric-val" style="color: #d97706;">${summary.lateDays}</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-lbl">Absent Days</div>
+              <div class="metric-val" style="color: #e11d48;">${summary.absentDays}</div>
             </div>
             <div class="metric-card">
               <div class="metric-lbl">Attendance Rate</div>
@@ -215,18 +221,22 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
             </Badge>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="p-2.5 rounded-xl bg-background border border-border/60">
-              <span className="text-[10px] text-muted-foreground font-semibold uppercase">Working Days</span>
-              <p className="text-base font-bold text-foreground mt-0.5">{summary.workingDays}</p>
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center text-xs">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-background border border-border/60">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold uppercase">Working</span>
+              <p className="text-sm sm:text-base font-bold text-foreground mt-0.5">{summary.workingDays}</p>
             </div>
-            <div className="p-2.5 rounded-xl bg-background border border-border/60">
-              <span className="text-[10px] text-muted-foreground font-semibold uppercase">Present</span>
-              <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{summary.presentDays}</p>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-background border border-border/60">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold uppercase">Present</span>
+              <p className="text-sm sm:text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{summary.presentDays}</p>
             </div>
-            <div className="p-2.5 rounded-xl bg-background border border-border/60">
-              <span className="text-[10px] text-muted-foreground font-semibold uppercase">Late</span>
-              <p className="text-base font-bold text-amber-600 dark:text-amber-400 mt-0.5">{summary.lateDays}</p>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-background border border-border/60">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold uppercase">Late</span>
+              <p className="text-sm sm:text-base font-bold text-amber-600 dark:text-amber-400 mt-0.5">{summary.lateDays}</p>
+            </div>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-background border border-border/60">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold uppercase">Absent</span>
+              <p className="text-sm sm:text-base font-bold text-rose-600 dark:text-rose-400 mt-0.5">{summary.absentDays}</p>
             </div>
           </div>
 

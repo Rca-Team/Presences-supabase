@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, isWeekend, startOfMonth, eachDayOfInterval, subDays } from 'date-fns';
 import { getStudentCoverPhoto, resolveStudentPhotoUrl } from '@/utils/studentPhotoResolver';
+import { isWorkingDayForSchool } from '@/utils/workingDays';
+import { generateWorkingDays } from '@/components/admin/utils/dateUtils';
 
 export interface ChildProfile {
   id: string;
@@ -61,6 +63,7 @@ export interface BadgeItem {
 
 export interface ParentSummaryStats {
   workingDays: number;
+  totalMonthWorkingDays: number;
   presentDays: number;
   lateDays: number;
   absentDays: number;
@@ -422,36 +425,44 @@ export function useParentPortal() {
     let workingDays = 0;
     let presentDays = 0;
     let lateDays = 0;
+    let absentDays = 0;
 
-    // Determine effective session start: the first date with any attendance record in this month,
-    // or fall back to the month start. This avoids hardcoding orientation cutoffs.
-    const monthDayKeys = eachDayOfInterval({ start: monthStart, end: now }).map((d) => format(d, 'yyyy-MM-dd'));
-    const firstRecordKey = monthDayKeys.find((k) => dayMap[k]);
-    const effectiveStart = firstRecordKey ? new Date(firstRecordKey) : monthStart;
+    const totalMonthWorkingDays = generateWorkingDays(now.getFullYear(), now.getMonth()).length;
 
     const allDays = eachDayOfInterval({ start: monthStart, end: now });
     allDays.forEach((d) => {
       const key = format(d, 'yyyy-MM-dd');
-      const isWk = isWeekend(d);
+      const isSchoolWork = isWorkingDayForSchool(d);
+      const isCurrentDay = key === todayKey;
       const st = dayMap[key]?.status;
 
-      // 1. If student attended (present or late) on any day (including Saturday sessions):
-      if (st === 'present' || st === 'late') {
+      // 1. Explicitly recorded attendance takes first priority (including special Saturday sessions)
+      if (st === 'present') {
         workingDays += 1;
-        if (st === 'present') presentDays += 1;
-        if (st === 'late') lateDays += 1;
+        presentDays += 1;
+      } else if (st === 'late') {
+        workingDays += 1;
+        lateDays += 1;
+      } else if (st === 'absent') {
+        workingDays += 1;
+        absentDays += 1;
       }
-      // 2. If explicitly marked absent:
-      else if (st === 'absent') {
-        workingDays += 1;
-      }
-      // 3. Regular weekday after effective session start (inferred absent):
-      else if (d >= effectiveStart && !isWk) {
-        workingDays += 1;
+      // 2. Regular school working day without attendance record
+      else if (isSchoolWork) {
+        if (!isCurrentDay) {
+          // Past school working day without checkin -> absent
+          workingDays += 1;
+          absentDays += 1;
+        } else {
+          // Today: if school hours (07:20 - 12:15) have completed without checkin -> absent
+          if (now.getHours() >= 12) {
+            workingDays += 1;
+            absentDays += 1;
+          }
+        }
       }
     });
 
-    const absentDays = Math.max(0, workingDays - presentDays - lateDays);
     const attendanceRate = workingDays > 0 ? Math.round(((presentDays + lateDays) / workingDays) * 100) : 100;
 
     // Calculate Streak — skip inactive weekends without breaking streak
@@ -460,30 +471,32 @@ export function useParentPortal() {
 
     for (const d of pastDays) {
       const key = format(d, 'yyyy-MM-dd');
-      const isWk = isWeekend(d);
+      const isWk = !isWorkingDayForSchool(d);
       const st = dayMap[key]?.status;
 
       if (st === 'present' || st === 'late') {
         streak += 1;
       } else if (isWk) {
-        // Skip weekend without breaking streak if Friday/Saturday was attended
+        // Skip non-instructional day without breaking streak if preceding session was attended
         continue;
       } else if (key !== todayKey) {
         break;
       }
     }
 
-    const todayStatus = (isWeekend(now) && !dayMap[todayKey] ? 'weekend' : dayMap[todayKey]?.status || (isWeekend(now) ? 'weekend' : 'absent')) as any;
+    const todayIsWorking = isWorkingDayForSchool(now);
+    const todayStatus = dayMap[todayKey]?.status || (!todayIsWorking ? 'weekend' : (now.getHours() >= 12 ? 'absent' : 'weekend'));
     const todayCheckinTime = dayMap[todayKey]?.time || null;
 
     return {
       workingDays,
+      totalMonthWorkingDays,
       presentDays,
       lateDays,
       absentDays,
       attendanceRate,
       streak,
-      todayStatus,
+      todayStatus: todayStatus as any,
       todayCheckinTime,
       todayGateEntries: todayStatus === 'present' || todayStatus === 'late' ? 1 : 0,
       badgeCount: badges.length || Math.min(6, Math.floor(presentDays / 3) + (streak >= 3 ? 1 : 0)),
