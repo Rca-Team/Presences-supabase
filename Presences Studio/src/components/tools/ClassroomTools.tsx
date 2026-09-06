@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import confetti from 'canvas-confetti';
+import { jsPDF } from 'jspdf';
 import { 
   Clock, 
   Users, 
@@ -14,9 +15,16 @@ import {
   Award,
   Download,
   Sparkles,
-  BookOpen
+  BookOpen,
+  Volume2,
+  VolumeX,
+  Mic,
+  Activity,
+  FileDown
 } from 'lucide-react';
 import { SupabaseSyncService, ClassroomSessionSummary } from '../../services/supabaseSyncService';
+import { audioService } from '../../services/audioService';
+import { Slide } from '../../types/smartboard';
 
 // ================= 1. RANDOM STUDENT PICKER WHEEL =================
 interface StudentPickerModalProps {
@@ -56,6 +64,7 @@ export const StudentPickerModal: React.FC<StudentPickerModalProps> = ({
       if (counter >= totalSteps) {
         clearInterval(interval);
         setIsSpinning(false);
+        audioService.playSuccessChime();
         confetti({
           particleCount: 50,
           spread: 60,
@@ -146,8 +155,7 @@ export const QRShareModal: React.FC<QRShareModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      // Generate unique classroom notes URL
-      const shareUrl = `https://board.presences.ai/notes/${encodeURIComponent(chapterTitle)}-${Date.now()}`;
+      const shareUrl = `https://studio.presences.ai/notes/${encodeURIComponent(chapterTitle)}-${Date.now()}`;
       QRCode.toDataURL(shareUrl, {
         width: 260,
         margin: 2,
@@ -202,7 +210,82 @@ export const QRShareModal: React.FC<QRShareModalProps> = ({
 };
 
 
-// ================= 3. END CLASS & PARENT PORTAL SYNC MODAL =================
+// ================= 3. CLASSROOM NOISE MONITOR MODAL =================
+interface NoiseMonitorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  noiseLevel: number;
+  noiseStatus: 'quiet' | 'moderate' | 'loud';
+}
+
+export const NoiseMonitorModal: React.FC<NoiseMonitorModalProps> = ({
+  isOpen,
+  onClose,
+  noiseLevel,
+  noiseStatus,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 select-none animate-in fade-in">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-sm p-6 flex flex-col items-center shadow-2xl relative text-center">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-slate-400 hover:text-white p-1"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 transition-colors ${
+          noiseStatus === 'quiet'
+            ? 'bg-emerald-500/20 text-emerald-400'
+            : noiseStatus === 'moderate'
+            ? 'bg-amber-500/20 text-amber-400'
+            : 'bg-red-500/20 text-red-400 animate-bounce'
+        }`}>
+          <Mic className="w-7 h-7" />
+        </div>
+
+        <h3 className="text-lg font-bold text-white mb-1">Classroom Noise Monitor</h3>
+        <p className="text-xs text-slate-400 mb-5">
+          Real-time acoustic analysis from the smartboard microphone
+        </p>
+
+        {/* Decibel Bar Indicator */}
+        <div className="w-full bg-slate-950 p-4 rounded-2xl border border-slate-800 mb-4 space-y-3">
+          <div className="flex items-center justify-between text-xs font-bold">
+            <span className="text-slate-400">Class Volume:</span>
+            <span className={
+              noiseStatus === 'quiet' ? 'text-emerald-400' : noiseStatus === 'moderate' ? 'text-amber-400' : 'text-red-400'
+            }>
+              {noiseStatus === 'quiet' ? '🟢 Focused & Quiet' : noiseStatus === 'moderate' ? '🟡 Active Discussion' : '🔴 Overly Loud'}
+            </span>
+          </div>
+
+          <div className="w-full h-4 bg-slate-800 rounded-full overflow-hidden p-0.5">
+            <div
+              style={{ width: `${Math.max(8, noiseLevel)}%` }}
+              className={`h-full rounded-full transition-all duration-150 ${
+                noiseStatus === 'quiet' ? 'bg-emerald-500' : noiseStatus === 'moderate' ? 'bg-amber-500' : 'bg-red-500'
+              }`}
+            />
+          </div>
+
+          <span className="text-[11px] text-slate-400 font-mono block">
+            Current Level: {noiseLevel}%
+          </span>
+        </div>
+
+        <p className="text-[11px] text-slate-400">
+          Provides subtle cues to keep classroom attention focused without teacher interruption.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+
+// ================= 4. END CLASS & PARENT PORTAL SYNC MODAL =================
 interface EndClassModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -222,7 +305,7 @@ export const EndClassModal: React.FC<EndClassModalProps> = ({
   sessionData,
 }) => {
   const [teacherNotes, setTeacherNotes] = useState(
-    `Today we covered ${sessionData.subtopic}. Students practiced 3 board problems with high engagement. Homework assigned from exercise questions 1-5.`
+    `Today we covered ${sessionData.subtopic}. Students practiced board problems with high engagement. Homework assigned from exercise questions 1-5.`
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDone, setIsDone] = useState(false);
@@ -250,6 +333,7 @@ export const EndClassModal: React.FC<EndClassModalProps> = ({
     setIsDone(true);
     setStatusMessage(res.message);
 
+    audioService.playSchoolBell();
     confetti({
       particleCount: 60,
       spread: 70,
@@ -337,3 +421,65 @@ export const EndClassModal: React.FC<EndClassModalProps> = ({
     </div>
   );
 };
+
+
+// ================= 5. PRODUCTION MULTI-PAGE PDF COMPILER =================
+export async function compileLectureToPDF(slides: Slide[], title: string) {
+  const pdf = new jsPDF({
+    orientation: 'landscape',
+    unit: 'px',
+    format: [1280, 720]
+  });
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = 1280;
+  offscreen.height = 720;
+  const ctx = offscreen.getContext('2d');
+  if (!ctx) return;
+
+  slides.forEach((slide, index) => {
+    // 1. Fill background
+    ctx.fillStyle = slide.background === 'whiteboard' ? '#f8fafc' : slide.background === 'chalkboard' ? '#1a3c2c' : '#0d1117';
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // 2. Draw lecture header on page
+    ctx.fillStyle = slide.background === 'whiteboard' ? '#0f172a' : '#ffffff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(`Presences Studios • ${title} • Slide ${index + 1}`, 30, 36);
+
+    // 3. Draw strokes
+    slide.strokes.forEach(stroke => {
+      if (stroke.points.length === 0) return;
+      ctx.save();
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // 4. Draw sticky notes & text boxes
+    slide.stickyNotes.forEach(note => {
+      ctx.fillStyle = note.color;
+      ctx.fillRect(note.x, note.y, note.width, note.height);
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(note.text.slice(0, 80), note.x + 10, note.y + 24);
+    });
+
+    // 5. Add to PDF
+    const imgData = offscreen.toDataURL('image/jpeg', 0.9);
+    if (index > 0) {
+      pdf.addPage([1280, 720], 'landscape');
+    }
+    pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
+  });
+
+  pdf.save(`${title.replace(/[^a-z0-9]/gi, '_')}-LectureNotes.pdf`);
+}

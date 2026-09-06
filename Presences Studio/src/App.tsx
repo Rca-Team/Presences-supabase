@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ToolType, 
   BackgroundTheme, 
@@ -8,7 +8,9 @@ import {
   SubTopic, 
   SubjectCurriculum, 
   TopicQuestion,
-  StickyNote
+  StickyNote,
+  CanvasImage,
+  CanvasTextBox
 } from './types/smartboard';
 import { CURRICULUM_DATA } from './data/curriculumData';
 import { Navbar } from './components/Navbar';
@@ -16,12 +18,17 @@ import { WhiteboardCanvas } from './components/canvas/WhiteboardCanvas';
 import { Toolbar } from './components/canvas/Toolbar';
 import { TeacherCopilotDock } from './components/copilot/TeacherCopilotDock';
 import { SplitSlideWorkspace } from './components/canvas/SplitSlideWorkspace';
+import { SlideThumbnailDrawer } from './components/canvas/SlideThumbnailDrawer';
 import { CurriculumPreloader } from './components/preloader/CurriculumPreloader';
 import { 
   StudentPickerModal, 
   QRShareModal, 
-  EndClassModal 
+  EndClassModal,
+  NoiseMonitorModal,
+  compileLectureToPDF
 } from './components/tools/ClassroomTools';
+import { PersistenceService } from './services/persistenceService';
+import { audioService } from './services/audioService';
 
 export function App() {
   // 1. Curriculum & Active Lesson State
@@ -49,6 +56,8 @@ export function App() {
       title: 'Introduction',
       strokes: [],
       stickyNotes: [],
+      images: [],
+      textBoxes: [],
       background: 'chalkboard',
     }
   ]);
@@ -60,10 +69,42 @@ export function App() {
   const [isStudentPickerOpen, setIsStudentPickerOpen] = useState(false);
   const [isQRShareOpen, setIsQRShareOpen] = useState(false);
   const [isEndClassOpen, setIsEndClassOpen] = useState(false);
+  const [isSlideDrawerOpen, setIsSlideDrawerOpen] = useState(false);
+
+  // 5. Classroom Noise Monitor State
+  const [isNoiseMonitoring, setIsNoiseMonitoring] = useState(false);
+  const [noiseLevel, setNoiseLevel] = useState(15);
+  const [noiseStatus, setNoiseStatus] = useState<'quiet' | 'moderate' | 'loud'>('quiet');
+  const [isNoiseModalOpen, setIsNoiseModalOpen] = useState(false);
 
   // Active student & split-slide question
   const [activeBoardStudent, setActiveBoardStudent] = useState<string>('Student');
   const [activeSplitQuestion, setActiveSplitQuestion] = useState<TopicQuestion | null>(null);
+
+  // Restore prior session on launch if available
+  useEffect(() => {
+    const saved = PersistenceService.getSavedSession();
+    if (saved && saved.slides.length > 0) {
+      setSlides(saved.slides);
+      setCurrentSlideIndex(Math.min(saved.currentSlideIndex, saved.slides.length - 1));
+      if (saved.chapter) setActiveChapter(saved.chapter);
+      if (saved.subTopic) setActiveSubTopic(saved.subTopic);
+      if (saved.subject) setActiveSubject(saved.subject);
+    }
+  }, []);
+
+  // Continuously autosave active lecture to local persistence
+  useEffect(() => {
+    PersistenceService.saveSession({
+      timestamp: Date.now(),
+      gradeLabel: activeGrade.label,
+      subject: activeSubject,
+      chapter: activeChapter,
+      subTopic: activeSubTopic,
+      slides,
+      currentSlideIndex
+    });
+  }, [slides, currentSlideIndex, activeChapter, activeSubTopic, activeSubject, activeGrade]);
 
   const currentSlide = slides[currentSlideIndex] || slides[0];
 
@@ -87,13 +128,35 @@ export function App() {
     }));
   };
 
-  // Clear current slide strokes & sticky notes
+  // Update images for current slide
+  const handleImagesChange = (newImages: CanvasImage[]) => {
+    setSlides(prev => prev.map((s, idx) => {
+      if (idx === currentSlideIndex) {
+        return { ...s, images: newImages };
+      }
+      return s;
+    }));
+  };
+
+  // Update text boxes for current slide
+  const handleTextBoxesChange = (newBoxes: CanvasTextBox[]) => {
+    setSlides(prev => prev.map((s, idx) => {
+      if (idx === currentSlideIndex) {
+        return { ...s, textBoxes: newBoxes };
+      }
+      return s;
+    }));
+  };
+
+  // Clear current slide
   const handleClearSlide = () => {
     handleStrokesChange([]);
     handleStickyNotesChange([]);
+    handleImagesChange([]);
+    handleTextBoxesChange([]);
   };
 
-  // Slide navigation
+  // Slide navigation & organization
   const handleAddSlide = () => {
     const newPageNum = slides.length + 1;
     const newSlide: Slide = {
@@ -102,10 +165,38 @@ export function App() {
       title: `Slide ${newPageNum}`,
       strokes: [],
       stickyNotes: [],
+      images: [],
+      textBoxes: [],
       background: backgroundTheme,
     };
     setSlides(prev => [...prev, newSlide]);
     setCurrentSlideIndex(slides.length);
+  };
+
+  const handleDuplicateSlide = (index: number) => {
+    const target = slides[index];
+    if (!target) return;
+    const duplicated: Slide = {
+      ...target,
+      id: `slide-${Date.now()}`,
+      pageNumber: slides.length + 1,
+      title: `${target.title} (Copy)`,
+      strokes: [...target.strokes],
+      stickyNotes: [...target.stickyNotes],
+      images: target.images ? [...target.images] : [],
+      textBoxes: target.textBoxes ? [...target.textBoxes] : []
+    };
+    setSlides(prev => [...prev, duplicated]);
+    setCurrentSlideIndex(slides.length);
+  };
+
+  const handleDeleteSlide = (index: number) => {
+    if (slides.length <= 1) return;
+    const updated = slides.filter((_, idx) => idx !== index);
+    setSlides(updated);
+    if (currentSlideIndex >= updated.length) {
+      setCurrentSlideIndex(updated.length - 1);
+    }
   };
 
   const handleNextSlide = () => {
@@ -125,7 +216,6 @@ export function App() {
     setActiveChapter(chap);
     setActiveSubTopic(sub);
     setActiveSubject(subj);
-    // Add a fresh slide title for the new topic
     handleAddSlide();
   };
 
@@ -135,15 +225,15 @@ export function App() {
       id: `stamp-${Date.now()}`,
       x: 180,
       y: 160,
-      width: 260,
+      width: 280,
       height: 180,
-      color: '#bbf7d0', // Light green
+      color: '#bbf7d0',
       text: `📌 Problem:\n${text}`
     };
     handleStickyNotesChange([...currentSlide.stickyNotes, newNote]);
   };
 
-  // Export current slide as PNG
+  // Export slide as PNG
   const handleExportPNG = () => {
     const canvas = document.querySelector('canvas');
     if (!canvas) return;
@@ -151,6 +241,28 @@ export function App() {
     link.download = `Presences-Studios-Slide-${currentSlideIndex + 1}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
+  };
+
+  // Export full multi-page lecture as PDF
+  const handleExportPDF = async () => {
+    await compileLectureToPDF(slides, `${activeChapter.name} - ${activeSubTopic.name}`);
+  };
+
+  // Toggle Noise Monitoring
+  const handleToggleNoiseMonitor = async () => {
+    if (isNoiseMonitoring) {
+      audioService.stopNoiseMonitoring();
+      setIsNoiseMonitoring(false);
+    } else {
+      const ok = await audioService.startNoiseMonitoring((lvl, st) => {
+        setNoiseLevel(lvl);
+        setNoiseStatus(st);
+      });
+      if (ok) {
+        setIsNoiseMonitoring(true);
+        setIsNoiseModalOpen(true);
+      }
+    }
   };
 
   return (
@@ -165,6 +277,11 @@ export function App() {
         onOpenPreloader={() => setIsPreloaderOpen(true)}
         isCopilotOpen={isCopilotOpen}
         onToggleCopilot={() => setIsCopilotOpen(!isCopilotOpen)}
+        isNoiseMonitoring={isNoiseMonitoring}
+        noiseStatus={noiseStatus}
+        onToggleNoiseMonitor={handleToggleNoiseMonitor}
+        onToggleSlideDrawer={() => setIsSlideDrawerOpen(!isSlideDrawerOpen)}
+        onExportPDF={handleExportPDF}
       />
 
       {/* Main Interactive Stage */}
@@ -181,13 +298,19 @@ export function App() {
             onStrokesChange={handleStrokesChange}
             stickyNotes={currentSlide.stickyNotes}
             onStickyNotesChange={handleStickyNotesChange}
+            images={currentSlide.images}
+            onImagesChange={handleImagesChange}
+            textBoxes={currentSlide.textBoxes}
+            onTextBoxesChange={handleTextBoxesChange}
             onClearCanvas={handleClearSlide}
             currentPage={currentSlideIndex + 1}
             totalPages={slides.length}
             onNextPage={handleNextSlide}
             onPrevPage={handlePrevSlide}
             onAddPage={handleAddSlide}
+            onToggleSlideDrawer={() => setIsSlideDrawerOpen(!isSlideDrawerOpen)}
             onExportPNG={handleExportPNG}
+            onExportPDF={handleExportPDF}
             onOpenQRShare={() => setIsQRShareOpen(true)}
           />
 
@@ -203,6 +326,18 @@ export function App() {
             onSelectBackground={setBackgroundTheme}
             onOpenStudentPicker={() => setIsStudentPickerOpen(true)}
             onOpenEndClass={() => setIsEndClassOpen(true)}
+          />
+
+          {/* Slide Thumbnail Drawer */}
+          <SlideThumbnailDrawer
+            isOpen={isSlideDrawerOpen}
+            onClose={() => setIsSlideDrawerOpen(false)}
+            slides={slides}
+            currentSlideIndex={currentSlideIndex}
+            onSelectSlide={(idx) => setCurrentSlideIndex(idx)}
+            onAddSlide={handleAddSlide}
+            onDuplicateSlide={handleDuplicateSlide}
+            onDeleteSlide={handleDeleteSlide}
           />
         </div>
 
@@ -240,6 +375,13 @@ export function App() {
         onSelectStudentForBoard={(name) => {
           setActiveBoardStudent(name);
         }}
+      />
+
+      <NoiseMonitorModal
+        isOpen={isNoiseModalOpen}
+        onClose={() => setIsNoiseModalOpen(false)}
+        noiseLevel={noiseLevel}
+        noiseStatus={noiseStatus}
       />
 
       <QRShareModal

@@ -139,6 +139,30 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Eraser className="w-5 h-5" />
         </button>
+
+        <button
+          onClick={() => onSelectTool('text')}
+          title="Text Tool (Click canvas to type)"
+          className={`p-2.5 rounded-xl transition ${
+            currentTool === 'text'
+              ? 'bg-cyan-600 text-white shadow-lg'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <span className="font-extrabold text-sm leading-none px-1">T</span>
+        </button>
+
+        <button
+          onClick={() => onSelectTool('pan')}
+          title="Pan / Hand Tool"
+          className={`p-2.5 rounded-xl transition ${
+            currentTool === 'pan'
+              ? 'bg-indigo-600 text-white shadow-lg'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <span className="text-sm">✋</span>
+        </button>
       </div>
 
       {/* 2. Geometric Shapes Selector */}

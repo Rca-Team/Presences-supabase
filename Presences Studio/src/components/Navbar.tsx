@@ -4,10 +4,11 @@ import {
   Clock, 
   Sparkles, 
   Settings, 
-  ShieldCheck, 
   ChevronDown, 
-  Maximize2,
-  Tv
+  Tv,
+  Mic,
+  Layers,
+  FileDown
 } from 'lucide-react';
 import { GeminiTeachingService } from '../services/geminiTeachingService';
 
@@ -19,6 +20,11 @@ interface NavbarProps {
   onOpenPreloader: () => void;
   isCopilotOpen: boolean;
   onToggleCopilot: () => void;
+  isNoiseMonitoring?: boolean;
+  noiseStatus?: 'quiet' | 'moderate' | 'loud';
+  onToggleNoiseMonitor?: () => void;
+  onToggleSlideDrawer?: () => void;
+  onExportPDF?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -29,6 +35,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPreloader,
   isCopilotOpen,
   onToggleCopilot,
+  isNoiseMonitoring = false,
+  noiseStatus = 'quiet',
+  onToggleNoiseMonitor,
+  onToggleSlideDrawer,
+  onExportPDF,
 }) => {
   // 45-minute Period countdown
   const [periodSecondsLeft, setPeriodSecondsLeft] = useState(45 * 60);
@@ -57,15 +68,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shadow-md z-30 select-none">
+      <header className="h-14 bg-slate-900 border-b border-slate-800 px-3 md:px-4 flex items-center justify-between shadow-md z-30 select-none">
         
         {/* Left: Brand & Active Curriculum Chapter Picker */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 pr-3 border-r border-slate-800">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-black shadow-md">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-2 pr-2 md:pr-3 border-r border-slate-800">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-black shadow-md flex-shrink-0">
               <Tv className="w-4 h-4" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <span className="text-xs font-black tracking-tight text-white block leading-none">
                 PRESENCES
               </span>
@@ -78,31 +89,53 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Current Chapter Selector Button */}
           <button
             onClick={onOpenPreloader}
-            className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-800 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-700/80 transition"
+            className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-800 text-slate-200 px-2.5 md:px-3 py-1.5 rounded-xl border border-slate-700/80 transition max-w-[200px] sm:max-w-xs md:max-w-md"
           >
-            <BookOpen className="w-4 h-4 text-emerald-400" />
-            <div className="text-left">
-              <span className="text-[10px] font-bold text-slate-400 block leading-none">
+            <BookOpen className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <div className="text-left truncate">
+              <span className="text-[10px] font-bold text-slate-400 block leading-none truncate">
                 {gradeLabel} • {subjectName}
               </span>
-              <span className="text-xs font-bold text-white block leading-tight truncate max-w-[220px] md:max-w-[340px]">
+              <span className="text-xs font-bold text-white block leading-tight truncate">
                 {chapterTitle}: {subtopicTitle}
               </span>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1 flex-shrink-0" />
           </button>
         </div>
 
-        {/* Right: Period Countdown + Copilot Toggle + Settings */}
-        <div className="flex items-center gap-3">
+        {/* Right: Noise Monitor + Timer + Copilot Toggle + Settings */}
+        <div className="flex items-center gap-2 md:gap-3">
           
+          {/* Noise Level Monitor Pill */}
+          {onToggleNoiseMonitor && (
+            <button
+              onClick={onToggleNoiseMonitor}
+              title="Classroom Noise Monitor"
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition ${
+                isNoiseMonitoring
+                  ? noiseStatus === 'quiet'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : noiseStatus === 'moderate'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse'
+                  : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+              }`}
+            >
+              <Mic className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-mono">
+                {isNoiseMonitoring ? (noiseStatus === 'quiet' ? 'Quiet' : noiseStatus === 'moderate' ? 'Moderate' : 'Loud!') : 'Noise Mic'}
+              </span>
+            </button>
+          )}
+
           {/* Period Timer */}
-          <div className="flex items-center gap-2 bg-slate-950/80 px-3.5 py-1.5 rounded-xl border border-slate-800 text-xs">
-            <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+          <div className="flex items-center gap-1.5 md:gap-2 bg-slate-950/80 px-2.5 md:px-3 py-1 rounded-xl border border-slate-800 text-xs">
+            <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse flex-shrink-0" />
             <div>
-              <span className="text-[10px] text-slate-400 block leading-none">Period 3</span>
+              <span className="text-[9px] text-slate-400 block leading-none">Period 3</span>
               <span className="font-mono font-bold text-amber-300 block leading-none mt-0.5">
-                {formatTime(periodSecondsLeft)} left
+                {formatTime(periodSecondsLeft)}
               </span>
             </div>
           </div>
@@ -117,7 +150,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>Jarvis Copilot</span>
+            <span className="hidden sm:inline">Jarvis Copilot</span>
           </button>
 
           {/* Quick Settings */}

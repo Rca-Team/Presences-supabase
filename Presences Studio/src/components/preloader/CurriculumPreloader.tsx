@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { CURRICULUM_DATA } from '../../data/curriculumData';
 import { Chapter, SubTopic, SubjectCurriculum } from '../../types/smartboard';
+import { GeminiTeachingService } from '../../services/geminiTeachingService';
 import { 
-  BookOpen, 
   GraduationCap, 
   ChevronRight, 
   Sparkles, 
-  X,
-  Layers
+  X, 
+  Search, 
+  Loader2, 
+  Zap,
+  BookOpen
 } from 'lucide-react';
 
 interface CurriculumPreloaderProps {
@@ -24,19 +27,65 @@ export const CurriculumPreloader: React.FC<CurriculumPreloaderProps> = ({
   const [selectedGradeIndex, setSelectedGradeIndex] = useState(0);
   const [selectedSubjectIndex, setSelectedSubjectIndex] = useState(0);
 
+  // Search & Universal Topic Generation
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isGeneratingTopic, setIsGeneratingTopic] = useState(false);
+
   if (!isOpen) return null;
 
   const currentGrade = CURRICULUM_DATA[selectedGradeIndex] || CURRICULUM_DATA[0];
   const currentSubject = currentGrade.subjects[selectedSubjectIndex] || currentGrade.subjects[0];
 
+  // Filter chapters/subtopics based on search query
+  const filteredChapters = searchQuery.trim()
+    ? currentSubject.chapters.map(chap => ({
+        ...chap,
+        subTopics: chap.subTopics.filter(
+          sub =>
+            sub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            chap.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            sub.keyPoints.some(k => k.toLowerCase().includes(searchQuery.toLowerCase()))
+        )
+      })).filter(chap => chap.subTopics.length > 0)
+    : currentSubject.chapters;
+
+  // Handle Dynamic AI Topic Generation for custom queries
+  const handleGenerateCustomTopic = async () => {
+    if (!searchQuery.trim()) return;
+    setIsGeneratingTopic(true);
+    try {
+      const generatedSubTopic = await GeminiTeachingService.generateCustomTopicCurriculum(searchQuery.trim());
+      const customChapter: Chapter = {
+        id: `custom-chap-${Date.now()}`,
+        number: 99,
+        name: searchQuery.trim(),
+        description: `AI synthesized smartboard module for ${searchQuery.trim()}`,
+        subTopics: [generatedSubTopic]
+      };
+      const customSubject: SubjectCurriculum = {
+        id: 'custom-subject',
+        name: 'General Science / STEM',
+        icon: 'Sparkles',
+        chapters: [customChapter]
+      };
+
+      onSelectSubTopic(customChapter, generatedSubTopic, customSubject);
+      onClose();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGeneratingTopic(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 select-none animate-in fade-in">
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 md:p-6 select-none animate-in fade-in">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden">
         
-        {/* Header */}
-        <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
+        {/* Top Header with Universal Search */}
+        <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold flex-shrink-0">
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
@@ -44,35 +93,66 @@ export const CurriculumPreloader: React.FC<CurriculumPreloaderProps> = ({
                 Curriculum Preload Hub
               </h2>
               <p className="text-xs text-slate-400">
-                Instantly load syllabus, interactive chapters, animated videos & question banks
+                Preload any chapter or generate a custom AI module in real time
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          {/* Universal Search Bar */}
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search topic or type any concept (e.g. Thermodynamics, Photosynthesis)..."
+                className="w-full bg-slate-950 border border-slate-700 text-white text-xs pl-9 pr-3 py-2 rounded-xl outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {searchQuery.trim() && (
+              <button
+                onClick={handleGenerateCustomTopic}
+                disabled={isGeneratingTopic}
+                className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow flex-shrink-0"
+              >
+                {isGeneratingTopic ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>AI Generate</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Body: Grade & Subject Bar + Chapter Cards */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           
           {/* Left Side: Grade & Subject Navigator */}
-          <div className="w-full md:w-72 bg-slate-950/70 border-r border-slate-800 p-4 space-y-6 overflow-y-auto">
+          <div className="w-full md:w-64 bg-slate-950/70 border-r border-slate-800 p-4 space-y-6 overflow-y-auto flex-shrink-0">
             {/* Grade Selection */}
             <div>
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Select Class / Grade
+                Class / Grade
               </span>
               <div className="grid grid-cols-2 gap-2">
                 {CURRICULUM_DATA.map((grade, idx) => (
                   <button
                     key={grade.grade}
                     onClick={() => { setSelectedGradeIndex(idx); setSelectedSubjectIndex(0); }}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                       selectedGradeIndex === idx
                         ? 'bg-emerald-600 text-white shadow-lg'
                         : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
@@ -87,14 +167,14 @@ export const CurriculumPreloader: React.FC<CurriculumPreloaderProps> = ({
             {/* Subject Selection */}
             <div>
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Select Subject
+                Subject
               </span>
               <div className="space-y-1.5">
                 {currentGrade.subjects.map((subj, sIdx) => (
                   <button
                     key={subj.id}
                     onClick={() => setSelectedSubjectIndex(sIdx)}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition flex items-center justify-between ${
+                    className={`w-full py-2.5 px-3.5 rounded-xl text-xs font-bold transition flex items-center justify-between ${
                       selectedSubjectIndex === sIdx
                         ? 'bg-blue-600 text-white shadow-md'
                         : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
@@ -116,16 +196,39 @@ export const CurriculumPreloader: React.FC<CurriculumPreloaderProps> = ({
                   {currentGrade.label} • {currentSubject.name} Chapters
                 </h3>
                 <span className="text-xs text-slate-400">
-                  Select any topic to instantly deploy all materials to your smartboard
+                  Select any topic to instantly deploy all lesson materials to your smartboard
                 </span>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                {currentSubject.chapters.length} Chapters Available
+                {filteredChapters.length} Chapters Available
               </span>
             </div>
 
+            {/* If search returned no standard results, prompt AI synthesis */}
+            {filteredChapters.length === 0 && searchQuery.trim() && (
+              <div className="py-12 text-center bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h4 className="text-base font-bold text-white">
+                  Topic "{searchQuery}" Not in Pre-loaded Index
+                </h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Our Jarvis AI Co-Pilot can synthesize an instant lesson outline, animated video list, formulas, and board questions right now.
+                </p>
+                <button
+                  onClick={handleGenerateCustomTopic}
+                  disabled={isGeneratingTopic}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg inline-flex items-center gap-2"
+                >
+                  {isGeneratingTopic ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  <span>Synthesize Module for "{searchQuery}"</span>
+                </button>
+              </div>
+            )}
+
             <div className="space-y-6">
-              {currentSubject.chapters.map(chap => (
+              {filteredChapters.map(chap => (
                 <div
                   key={chap.id}
                   className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm"
