@@ -17,7 +17,10 @@ function isChunkOrNetworkError(error: Error) {
     msg.includes('loading chunk') ||
     msg.includes('importing a module script failed') ||
     msg.includes('csssyntaxerror') ||
-    msg.includes('networkerror')
+    msg.includes('networkerror') ||
+    msg.includes('is not defined') ||
+    msg.includes('referenceerror') ||
+    msg.includes('isorientation')
   );
 }
 
@@ -79,8 +82,19 @@ export class AppErrorBoundary extends React.Component<
     })();
   }
 
-  private reset = () => {
-    this.setState({ error: null, recovering: false, errorInfo: null });
+  private reset = async () => {
+    this.setState({ recovering: true });
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+    } catch {}
+    window.location.reload();
   };
 
   private handleHardReset = async () => {
