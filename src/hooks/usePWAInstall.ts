@@ -18,8 +18,8 @@ export const usePWAInstall = () => {
       || (window.navigator as any).standalone === true;
     setIsInstalled(isStandalone);
 
-    // Skip interception if already in standalone app or on the dedicated Jarvis console
-    if (isStandalone || window.location.pathname.startsWith('/jarvis')) {
+    // Skip interception if already in standalone app or on the dedicated Jarvis or Admin console
+    if (isStandalone || window.location.pathname.startsWith('/jarvis') || window.location.pathname.startsWith('/admin')) {
       return;
     }
 

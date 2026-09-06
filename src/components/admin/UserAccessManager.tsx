@@ -181,15 +181,20 @@ const UserAccessManager: React.FC = () => {
     }
   }, [toast]);
 
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
+
   useEffect(() => {
-    loadData();
+    loadDataRef.current();
     const channel = supabase
       .channel('access-command-center')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_teachers' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'class_teachers' }, () => loadDataRef.current())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, () => loadDataRef.current())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [loadData]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const teachersList = useMemo(() => users.filter((u) => u.role === 'teacher' || u.isTeacher), [users]);
 
@@ -241,6 +246,123 @@ const UserAccessManager: React.FC = () => {
       loadData();
     } catch (e: any) { toast({ title: 'Error', description: e.message, variant: 'destructive' }); }
     finally { setTCreating(false); }
+  };
+
+  const handleAssignTeacherToSlot = async () => {
+    if (!assignSlot || !selectedTeacherId) return;
+    setIsAssigning(true);
+    try {
+      const teacher = teachersList.find((t) => t.user_id === selectedTeacherId || t.id === selectedTeacherId);
+      if (!teacher) throw new Error('Teacher not found in faculty list');
+
+      await assignClassTeacher(
+        assignSlot.class,
+        assignSlot.section,
+        teacher.user_id,
+        teacher.name,
+        teacher.email,
+        'class_teacher'
+      );
+
+      toast({
+        title: 'Class Teacher Assigned',
+        description: `${teacher.name} assigned as Class Teacher for Class ${assignSlot.category}.`,
+      });
+      setAssignSlot(null);
+      setSelectedTeacherId('');
+      loadData();
+    } catch (e: any) {
+      toast({ title: 'Assignment Failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleUnassignSlot = async (slot: ClassMatrixSlot) => {
+    try {
+      await unassignClassTeacher(slot.category, slot.primaryTeacher?.teacher_id);
+      toast({
+        title: 'Class Unassigned',
+        description: `Class ${slot.category} is now vacant.`,
+      });
+      loadData();
+    } catch (e: any) {
+      toast({ title: 'Unassign Failed', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const handleExecuteSwap = async () => {
+    if (swapClassA === swapClassB) {
+      toast({ title: 'Invalid Swap', description: 'Please select two different classes.', variant: 'destructive' });
+      return;
+    }
+    setIsSwapping(true);
+    try {
+      await swapClassTeacherAssignments(swapClassA, swapClassB);
+      toast({
+        title: 'Swap Successful',
+        description: `Swapped assignments between Class ${swapClassA} and Class ${swapClassB}.`,
+      });
+      setSwapModalOpen(false);
+      loadData();
+    } catch (e: any) {
+      toast({ title: 'Swap Failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
+  const handlePreviewAutoAllocation = () => {
+    const vacantSlots = matrix.filter((s) => !s.isAssigned);
+    if (vacantSlots.length === 0) {
+      toast({ title: 'All Classes Assigned', description: 'There are no vacant classes to auto-allocate.' });
+      return;
+    }
+    if (teachersList.length === 0) {
+      toast({ title: 'No Teachers Available', description: 'No faculty profiles found to allocate.', variant: 'destructive' });
+      return;
+    }
+
+    const teacherCandidates = teachersList.map((t) => ({
+      id: t.user_id,
+      user_id: t.user_id,
+      name: t.name,
+      email: t.email,
+      currentWorkload: t.teacherCategories.length,
+    }));
+
+    const plan = calculateAutoAllocationPlan(vacantSlots, teacherCandidates);
+    setAutoAllocPlan(plan);
+    setAutoAllocModalOpen(true);
+  };
+
+  const handleApplyAutoAllocation = async () => {
+    if (autoAllocPlan.length === 0) return;
+    setIsApplyingAlloc(true);
+    try {
+      for (const item of autoAllocPlan) {
+        await assignClassTeacher(
+          item.slot.class,
+          item.slot.section,
+          item.teacher.id,
+          item.teacher.name,
+          item.teacher.email,
+          'class_teacher'
+        );
+      }
+
+      toast({
+        title: 'Auto-Allocation Applied',
+        description: `Successfully allocated teachers across ${autoAllocPlan.length} vacant classes.`,
+      });
+      setAutoAllocModalOpen(false);
+      setAutoAllocPlan([]);
+      loadData();
+    } catch (e: any) {
+      toast({ title: 'Auto-Allocation Failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsApplyingAlloc(false);
+    }
   };
 
   if (isLoading) return <div className="p-10 space-y-4"><Skeleton className="h-10 w-full" />{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>;
