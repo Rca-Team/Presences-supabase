@@ -370,16 +370,22 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
         }
       });
 
-      // Default faculties if none registered yet
-      if (teacherMap.size === 0) {
-        teacherMap.set('teacher-1', { id: 'teacher-1', name: 'Ritu Dahiya', specialization: 'Mathematics', employee_id: 'EMP-01', role: 'PGT Math' });
-        teacherMap.set('teacher-2', { id: 'teacher-2', name: 'Manoj Kumar', specialization: 'Science', employee_id: 'EMP-02', role: 'TGT Science' });
-        teacherMap.set('teacher-3', { id: 'teacher-3', name: 'Sunita Sharma', specialization: 'English', employee_id: 'EMP-03', role: 'TGT English' });
-        teacherMap.set('teacher-4', { id: 'teacher-4', name: 'Anil Verma', specialization: 'Hindi', employee_id: 'EMP-04', role: 'TGT Hindi' });
-        teacherMap.set('teacher-5', { id: 'teacher-5', name: 'Priya Singh', specialization: 'Social Science', employee_id: 'EMP-05', role: 'TGT Social Studies' });
-        teacherMap.set('teacher-6', { id: 'teacher-6', name: 'Vikram Rathore', specialization: 'Computer', employee_id: 'EMP-06', role: 'PGT Computer Science' });
-        teacherMap.set('teacher-7', { id: 'teacher-7', name: 'Rajesh Gupta', specialization: 'PE / Sports', employee_id: 'EMP-07', role: 'PET' });
-      }
+      // Always ensure core subject specialist faculties are available so all subjects have designated teachers
+      const standardFaculties: Teacher[] = [
+        { id: 'faculty-math', name: 'Ritu Dahiya', specialization: 'Mathematics', employee_id: 'EMP-01', role: 'PGT Math' },
+        { id: 'faculty-sci', name: 'Manoj Kumar', specialization: 'Science', employee_id: 'EMP-02', role: 'TGT Science' },
+        { id: 'faculty-eng', name: 'Sunita Sharma', specialization: 'English', employee_id: 'EMP-03', role: 'TGT English' },
+        { id: 'faculty-hin', name: 'Anil Verma', specialization: 'Hindi', employee_id: 'EMP-04', role: 'TGT Hindi' },
+        { id: 'faculty-sst', name: 'Priya Singh', specialization: 'Social Science', employee_id: 'EMP-05', role: 'TGT Social Studies' },
+        { id: 'faculty-cs', name: 'Vikram Rathore', specialization: 'Computer Science', employee_id: 'EMP-06', role: 'PGT CS' },
+        { id: 'faculty-pe', name: 'Rajesh Gupta', specialization: 'PE / Sports', employee_id: 'EMP-07', role: 'PET' },
+      ];
+
+      standardFaculties.forEach((f) => {
+        if (!teacherMap.has(f.id)) {
+          teacherMap.set(f.id, f);
+        }
+      });
 
       const teacherList = Array.from(teacherMap.values());
       setTeachers(teacherList);
@@ -509,6 +515,52 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
     toast({
       title: '✨ Fixed Teachers Synced',
       description: `Assigned ${updatedCount} period slot(s) to the designated subject teachers for ${getCategoryLabel(selectedCategory)}. Click "Save Timetable" to persist.`,
+    });
+  };
+
+  // 1-Click Distribute all slots to specialist subject teachers (avoids all periods going to one teacher)
+  const handleDistributeTeachersBySubject = () => {
+    const designated = classAssignmentsMap[selectedCategory]?.subjectTeachers || {};
+    let updatedCount = 0;
+    const nextDraft = { ...draftSlots };
+
+    Object.entries(nextDraft).forEach(([key, slot]) => {
+      if (!slot.subjectId) return;
+      const subj = subjects.find((s) => s.id === slot.subjectId);
+      if (!subj) return;
+
+      // 1. Designated class subject teacher
+      if (designated[subj.id]) {
+        slot.teacherId = designated[subj.id];
+        updatedCount++;
+        return;
+      }
+
+      // 2. Best matching specialist teacher by subject name
+      const sNorm = subj.name.toLowerCase();
+      const match = teachers.find((t) => {
+        const tNorm = `${t.name} ${t.specialization || ''}`.toLowerCase();
+        if (sNorm.includes('math') && tNorm.includes('math')) return true;
+        if (sNorm.includes('sci') && tNorm.includes('sci')) return true;
+        if (sNorm.includes('eng') && tNorm.includes('eng')) return true;
+        if (sNorm.includes('hin') && tNorm.includes('hin')) return true;
+        if (sNorm.includes('comp') && (tNorm.includes('comp') || tNorm.includes('cs'))) return true;
+        if (sNorm.includes('pe') && (tNorm.includes('pe') || tNorm.includes('sport'))) return true;
+        if ((sNorm.includes('sst') || sNorm.includes('soc')) && (tNorm.includes('sst') || tNorm.includes('soc'))) return true;
+        if (sNorm.includes('art') && tNorm.includes('art')) return true;
+        return false;
+      });
+
+      if (match) {
+        slot.teacherId = match.id;
+        updatedCount++;
+      }
+    });
+
+    setDraftSlots(nextDraft);
+    toast({
+      title: '🎯 Re-distributed by Subject Specialists',
+      description: `Assigned ${updatedCount} period slot(s) to their respective subject teachers (Math, Science, English, Hindi, etc.). Click "Save Timetable" to persist.`,
     });
   };
 
@@ -1157,6 +1209,18 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({ allowedCateg
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 Sync Fixed Teachers
+              </Button>
+
+              {/* Distribute by Subject Specialist Teachers */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDistributeTeachersBySubject}
+                className="h-9 px-3 text-xs rounded-xl border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-bold gap-1.5"
+                title="Re-distribute period slots to their distinct subject specialist teachers (Math, Science, English, etc.)"
+              >
+                <Users className="h-3.5 w-3.5" />
+                Distribute by Subject
               </Button>
 
               {/* Glowing 1-Click Auto-Generate Button */}

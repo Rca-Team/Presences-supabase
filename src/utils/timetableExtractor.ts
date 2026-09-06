@@ -237,8 +237,9 @@ export function matchOrAssignTeacher(
     }
   }
 
-  // 4. Fallback to first available teacher
-  return knownTeachers[0] || null;
+  // 4. Do not blindly dump all periods to the first teacher.
+  // Return null so the slot remains unassigned until a teacher is selected or mapped per subject.
+  return null;
 }
 
 /**
