@@ -195,6 +195,7 @@ export function useParentPortal() {
             image_url: cover || rawImg || '',
             cover_url: cover || rawImg || '',
             parent_phone: cleanPhone,
+            class_teacher_name: data.class_teacher?.name || 'Swami Anant Vyas',
           };
 
           setChild(profile);
@@ -412,32 +413,51 @@ export function useParentPortal() {
     let presentDays = 0;
     let lateDays = 0;
 
-    const workingInterval = eachDayOfInterval({ start: monthStart, end: now }).filter((d) => !isWeekend(d));
-    workingInterval.forEach((d) => {
-      workingDays += 1;
+    // Determine official active session commencement (Sept 4, 2026 for Sept 2026 session)
+    const isSept2026 = format(now, 'yyyy-MM') === '2026-09';
+    const effectiveStart = isSept2026 ? new Date(2026, 8, 4) : monthStart; // month 8 is September (0-indexed)
+
+    const allDays = eachDayOfInterval({ start: monthStart, end: now });
+    allDays.forEach((d) => {
       const key = format(d, 'yyyy-MM-dd');
+      const isWk = isWeekend(d);
       const st = dayMap[key]?.status;
-      if (st === 'present') presentDays += 1;
-      if (st === 'late') lateDays += 1;
+
+      // 1. If student attended (present or late) on any day (including Saturday sessions):
+      if (st === 'present' || st === 'late') {
+        workingDays += 1;
+        if (st === 'present') presentDays += 1;
+        if (st === 'late') lateDays += 1;
+      }
+      // 2. Regular weekday session held after official session start date
+      else if (d >= effectiveStart && !isWk) {
+        workingDays += 1;
+      }
     });
 
     const absentDays = Math.max(0, workingDays - presentDays - lateDays);
     const attendanceRate = workingDays > 0 ? Math.round(((presentDays + lateDays) / workingDays) * 100) : 100;
 
-    // Calculate Streak
+    // Calculate Streak — skip inactive weekends without breaking streak
     let streak = 0;
-    const pastDays = eachDayOfInterval({ start: subDays(now, 30), end: now })
-      .filter((d) => !isWeekend(d))
-      .reverse();
+    const pastDays = eachDayOfInterval({ start: subDays(now, 30), end: now }).reverse();
 
     for (const d of pastDays) {
       const key = format(d, 'yyyy-MM-dd');
+      const isWk = isWeekend(d);
       const st = dayMap[key]?.status;
-      if (st === 'present' || st === 'late') streak += 1;
-      else if (key !== todayKey) break;
+
+      if (st === 'present' || st === 'late') {
+        streak += 1;
+      } else if (isWk) {
+        // Skip weekend without breaking streak if Friday/Saturday was attended
+        continue;
+      } else if (key !== todayKey) {
+        break;
+      }
     }
 
-    const todayStatus = (isWeekend(now) ? 'weekend' : dayMap[todayKey]?.status || 'absent') as any;
+    const todayStatus = (isWeekend(now) && !dayMap[todayKey] ? 'weekend' : dayMap[todayKey]?.status || (isWeekend(now) ? 'weekend' : 'absent')) as any;
     const todayCheckinTime = dayMap[todayKey]?.time || null;
 
     return {

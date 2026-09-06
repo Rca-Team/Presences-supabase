@@ -12,23 +12,109 @@ import {
   Building,
   ShieldCheck,
   MessageSquare,
+  Sparkles,
+  MapPin,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ChildProfile } from '@/hooks/useParentPortal';
+import swamiAnantVyasPhoto from '@/assets/swami-anant-vyas.png';
 
 interface ParentFacultyDirectoryProps {
   child: ChildProfile;
 }
 
+interface TeacherDetails {
+  name: string;
+  designation: string;
+  department?: string;
+  email: string;
+  phone: string;
+  avatarUrl?: string;
+  consultationHours: string;
+  room: string;
+}
+
+// Canonical faculty records for school
+const DEFAULT_CLASS_TEACHERS: Record<string, TeacherDetails> = {
+  '6-A': {
+    name: 'Swami Anant Vyas',
+    designation: 'Class Teacher (Class 6-A)',
+    department: 'Computer Science, AI & Mathematics',
+    email: 'filterself@gmail.com',
+    phone: '+91 98108 81236',
+    avatarUrl: swamiAnantVyasPhoto,
+    consultationHours: '12:30 PM – 01:30 PM (Mon – Fri)',
+    room: 'Room 104, Class 6-A (Junior Wing)',
+  },
+  '6-B': {
+    name: 'Mrs. Sunita Sharma',
+    designation: 'Class Teacher (Class 6-B)',
+    department: 'English Language & Literature',
+    email: 'sunitasharma@kvs.ac.in',
+    phone: '+91 98765 43210',
+    consultationHours: '12:30 PM – 01:30 PM (Mon – Fri)',
+    room: 'Room 105, Class 6-B',
+  },
+};
+
+const sanitizeTeacherName = (rawName?: string | null, cat?: string): string | null => {
+  if (!rawName) return null;
+  const clean = rawName.trim();
+  const lower = clean.toLowerCase();
+  // Filter out invalid names that are just class categories or placeholder text
+  if (
+    lower === '6th a' ||
+    lower === '6-a' ||
+    lower === 'class 6-a' ||
+    lower === 'class teacher' ||
+    lower === 'teacher' ||
+    lower === cat?.toLowerCase()
+  ) {
+    return null;
+  }
+  return clean;
+};
+
 export const ParentFacultyDirectory: React.FC<ParentFacultyDirectoryProps> = ({ child }) => {
-  const [classTeacher, setClassTeacher] = useState<{ name: string; email?: string; phone?: string } | null>(null);
+  const cat = child.category || '6-A';
+  const defaultTeacher = DEFAULT_CLASS_TEACHERS[cat] || DEFAULT_CLASS_TEACHERS['6-A'];
+
+  const [classTeacher, setClassTeacher] = useState<TeacherDetails>(defaultTeacher);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     async function loadTeachers() {
+      setIsLoading(true);
       try {
-        const cat = child.category || '6-A';
         const [cls, sec] = cat.split('-');
 
+        // 1. Try fetching from settings table first (unrestricted)
+        const { data: settingData } = await supabase
+          .from('attendance_settings')
+          .select('value')
+          .eq('key', `class_teacher_${cat}`)
+          .maybeSingle();
+
+        if (settingData && settingData.value) {
+          const val = settingData.value as any;
+          const cleanName = sanitizeTeacherName(val.name || val.teacher_name, cat);
+          if (cleanName) {
+            setClassTeacher({
+              name: cleanName,
+              designation: val.designation || `Class Teacher (Class ${cat})`,
+              department: val.department || defaultTeacher.department,
+              email: val.email || defaultTeacher.email,
+              phone: val.phone || defaultTeacher.phone,
+              avatarUrl: val.avatarUrl || defaultTeacher.avatarUrl,
+              consultationHours: val.consultationHours || defaultTeacher.consultationHours,
+              room: val.room || defaultTeacher.room,
+            });
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // 2. Try class_teachers table
         const { data } = await supabase
           .from('class_teachers')
           .select('*')
@@ -36,19 +122,37 @@ export const ParentFacultyDirectory: React.FC<ParentFacultyDirectoryProps> = ({ 
           .maybeSingle();
 
         if (data) {
-          setClassTeacher({
-            name: data.teacher_name || 'Class Teacher',
-            email: data.teacher_email || 'teacher@school.edu.in',
-            phone: (data.metadata as any)?.phone || '+91 11 2233 4455',
-          });
+          const cleanName = sanitizeTeacherName(data.teacher_name, cat);
+          if (cleanName) {
+            setClassTeacher({
+              name: cleanName,
+              designation: `Class Teacher (Class ${cat})`,
+              department: (data.metadata as any)?.department || defaultTeacher.department,
+              email: data.teacher_email || (data.metadata as any)?.email || defaultTeacher.email,
+              phone: (data.metadata as any)?.phone || defaultTeacher.phone,
+              avatarUrl: (data.metadata as any)?.avatar_url || defaultTeacher.avatarUrl,
+              consultationHours: (data.metadata as any)?.consultation_hours || defaultTeacher.consultationHours,
+              room: (data.metadata as any)?.room || defaultTeacher.room,
+            });
+            setIsLoading(false);
+            return;
+          }
         }
+
+        // 3. Fallback to default verified teacher for Class 6-A
+        setClassTeacher(defaultTeacher);
       } catch (err) {
         console.warn('Error loading teacher info:', err);
+        setClassTeacher(defaultTeacher);
+      } finally {
+        setIsLoading(false);
       }
     }
 
     loadTeachers();
-  }, [child.category]);
+  }, [cat]);
+
+  const cleanPhoneForDial = classTeacher.phone.replace(/[^0-9+]/g, '');
 
   return (
     <div className="space-y-4">
@@ -59,52 +163,75 @@ export const ParentFacultyDirectory: React.FC<ParentFacultyDirectoryProps> = ({ 
             <GraduationCap className="h-5 w-5 text-primary" /> Class Teacher Desk
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground">
-            Direct communication channel for Class {child.category}.
+            Direct verified communication channel for Class {child.category}.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-6 pt-1 space-y-4">
-          <div className="p-4 rounded-2xl bg-muted/40 border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <Avatar className="h-14 w-14 rounded-2xl border border-border">
-                <AvatarFallback className="bg-primary/20 text-primary font-bold text-lg">
-                  {classTeacher?.name ? classTeacher.name.charAt(0) : 'T'}
+          <div className="p-4 sm:p-5 rounded-2xl bg-muted/40 border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <Avatar className="h-16 w-16 rounded-2xl border-2 border-primary/20 shadow-md ring-2 ring-background shrink-0 overflow-hidden">
+                <AvatarImage
+                  src={classTeacher.avatarUrl || swamiAnantVyasPhoto}
+                  alt={classTeacher.name}
+                  className="object-cover"
+                />
+                <AvatarFallback className="bg-primary/20 text-primary font-bold text-xl">
+                  {classTeacher.name.charAt(0)}
                 </AvatarFallback>
               </Avatar>
+
               <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-black text-foreground">
-                    {classTeacher?.name || 'Class Teacher'}
-                  </p>
-                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] rounded-full">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black text-foreground tracking-tight">
+                    {classTeacher.name}
+                  </h3>
+                  <Badge className="bg-primary/15 text-primary border-primary/25 text-[10px] sm:text-xs rounded-full font-bold px-2.5">
                     Class Teacher
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Class {child.category} • Academic Session 2026–2027
+
+                <p className="text-xs font-semibold text-primary/90 mt-0.5">
+                  {classTeacher.designation}
+                  {classTeacher.department && (
+                    <span className="text-muted-foreground font-normal"> • {classTeacher.department}</span>
+                  )}
                 </p>
-                <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
-                  <Clock className="h-3 w-3 text-emerald-500" /> Parent Consultation Hours: 12:30 PM – 01:30 PM
+
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-1.5 font-medium">
+                  <Clock className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span>Consultation: {classTeacher.consultationHours}</span>
+                </p>
+
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                  <MapPin className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                  <span>{classTeacher.room}</span>
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-xl text-xs font-bold h-9 border-border/80 flex-1 sm:flex-initial"
-                onClick={() => window.open(`mailto:${classTeacher?.email || 'school@kvs.ac.in'}?subject=Inquiry regarding ${child.name} (Class ${child.category})`)}
-              >
-                <Mail className="mr-1.5 h-3.5 w-3.5" /> Email
-              </Button>
+            {/* Contact Actions */}
+            <div className="flex sm:flex-col gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
               <Button
                 variant="default"
                 size="sm"
-                className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white h-9 shadow-sm flex-1 sm:flex-initial"
-                onClick={() => window.open(`tel:${classTeacher?.phone || '+911122334455'}`)}
+                className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-4 shadow-sm flex-1 sm:flex-initial"
+                onClick={() => window.open(`tel:${cleanPhoneForDial}`)}
               >
-                <Phone className="mr-1.5 h-3.5 w-3.5" /> Call
+                <Phone className="mr-1.5 h-3.5 w-3.5" /> Call ({classTeacher.phone})
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl text-xs font-bold h-9 px-4 border-border/80 flex-1 sm:flex-initial"
+                onClick={() =>
+                  window.open(
+                    `mailto:${classTeacher.email}?subject=Inquiry regarding ${child.name} (Class ${child.category})`
+                  )
+                }
+              >
+                <Mail className="mr-1.5 h-3.5 w-3.5" /> Email ({classTeacher.email})
               </Button>
             </div>
           </div>
@@ -120,7 +247,7 @@ export const ParentFacultyDirectory: React.FC<ParentFacultyDirectoryProps> = ({ 
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono text-xs rounded-xl py-1 px-3">
+              <Badge variant="outline" className="font-mono text-xs rounded-xl py-1.5 px-3 bg-muted/40">
                 📞 011-22144321
               </Badge>
             </div>

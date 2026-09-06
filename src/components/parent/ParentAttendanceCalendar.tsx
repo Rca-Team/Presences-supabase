@@ -93,10 +93,21 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
     const data = attendanceDayMap[key];
     const isPast = selectedDay < new Date() && !isToday(selectedDay);
 
-    let status: 'present' | 'late' | 'absent' | 'weekend' | 'future' = 'future';
-    if (isWk) status = 'weekend';
-    else if (data) status = data.status;
-    else if (isPast) status = 'absent';
+    const isSept2026 = format(selectedDay, 'yyyy-MM') === '2026-09';
+    const dayOfMonth = selectedDay.getDate();
+    const isOrientation = isSept2026 && dayOfMonth < 4 && !data;
+
+    let status: 'present' | 'late' | 'absent' | 'orientation' | 'weekend' | 'future' = 'future';
+    // 1. Live/Recorded attendance ALWAYS takes first precedence
+    if (data) {
+      status = data.status;
+    } else if (isOrientation) {
+      status = 'orientation';
+    } else if (isWk) {
+      status = 'weekend';
+    } else if (isPast) {
+      status = 'absent';
+    }
 
     return {
       date: selectedDay,
@@ -204,14 +215,16 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
               let bgClass = 'bg-muted/30 text-muted-foreground border-transparent';
               let dotClass = '';
 
-              if (isWk) {
-                bgClass = 'bg-muted/20 text-muted-foreground/40 border-transparent';
-              } else if (rec?.status === 'present') {
+              if (rec?.status === 'present') {
                 bgClass = 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25';
                 dotClass = 'bg-emerald-500';
               } else if (rec?.status === 'late') {
                 bgClass = 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25';
                 dotClass = 'bg-amber-500';
+              } else if (isOrientation) {
+                bgClass = 'bg-muted/30 text-muted-foreground/50 border-dashed border-border/60 hover:bg-muted/50';
+              } else if (isWk) {
+                bgClass = 'bg-muted/20 text-muted-foreground/40 border-transparent';
               } else if (isPast) {
                 bgClass = 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20 hover:bg-rose-500/20';
                 dotClass = 'bg-rose-500';
@@ -244,13 +257,15 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
             <span>Late ({summary.lateDays})</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-            <span>Absent ({summary.absentDays})</span>
-          </div>
+          {summary.absentDays > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+              <span>Absent ({summary.absentDays})</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
-            <span>Weekend</span>
+            <span>Weekend / Non-Instructional</span>
           </div>
         </div>
       </CardContent>
@@ -266,7 +281,9 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
                   {format(selectedDayRecord.date, 'EEEE, dd MMMM yyyy')}
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  Daily presence and gate verification details
+                  {selectedDayRecord.status === 'orientation'
+                    ? 'Academic Session Orientation & Preparatory Period'
+                    : 'Daily presence and gate verification details'}
                 </DialogDescription>
               </DialogHeader>
 
@@ -279,12 +296,14 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
                         ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
                         : selectedDayRecord.status === 'late'
                         ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                        : selectedDayRecord.status === 'orientation'
+                        ? 'bg-muted text-muted-foreground border-border/80'
                         : selectedDayRecord.status === 'weekend'
                         ? 'bg-muted text-muted-foreground'
                         : 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30'
                     }`}
                   >
-                    {selectedDayRecord.status}
+                    {selectedDayRecord.status === 'orientation' ? 'Term Orientation' : selectedDayRecord.status}
                   </Badge>
                 </div>
 

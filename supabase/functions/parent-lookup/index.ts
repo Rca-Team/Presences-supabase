@@ -16,34 +16,52 @@ function normalizeStatus(status: string): string {
 
 function buildMonthlySummary(dayMap: Record<string, { status: string; timestamp: string }>) {
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthStart = new Date(year, month, 1);
   const todayKey = now.toISOString().slice(0, 10);
 
   let workingDays = 0;
   let presentDays = 0;
   let lateDays = 0;
 
-  for (const d = new Date(monthStart); d <= now; d.setDate(d.getDate() + 1)) {
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    if (isWeekend) continue;
-    workingDays += 1;
+  // Active student attendance commenced Sept 4, 2026 for September 2026 session
+  const isSept2026 = year === 2026 && month === 8;
+  const effectiveStart = isSept2026 ? new Date(2026, 8, 4) : monthStart;
+
+  for (let d = new Date(monthStart); d <= now; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().slice(0, 10);
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
     const status = dayMap[key]?.status;
-    if (status === 'present') presentDays += 1;
-    if (status === 'late') lateDays += 1;
+
+    // 1. If student attended (present or late) on any day (including Saturday sessions):
+    if (status === 'present' || status === 'late') {
+      workingDays += 1;
+      if (status === 'present') presentDays += 1;
+      if (status === 'late') lateDays += 1;
+    }
+    // 2. Regular active session day after official commencement:
+    else if (d >= effectiveStart && !isWeekend) {
+      workingDays += 1;
+    }
   }
 
   const absentDays = Math.max(0, workingDays - presentDays - lateDays);
-  const attendanceRate = workingDays > 0 ? Math.round(((presentDays + lateDays) / workingDays) * 100) : 0;
+  const attendanceRate = workingDays > 0 ? Math.round(((presentDays + lateDays) / workingDays) * 100) : 100;
 
   let streak = 0;
-  for (const d = new Date(now); d >= monthStart; d.setDate(d.getDate() - 1)) {
+  for (let d = new Date(now); d >= monthStart; d.setDate(d.getDate() - 1)) {
     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    if (isWeekend) continue;
     const key = d.toISOString().slice(0, 10);
     const status = dayMap[key]?.status;
-    if (status === 'present' || status === 'late') streak += 1;
-    else break;
+    if (status === 'present' || status === 'late') {
+      streak += 1;
+    } else if (isWeekend) {
+      // Don't break streak on inactive weekends if preceding days were attended
+      continue;
+    } else if (key !== todayKey) {
+      break;
+    }
   }
 
   const todayStatus = dayMap[todayKey]?.status || ((now.getDay() === 0 || now.getDay() === 6) ? 'weekend' : 'absent');
@@ -258,6 +276,17 @@ Deno.serve(async (req) => {
     const todayDatePrefix = new Date().toISOString().slice(0, 10);
     const todayGateEntries = gateEntries.filter((g: any) => String(g.entry_time || '').startsWith(todayDatePrefix)).length;
 
+    const classTeacherInfo = {
+      name: "Swami Anant Vyas",
+      designation: "Class Teacher (Class 6-A)",
+      department: "Computer Science, AI & Mathematics",
+      email: "filterself@gmail.com",
+      phone: "+91 98108 81236",
+      avatarUrl: "/swami-anant-vyas.png",
+      consultationHours: "12:30 PM – 01:30 PM (Mon – Fri)",
+      room: "Room 104, Class 6-A (Junior Wing)",
+    };
+
     return new Response(
       JSON.stringify({
         found: true,
@@ -268,6 +297,7 @@ Deno.serve(async (req) => {
           category: matched.category || "A",
           image_url: matched.image_url || "",
         },
+        class_teacher: classTeacherInfo,
         attendance,
         badges,
         emotions,
