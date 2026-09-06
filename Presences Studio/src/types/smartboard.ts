@@ -18,7 +18,9 @@ export type ToolType =
   | 'protractor'
   | 'compass'
   | 'text' 
-  | 'sticky';
+  | 'sticky'
+  | 'image'
+  | 'pan';
 
 export type BackgroundTheme = 
   | 'chalkboard' 
@@ -56,12 +58,35 @@ export interface StickyNote {
   text: string;
 }
 
+export interface CanvasImage {
+  id: string;
+  src: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  aspectRatio: number;
+  caption?: string;
+}
+
+export interface CanvasTextBox {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  isBold?: boolean;
+}
+
 export interface Slide {
   id: string;
   pageNumber: number;
   title: string;
   strokes: DrawingStroke[];
   stickyNotes: StickyNote[];
+  images?: CanvasImage[];
+  textBoxes?: CanvasTextBox[];
   background: BackgroundTheme;
   splitLayout?: {
     enabled: boolean;

@@ -212,6 +212,10 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
               const isPast = day < new Date() && !isToday(day);
               const isCurrentDay = isToday(day);
 
+              const isSept2026 = format(day, 'yyyy-MM') === '2026-09';
+              const dayOfMonth = day.getDate();
+              const isOrientationDay = isSept2026 && dayOfMonth < 4 && !rec;
+
               let bgClass = 'bg-muted/30 text-muted-foreground border-transparent';
               let dotClass = '';
 
@@ -221,7 +225,7 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
               } else if (rec?.status === 'late') {
                 bgClass = 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25';
                 dotClass = 'bg-amber-500';
-              } else if (isOrientation) {
+              } else if (isOrientationDay) {
                 bgClass = 'bg-muted/30 text-muted-foreground/50 border-dashed border-border/60 hover:bg-muted/50';
               } else if (isWk) {
                 bgClass = 'bg-muted/20 text-muted-foreground/40 border-transparent';
