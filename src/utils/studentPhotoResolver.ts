@@ -154,9 +154,14 @@ export async function getStudentCoverPhoto(
   const promise = (async () => {
     try {
       // 1. Check profiles table for avatar_url / photo_url
+      const isUuid = (val?: string | null) => Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
       const orConditions: string[] = [];
       if (userIdOrId) {
-        orConditions.push(`user_id.eq.${userIdOrId}`, `id.eq.${userIdOrId}`);
+        if (isUuid(userIdOrId)) {
+          orConditions.push(`user_id.eq.${userIdOrId}`, `id.eq.${userIdOrId}`);
+        } else {
+          orConditions.push(`employee_id.eq.${userIdOrId}`);
+        }
       }
       if (employeeId) {
         orConditions.push(`employee_id.eq.${employeeId}`);
@@ -360,7 +365,19 @@ export async function prefetchStudentCoverPhotos(userIds?: string[]): Promise<vo
       .select('user_id, id, avatar_url, photo_url');
 
     if (userIds && userIds.length > 0) {
-      query.or(`user_id.in.(${userIds.join(',')}),id.in.(${userIds.join(',')})`);
+      const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+      const uuidList = userIds.filter(isUuid);
+      const nonUuidList = userIds.filter(id => !isUuid(id));
+      const orParts: string[] = [];
+      if (uuidList.length > 0) {
+        orParts.push(`user_id.in.(${uuidList.join(',')})`, `id.in.(${uuidList.join(',')})`);
+      }
+      if (nonUuidList.length > 0) {
+        orParts.push(`employee_id.in.(${nonUuidList.join(',')})`);
+      }
+      if (orParts.length > 0) {
+        query.or(orParts.join(','));
+      }
     } else {
       query.not('avatar_url', 'is', null);
     }

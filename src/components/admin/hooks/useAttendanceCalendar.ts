@@ -137,14 +137,19 @@ export const useAttendanceCalendar = (selectedFaceId: string | null) => {
       
       // Build records-by-date map for tooltips using same identifier logic
       const { userIds, employeeId } = await getFaceIdentifiers(faceId);
+      const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
       
-      const queries = userIds.map(uid =>
-        supabase.from('attendance_records')
-          .select('id, timestamp, status, source, capture_mode, class, section, device_info, image_url')
-          .or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`)
-          .in('status', ['present', 'late', 'unauthorized'])
-          .order('timestamp', { ascending: true })
-      );
+      const queries = userIds.map(uid => {
+        let q = supabase.from('attendance_records')
+          .select('id, timestamp, status, source, capture_mode, class, section, device_info, image_url');
+        if (isUuid(uid)) {
+          q = q.or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`);
+        } else {
+          q = q.eq('student_id', uid);
+        }
+        return q.in('status', ['present', 'late', 'unauthorized'])
+          .order('timestamp', { ascending: true });
+      });
 
       if (employeeId) {
         queries.push(

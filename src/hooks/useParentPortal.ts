@@ -257,10 +257,20 @@ export function useParentPortal() {
           setActiveChildId(profile.employee_id);
 
           // Fetch attendance history
-          const { data: attHistory } = await supabase
+          const isUuid = (val?: string | null) => Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+          const conds: string[] = [];
+          if (isUuid(profile.id)) conds.push(`id.eq.${profile.id}`);
+          if (isUuid(profile.user_id)) conds.push(`user_id.eq.${profile.user_id}`);
+          if (profile.employee_id) conds.push(`student_id.eq.${profile.employee_id}`);
+
+          let attQuery = supabase
             .from('attendance_records')
-            .select('id, status, timestamp, device_info')
-            .or(`user_id.eq.${profile.id},id.eq.${profile.id}`)
+            .select('id, status, timestamp, device_info');
+          if (conds.length > 0) {
+            attQuery = attQuery.or(conds.join(','));
+          }
+
+          const { data: attHistory } = await attQuery
             .in('status', ['present', 'late', 'unauthorized'])
             .order('timestamp', { ascending: false });
 

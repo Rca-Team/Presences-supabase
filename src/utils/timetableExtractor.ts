@@ -257,37 +257,40 @@ export async function extractTimetableFromImage(options: {
 
   let parsedRaw: any = null;
 
-  // 1. Try Supabase Edge Function first
-  try {
-    const { data, error } = await supabase.functions.invoke('extract-timetable-photo', {
-      body: {
-        fileData,
-        className,
-        section,
-        knownSubjects,
-        knownTeachers,
-        apiKey: geminiApiKey,
-      },
-    });
+  const directApiKey =
+    geminiApiKey ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('gemini_api_key') || '' : '') ||
+    (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+    (import.meta as any).env?.GEMINI_API_KEY;
 
-    if (!error && data && Array.isArray(data.slots)) {
-      parsedRaw = data;
-    } else if (error) {
-      console.warn('Edge function extract-timetable-photo warning:', error);
+  // 1. If direct Gemini API key is available, run direct vision recognition directly
+  // 2. Otherwise try Supabase Edge Function
+  if (!directApiKey) {
+    try {
+      const { data, error } = await supabase.functions.invoke('extract-timetable-photo', {
+        body: {
+          fileData,
+          className,
+          section,
+          knownSubjects,
+          knownTeachers,
+        },
+      });
+
+      if (!error && data && Array.isArray(data.slots)) {
+        parsedRaw = data;
+      }
+    } catch {
+      // Edge function may not have secrets configured; fall through cleanly
     }
-  } catch (edgeErr) {
-    console.warn('Edge function invoke exception, falling back to direct vision call:', edgeErr);
   }
 
-  // 2. Direct Gemini Vision call if Edge function did not return data or lacked API key
+  // 2. Direct Gemini Vision call
   if (!parsedRaw) {
-    const apiKey =
-      geminiApiKey ||
-      (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-      (import.meta as any).env?.GEMINI_API_KEY;
+    const apiKey = directApiKey;
 
     if (!apiKey) {
-      throw new Error('Please configure a Gemini API key or backend secret to enable photo timetable extraction.');
+      throw new Error('Please configure a Gemini API key in the extractor settings or backend secrets.');
     }
 
     let mimeType = 'image/jpeg';

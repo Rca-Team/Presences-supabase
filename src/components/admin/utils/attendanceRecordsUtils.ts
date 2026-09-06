@@ -85,15 +85,19 @@ export const fetchAttendanceRecords = async (
   setLateAttendanceDays: SetDatesFunction
 ) => {
   try {
-    const { userIds, employeeId } = await getFaceIdentifiers(faceId);
-    
+    const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
     // Build queries for all possible identifier matches
-    const queries = userIds.map(uid =>
-      supabase.from('attendance_records')
-        .select('id, timestamp, status, source, capture_mode, class, section, device_info, student_id')
-        .or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`)
-        .in('status', ['present', 'late', 'unauthorized'])
-    );
+    const queries = userIds.map(uid => {
+      let q = supabase.from('attendance_records')
+        .select('id, timestamp, status, source, capture_mode, class, section, device_info, student_id');
+      if (isUuid(uid)) {
+        q = q.or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`);
+      } else {
+        q = q.eq('student_id', uid);
+      }
+      return q.in('status', ['present', 'late', 'unauthorized']);
+    });
 
     // Also query by employee_id in device_info or student_id column
     if (employeeId) {
@@ -174,14 +178,20 @@ export const fetchDailyAttendance = async (
     const timestampStart = startOfDay.toISOString();
     const timestampEnd = endOfDay.toISOString();
 
-    const queries = userIds.map(uid =>
-      supabase.from('attendance_records')
-        .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, student_id, image_url')
-        .or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`)
-        .gte('timestamp', timestampStart)
+    const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+    const queries = userIds.map(uid => {
+      let q = supabase.from('attendance_records')
+        .select('id, timestamp, status, source, capture_mode, class, section, device_info, user_id, student_id, image_url');
+      if (isUuid(uid)) {
+        q = q.or(`user_id.eq.${uid},id.eq.${uid},student_id.eq.${uid}`);
+      } else {
+        q = q.eq('student_id', uid);
+      }
+      return q.gte('timestamp', timestampStart)
         .lte('timestamp', timestampEnd)
-        .order('timestamp', { ascending: true })
-    );
+        .order('timestamp', { ascending: true });
+    });
 
     if (employeeId) {
       queries.push(
