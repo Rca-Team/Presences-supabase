@@ -61,12 +61,15 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
           ? 'late'
           : 'absent';
 
-      if (!map[key] || normalized === 'present') {
+      const existing = map[key];
+      // Priority: present > late > absent — only upgrade, never downgrade
+      const priority = { present: 3, late: 2, absent: 1 };
+      if (!existing || priority[normalized] > priority[existing.status]) {
         const di = (r.device_info as any) || {};
         map[key] = {
           status: normalized,
-          time: format(new Date(r.timestamp), 'hh:mm a'),
-          image: di.image_url || di.photo_url || null,
+          time: normalized !== 'absent' ? format(new Date(r.timestamp), 'hh:mm a') : existing?.time,
+          image: di.image_url || di.photo_url || existing?.image || null,
         };
       }
     });
@@ -93,16 +96,10 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
     const data = attendanceDayMap[key];
     const isPast = selectedDay < new Date() && !isToday(selectedDay);
 
-    const isSept2026 = format(selectedDay, 'yyyy-MM') === '2026-09';
-    const dayOfMonth = selectedDay.getDate();
-    const isOrientation = isSept2026 && dayOfMonth < 4 && !data;
-
-    let status: 'present' | 'late' | 'absent' | 'orientation' | 'weekend' | 'future' = 'future';
+    let status: 'present' | 'late' | 'absent' | 'weekend' | 'future' = 'future';
     // 1. Live/Recorded attendance ALWAYS takes first precedence
     if (data) {
       status = data.status;
-    } else if (isOrientation) {
-      status = 'orientation';
     } else if (isWk) {
       status = 'weekend';
     } else if (isPast) {
@@ -212,10 +209,6 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
               const isPast = day < new Date() && !isToday(day);
               const isCurrentDay = isToday(day);
 
-              const isSept2026 = format(day, 'yyyy-MM') === '2026-09';
-              const dayOfMonth = day.getDate();
-              const isOrientationDay = isSept2026 && dayOfMonth < 4 && !rec;
-
               let bgClass = 'bg-muted/30 text-muted-foreground border-transparent';
               let dotClass = '';
 
@@ -225,11 +218,14 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
               } else if (rec?.status === 'late') {
                 bgClass = 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25';
                 dotClass = 'bg-amber-500';
-              } else if (isOrientationDay) {
-                bgClass = 'bg-muted/30 text-muted-foreground/50 border-dashed border-border/60 hover:bg-muted/50';
+              } else if (rec?.status === 'absent') {
+                // Explicitly marked absent by teacher
+                bgClass = 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20 hover:bg-rose-500/20';
+                dotClass = 'bg-rose-500';
               } else if (isWk) {
                 bgClass = 'bg-muted/20 text-muted-foreground/40 border-transparent';
               } else if (isPast) {
+                // Past weekday with no record → inferred absent
                 bgClass = 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20 hover:bg-rose-500/20';
                 dotClass = 'bg-rose-500';
               }
@@ -285,9 +281,7 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
                   {format(selectedDayRecord.date, 'EEEE, dd MMMM yyyy')}
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  {selectedDayRecord.status === 'orientation'
-                    ? 'Academic Session Orientation & Preparatory Period'
-                    : 'Daily presence and gate verification details'}
+                  Daily presence and gate verification details
                 </DialogDescription>
               </DialogHeader>
 
@@ -300,14 +294,12 @@ export const ParentAttendanceCalendar: React.FC<ParentAttendanceCalendarProps> =
                         ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
                         : selectedDayRecord.status === 'late'
                         ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                        : selectedDayRecord.status === 'orientation'
-                        ? 'bg-muted text-muted-foreground border-border/80'
                         : selectedDayRecord.status === 'weekend'
                         ? 'bg-muted text-muted-foreground'
                         : 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30'
                     }`}
                   >
-                    {selectedDayRecord.status === 'orientation' ? 'Term Orientation' : selectedDayRecord.status}
+                    {selectedDayRecord.status}
                   </Badge>
                 </div>
 

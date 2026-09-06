@@ -271,7 +271,7 @@ export function useParentPortal() {
           }
 
           const { data: attHistory } = await attQuery
-            .in('status', ['present', 'late', 'unauthorized'])
+            .in('status', ['present', 'late', 'unauthorized', 'absent'])
             .order('timestamp', { ascending: false });
 
           setAttendance((attHistory as any) || []);
@@ -423,9 +423,11 @@ export function useParentPortal() {
     let presentDays = 0;
     let lateDays = 0;
 
-    // Determine official active session commencement (Sept 4, 2026 for Sept 2026 session)
-    const isSept2026 = format(now, 'yyyy-MM') === '2026-09';
-    const effectiveStart = isSept2026 ? new Date(2026, 8, 4) : monthStart; // month 8 is September (0-indexed)
+    // Determine effective session start: the first date with any attendance record in this month,
+    // or fall back to the month start. This avoids hardcoding orientation cutoffs.
+    const monthDayKeys = eachDayOfInterval({ start: monthStart, end: now }).map((d) => format(d, 'yyyy-MM-dd'));
+    const firstRecordKey = monthDayKeys.find((k) => dayMap[k]);
+    const effectiveStart = firstRecordKey ? new Date(firstRecordKey) : monthStart;
 
     const allDays = eachDayOfInterval({ start: monthStart, end: now });
     allDays.forEach((d) => {
@@ -439,7 +441,11 @@ export function useParentPortal() {
         if (st === 'present') presentDays += 1;
         if (st === 'late') lateDays += 1;
       }
-      // 2. Regular weekday session held after official session start date
+      // 2. If explicitly marked absent:
+      else if (st === 'absent') {
+        workingDays += 1;
+      }
+      // 3. Regular weekday after effective session start (inferred absent):
       else if (d >= effectiveStart && !isWk) {
         workingDays += 1;
       }

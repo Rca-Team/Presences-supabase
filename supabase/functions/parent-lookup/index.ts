@@ -25,9 +25,15 @@ function buildMonthlySummary(dayMap: Record<string, { status: string; timestamp:
   let presentDays = 0;
   let lateDays = 0;
 
-  // Active student attendance commenced Sept 4, 2026 for September 2026 session
-  const isSept2026 = year === 2026 && month === 8;
-  const effectiveStart = isSept2026 ? new Date(2026, 8, 4) : monthStart;
+  // Determine effective session start: first date with an attendance record, or month start
+  let effectiveStart = monthStart;
+  for (let d = new Date(monthStart); d <= now; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    if (dayMap[key]) {
+      effectiveStart = new Date(d);
+      break;
+    }
+  }
 
   for (let d = new Date(monthStart); d <= now; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().slice(0, 10);
@@ -40,7 +46,11 @@ function buildMonthlySummary(dayMap: Record<string, { status: string; timestamp:
       if (status === 'present') presentDays += 1;
       if (status === 'late') lateDays += 1;
     }
-    // 2. Regular active session day after official commencement:
+    // 2. Explicitly marked absent:
+    else if (status === 'absent') {
+      workingDays += 1;
+    }
+    // 3. Regular active session day after effective start:
     else if (d >= effectiveStart && !isWeekend) {
       workingDays += 1;
     }
@@ -140,7 +150,7 @@ Deno.serve(async (req) => {
         .from("attendance_records")
         .select("id, status, timestamp, device_info")
         .or(`user_id.eq.${uid},id.eq.${uid}`)
-        .in("status", ["present", "late", "unauthorized"])
+        .in("status", ["present", "late", "unauthorized", "absent"])
         .order("timestamp", { ascending: true })
     );
 
@@ -151,7 +161,7 @@ Deno.serve(async (req) => {
           .from("attendance_records")
           .select("id, status, timestamp, device_info")
           .contains("device_info", { metadata: { employee_id: empId } })
-          .in("status", ["present", "late", "unauthorized"])
+          .in("status", ["present", "late", "unauthorized", "absent"])
           .order("timestamp", { ascending: true })
       );
     }
@@ -182,21 +192,25 @@ Deno.serve(async (req) => {
     // Gate entries (last result)
     const gateEntries = results[results.length - 1]?.data || [];
 
-    // Build per-day map: keep earliest record, normalize status, prioritize present > late
+    // Build per-day map: normalize status, priority: present > late > absent
     const dayMap: Record<string, { status: string; timestamp: string }> = {};
+    const statusPriority: Record<string, number> = { present: 3, late: 2, absent: 1 };
 
     for (const rec of allRecords) {
       const dateKey = rec.timestamp.substring(0, 10); // yyyy-MM-dd
       const status = normalizeStatus(rec.status);
-      if (status !== 'present' && status !== 'late') continue;
+      if (!statusPriority[status]) continue; // skip unknown statuses
 
-      if (!dayMap[dateKey]) {
+      const existing = dayMap[dateKey];
+      if (!existing) {
         dayMap[dateKey] = { status, timestamp: rec.timestamp };
       } else {
-        // Present overrides late; otherwise keep earliest
-        if (status === 'present' && dayMap[dateKey].status === 'late') {
-          dayMap[dateKey] = { status, timestamp: rec.timestamp };
-        } else if (new Date(rec.timestamp) < new Date(dayMap[dateKey].timestamp)) {
+        // Higher priority status wins; for same priority, keep earliest timestamp
+        const existingPriority = statusPriority[existing.status] || 0;
+        const newPriority = statusPriority[status] || 0;
+        if (newPriority > existingPriority) {
+          dayMap[dateKey] = { status, timestamp: status !== 'absent' ? rec.timestamp : existing.timestamp };
+        } else if (newPriority === existingPriority && new Date(rec.timestamp) < new Date(existing.timestamp)) {
           dayMap[dateKey] = { status, timestamp: rec.timestamp };
         }
       }
