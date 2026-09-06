@@ -38,6 +38,7 @@ import {
   RefreshCw,
   CheckCheck,
   Filter,
+  QrCode,
 } from 'lucide-react';
 import {
   Dialog,
@@ -60,6 +61,8 @@ import {
 } from '@/utils/teacherAccess';
 import { TeacherHeroDeck } from './TeacherHeroDeck';
 import { TeacherMonthlyRegister } from './TeacherMonthlyRegister';
+import { TeacherGatePassReview } from './TeacherGatePassReview';
+import { fetchClassGatePasses, subscribeToGatePasses } from '@/services/gatePassService';
 import * as XLSX from 'xlsx';
 
 const ClassSectionReport = React.lazy(() => import('@/components/admin/ClassSectionReport'));
@@ -124,6 +127,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
   const [dailyFilter, setDailyFilter] = useState<'all' | 'unmarked' | 'present_yesterday' | 'absent' | 'present' | 'late'>('all');
   const [previousDayLabel, setPreviousDayLabel] = useState<string>('Previous Working Day');
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
+  const [pendingGatePassesCount, setPendingGatePassesCount] = useState(0);
 
   // Student Edit Dialog
   const [editStudent, setEditStudent] = useState<ClassStudent | null>(null);
@@ -214,6 +218,32 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
   useEffect(() => {
     loadTeacherAssignments();
   }, [loadTeacherAssignments]);
+
+  useEffect(() => {
+    if (!activeClass) return;
+    let isMounted = true;
+    const updatePendingCount = async () => {
+      try {
+        const passes = await fetchClassGatePasses(activeClass.class, activeClass.section);
+        if (isMounted) {
+          const pending = passes.filter(p => p.status === 'pending').length;
+          setPendingGatePassesCount(pending);
+        }
+      } catch (err) {
+        console.error('Error fetching pending gate passes count:', err);
+      }
+    };
+    updatePendingCount();
+
+    const unsub = subscribeToGatePasses(() => {
+      updatePendingCount();
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [activeClass]);
 
   // Load complete student roster across attendance_records and profiles
   const loadClassStudents = useCallback(async () => {
@@ -1099,6 +1129,14 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                 <TabsTrigger value="timetable" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
                   <Calendar className="h-4 w-4" /> Timetable
                 </TabsTrigger>
+                <TabsTrigger value="gate_passes" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-medium">
+                  <QrCode className="h-4 w-4 text-amber-500" /> Gate Passes
+                  {pendingGatePassesCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-amber-500 text-white rounded-full font-extrabold leading-none animate-pulse">
+                      {pendingGatePassesCount}
+                    </span>
+                  )}
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -1715,6 +1753,14 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
               <Suspense fallback={<div className="h-[360px] rounded-2xl bg-muted/40 animate-pulse" />}>
                 <TimetableManager allowedCategories={[activeClass.category]} />
               </Suspense>
+            </TabsContent>
+
+            {/* TAB: GATE PASSES & LEAVE VERIFICATION */}
+            <TabsContent value="gate_passes" className="space-y-4 m-0">
+              <TeacherGatePassReview
+                activeClass={activeClass}
+                teacherName={teacherProfile.name}
+              />
             </TabsContent>
           </Tabs>
         </div>

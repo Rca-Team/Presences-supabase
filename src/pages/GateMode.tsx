@@ -4,6 +4,7 @@ import {
   Shield, X, Volume2, VolumeX, Maximize, Minimize,
   Users, CheckCircle2, Wifi, WifiOff, Wand2,
   DoorOpen, ChevronUp, ChevronDown, AlertTriangle, CloudOff, Cctv, Shirt, Navigation, Activity,
+  QrCode,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,8 @@ import GateStatsOverlay from '@/components/gate/GateStatsOverlay';
 import StrangerAlert from '@/components/gate/StrangerAlert';
 import LateEntryForm from '@/components/gate/LateEntryForm';
 import GateModeSetup from '@/components/gate/GateModeSetup';
+import { GatePassScannerModal } from '@/components/gate/GatePassScannerModal';
+import { fetchAllGatePasses, subscribeToGatePasses } from '@/services/gatePassService';
 import type { GateSessionStartConfig } from '@/components/gate/GateModeSetup';
 import { useNavigate, Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -125,6 +128,8 @@ const GateMode = () => {
   const [totalPresentToday,setTotalPresentToday]= useState(0);
   const [lateCount,        setLateCount]        = useState(0);
   const [pendingCount,     setPendingCount]     = useState(0);
+  const [isGatePassModalOpen, setIsGatePassModalOpen] = useState(false);
+  const [approvedPassesCount, setApprovedPassesCount] = useState(0);
 
   const [smartMonitoring,  setSmartMonitoring]  = useState<{
     people: Array<{
@@ -252,6 +257,29 @@ const GateMode = () => {
     } catch (err) {
       console.warn('fetchGateStats error:', err);
     }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const updatePasses = async () => {
+      try {
+        const passes = await fetchAllGatePasses();
+        if (isMounted) {
+          const approved = passes.filter(p => p.status === 'approved').length;
+          setApprovedPassesCount(approved);
+        }
+      } catch (err) {
+        console.warn('Error fetching gate passes in GateMode:', err);
+      }
+    };
+    updatePasses();
+    const unsub = subscribeToGatePasses(() => {
+      updatePasses();
+    });
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, []);
 
   // ── Session persistence ────────────────────────────────────────────────────
@@ -624,6 +652,25 @@ const GateMode = () => {
               <span className="hidden sm:inline">AI Enhance</span>
             </Button>
 
+            {/* Gate Pass Scanner & Exit Clearance */}
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-8 px-2.5 text-xs rounded-xl font-bold gap-1.5 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 ${
+                approvedPassesCount > 0 ? 'ring-1 ring-amber-500/50 bg-amber-500/10 animate-pulse' : ''
+              }`}
+              onClick={() => setIsGatePassModalOpen(true)}
+              title="Open Student Gate Pass & Turnstile Clearance Scanner"
+            >
+              <QrCode className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline">Gate Pass</span>
+              {approvedPassesCount > 0 && (
+                <Badge className="h-4 px-1 text-[10px] bg-emerald-500 text-white font-extrabold ml-0.5">
+                  {approvedPassesCount}
+                </Badge>
+              )}
+            </Button>
+
             <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={toggleFullscreen}>
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </Button>
@@ -701,17 +748,36 @@ const GateMode = () => {
                 )}
               </div>
 
-              {/* Right: Expand Feed Button */}
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-9 px-3.5 rounded-full shadow-2xl text-xs font-extrabold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 transition-transform active:scale-95"
-                onClick={() => setMobileStatsOpen(true)}
-              >
-                <Activity className="h-3.5 w-3.5 animate-pulse" />
-                <span>Live Feed</span>
-                <ChevronUp className="h-3.5 w-3.5" />
-              </Button>
+              {/* Right: Actions */}
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`h-9 px-3 rounded-full shadow-2xl text-xs font-black gap-1 bg-[#0b101b]/90 border-amber-500/40 text-amber-500 hover:bg-amber-500/10 ${
+                    approvedPassesCount > 0 ? 'ring-1 ring-amber-500/50' : ''
+                  }`}
+                  onClick={() => setIsGatePassModalOpen(true)}
+                >
+                  <QrCode className="h-3.5 w-3.5" />
+                  <span>Pass</span>
+                  {approvedPassesCount > 0 && (
+                    <span className="h-4 min-w-4 px-1 bg-emerald-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                      {approvedPassesCount}
+                    </span>
+                  )}
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-9 px-3.5 rounded-full shadow-2xl text-xs font-extrabold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 transition-transform active:scale-95"
+                  onClick={() => setMobileStatsOpen(true)}
+                >
+                  <Activity className="h-3.5 w-3.5 animate-pulse" />
+                  <span>Live Feed</span>
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -852,6 +918,16 @@ const GateMode = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Security Gate Pass Scanner Modal ── */}
+      <GatePassScannerModal
+        open={isGatePassModalOpen}
+        onOpenChange={setIsGatePassModalOpen}
+        gateName={gateName}
+        onExitLogged={(studentName) => {
+          toast.success(`Exit turnstile clearance confirmed for ${studentName}`);
+        }}
+      />
     </div>
   );
 };
