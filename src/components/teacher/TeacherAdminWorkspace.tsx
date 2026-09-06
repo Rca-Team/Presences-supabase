@@ -33,6 +33,11 @@ import {
   Check,
   Save,
   MessageSquare,
+  UserX,
+  UserCheck,
+  RefreshCw,
+  CheckCheck,
+  Filter,
 } from 'lucide-react';
 import {
   Dialog,
@@ -73,7 +78,26 @@ export interface ClassStudent {
   has_face_descriptor: boolean;
   today_status?: 'present' | 'late' | 'absent' | 'unmarked';
   today_time?: string;
+  was_present_yesterday?: boolean;
+  capture_mode?: string;
+  attendance_source?: string;
+  is_manual?: boolean;
 }
+
+export const getPreviousWorkingDay = (from: Date = new Date()) => {
+  const d = new Date(from);
+  d.setDate(d.getDate() - 1);
+  if (d.getDay() === 0) {
+    // Skip Sunday, move to Saturday
+    d.setDate(d.getDate() - 1);
+  }
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(d);
+  end.setHours(23, 59, 59, 999);
+  const label = d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+  return { start, end, label, dateObj: d };
+};
 
 export interface ClassAssignment {
   class: string;
@@ -96,7 +120,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
   const [students, setStudents] = useState<ClassStudent[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('register');
+  const [activeTab, setActiveTab] = useState('daily');
+  const [dailyFilter, setDailyFilter] = useState<'all' | 'unmarked' | 'present_yesterday' | 'absent' | 'present' | 'late'>('all');
+  const [previousDayLabel, setPreviousDayLabel] = useState<string>('Previous Working Day');
+  const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
 
   // Student Edit Dialog
   const [editStudent, setEditStudent] = useState<ClassStudent | null>(null);
@@ -197,8 +224,11 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
-      // Fetch from profiles, registered attendance records, face descriptors, and today's attendance logs
-      const [profilesRes, registeredAttRes, descriptorsRes, todayAttRes] = await Promise.all([
+      const prevWorkingDay = getPreviousWorkingDay();
+      setPreviousDayLabel(prevWorkingDay.label);
+
+      // Fetch from profiles, registered attendance records, face descriptors, today's attendance logs, and previous working day's logs
+      const [profilesRes, registeredAttRes, descriptorsRes, todayAttRes, prevDayAttRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase
           .from('attendance_records')
@@ -210,8 +240,14 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           .select('id, user_id, student_id, image_url'),
         supabase
           .from('attendance_records')
-          .select('id, user_id, student_id, student_name, class, section, category, status, timestamp, device_info')
+          .select('id, user_id, student_id, student_name, class, section, category, status, timestamp, device_info, capture_mode, source')
           .gte('timestamp', startOfToday.toISOString())
+          .order('timestamp', { ascending: false }),
+        supabase
+          .from('attendance_records')
+          .select('id, user_id, student_id, student_name, class, section, category, status, timestamp, device_info')
+          .gte('timestamp', prevWorkingDay.start.toISOString())
+          .lte('timestamp', prevWorkingDay.end.toISOString())
           .order('timestamp', { ascending: false }),
       ]);
 
@@ -222,20 +258,58 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
         if (f.student_id) enrolledFaceIds.add(String(f.student_id).trim().toLowerCase());
       });
 
+      // Previous working day present IDs set
+      const prevDayPresentSet = new Set<string>();
+      (prevDayAttRes.data || []).forEach((att: any) => {
+        if (att.status === 'registered') return;
+        if (!matchesClassAndSection(att, cls, sec)) return;
+        const rawStatus = (att.status || '').toLowerCase();
+        if (rawStatus.includes('present') || rawStatus.includes('late')) {
+          if (att.user_id) prevDayPresentSet.add(String(att.user_id).trim().toLowerCase());
+          if (att.student_id) prevDayPresentSet.add(String(att.student_id).trim().toLowerCase());
+          if (att.student_name) prevDayPresentSet.add(String(att.student_name).trim().toLowerCase());
+          const dInfo = (att.device_info as any) || {};
+          if (dInfo.metadata?.employee_id) prevDayPresentSet.add(String(dInfo.metadata.employee_id).trim().toLowerCase());
+          if (dInfo.metadata?.name) prevDayPresentSet.add(String(dInfo.metadata.name).trim().toLowerCase());
+        }
+      });
+
       // Today's attendance status map
-      const todayAttMap = new Map<string, { status: 'present' | 'late' | 'absent'; time: string }>();
+      const todayAttMap = new Map<string, {
+        status: 'present' | 'late' | 'absent';
+        time: string;
+        source?: string;
+        captureMode?: string;
+        isManual?: boolean;
+      }>();
       const matchingTodayAtt = (todayAttRes.data || []).filter((r: any) => matchesClassAndSection(r, cls, sec));
 
       matchingTodayAtt.forEach((att: any) => {
+        if (att.status === 'registered') return;
         const sName = (att.student_name || '').toLowerCase().trim();
         const uId = att.user_id ? String(att.user_id).trim().toLowerCase() : '';
         const sId = att.student_id ? String(att.student_id).trim().toLowerCase() : '';
         const normalizedStatus = (att.status?.toLowerCase().includes('late') ? 'late' : att.status?.toLowerCase().includes('absent') ? 'absent' : 'present') as 'present' | 'late' | 'absent';
         const timeFormatted = att.timestamp ? new Date(att.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+        const devInfo = (att.device_info as any) || {};
+        const isManual = Boolean(
+          att.capture_mode === 'manual' ||
+          att.source === 'teacher-portal' ||
+          devInfo.mark === 'manual_attendance' ||
+          devInfo.manual ||
+          att.source === 'manual'
+        );
+        const info = {
+          status: normalizedStatus,
+          time: timeFormatted,
+          source: att.source || devInfo.source || (isManual ? 'teacher-portal' : 'biometric'),
+          captureMode: att.capture_mode || devInfo.capture_mode || (isManual ? 'manual' : 'ai-scan'),
+          isManual,
+        };
 
-        if (uId && !todayAttMap.has(uId)) todayAttMap.set(uId, { status: normalizedStatus, time: timeFormatted });
-        if (sId && !todayAttMap.has(sId)) todayAttMap.set(sId, { status: normalizedStatus, time: timeFormatted });
-        if (sName && !todayAttMap.has(sName)) todayAttMap.set(sName, { status: normalizedStatus, time: timeFormatted });
+        if (uId && !todayAttMap.has(uId)) todayAttMap.set(uId, info);
+        if (sId && !todayAttMap.has(sId)) todayAttMap.set(sId, info);
+        if (sName && !todayAttMap.has(sName)) todayAttMap.set(sName, info);
       });
 
       // Master student unification map
@@ -272,6 +346,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
             has_face_descriptor: cur.has_face_descriptor || candidate.has_face_descriptor,
             today_status: cur.today_status && cur.today_status !== 'unmarked' ? cur.today_status : candidate.today_status,
             today_time: cur.today_time || candidate.today_time,
+            was_present_yesterday: cur.was_present_yesterday ?? candidate.was_present_yesterday,
+            capture_mode: cur.capture_mode || candidate.capture_mode,
+            attendance_source: cur.attendance_source || candidate.attendance_source,
+            is_manual: cur.is_manual ?? candidate.is_manual,
           };
           studentMap.set(existingKey, merged);
         } else {
@@ -317,6 +395,12 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           (empK && todayAttMap.get(empK)) ||
           (nameK && todayAttMap.get(nameK));
 
+        const wasPresentPrev = Boolean(
+          (uidKey && prevDayPresentSet.has(uidKey)) ||
+          (empK && prevDayPresentSet.has(empK)) ||
+          (nameK && prevDayPresentSet.has(nameK))
+        );
+
         upsertStudent({
           id: r.id || r.user_id || `att-${nameK}`,
           user_id: r.user_id,
@@ -330,6 +414,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           has_face_descriptor: hasFace,
           today_status: attInfo?.status || 'unmarked',
           today_time: attInfo?.time || '',
+          was_present_yesterday: wasPresentPrev,
+          capture_mode: attInfo?.captureMode,
+          attendance_source: attInfo?.source,
+          is_manual: attInfo?.isManual,
         });
       });
 
@@ -352,6 +440,12 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           (empK && todayAttMap.get(empK)) ||
           (nameK && todayAttMap.get(nameK));
 
+        const wasPresentPrev = Boolean(
+          (uidKey && prevDayPresentSet.has(uidKey)) ||
+          (empK && prevDayPresentSet.has(empK)) ||
+          (nameK && prevDayPresentSet.has(nameK))
+        );
+
         upsertStudent({
           id: p.id || p.user_id || `prof-${nameK}`,
           user_id: p.user_id || p.id,
@@ -365,6 +459,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           has_face_descriptor: hasFace,
           today_status: attInfo?.status || 'unmarked',
           today_time: attInfo?.time || '',
+          was_present_yesterday: wasPresentPrev,
+          capture_mode: attInfo?.captureMode,
+          attendance_source: attInfo?.source,
+          is_manual: attInfo?.isManual,
         });
       });
 
@@ -388,17 +486,340 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
     loadClassStudents();
   }, [loadClassStudents]);
 
+  // Real-time Supabase subscription for instant live attendance sync
+  useEffect(() => {
+    if (!activeClass) return;
+
+    const channelName = `teacher_workspace_att_${activeClass.class}_${activeClass.section}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance_records',
+        },
+        () => {
+          loadClassStudents();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeClass, loadClassStudents]);
+
+  // Quick mark a single student (Present, Late, Absent)
+  const handleQuickMarkAttendance = async (student: ClassStudent, status: 'present' | 'late' | 'absent') => {
+    if (!activeClass) return;
+    const prevStatus = student.today_status;
+    const prevTime = student.today_time;
+    const prevIsManual = student.is_manual;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+    // Optimistic UI update
+    setStudents(prev =>
+      prev.map(s => s.id === student.id ? {
+        ...s,
+        today_status: status,
+        today_time: timeStr,
+        is_manual: true,
+        capture_mode: 'manual',
+        attendance_source: 'teacher-portal',
+      } : s)
+    );
+
+    try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      // Clear existing record for today if exists
+      let del = supabase.from('attendance_records').delete().gte('timestamp', startOfToday.toISOString()).lte('timestamp', endOfToday.toISOString());
+      if (student.user_id) {
+        del = del.eq('user_id', student.user_id);
+      } else {
+        del = del.eq('student_name', student.name);
+      }
+      await del;
+
+      // Insert new manual attendance record
+      const { error } = await supabase.from('attendance_records').insert({
+        user_id: student.user_id || null,
+        student_id: student.admission_number || student.roll_number || null,
+        student_name: student.name,
+        class: activeClass.class,
+        section: activeClass.section,
+        category: activeClass.category,
+        roll_number: student.roll_number || null,
+        status: status,
+        source: 'teacher-portal',
+        capture_mode: 'manual',
+        timestamp: now.toISOString(),
+        device_info: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          marked_by: teacherProfile.name,
+          verified_by: teacherProfile.email,
+          was_present_previous_day: Boolean(student.was_present_yesterday),
+          metadata: {
+            name: student.name,
+            roll_number: student.roll_number,
+            class: activeClass.class,
+            section: activeClass.section,
+            department: activeClass.category,
+            manual: true,
+            marked_at: now.toISOString(),
+          },
+        },
+        metadata: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          marked_by: teacherProfile.name,
+          verified_by: teacherProfile.email,
+          was_present_previous_day: Boolean(student.was_present_yesterday),
+          manual: true,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: `Marked ${status.toUpperCase()}`,
+        description: `${student.name} marked as ${status} (Manual Attendance).`,
+      });
+    } catch (err: any) {
+      console.error('Error saving manual attendance:', err);
+      // Revert optimistic update on error
+      setStudents(prev =>
+        prev.map(s => s.id === student.id ? {
+          ...s,
+          today_status: prevStatus,
+          today_time: prevTime,
+          is_manual: prevIsManual,
+        } : s)
+      );
+      toast({ title: 'Failed to mark attendance', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  // Auto-mark absent for students (either only those present yesterday without check-in, or all unmarked)
+  const handleAutoMarkAbsent = async (onlyPrevDayPresent: boolean = false) => {
+    if (!activeClass) return;
+    const targetStudents = students.filter(s => {
+      const isUnmarked = !s.today_status || s.today_status === 'unmarked';
+      if (!isUnmarked) return false;
+      if (onlyPrevDayPresent) return Boolean(s.was_present_yesterday);
+      return true;
+    });
+
+    if (targetStudents.length === 0) {
+      toast({
+        title: 'No Students to Mark',
+        description: onlyPrevDayPresent
+          ? 'All students who were present on the previous working day already have attendance logged.'
+          : 'All students in this class already have attendance marked for today.',
+      });
+      return;
+    }
+
+    setIsMarkingAttendance(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      const rows = targetStudents.map(s => ({
+        user_id: s.user_id || null,
+        student_id: s.admission_number || s.roll_number || null,
+        student_name: s.name,
+        class: activeClass.class,
+        section: activeClass.section,
+        category: activeClass.category,
+        roll_number: s.roll_number || null,
+        status: 'absent',
+        source: 'teacher-portal',
+        capture_mode: 'manual',
+        timestamp: nowIso,
+        device_info: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          marked_by: teacherProfile.name,
+          verified_by: teacherProfile.email,
+          was_present_previous_day: Boolean(s.was_present_yesterday),
+          metadata: {
+            name: s.name,
+            roll_number: s.roll_number,
+            class: activeClass.class,
+            section: activeClass.section,
+            department: activeClass.category,
+            manual: true,
+            marked_at: nowIso,
+          },
+        },
+        metadata: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          marked_by: teacherProfile.name,
+          verified_by: teacherProfile.email,
+          was_present_previous_day: Boolean(s.was_present_yesterday),
+          manual: true,
+        },
+      }));
+
+      const { error } = await supabase.from('attendance_records').insert(rows);
+      if (error) throw error;
+
+      // Optimistically update
+      setStudents(prev =>
+        prev.map(s => {
+          const isTarget = targetStudents.some(u => u.id === s.id);
+          if (isTarget) {
+            return {
+              ...s,
+              today_status: 'absent',
+              today_time: timeStr,
+              is_manual: true,
+              capture_mode: 'manual',
+              attendance_source: 'teacher-portal',
+            };
+          }
+          return s;
+        })
+      );
+
+      toast({
+        title: '✅ Auto-Marked Absent',
+        description: `Successfully marked ${targetStudents.length} student${targetStudents.length > 1 ? 's' : ''} as Absent (Manual).`,
+      });
+    } catch (err: any) {
+      console.error('Error auto-marking absent:', err);
+      toast({ title: 'Auto-Mark Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsMarkingAttendance(false);
+    }
+  };
+
+  // 1-Click mark all unmarked students as Present
+  const handleMarkAllUnmarkedPresent = async () => {
+    if (!activeClass) return;
+    const unmarked = students.filter(s => !s.today_status || s.today_status === 'unmarked');
+    if (unmarked.length === 0) {
+      toast({ title: 'All Marked', description: 'Every student in this class already has attendance marked today.' });
+      return;
+    }
+
+    setIsMarkingAttendance(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      const rows = unmarked.map(s => ({
+        user_id: s.user_id || null,
+        student_id: s.admission_number || s.roll_number || null,
+        student_name: s.name,
+        class: activeClass.class,
+        section: activeClass.section,
+        category: activeClass.category,
+        roll_number: s.roll_number || null,
+        status: 'present',
+        source: 'teacher-portal',
+        capture_mode: 'manual',
+        timestamp: nowIso,
+        device_info: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          marked_by: teacherProfile.name,
+          verified_by: teacherProfile.email,
+          was_present_previous_day: Boolean(s.was_present_yesterday),
+          metadata: {
+            name: s.name,
+            roll_number: s.roll_number,
+            class: activeClass.class,
+            section: activeClass.section,
+            department: activeClass.category,
+            manual: true,
+            marked_at: nowIso,
+          },
+        },
+        metadata: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          marked_by: teacherProfile.name,
+          verified_by: teacherProfile.email,
+          was_present_previous_day: Boolean(s.was_present_yesterday),
+          manual: true,
+        },
+      }));
+
+      const { error } = await supabase.from('attendance_records').insert(rows);
+      if (error) throw error;
+
+      // Optimistically update
+      setStudents(prev =>
+        prev.map(s => {
+          const isTarget = unmarked.some(u => u.id === s.id);
+          if (isTarget) {
+            return {
+              ...s,
+              today_status: 'present',
+              today_time: timeStr,
+              is_manual: true,
+              capture_mode: 'manual',
+              attendance_source: 'teacher-portal',
+            };
+          }
+          return s;
+        })
+      );
+
+      toast({
+        title: '✅ Marked All Present',
+        description: `Marked ${unmarked.length} student${unmarked.length > 1 ? 's' : ''} as Present (Manual).`,
+      });
+    } catch (err: any) {
+      console.error('Error marking present:', err);
+      toast({ title: 'Marking Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsMarkingAttendance(false);
+    }
+  };
+
   // Filtered student roster
   const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return students;
-    const q = searchQuery.toLowerCase().trim();
-    return students.filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      (s.roll_number && s.roll_number.toLowerCase().includes(q)) ||
-      (s.parent_email && s.parent_email.toLowerCase().includes(q)) ||
-      (s.parent_phone && s.parent_phone.includes(q))
-    );
-  }, [students, searchQuery]);
+    let list = students;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.roll_number && s.roll_number.toLowerCase().includes(q)) ||
+        (s.admission_number && s.admission_number.toLowerCase().includes(q)) ||
+        (s.parent_email && s.parent_email.toLowerCase().includes(q)) ||
+        (s.parent_phone && s.parent_phone.includes(q))
+      );
+    }
+    if (activeTab === 'daily') {
+      if (dailyFilter === 'unmarked') {
+        list = list.filter(s => !s.today_status || s.today_status === 'unmarked');
+      } else if (dailyFilter === 'present_yesterday') {
+        list = list.filter(s => s.was_present_yesterday);
+      } else if (dailyFilter === 'present') {
+        list = list.filter(s => s.today_status === 'present');
+      } else if (dailyFilter === 'late') {
+        list = list.filter(s => s.today_status === 'late');
+      } else if (dailyFilter === 'absent') {
+        list = list.filter(s => s.today_status === 'absent');
+      }
+    }
+    return list;
+  }, [students, searchQuery, activeTab, dailyFilter]);
 
   // Overall class attendance stats
   const stats = useMemo(() => {
@@ -407,9 +828,22 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
     const late = students.filter(s => s.today_status === 'late').length;
     const absent = students.filter(s => s.today_status === 'absent').length;
     const unmarked = students.filter(s => !s.today_status || s.today_status === 'unmarked').length;
+    const presentYesterday = students.filter(s => s.was_present_yesterday).length;
+    const unattendedFromYesterday = students.filter(s => s.was_present_yesterday && (!s.today_status || s.today_status === 'unmarked')).length;
+    const manualMarksCount = students.filter(s => s.is_manual).length;
     const attendancePct = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
 
-    return { total, present, late, absent, unmarked, attendancePct };
+    return {
+      total,
+      present,
+      late,
+      absent,
+      unmarked,
+      presentYesterday,
+      unattendedFromYesterday,
+      manualMarksCount,
+      attendancePct,
+    };
   }, [students]);
 
   // Edit Student Handlers
@@ -638,10 +1072,18 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
             </Card>
           </div>
 
-          {/* Main Navigation Tabs (Attendance taking removed, starting with Monthly Register) */}
+          {/* Main Navigation Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
             <div className="overflow-x-auto pb-1">
               <TabsList className="bg-muted/50 p-1 rounded-2xl inline-flex w-full sm:w-auto">
+                <TabsTrigger value="daily" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold">
+                  <CheckSquare className="h-4 w-4 text-primary" /> Daily Attendance
+                  {stats.unmarked > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-rose-500 text-white rounded-full font-extrabold leading-none">
+                      {stats.unmarked}
+                    </span>
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="register" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
                   <Calendar className="h-4 w-4" /> Monthly Register
                 </TabsTrigger>
@@ -659,6 +1101,349 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                 </TabsTrigger>
               </TabsList>
             </div>
+
+            {/* TAB: DAILY ROLL CALL / ATTENDANCE */}
+            <TabsContent value="daily" className="space-y-4 m-0">
+              {/* Alert Banner: Students present yesterday without check-in today */}
+              {stats.unattendedFromYesterday > 0 && (
+                <Card className="border-amber-500/30 bg-amber-500/10 backdrop-blur-md">
+                  <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 mt-0.5">
+                        <AlertCircle className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                          <span>{stats.unattendedFromYesterday} Student{stats.unattendedFromYesterday > 1 ? 's' : ''} Present on {previousDayLabel} Not Checked In Today</span>
+                          <Badge variant="outline" className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 text-[10px]">
+                            Auto-Mark Recommended
+                          </Badge>
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          These students attended class on {previousDayLabel}, but haven't checked in today. You can auto-mark them absent or roll-call manually below.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <Button
+                        size="sm"
+                        disabled={isMarkingAttendance}
+                        onClick={() => handleAutoMarkAbsent(true)}
+                        className="text-xs h-8 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl gap-1.5 shadow-sm"
+                      >
+                        {isMarkingAttendance ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
+                        Auto-Mark These Absent ({stats.unattendedFromYesterday})
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Main Roll Call Panel */}
+              <Card className="border shadow-md">
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <CardTitle className="text-base flex items-center gap-2 font-extrabold">
+                          <CheckSquare className="h-4 w-4 text-primary" />
+                          Daily Attendance • Class {activeClass.category}
+                        </CardTitle>
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs font-bold">
+                          {new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </Badge>
+                        {stats.manualMarksCount > 0 && (
+                          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30 text-[10px]">
+                            {stats.manualMarksCount} Manual Mark{stats.manualMarksCount > 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="text-xs mt-0.5">
+                        Live real-time sync with database. Changes are logged as official attendance with manual audit trail.
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {stats.unmarked > 0 && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isMarkingAttendance}
+                            onClick={handleMarkAllUnmarkedPresent}
+                            className="text-xs h-8 rounded-xl gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 font-semibold"
+                            title="Mark all currently unmarked students as Present (Manual)"
+                          >
+                            <UserCheck className="h-3.5 w-3.5" /> Mark All Present
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={isMarkingAttendance}
+                            onClick={() => handleAutoMarkAbsent(false)}
+                            className="text-xs h-8 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-rose-600/20"
+                            title="Auto-mark remaining unmarked students as Absent (Manual)"
+                          >
+                            {isMarkingAttendance ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
+                            Auto-Mark Remaining Absent ({stats.unmarked})
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleExportRosterExcel}
+                        className="text-xs h-8 rounded-xl gap-1.5"
+                        title="Download Excel sheet of today's attendance"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Export Excel
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-3">
+                  {/* Filter and Search Bar */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search student or roll no..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="h-8 pl-8 text-xs rounded-xl"
+                      />
+                    </div>
+
+                    {/* Filter Buttons */}
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                      <Button
+                        variant={dailyFilter === 'all' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyFilter('all')}
+                        className="h-7 text-xs rounded-lg px-2.5"
+                      >
+                        All ({stats.total})
+                      </Button>
+                      <Button
+                        variant={dailyFilter === 'unmarked' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyFilter('unmarked')}
+                        className="h-7 text-xs rounded-lg px-2.5 text-slate-600 dark:text-slate-300 font-semibold"
+                      >
+                        Unmarked ({stats.unmarked})
+                      </Button>
+                      <Button
+                        variant={dailyFilter === 'present_yesterday' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyFilter('present_yesterday')}
+                        className="h-7 text-xs rounded-lg px-2.5 text-emerald-600 font-semibold"
+                      >
+                        Present Yesterday ({stats.presentYesterday})
+                      </Button>
+                      <Button
+                        variant={dailyFilter === 'present' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyFilter('present')}
+                        className="h-7 text-xs rounded-lg px-2.5 text-emerald-600"
+                      >
+                        Present ({stats.present})
+                      </Button>
+                      <Button
+                        variant={dailyFilter === 'late' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyFilter('late')}
+                        className="h-7 text-xs rounded-lg px-2.5 text-amber-600"
+                      >
+                        Late ({stats.late})
+                      </Button>
+                      <Button
+                        variant={dailyFilter === 'absent' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDailyFilter('absent')}
+                        className="h-7 text-xs rounded-lg px-2.5 text-rose-600 font-semibold"
+                      >
+                        Absent ({stats.absent})
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Roll Call Table */}
+                  <div className="overflow-x-auto rounded-2xl border">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/50 border-b">
+                          <th className="p-2.5 text-left font-bold w-12">Roll</th>
+                          <th className="p-2.5 text-left font-bold">Student Name</th>
+                          <th className="p-2.5 text-left font-bold">Previous Day ({previousDayLabel})</th>
+                          <th className="p-2.5 text-left font-bold">Today's Status</th>
+                          <th className="p-2.5 text-center font-bold">Quick Mark</th>
+                          <th className="p-2.5 text-center font-bold w-16">Contact</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {filteredStudents.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                              No students found matching this filter.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredStudents.map(student => (
+                            <tr
+                              key={student.id}
+                              className={`hover:bg-muted/30 transition-colors ${
+                                student.today_status === 'absent'
+                                  ? 'bg-rose-500/5'
+                                  : student.today_status === 'present'
+                                  ? 'bg-emerald-500/5'
+                                  : student.today_status === 'late'
+                                  ? 'bg-amber-500/5'
+                                  : student.was_present_yesterday
+                                  ? 'bg-amber-500/5 border-l-2 border-l-amber-500'
+                                  : ''
+                              }`}
+                            >
+                              <td className="p-2.5 font-bold font-mono text-muted-foreground">
+                                {student.roll_number || '—'}
+                              </td>
+                              <td className="p-2.5">
+                                <div className="flex items-center gap-2.5">
+                                  <Avatar className="h-8 w-8 rounded-xl border">
+                                    {student.photo_url && <AvatarImage src={student.photo_url} alt={student.name} />}
+                                    <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                      {student.name.slice(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <span className="font-extrabold text-foreground block">{student.name}</span>
+                                    <span className="text-[10px] font-mono text-muted-foreground">
+                                      {student.admission_number || 'STU'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-2.5">
+                                {student.was_present_yesterday ? (
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] gap-1 font-semibold">
+                                    <CheckCircle2 className="h-3 w-3" /> Present Yesterday
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                                    No Entry
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="p-2.5">
+                                {student.today_status === 'present' ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[11px] font-bold gap-1">
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                      Present {student.is_manual ? '(Manual)' : '(Biometric)'}
+                                    </Badge>
+                                    {student.today_time && (
+                                      <span className="text-[10px] text-muted-foreground font-mono">
+                                        {student.today_time}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : student.today_status === 'late' ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[11px] font-bold gap-1">
+                                      <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                      Late {student.is_manual ? '(Manual)' : ''}
+                                    </Badge>
+                                    {student.today_time && (
+                                      <span className="text-[10px] text-muted-foreground font-mono">
+                                        {student.today_time}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : student.today_status === 'absent' ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[11px] font-bold gap-1">
+                                      <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                                      Absent (Manual)
+                                    </Badge>
+                                    {student.today_time && (
+                                      <span className="text-[10px] text-muted-foreground font-mono">
+                                        {student.today_time}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <Badge variant="outline" className="bg-muted text-muted-foreground text-[11px] gap-1 font-medium">
+                                    <AlertCircle className="h-3 w-3 text-amber-500" />
+                                    Unmarked / Pending
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant={student.today_status === 'present' ? 'default' : 'outline'}
+                                    onClick={() => handleQuickMarkAttendance(student, 'present')}
+                                    className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                                      student.today_status === 'present'
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                        : 'text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/30'
+                                    }`}
+                                    title="Mark Present (Manual Attendance)"
+                                  >
+                                    <Check className="h-3 w-3 mr-1" /> P
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={student.today_status === 'late' ? 'default' : 'outline'}
+                                    onClick={() => handleQuickMarkAttendance(student, 'late')}
+                                    className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                                      student.today_status === 'late'
+                                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+                                        : 'text-amber-600 hover:bg-amber-500/10 border-amber-500/30'
+                                    }`}
+                                    title="Mark Late (Manual Attendance)"
+                                  >
+                                    <Clock className="h-3 w-3 mr-1" /> L
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={student.today_status === 'absent' ? 'default' : 'outline'}
+                                    onClick={() => handleQuickMarkAttendance(student, 'absent')}
+                                    className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                                      student.today_status === 'absent'
+                                        ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
+                                        : 'text-rose-600 hover:bg-rose-500/10 border-rose-500/30'
+                                    }`}
+                                    title="Mark Absent (Manual Attendance)"
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" /> A
+                                  </Button>
+                                </div>
+                              </td>
+                              <td className="p-2.5 text-center">
+                                {student.parent_phone ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => openWhatsAppParent(student)}
+                                    className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg"
+                                    title="WhatsApp Parent"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                  </Button>
+                                ) : (
+                                  <span className="text-muted-foreground text-[10px]">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             {/* TAB: MONTHLY ATTENDANCE REGISTER */}
             <TabsContent value="register" className="space-y-4 m-0">

@@ -306,15 +306,28 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
           section: section,
           category: category,
           status: dbStatus,
+          source: 'teacher-portal',
+          capture_mode: 'manual',
           timestamp: targetDate.toISOString(),
           device_info: {
+            source: 'teacher-portal',
+            capture_mode: 'manual',
+            mark: 'manual_attendance',
             metadata: {
               name: student.name,
               roll_number: student.roll_number,
               class: classNameNumber,
               section: section,
               department: category,
+              manual: true,
+              marked_at: new Date().toISOString(),
             },
+          },
+          metadata: {
+            source: 'teacher-portal',
+            capture_mode: 'manual',
+            mark: 'manual_attendance',
+            manual: true,
           },
         });
       }
@@ -361,15 +374,28 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         section: section,
         category: category,
         status: 'present',
+        source: 'teacher-portal',
+        capture_mode: 'manual',
         timestamp: today.toISOString(),
         device_info: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
           metadata: {
             name: s.name,
             roll_number: s.roll_number,
             class: classNameNumber,
             section: section,
             department: category,
+            manual: true,
+            marked_at: today.toISOString(),
           },
+        },
+        metadata: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          manual: true,
         },
       }));
 
@@ -378,6 +404,80 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
       toast({
         title: '✅ Marked All Present for Today',
         description: `Successfully logged present status for all ${students.length} students on Day ${todayDay}.`,
+      });
+
+      fetchMonthlyData();
+    } catch (err: any) {
+      toast({ title: 'Action failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsUpdatingCell(false);
+    }
+  };
+
+  // 1-Click Fast Action: Auto-Mark Remaining (Unmarked) as Absent for Today
+  const handleAutoMarkAbsentToday = async () => {
+    const today = new Date();
+    if (today.getMonth() !== selectedMonth || today.getFullYear() !== selectedYear) {
+      setSelectedMonth(today.getMonth());
+      setSelectedYear(today.getFullYear());
+    }
+
+    const todayDay = today.getDate();
+    if (isSunday(todayDay)) {
+      toast({ title: 'Sunday', description: 'Cannot mark attendance on Sunday.', variant: 'destructive' });
+      return;
+    }
+
+    // Find students who have NO mark for todayDay in attendanceData
+    const unmarkedStudents = students.filter(s => !attendanceData[s.id]?.[todayDay]);
+
+    if (unmarkedStudents.length === 0) {
+      toast({ title: 'All Marked', description: `All ${students.length} students already have attendance marked for today.` });
+      return;
+    }
+
+    setIsUpdatingCell(true);
+    try {
+      const nowIso = today.toISOString();
+      const newRows = unmarkedStudents.map(s => ({
+        user_id: s.user_id || null,
+        student_id: s.admission_number || s.roll_number || null,
+        student_name: s.name,
+        class: classNameNumber,
+        section: section,
+        category: category,
+        status: 'absent',
+        source: 'teacher-portal',
+        capture_mode: 'manual',
+        timestamp: nowIso,
+        device_info: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          metadata: {
+            name: s.name,
+            roll_number: s.roll_number,
+            class: classNameNumber,
+            section: section,
+            department: category,
+            manual: true,
+            marked_at: nowIso,
+          },
+        },
+        metadata: {
+          source: 'teacher-portal',
+          capture_mode: 'manual',
+          mark: 'manual_attendance',
+          manual: true,
+        },
+      }));
+
+      const { error } = await supabase.from('attendance_records').insert(newRows);
+      if (error) throw error;
+
+      toast({
+        title: '✅ Auto-Marked Absent',
+        description: `Successfully marked ${unmarkedStudents.length} unmarked student${unmarkedStudents.length > 1 ? 's' : ''} as Absent (Manual).`,
       });
 
       fetchMonthlyData();
@@ -577,6 +677,18 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
           >
             {isUpdatingCell ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
             Mark Today (All Present)
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={handleAutoMarkAbsentToday}
+            disabled={isUpdatingCell}
+            variant="outline"
+            className="h-8 px-3 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 border-rose-500/30 font-bold rounded-xl gap-1.5"
+            title="Auto-mark remaining unmarked students as absent for today"
+          >
+            {isUpdatingCell ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
+            Auto-Mark Absent
           </Button>
 
           <Button
