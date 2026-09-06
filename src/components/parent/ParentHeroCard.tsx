@@ -271,10 +271,10 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
                   Present Days
                 </p>
                 <p className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
-                  {summary.presentDays} <span className="text-xs font-normal text-muted-foreground">days</span>
+                  {summary.presentDays} <span className="text-xs font-normal text-muted-foreground">/ {summary.workingDays}</span>
                 </p>
-                <p className="text-[10px] text-emerald-600/90 dark:text-emerald-400/90 font-medium">
-                  On-Time Checkins
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  Out of {summary.workingDays} working days held ({summary.totalMonthWorkingDays || 25} in month)
                 </p>
               </div>
 
@@ -296,7 +296,7 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
               {/* Total Working Days */}
               <div className="rounded-2xl border border-border/70 bg-background/60 p-3 text-center">
                 <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Working Days
+                  All Working Days
                 </p>
                 <p className="text-lg sm:text-2xl font-black text-foreground mt-0.5">
                   {summary.workingDays} <span className="text-xs font-normal text-muted-foreground">/ {summary.totalMonthWorkingDays || 25}</span>
