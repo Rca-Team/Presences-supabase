@@ -10,16 +10,22 @@ import {
   TopicQuestion,
   StickyNote,
   CanvasImage,
-  CanvasTextBox
+  CanvasTextBox,
+  CuratedVideo
 } from './types/smartboard';
 import { CURRICULUM_DATA } from './data/curriculumData';
 import { Navbar } from './components/Navbar';
 import { WhiteboardCanvas } from './components/canvas/WhiteboardCanvas';
 import { Toolbar } from './components/canvas/Toolbar';
 import { TeacherCopilotDock } from './components/copilot/TeacherCopilotDock';
+import { FloatingVideoPip } from './components/copilot/FloatingVideoPip';
 import { SplitSlideWorkspace } from './components/canvas/SplitSlideWorkspace';
 import { SlideThumbnailDrawer } from './components/canvas/SlideThumbnailDrawer';
 import { CurriculumPreloader } from './components/preloader/CurriculumPreloader';
+import { AutoCalculatorWidget } from './components/tools/AutoCalculatorWidget';
+import { GraphVisualizerModal } from './components/tools/GraphVisualizerModal';
+import { StudentVsStudentChallenge } from './components/tools/StudentVsStudentChallenge';
+import { ClassroomAttendanceModal } from './components/tools/ClassroomAttendanceModal';
 import { 
   StudentPickerModal, 
   QRShareModal, 
@@ -29,6 +35,7 @@ import {
 } from './components/tools/ClassroomTools';
 import { PersistenceService } from './services/persistenceService';
 import { audioService } from './services/audioService';
+import { VideoCuratorService } from './services/videoCuratorService';
 
 export function App() {
   // 1. Curriculum & Active Lesson State
@@ -63,7 +70,7 @@ export function App() {
   ]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
-  // 4. Copilot Dock & Modals
+  // 4. Copilot Dock & Floating Tools
   const [isCopilotOpen, setIsCopilotOpen] = useState(true);
   const [isPreloaderOpen, setIsPreloaderOpen] = useState(false);
   const [isStudentPickerOpen, setIsStudentPickerOpen] = useState(false);
@@ -71,7 +78,14 @@ export function App() {
   const [isEndClassOpen, setIsEndClassOpen] = useState(false);
   const [isSlideDrawerOpen, setIsSlideDrawerOpen] = useState(false);
 
-  // 5. Classroom Noise Monitor State
+  // 5. Advanced Real-Time Tools
+  const [activeVideoPiP, setActiveVideoPiP] = useState<CuratedVideo | null>(null);
+  const [isAutoCalculatorOpen, setIsAutoCalculatorOpen] = useState(false);
+  const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
+  const [isChallengeModeOpen, setIsChallengeModeOpen] = useState(false);
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+
+  // 6. Classroom Noise Monitor State
   const [isNoiseMonitoring, setIsNoiseMonitoring] = useState(false);
   const [noiseLevel, setNoiseLevel] = useState(15);
   const [noiseStatus, setNoiseStatus] = useState<'quiet' | 'moderate' | 'loud'>('quiet');
@@ -233,6 +247,12 @@ export function App() {
     handleStickyNotesChange([...currentSlide.stickyNotes, newNote]);
   };
 
+  // Stamp graph curve image to canvas
+  const handleStampGraphToCanvas = (img: CanvasImage) => {
+    const existing = currentSlide.images || [];
+    handleImagesChange([...existing, img]);
+  };
+
   // Export slide as PNG
   const handleExportPNG = () => {
     const canvas = document.querySelector('canvas');
@@ -265,6 +285,25 @@ export function App() {
     }
   };
 
+  // Launch real-time top suggested animated video
+  const handleLaunchTopVideo = () => {
+    const vids = VideoCuratorService.getVideosForTopic(activeSubTopic.name, activeSubTopic.id);
+    if (vids.length > 0) {
+      setActiveVideoPiP(vids[0]);
+    }
+  };
+
+  const activeQuestion = activeSubTopic.questions[0] || {
+    id: 'challenge-q',
+    prompt: `Challenge: State and evaluate the primary equation for ${activeSubTopic.name} under standard conditions.`,
+    difficulty: 'medium',
+    type: 'numerical',
+    hints: ['Identify governing law'],
+    solutionSteps: ['Evaluate parameters'],
+    finalAnswer: 'Proved',
+    estimatedTimeMin: 3
+  };
+
   return (
     <div className="w-screen h-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
       
@@ -280,8 +319,10 @@ export function App() {
         isNoiseMonitoring={isNoiseMonitoring}
         noiseStatus={noiseStatus}
         onToggleNoiseMonitor={handleToggleNoiseMonitor}
-        onToggleSlideDrawer={() => setIsSlideDrawerOpen(!isSlideDrawerOpen)}
-        onExportPDF={handleExportPDF}
+        onOpenAttendance={() => setIsAttendanceModalOpen(true)}
+        onOpenGraphModal={() => setIsGraphModalOpen(true)}
+        onOpenCalculator={() => setIsAutoCalculatorOpen(true)}
+        onOpenChallengeMode={() => setIsChallengeModeOpen(true)}
       />
 
       {/* Main Interactive Stage */}
@@ -289,6 +330,19 @@ export function App() {
         
         {/* Left / Center: Full 4K Interactive Whiteboard Canvas */}
         <div className="flex-1 relative h-full overflow-hidden">
+          
+          {/* Quick Floating Top Video Trigger */}
+          <div className="absolute top-14 left-4 z-20">
+            <button
+              onClick={handleLaunchTopVideo}
+              className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-full text-xs font-bold shadow-lg transition animate-pulse"
+              title="Watch In-Class 3D Animation"
+            >
+              <span>🎬 Live Video:</span>
+              <span className="max-w-[140px] truncate">{activeSubTopic.name}</span>
+            </button>
+          </div>
+
           <WhiteboardCanvas
             currentTool={currentTool}
             currentColor={currentColor}
@@ -351,12 +405,35 @@ export function App() {
           />
         )}
 
+        {/* Real-time Floating Video PiP */}
+        <FloatingVideoPip
+          video={activeVideoPiP}
+          onClose={() => setActiveVideoPiP(null)}
+        />
+
+        {/* Real-time Floating Auto-Calculator */}
+        <AutoCalculatorWidget
+          isOpen={isAutoCalculatorOpen}
+          onClose={() => setIsAutoCalculatorOpen(false)}
+          onStampToBoard={handleStampTextToCanvas}
+        />
+
         {/* Auto-Adjusting Split Slide Workspace (Student Zone + Teacher Zone) */}
         {activeSplitQuestion && (
           <SplitSlideWorkspace
             question={activeSplitQuestion}
             studentName={activeBoardStudent}
             onClose={() => setActiveSplitQuestion(null)}
+          />
+        )}
+
+        {/* Student vs Student 50/50 Split Challenge Mode */}
+        {isChallengeModeOpen && (
+          <StudentVsStudentChallenge
+            question={activeQuestion}
+            student1Name="Aryan Sharma"
+            student2Name="Priya Patel"
+            onClose={() => setIsChallengeModeOpen(false)}
           />
         )}
 
@@ -375,6 +452,18 @@ export function App() {
         onSelectStudentForBoard={(name) => {
           setActiveBoardStudent(name);
         }}
+      />
+
+      <ClassroomAttendanceModal
+        isOpen={isAttendanceModalOpen}
+        onClose={() => setIsAttendanceModalOpen(false)}
+        gradeLabel={activeGrade.label}
+      />
+
+      <GraphVisualizerModal
+        isOpen={isGraphModalOpen}
+        onClose={() => setIsGraphModalOpen(false)}
+        onStampGraphToBoard={handleStampGraphToCanvas}
       />
 
       <NoiseMonitorModal
