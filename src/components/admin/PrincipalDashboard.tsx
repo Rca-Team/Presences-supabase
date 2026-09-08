@@ -15,14 +15,14 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, startOfMonth, eachDayOfInterval, subDays } from 'date-fns';
 import { useRealtimeAttendance } from '@/hooks/useRealtimeAttendance';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { fetchUnifiedStudentSnapshot } from '@/utils/attendanceStatsHelper';
 import { filterWorkingDaysForSchool } from '@/utils/workingDays';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer
 } from 'recharts';
 
@@ -61,7 +61,7 @@ const PrincipalDashboard: React.FC = () => {
   const [overallStats, setOverallStats] = useState({
     totalRegistered: 0, presentToday: 0, lateToday: 0, absentToday: 0, attendanceRate: 0,
   });
-  const [weeklyTrend, setWeeklyTrend] = useState<{ day: string; count: number }[]>([]);
+  const [weeklyTrend, setWeeklyTrend] = useState<{ date: string; day: string; fullDate: string; count: number }[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
 
   const { isConnected } = useRealtimeAttendance({
@@ -169,30 +169,86 @@ const PrincipalDashboard: React.FC = () => {
         attendanceRate: unified.attendanceRate,
       });
 
-      // Weekly trend
-      const monthStart = startOfMonth(new Date());
+      // Weekly trend - last 7 school working days up to today
+      const todayDate = new Date();
+      const lookbackStart = subDays(todayDate, 14);
       const workingDays = filterWorkingDaysForSchool(
-        eachDayOfInterval({ start: monthStart, end: new Date() })
+        eachDayOfInterval({ start: lookbackStart, end: todayDate })
       ).slice(-7);
 
-      const { data: weekData } = await supabase
-        .from('attendance_records')
-        .select('timestamp, device_info')
-        .in('status', ['present', 'late', 'unauthorized'])
-        .gte('timestamp', format(workingDays[0] || new Date(), 'yyyy-MM-dd'))
-        .lte('timestamp', format(new Date(), "yyyy-MM-dd'T'23:59:59"));
+      const startDateStr = format(workingDays[0] || todayDate, 'yyyy-MM-dd');
+      const endDateStr = format(todayDate, 'yyyy-MM-dd');
 
-      const daily: Record<string, Set<string>> = {};
-      (weekData || []).forEach(r => {
-        const d = format(new Date(r.timestamp), 'yyyy-MM-dd');
-        const e = (r.device_info as any)?.employee_id || (r.device_info as any)?.metadata?.employee_id;
-        if (!daily[d]) daily[d] = new Set();
-        if (e) daily[d].add(e);
+      // Fetch attendance and gate entries for the entire lookback window
+      const [weekAttRes, weekGateRes] = await Promise.all([
+        supabase
+          .from('attendance_records')
+          .select('id, user_id, student_id, student_name, status, timestamp, device_info')
+          .in('status', ['present', 'late', 'unauthorized'])
+          .gte('timestamp', `${startDateStr}T00:00:00`)
+          .lte('timestamp', `${endDateStr}T23:59:59`),
+        supabase
+          .from('gate_entries')
+          .select('student_id, entry_time')
+          .gte('entry_time', `${startDateStr}T00:00:00`)
+          .lte('entry_time', `${endDateStr}T23:59:59`)
+          .eq('is_recognized', true),
+      ]);
+
+      // Build mapping for matching registered students
+      const idToEmployeeId = new Map<string, string>();
+      processedUsers.forEach(u => {
+        const employeeKey = u.employee_id || u.id;
+        [u.employee_id, u.user_id, u.id].filter(Boolean).forEach(id => {
+          idToEmployeeId.set(String(id), employeeKey);
+        });
       });
 
-      setWeeklyTrend(workingDays.map(d => ({
-        day: format(d, 'EEE'), count: daily[format(d, 'yyyy-MM-dd')]?.size || 0,
-      })));
+      const dailyPresent: Record<string, Set<string>> = {};
+      (weekAttRes.data || []).forEach(r => {
+        const d = format(new Date(r.timestamp), 'yyyy-MM-dd');
+        const m = (r.device_info as any)?.metadata || {};
+        const possibleIds = [
+          r.student_id,
+          m.employee_id,
+          (r.device_info as any)?.employee_id,
+          r.user_id,
+          r.id,
+        ].filter(Boolean).map(String);
+
+        const matched = possibleIds.map(id => idToEmployeeId.get(id)).find(Boolean);
+        const key = matched || r.student_id || r.user_id || m.name || r.student_name;
+        if (key) {
+          if (!dailyPresent[d]) dailyPresent[d] = new Set();
+          dailyPresent[d].add(key);
+        }
+      });
+
+      (weekGateRes.data || []).forEach(g => {
+        if (!g.student_id) return;
+        const d = format(new Date(g.entry_time), 'yyyy-MM-dd');
+        const matched = idToEmployeeId.get(String(g.student_id));
+        const key = matched || g.student_id;
+        if (!dailyPresent[d]) dailyPresent[d] = new Set();
+        dailyPresent[d].add(key);
+      });
+
+      const trendData = workingDays.map(d => {
+        const dateStr = format(d, 'yyyy-MM-dd');
+        let count = dailyPresent[dateStr]?.size || 0;
+        // For today, ensure consistency with the unified snapshot counter
+        if (dateStr === today) {
+          count = Math.max(count, unified.presentToday + unified.lateToday);
+        }
+        return {
+          date: dateStr,
+          day: format(d, 'EEE'),
+          fullDate: format(d, 'EEE, d MMM'),
+          count,
+        };
+      });
+
+      setWeeklyTrend(trendData);
 
       setLastRefreshed(new Date());
     } catch (err) {
@@ -352,26 +408,61 @@ const PrincipalDashboard: React.FC = () => {
       {/* Weekly Trend Chart */}
       <Card>
         <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-          <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-2">
-            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-            This Week's Trend
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+              This Week's Trend
+            </CardTitle>
+            <span className="text-[11px] text-muted-foreground font-medium">
+              Last 7 Working Days
+            </span>
+          </div>
         </CardHeader>
         <CardContent className="px-1 sm:px-4 pb-3 sm:pb-4">
           <div className="h-36 sm:h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyTrend} barSize={isMobile ? 18 : 32}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: isMobile ? 10 : 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: isMobile ? 10 : 11 }} stroke="hsl(var(--muted-foreground))" width={isMobile ? 25 : 40} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(val) => {
+                    const item = weeklyTrend.find(w => w.date === val);
+                    return item ? item.day : val;
+                  }}
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
+                  stroke="hsl(var(--muted-foreground))"
+                />
+                <YAxis
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
+                  stroke="hsl(var(--muted-foreground))"
+                  width={isMobile ? 25 : 40}
+                  allowDecimals={false}
+                />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px', fontSize: '12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                  }}
+                  formatter={(value: any) => [`${value} Students`, 'Present']}
+                  labelFormatter={(label: string) => {
+                    const item = weeklyTrend.find(w => w.date === label);
+                    return item?.fullDate || label;
                   }}
                 />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]}>
+                  {weeklyTrend.map((entry, index) => {
+                    const isToday = entry.date === format(new Date(), 'yyyy-MM-dd');
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={isToday ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.7)'}
+                      />
+                    );
+                  })}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
