@@ -110,6 +110,7 @@ export default function ClassroomPanoramicScanner({
   const [activeFaceCount, setActiveFaceCount] = useState(0);
   const [verifiedCount, setVerifiedCount] = useState(0);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -397,7 +398,7 @@ export default function ClassroomPanoramicScanner({
   );
 
   // ── Finalize Attendance Session ────────────────────────────────────────────
-  const handleFinalize = useCallback(() => {
+  const handleFinalize = useCallback(async () => {
     isRunningRef.current = false;
     setIsScanning(false);
     if (sessionTimerRef.current) {
@@ -410,7 +411,35 @@ export default function ClassroomPanoramicScanner({
     }
 
     const present = roster.filter((s) => s.verified).length;
-    const absent = roster.length - present;
+    const unverifiedStudents = roster.filter((s) => !s.verified);
+    const absent = unverifiedStudents.length;
+
+    setIsFinalizing(true);
+    try {
+      // Record absent status for all unverified students to ensure 0% remain unmarked
+      await Promise.allSettled(
+        unverifiedStudents.map(async (student) => {
+          try {
+            await recordAttendance(student.userId, 'absent', 0, {
+              metadata: {
+                class: selectedClass,
+                section: selectedSection,
+                mode: 'classroom-panoramic',
+                markedAs: 'absent',
+                name: student.name,
+              },
+            });
+            void sendAutoParentNotification(student.userId, student.name, 'absent').catch(() => {});
+          } catch (err) {
+            console.warn(`Failed to record absent status for ${student.name}:`, err);
+          }
+        })
+      );
+    } catch (err) {
+      console.warn('Finalize absentee batch recording error:', err);
+    } finally {
+      setIsFinalizing(false);
+    }
 
     setShowSummaryDialog(true);
     onSessionComplete?.({
@@ -418,7 +447,24 @@ export default function ClassroomPanoramicScanner({
       present,
       absent,
     });
-  }, [roster, onSessionComplete]);
+  }, [roster, selectedClass, selectedSection, onSessionComplete]);
+
+  // ── Reset Session State ───────────────────────────────────────────────────
+  const resetSession = useCallback(() => {
+    verifiedUserIdsRef.current.clear();
+    setRoster((prev) =>
+      prev.map((s) => ({
+        ...s,
+        verified: false,
+        status: 'absent',
+        confidence: undefined,
+        verifiedAt: undefined,
+        deskCoordinates: undefined,
+      }))
+    );
+    setVerifiedCount(0);
+    setSecondsRemaining(DEFAULT_SESSION_DURATION_SEC);
+  }, []);
 
   // ── Main Multi-Tile Panoramic Detection Pass ───────────────────────────────
   const runPanoramicPass = useCallback(async () => {
@@ -657,6 +703,11 @@ export default function ClassroomPanoramicScanner({
       });
     }, 1000);
   }, [isCameraActive, startCamera, handleFinalize]);
+
+  const startNewSession = useCallback(async () => {
+    resetSession();
+    await startSession();
+  }, [resetSession, startSession]);
 
   const pauseSession = useCallback(() => {
     setIsScanning(false);
@@ -906,11 +957,21 @@ export default function ClassroomPanoramicScanner({
 
                 <Button
                   size="sm"
-                  className="h-8 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20"
+                  disabled={isFinalizing}
+                  className="h-8 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 disabled:opacity-60"
                   onClick={handleFinalize}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                  Finalize Attendance
+                  {isFinalizing ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Finalizing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                      Finalize Attendance
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -1104,7 +1165,7 @@ export default function ClassroomPanoramicScanner({
               className="bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-bold"
               onClick={() => {
                 setShowSummaryDialog(false);
-                void startSession();
+                void startNewSession();
               }}
             >
               Start New Class Session
