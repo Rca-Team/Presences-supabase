@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import FuturisticFaceScanner from './FuturisticFaceScanner';
 import QRCodeScanner from './QRCodeScanner';
 import LiveAttendanceFeed from './LiveAttendanceFeed';
@@ -36,7 +36,7 @@ import LiteModeToggle from '@/components/LiteModeToggle';
  */
 const LiteAttendanceMode: React.FC = () => {
   const { signals, preference, setPreference } = usePerformanceMode();
-  const { prefs, toggle, flashKind } = useLiteFeedback();
+  const { prefs, toggle, flashKind, signal } = useLiteFeedback();
   const [activeTab, setActiveTab] = useState<'face' | 'qr'>('face');
   const [stats, setStats] = useState<UnifiedAttendanceStats>({
     totalRegistered: 0,
@@ -55,6 +55,15 @@ const LiteAttendanceMode: React.FC = () => {
     }
   };
 
+  const refreshTimerRef = useRef<number | null>(null);
+  const debouncedRefreshStats = useCallback(() => {
+    if (refreshTimerRef.current) return;
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      refreshStats();
+    }, 2500);
+  }, []);
+
   useEffect(() => {
     refreshStats();
 
@@ -64,22 +73,25 @@ const LiteAttendanceMode: React.FC = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'attendance_records' },
         () => {
-          refreshStats();
+          debouncedRefreshStats();
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'gate_entries' },
         () => {
-          refreshStats();
+          debouncedRefreshStats();
         }
       )
       .subscribe();
 
     return () => {
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [debouncedRefreshStats]);
 
   return (
     <div className="space-y-4">
@@ -190,7 +202,11 @@ const LiteAttendanceMode: React.FC = () => {
         {/* Left Scanner Workstation */}
         <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-3 sm:p-5 shadow-sm">
           {activeTab === 'face' ? (
-            <FuturisticFaceScanner />
+            <FuturisticFaceScanner
+              onAttendanceMarked={(rec) => {
+                signal(rec.status === 'late' ? 'warn' : 'ok');
+              }}
+            />
           ) : (
             <QRCodeScanner autoStart={true} />
           )}
@@ -205,4 +221,4 @@ const LiteAttendanceMode: React.FC = () => {
   );
 };
 
-export default LiteAttendanceMode;
+export default React.memo(LiteAttendanceMode);

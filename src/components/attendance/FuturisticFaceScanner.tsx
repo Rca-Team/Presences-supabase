@@ -53,9 +53,12 @@ import {
   getCachedStudentCoverPhoto,
   prefetchStudentCoverPhotos,
 } from '@/utils/studentPhotoResolver';
+import { usePerformanceMode } from '@/hooks/usePerformanceMode';
+import { useLiteFeedback } from '@/hooks/useLiteFeedback';
 
 interface FuturisticFaceScannerProps {
   onScanComplete?: (result: { recognized: boolean; name?: string; confidence?: number }) => void;
+  onAttendanceMarked?: (record: { userId: string; name: string; status: 'present' | 'late'; confidence: number }) => void;
 }
 
 interface DetectedFace {
@@ -110,8 +113,10 @@ const descriptorDistance = (a: Float32Array, b: Float32Array) => {
   return Math.sqrt(sum);
 };
 
-const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanComplete }) => {
+const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanComplete, onAttendanceMarked }) => {
   const { toast } = useToast();
+  const { liteMode, signals } = usePerformanceMode();
+  const { signal: liteSignal } = useLiteFeedback();
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -382,8 +387,8 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     };
 
     const engine = createRecognitionEngine(() => webcamRef.current?.video ?? null, {
-      detectFps: 10,
-      detectionWidth: 640,
+      detectFps: liteMode ? (signals.lowCPU ? 6 : 8) : 10,
+      detectionWidth: liteMode ? 480 : 640,
       maxConcurrentJobs: 1,
       identityTtlMs: 3500,
       maxMissed: 4,
@@ -426,7 +431,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
             {
               metadata: {
                 name: face.name,
-                source: 'live-face-id',
+                source: liteMode ? 'lite-face-terminal' : 'live-face-id',
                 track_id: face.trackId,
                 distance: Number(face.distance.toFixed(4)),
                 // The real-time engine has already passed its strict distance
@@ -456,13 +461,29 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
           const entryId = `${face.userId}-${Date.now()}`;
           
-          // Sound & tactile feedback upon successful face recognition
+          // Sound & tactile feedback upon successful face recognition (Lite and Standard adaptive)
           try {
-            if (status === 'late') {
-              playLateChime();
+            if (liteMode) {
+              liteSignal(status === 'late' ? 'warn' : 'ok');
             } else {
-              playSuccessChime();
+              if (status === 'late') {
+                playLateChime();
+              } else {
+                playSuccessChime();
+              }
             }
+          } catch {
+            /* ignore */
+          }
+
+          // Trigger parent component callback if supplied
+          try {
+            onAttendanceMarked?.({
+              userId: face.userId,
+              name: face.name,
+              status,
+              confidence: face.confidence,
+            });
           } catch {
             /* ignore */
           }
@@ -1246,16 +1267,18 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
       {/* Scanner Container */}
       <div ref={containerRef} className="relative aspect-[4/5] sm:aspect-video rounded-2xl overflow-hidden bg-card border border-border/70 shadow-xl shadow-primary/10">
-        {/* Tech Grid Background */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `
-              linear-gradient(rgba(6,182,212,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(6,182,212,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '20px 20px'
-          }} />
-        </div>
+        {/* Tech Grid Background (standard mode only) */}
+        {!liteMode && (
+          <div className="absolute inset-0 opacity-20 pointer-events-none">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(6,182,212,0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(6,182,212,0.1) 1px, transparent 1px)
+              `,
+              backgroundSize: '20px 20px'
+            }} />
+          </div>
+        )}
 
         {/* Webcam Feed */}
         <Webcam
@@ -1266,8 +1289,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           mirrored={facingMode === 'user'}
           videoConstraints={{
             facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: liteMode ? 960 : 1280 },
+            height: { ideal: liteMode ? 540 : 720 },
+            frameRate: { ideal: 30, max: 60 }
           }}
         />
 
