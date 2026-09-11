@@ -29,6 +29,7 @@ import { initializeWorkerPool, matchDescriptorParallel, isPoolInitialized } from
 import { initializeGPU } from './GPUAccelerationService';
 import { embedFaceOnnx, initializeOnnxEmbedder, isOnnxEmbedderReady } from './OnnxEmbeddingService';
 import { enqueueWrite } from './AttendanceWriteQueue';
+import { assessFaceQuality } from './FaceQualityGate';
 
 export interface EngineOptions {
   /** Recognition/detection passes per second (camera preview stays full fps) */
@@ -88,22 +89,6 @@ type GalleryEntry = {
   userName: string;
   sampleCount: number;
 };
-
-/** Multi-frame consensus voting buffer — accumulates match votes per track */
-interface ConsensusVote {
-  userId: string;
-  name: string;
-  distance: number;
-  confidence: number;
-  timestamp: number;
-}
-interface ConsensusBuffer {
-  votes: ConsensusVote[];
-  firstSeen: number;
-}
-const CONSENSUS_REQUIRED = 3;       // minimum matching votes needed
-const CONSENSUS_WINDOW_MS = 2_500;  // temporal window for votes
-const CONSENSUS_AGREEMENT = 0.80;   // 80% of votes must agree on same person
 
 let gallery: Map<string, GalleryEntry> = new Map();
 let galleryLoadedAt = 0;
@@ -168,6 +153,10 @@ function distanceToConfidence(distance: number, threshold: number): number {
 /**
  * Match a descriptor using the vector index shortlist + exact re-scoring.
  * Falls back to a full scan when the gallery is small or the index is empty.
+ *
+ * Implements Innovatrics-style ambiguity filtering: if top-2 closest matches
+ * from different people have a margin < 0.04 or ratio > 0.88, the match is
+ * rejected to prevent confusing similar-looking individuals.
  */
 export async function matchDescriptorIndexed(
   descriptor: Float32Array,
@@ -193,7 +182,18 @@ export async function matchDescriptorIndexed(
 
   ranked.sort((a, b) => a.distance - b.distance);
   const best = ranked[0];
+  const second = ranked[1];
   if (!best || best.distance > matchThreshold) return null;
+
+  // Innovatrics Ambiguity Filter: If 2nd closest candidate from a different person is too close,
+  // reject to prevent misidentifying similar-looking students.
+  if (second && second.userId !== best.userId) {
+    const margin = second.distance - best.distance;
+    const ratio = best.distance / second.distance;
+    if (margin < 0.04 || ratio > 0.88) {
+      return null;
+    }
+  }
 
   return {
     userId: best.userId,
@@ -238,8 +238,10 @@ export function createRecognitionEngine(
   let queue: number[] = [];
   /** trackId -> userId that was last handed to markAttendance for that track */
   const markedByTrack = new Map<number, string>();
-  /** trackId -> multi-frame consensus voting buffer */
-  const consensusBuffers = new Map<number, ConsensusBuffer>();
+  /** Session-wide set of marked userIds to prevent cross-track duplicate attendance */
+  const markedUserIds = new Set<string>();
+  /** trackId -> best biometric shot recorded for this tracklet (Innovatrics best-shot selection) */
+  const bestShotByTrack = new Map<number, { descriptor: Float32Array; quality: number }>();
 
   const stats: EngineStats = {
     detectFps: 0,
@@ -299,9 +301,10 @@ export function createRecognitionEngine(
     stats.identified = markedByTrack.size;
 
     // Prune bookkeeping for tracks that no longer exist
-    if (markedByTrack.size > 0) {
+    if (markedByTrack.size > 0 || bestShotByTrack.size > 0) {
       const live = new Set(tracks.map(t => t.id));
       for (const id of markedByTrack.keys()) if (!live.has(id)) markedByTrack.delete(id);
+      for (const id of bestShotByTrack.keys()) if (!live.has(id)) bestShotByTrack.delete(id);
     }
 
     // Only surface freshly-seen tracks so overlay boxes never linger
@@ -392,8 +395,40 @@ export function createRecognitionEngine(
           return;
         }
 
+        // Innovatrics Face Quality Gate: assess pose, sharpness, and texture
+        const quality = assessFaceQuality({
+          canvas: cropCanvas,
+          landmarks: (det as any).landmarks?.positions,
+          box: track.box,
+        });
+
+        if (!quality.passed) {
+          // If face is temporarily angled or blurry, skip matching this frame
+          // but allow a grace window (400ms) to preserve candidate hold if already in progress
+          const now = Date.now();
+          if (track.candidate && now - track.candidate.lastMatchedAt < 400) {
+            // Keep candidate across brief head turn / motion blur
+          } else {
+            track.candidate = null;
+            track.holdingProgress = 0;
+            tracker.assignIdentity(track.id, null);
+          }
+          publishStats();
+          return;
+        }
+
+        // Innovatrics Best-Shot Selection: accumulate the highest-quality template per track
+        const prevBest = bestShotByTrack.get(track.id);
+        let matchDescriptor = det.descriptor;
+        if (!prevBest || quality.score > prevBest.quality) {
+          bestShotByTrack.set(track.id, { descriptor: det.descriptor, quality: quality.score });
+          matchDescriptor = det.descriptor;
+        } else if (prevBest) {
+          matchDescriptor = prevBest.descriptor;
+        }
+
         const tMatch = performance.now();
-        match = await matchDescriptorIndexed(det.descriptor, matchThreshold, shortlist);
+        match = await matchDescriptorIndexed(matchDescriptor, matchThreshold, shortlist);
 
         // Offload a parallel verification to the worker pool when available
         if (!match && isPoolInitialized()) {
@@ -402,7 +437,7 @@ export function createRecognitionEngine(
             name: e.userName,
             descriptor: Array.from(e.averagedDescriptor),
           }));
-          const parallel = await matchDescriptorParallel(det.descriptor, registered, matchThreshold);
+          const parallel = await matchDescriptorParallel(matchDescriptor, registered, matchThreshold);
           if (parallel?.match) {
             match = {
               userId: parallel.match.id,
@@ -484,8 +519,11 @@ export function createRecognitionEngine(
       }
 
       // 1 SECOND CONSTANTLY HELD: Confirm identity and mark attendance
-      if (markedByTrack.get(track.id) !== match.userId) {
+      // Innovatrics Tracklet Lock: once a tracklet has marked attendance, it is locked.
+      // Furthermore, a student cannot be marked twice across tracks in the same session.
+      if (!markedByTrack.has(track.id) && !markedUserIds.has(match.userId)) {
         markedByTrack.set(track.id, match.userId);
+        markedUserIds.add(match.userId);
         const identified: IdentifiedFace = {
           trackId: track.id,
           userId: match.userId,
@@ -574,6 +612,8 @@ export function createRecognitionEngine(
       rafId = null;
       queue = [];
       markedByTrack.clear();
+      markedUserIds.clear();
+      bestShotByTrack.clear();
       tracker.reset();
     },
     isRunning: () => running,

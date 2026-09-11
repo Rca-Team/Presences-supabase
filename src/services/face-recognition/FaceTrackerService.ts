@@ -132,7 +132,12 @@ export function createFaceTracker(options: TrackerOptions = {}) {
     });
 
     for (const track of tracks) {
-      if (track.identity && now - track.identity.recognizedAt > identityTtlMs) {
+      // Innovatrics Tracklet Identity Lock: verified tracks maintain their identity
+      // for their entire duration in view (extended 60s TTL).
+      // Only unverified/tentative identities expire quickly after identityTtlMs.
+      const isVerified = Boolean(track.identity?.verified);
+      const ttl = isVerified ? Math.max(identityTtlMs * 8, 60_000) : identityTtlMs;
+      if (track.identity && now - track.identity.recognizedAt > ttl) {
         track.identity = null;
         track.candidate = null;
         track.holdingProgress = 0;

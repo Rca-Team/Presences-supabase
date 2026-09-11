@@ -87,7 +87,7 @@ const FACE_CROP_PADDING_PERCENT = 25;
 /** Same person is not re-marked by the live scanner within this window. */
 const AUTO_MARK_COOLDOWN_MS = 5 * 60 * 1000;
 /** Minimum sharpness (gradient energy) for a crop to be kept as a training sample. */
-const AUTO_SAMPLE_MIN_SHARPNESS = 6;
+const AUTO_SAMPLE_MIN_SHARPNESS = 14;
 
 
 interface AutoMarkedEntry {
@@ -215,7 +215,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       // 3 — high-quality face sample photo saved to Supabase storage & progressive training
       try {
         const isHighQuality =
-          job.confidence >= 0.60 && !!job.crop && job.crop.blurScore >= AUTO_SAMPLE_MIN_SHARPNESS;
+          job.confidence >= 0.65 && !!job.crop && job.crop.blurScore >= AUTO_SAMPLE_MIN_SHARPNESS;
         if (job.descriptor && isHighQuality && job.crop) {
           const blob = await (await fetch(job.crop.dataUrl)).blob();
           const stored = await storeFaceSample(job.userId, job.descriptor, blob, job.name, job.confidence);
@@ -270,7 +270,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const engineRef = useRef<ReturnType<typeof createRecognitionEngine> | null>(null);
 
   useEffect(() => {
-    if (!modelsLoaded || isScanning) {
+    if (!modelsLoaded || isScanning || isLoopScanning) {
       engineRef.current?.stop();
       engineRef.current = null;
       setIsDetecting(false);
@@ -411,6 +411,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         const alreadyMarkedAt = autoMarkedUsersRef.current.get(face.userId) || 0;
         if (Date.now() - alreadyMarkedAt < AUTO_MARK_COOLDOWN_MS) return;
         autoMarkedUsersRef.current.set(face.userId, Date.now());
+        recognizedUserCooldownRef.current.set(face.userId, Date.now());
 
         try {
           const video = webcamRef.current?.video;
@@ -572,7 +573,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       engineRef.current = null;
       setIsDetecting(false);
     };
-  }, [modelsLoaded, isScanning]);
+  }, [modelsLoaded, isScanning, isLoopScanning]);
 
   // Helper to create a timeout promise for biometric operations
   const withTimeout = <T,>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
@@ -744,8 +745,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               return;
             }
 
+            const alreadyMarkedAt = autoMarkedUsersRef.current.get(recognition.employee.id) || 0;
             const recentlyRecognizedAt = recognizedUserCooldownRef.current.get(recognition.employee.id) || 0;
-            if (Date.now() - recentlyRecognizedAt < 9000) {
+            if (Date.now() - alreadyMarkedAt < AUTO_MARK_COOLDOWN_MS || Date.now() - recentlyRecognizedAt < 9000) {
               scanTelemetry.matched({
                 name: recognition.employee.name,
                 confidence: recognition.confidence,
@@ -783,6 +785,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
             rememberSessionEmbedding(recognition.descriptor ?? detection.descriptor, recognition.employee.id);
             recognizedUserCooldownRef.current.set(recognition.employee.id, Date.now());
+            autoMarkedUsersRef.current.set(recognition.employee.id, Date.now());
             processedFaceCooldownRef.current.set(faceKey, Date.now());
             setLoopCapturedCount((prev) => prev + 1);
             scanTelemetry.matched({

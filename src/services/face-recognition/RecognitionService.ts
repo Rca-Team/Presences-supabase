@@ -331,6 +331,18 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
       return { recognized: false };
     }
 
+    // Ambiguity rejection: if top two matches from different students are too close,
+    // reject rather than risking a false-positive identity confusion.
+    if (second && second.userId !== best.userId) {
+      const margin = second.distance - best.distance;
+      const ratio = best.distance / second.distance;
+      if (ratio > AMBIGUITY_RATIO || margin < MIN_MARGIN_GAP) {
+        console.warn(
+          `[RecognitionService] Ambiguous match rejected: ${best.userName} (${best.distance.toFixed(3)}) vs ${second.userName} (${second.distance.toFixed(3)}), ratio=${ratio.toFixed(3)} > ${AMBIGUITY_RATIO} or margin=${margin.toFixed(3)} < ${MIN_MARGIN_GAP}`
+        );
+        return { recognized: false };
+      }
+    }
 
     const confidence = clamp01(distanceToConfidence(best.distance));
     console.log(`Best match: ${best.userName}, dist=${best.distance.toFixed(4)}, confidence=${(confidence * 100).toFixed(1)}%`);
