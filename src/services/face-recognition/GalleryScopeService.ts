@@ -56,24 +56,34 @@ async function resolve(): Promise<GalleryScope> {
   // 1. Explicit Classroom Scope (used by Classroom Panoramic Mode)
   if (explicitScope) {
     const allowed = new Set<string>();
-    const category = `${explicitScope.className}-${explicitScope.section}`;
+    const cls = explicitScope.className;
+    const sec = explicitScope.section;
+    const combined = `${cls}-${sec}`;
+    const category = combined;
 
-    const byClass = await db
-      .from('profiles')
-      .select('user_id')
-      .eq('class', explicitScope.className)
-      .eq('section', explicitScope.section);
-    (byClass?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+    // Flexible search across profiles: exact class/sec, combined class "6-A", or category
+    const [byExact, byCombined, byCat, regExact, regCombined] = await Promise.all([
+      db.from('profiles').select('user_id').eq('class', cls).eq('section', sec),
+      db.from('profiles').select('user_id').eq('class', combined),
+      db.from('profiles').select('user_id').eq('category', category),
+      db.from('attendance_records').select('user_id').eq('class', cls).eq('section', sec).eq('status', 'registered'),
+      db.from('attendance_records').select('user_id').eq('class', combined).eq('status', 'registered'),
+    ]);
 
-    const registered = await db
-      .from('attendance_records')
-      .select('user_id')
-      .eq('class', explicitScope.className)
-      .eq('section', explicitScope.section)
-      .eq('status', 'registered');
-    (registered?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+    (byExact?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+    (byCombined?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+    (byCat?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+    (regExact?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+    (regCombined?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
 
-    return { userIds: allowed, categories: [category] };
+    // CRITICAL FAIL-SAFE: If no students have class tags in DB, DO NOT wipe gallery to empty!
+    // Fall back to UNRESTRICTED so the camera still matches all registered students.
+    if (allowed.size === 0) {
+      console.warn(`[GalleryScope] No students tagged for ${cls}-${sec} in DB — falling back to full gallery.`);
+      return UNRESTRICTED;
+    }
+
+    return { userIds: allowed, categories: [category, cls, combined] };
   }
 
   const { data: auth } = await supabase.auth.getUser();

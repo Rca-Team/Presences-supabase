@@ -37,37 +37,38 @@ export interface QualityGateOptions {
 }
 
 const DEFAULT_OPTIONS: Required<QualityGateOptions> = {
-  maxYaw: 25,
-  maxPitch: 20,
-  minFaceSize: 50,
-  minBlurScore: 14,
-  minLivenessScore: 6.0,
+  maxYaw: 38,
+  maxPitch: 32,
+  minFaceSize: 28,
+  minBlurScore: 5.5,
+  minLivenessScore: 4.0,
 };
 
 /**
  * Estimate face yaw from 68-landmark positions.
- * Uses nose bridge vs jaw symmetry ratio. Returns absolute degrees (0 = frontal).
+ * Uses outer eye corners vs nose tip symmetry for reliable pose estimation
+ * invariant to jaw asymmetry, hair, or partial ear occlusions.
  */
 export function estimateYaw(landmarks: { x: number; y: number }[]): number {
   if (!landmarks || landmarks.length < 68) return 0;
   const noseTip = landmarks[30];
-  const leftJaw = landmarks[0];
-  const rightJaw = landmarks[16];
-  if (!noseTip || !leftJaw || !rightJaw) return 0;
+  const leftEyeCorner = landmarks[36];
+  const rightEyeCorner = landmarks[45];
+  if (!noseTip || !leftEyeCorner || !rightEyeCorner) return 0;
 
-  const leftDist = Math.hypot(noseTip.x - leftJaw.x, noseTip.y - leftJaw.y);
-  const rightDist = Math.hypot(noseTip.x - rightJaw.x, noseTip.y - rightJaw.y);
+  const leftDist = Math.hypot(noseTip.x - leftEyeCorner.x, noseTip.y - leftEyeCorner.y);
+  const rightDist = Math.hypot(noseTip.x - rightEyeCorner.x, noseTip.y - rightEyeCorner.y);
   const total = leftDist + rightDist;
   if (total < 1) return 0;
 
   const ratio = leftDist / total;
   const deviation = Math.abs(ratio - 0.5);
-  return deviation * 180;
+  return deviation * 130;
 }
 
 /**
  * Estimate face pitch from landmarks.
- * Returns absolute degrees from eye-to-chin ratio.
+ * Accommodates normal facial proportions and downward webcam tilt angles.
  */
 export function estimatePitch(landmarks: { x: number; y: number }[]): number {
   if (!landmarks || landmarks.length < 68) return 0;
@@ -88,8 +89,9 @@ export function estimatePitch(landmarks: { x: number; y: number }[]): number {
   if (faceHeight < 1) return 0;
 
   const noseRatio = (noseTip.y - eyeCenter.y) / faceHeight;
-  const deviation = Math.abs(noseRatio - 0.4);
-  return deviation * 120;
+  // Natural facial band allows 0.35 to 0.52 without false pitch flags
+  const deviation = Math.max(0, Math.abs(noseRatio - 0.44) - 0.08);
+  return deviation * 110;
 }
 
 /**

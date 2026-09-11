@@ -185,12 +185,11 @@ export async function matchDescriptorIndexed(
   const second = ranked[1];
   if (!best || best.distance > matchThreshold) return null;
 
-  // Innovatrics Ambiguity Filter: If 2nd closest candidate from a different person is too close,
-  // reject to prevent misidentifying similar-looking students.
-  if (second && second.userId !== best.userId) {
+  // Ambiguity Filter: If TWO DIFFERENT registered students both match below the threshold,
+  // ensure the top match has a distinct margin (>= 0.03) to prevent look-alike confusion.
+  if (second && second.userId !== best.userId && second.distance <= matchThreshold) {
     const margin = second.distance - best.distance;
-    const ratio = best.distance / second.distance;
-    if (margin < 0.04 || ratio > 0.88) {
+    if (margin < 0.03) {
       return null;
     }
   }
@@ -284,7 +283,7 @@ export function createRecognitionEngine(
 
     const detections = await faceapi.detectAllFaces(
       detectCanvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }),
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.28 }),
     );
 
     // Map small-frame boxes back to full-resolution coordinates
@@ -368,7 +367,7 @@ export function createRecognitionEngine(
         // 1. Primary path: face-api.js embedder (prioritized)
         try {
           det = await faceapi
-            .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
+            .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.18 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         } catch (faceApiErr) {
@@ -403,11 +402,16 @@ export function createRecognitionEngine(
         });
 
         if (!quality.passed) {
-          // If face is temporarily angled or blurry, skip matching this frame
-          // but allow a grace window (400ms) to preserve candidate hold if already in progress
           const now = Date.now();
-          if (track.candidate && now - track.candidate.lastMatchedAt < 400) {
-            // Keep candidate across brief head turn / motion blur
+          if (track.candidate && now - track.candidate.lastMatchedAt < 450) {
+            // Retain candidate display across momentary glance or lighting flicker
+            tracker.assignIdentity(track.id, {
+              userId: track.candidate.userId,
+              name: track.candidate.name,
+              confidence: track.candidate.confidence,
+              recognizedAt: track.candidate.lastMatchedAt,
+              verified: false,
+            });
           } else {
             track.candidate = null;
             track.holdingProgress = 0;
@@ -451,8 +455,15 @@ export function createRecognitionEngine(
 
         if (!match) {
           const now = Date.now();
-          if (track.candidate && now - track.candidate.lastMatchedAt < 350) {
-            // Keep candidate across single micro-blink/motion-blur frame
+          if (track.candidate && now - track.candidate.lastMatchedAt < 450) {
+            // Retain candidate & holding display across momentary flicker
+            tracker.assignIdentity(track.id, {
+              userId: track.candidate.userId,
+              name: track.candidate.name,
+              confidence: track.candidate.confidence,
+              recognizedAt: track.candidate.lastMatchedAt,
+              verified: false,
+            });
           } else {
             track.candidate = null;
             track.holdingProgress = 0;
@@ -465,10 +476,7 @@ export function createRecognitionEngine(
         releaseCropCanvas(cropCanvas);
       }
 
-      if (!det || !match) {
-        track.candidate = null;
-        track.holdingProgress = 0;
-        tracker.assignIdentity(track.id, null);
+      if (!match) {
         return;
       }
 

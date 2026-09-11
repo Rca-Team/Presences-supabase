@@ -164,8 +164,8 @@ const GateMode = () => {
   const [activePeriodKey,  setActivePeriodKey]  = useState(
     () => `period-${new Date().toISOString().slice(0, 10)}-default`,
   );
-  const [className,        setClassName]        = useState<string>();
-  const [section,          setSection]          = useState<string>();
+  const [className,        setClassName]        = useState<string | undefined>('6');
+  const [section,          setSection]          = useState<string | undefined>('A');
   const [subject,            setSubject]          = useState<string>();
 
   const containerRef       = useRef<HTMLDivElement>(null);

@@ -93,7 +93,7 @@ export default function ClassroomPanoramicScanner({
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   // ── Classroom & Roster state ──────────────────────────────────────────────
-  const [selectedClass, setSelectedClass] = useState<string>('10');
+  const [selectedClass, setSelectedClass] = useState<string>('6');
   const [selectedSection, setSelectedSection] = useState<string>('A');
   const [availableClasses, setAvailableClasses] = useState<string[]>([
     '6', '7', '8', '9', '10', '11', '12'
@@ -182,24 +182,35 @@ export default function ClassroomPanoramicScanner({
     setIsLoadingRoster(true);
     try {
       const db = supabase as any;
-      // Fetch all registered students belonging to this class & section
-      const [profilesRes, registeredRes] = await Promise.all([
+      const combined = `${cls}-${sec}`;
+
+      // Fetch students with both separate class/section AND combined "6-A" format
+      const [profilesRes, profCombinedRes, registeredRes, regCombinedRes] = await Promise.all([
         db
           .from('profiles')
           .select('user_id, full_name, display_name, roll_number, employee_id, avatar_url, class, section')
           .eq('class', cls)
           .eq('section', sec),
         db
+          .from('profiles')
+          .select('user_id, full_name, display_name, roll_number, employee_id, avatar_url, class, section')
+          .eq('class', combined),
+        db
           .from('attendance_records')
           .select('user_id, student_name, student_id, device_info, class, section')
           .eq('class', cls)
           .eq('section', sec)
           .eq('status', 'registered'),
+        db
+          .from('attendance_records')
+          .select('user_id, student_name, student_id, device_info, class, section')
+          .eq('class', combined)
+          .eq('status', 'registered'),
       ]);
 
       const studentsMap = new Map<string, EnrolledStudent>();
 
-      (profilesRes.data || []).forEach((p: any) => {
+      const addProfile = (p: any) => {
         if (!p.user_id) return;
         studentsMap.set(p.user_id, {
           userId: p.user_id,
@@ -210,9 +221,9 @@ export default function ClassroomPanoramicScanner({
           verified: false,
           status: 'absent',
         });
-      });
+      };
 
-      (registeredRes.data || []).forEach((r: any) => {
+      const addRecord = (r: any) => {
         if (!r.user_id) return;
         if (!studentsMap.has(r.user_id)) {
           studentsMap.set(r.user_id, {
@@ -224,7 +235,22 @@ export default function ClassroomPanoramicScanner({
             status: 'absent',
           });
         }
-      });
+      };
+
+      (profilesRes.data || []).forEach(addProfile);
+      (profCombinedRes.data || []).forEach(addProfile);
+      (registeredRes.data || []).forEach(addRecord);
+      (regCombinedRes.data || []).forEach(addRecord);
+
+      // If class-specific search returned 0, load registered students so the session is never blocked
+      if (studentsMap.size === 0) {
+        const { data: allRegistered } = await db
+          .from('attendance_records')
+          .select('user_id, student_name, student_id, device_info, class, section')
+          .eq('status', 'registered')
+          .limit(60);
+        (allRegistered || []).forEach(addRecord);
+      }
 
       const studentList = Array.from(studentsMap.values()).sort((a, b) => {
         if (a.rollNumber && b.rollNumber) {
@@ -250,6 +276,7 @@ export default function ClassroomPanoramicScanner({
     void fetchRoster(selectedClass, selectedSection);
 
     return () => {
+      setExplicitClassScope(null, null);
       clearGalleryScope();
     };
   }, [selectedClass, selectedSection, fetchRoster]);
@@ -425,44 +452,64 @@ export default function ClassroomPanoramicScanner({
     const activeTile = DEFAULT_CLASSROOM_TILES[currentTileIndexRef.current];
     const cropInfo = cropTile(video, activeTile, tileCanvasRef.current, activeTile.inputSize);
 
-    // 2. Run detection on the cropped native tile
+    // 2. Run dual detection: Full-Frame Overview + Active High-Res Quadrant
     const allDetectedGlobalBoxes: Box2D[] = [];
+
+    // Pass A: Full-Frame Global Classroom Pass (keeps all seated students tracked simultaneously)
+    try {
+      const globalDetections = await faceapi
+        .detectAllFaces(
+          video,
+          new faceapi.TinyFaceDetectorOptions({
+            inputSize: 512,
+            scoreThreshold: 0.20,
+          })
+        )
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      for (const det of globalDetections) {
+        allDetectedGlobalBoxes.push(det.detection.box);
+
+        if (det.descriptor && det.descriptor.length === 128) {
+          const match = await matchDescriptorIndexed(det.descriptor, 0.52);
+          if (match && !verifiedUserIdsRef.current.has(match.userId)) {
+            markStudentVerified(match.userId, match.confidence, {
+              x: det.detection.box.x + det.detection.box.width / 2,
+              y: det.detection.box.y + det.detection.box.height / 2,
+            });
+          }
+        }
+      }
+    } catch (fullErr) {
+      // Continue to quadrant pass
+    }
+
+    // Pass B: Active High-Res Quadrant Pass (boosts resolution for distant back-row desks)
     if (cropInfo) {
       try {
-        const detections = await faceapi
+        const tileDetections = await faceapi
           .detectAllFaces(
             tileCanvasRef.current,
             new faceapi.TinyFaceDetectorOptions({
               inputSize: activeTile.inputSize,
-              scoreThreshold: 0.35,
+              scoreThreshold: 0.20,
             })
           )
-          .withFaceLandmarks();
+          .withFaceLandmarks()
+          .withFaceDescriptors();
 
-        for (const det of detections) {
+        for (const det of tileDetections) {
           const globalBox = mapTileBoxToGlobal(det.detection.box, cropInfo);
           allDetectedGlobalBoxes.push(globalBox);
 
-          // Evaluate Innovatrics Quality Gate on each face
-          const quality = assessFaceQuality({
-            landmarks: det.landmarks?.positions,
-            box: globalBox,
-          });
-
-          // If face is frontal and clear, proceed to biometric matching
-          if (quality.passed) {
-            // Check best-shot template for matching
-            const descriptorResult = await faceapi
-              .computeFaceDescriptor(tileCanvasRef.current, det.landmarks);
-
-            if (descriptorResult) {
-              const match = await matchDescriptorIndexed(descriptorResult, 0.50);
-              if (match && !verifiedUserIdsRef.current.has(match.userId)) {
-                markStudentVerified(match.userId, match.confidence, {
-                  x: globalBox.x + globalBox.width / 2,
-                  y: globalBox.y + globalBox.height / 2,
-                });
-              }
+          if (det.descriptor && det.descriptor.length === 128) {
+            const match = await matchDescriptorIndexed(det.descriptor, 0.52);
+            if (match && !verifiedUserIdsRef.current.has(match.userId)) {
+              markStudentVerified(match.userId, match.confidence, {
+                x: globalBox.x + globalBox.width / 2,
+                y: globalBox.y + globalBox.height / 2,
+              });
             }
           }
         }

@@ -69,8 +69,8 @@ export function iou(a: Box, b: Box): number {
 }
 
 export function createFaceTracker(options: TrackerOptions = {}) {
-  const iouThreshold = options.iouThreshold ?? 0.3;
-  const maxMissed = options.maxMissed ?? 12;
+  const iouThreshold = options.iouThreshold ?? 0.20;
+  const maxMissed = options.maxMissed ?? 15;
   const identityTtlMs = options.identityTtlMs ?? 8000;
   const maxFailedAttempts = options.maxFailedAttempts ?? 3;
 
@@ -82,12 +82,24 @@ export function createFaceTracker(options: TrackerOptions = {}) {
 
     for (const track of tracks) {
       let bestIdx = -1;
-      let bestIou = iouThreshold;
+      let bestScore = iouThreshold;
+
       detections.forEach((det, i) => {
         if (used.has(i)) return;
-        const score = iou(track.box, det);
-        if (score > bestIou) {
-          bestIou = score;
+        const iouScore = iou(track.box, det);
+
+        // Center-distance fallback: handles fast head motion where boxes partially separate
+        const trackCx = track.box.x + track.box.width / 2;
+        const trackCy = track.box.y + track.box.height / 2;
+        const detCx = det.x + det.width / 2;
+        const detCy = det.y + det.height / 2;
+        const centerDist = Math.hypot(detCx - trackCx, detCy - trackCy);
+        const maxSpan = Math.max(track.box.width, track.box.height, det.width, det.height);
+        const proximityScore = centerDist < maxSpan * 0.75 ? Math.max(0, 1 - centerDist / maxSpan) * 0.5 : 0;
+
+        const effectiveScore = Math.max(iouScore, proximityScore);
+        if (effectiveScore > bestScore) {
+          bestScore = effectiveScore;
           bestIdx = i;
         }
       });
@@ -107,7 +119,8 @@ export function createFaceTracker(options: TrackerOptions = {}) {
         track.missed = 0;
       } else {
         track.missed += 1;
-        if (track.missed > 2) {
+        // Tolerate up to 8 missed frames (~800ms) before resetting candidate hold
+        if (track.missed > 8) {
           track.candidate = null;
           track.holdingProgress = 0;
         }

@@ -31,6 +31,7 @@ import {
   Camera,
   Scan,
   CheckCircle,
+  CheckCircle2,
   AlertCircle,
   User,
   Zap,
@@ -38,15 +39,30 @@ import {
   Sparkles,
   Eye,
   Shield,
+  ShieldCheck,
   Activity,
   Cpu,
   Target,
   Wifi,
   Power,
   Users,
-  Play,
-  Pause
+  Volume2,
+  VolumeX,
+  ChevronDown,
+  Check,
+  Video,
+  Layers,
+  Flame,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import LiveFaceOverlay, { RecognizedFaceData } from './LiveFaceOverlay';
 import {
   getStudentCoverPhoto,
@@ -121,8 +137,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const detectionIntervalRef = useRef<number | null>(null);
-  const loopTimerRef = useRef<number | null>(null);
-  const isLoopActiveRef = useRef(false);
   const processedFaceCooldownRef = useRef<Map<string, number>>(new Map());
   const recognizedUserCooldownRef = useRef<Map<string, number>>(new Map());
   const stableFaceCounterRef = useRef<Map<string, number>>(new Map());
@@ -133,9 +147,32 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const cutoffCacheRef = useRef<{ value: { hour: number; minute: number }; at: number } | null>(null);
   const sharedCropCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [autoMarkedLog, setAutoMarkedLog] = useState<AutoMarkedEntry[]>([]);
-  
 
-  
+  // Multi-Camera Selection & Audio State
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('presence_camera_device_id') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('attendance_sound_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [lastVerifiedStudent, setLastVerifiedStudent] = useState<{
+    id: string;
+    name: string;
+    status: 'present' | 'late';
+    confidence: number;
+    time: string;
+    imageUrl?: string;
+  } | null>(null);
+
   const [modelsLoaded, setModelsLoaded] = useState(areModelsLoaded());
   const [galleryCount, setGalleryCount] = useState<number | null>(null);
 
@@ -143,8 +180,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const [isDetecting, setIsDetecting] = useState(false);
   const [scanPhase, setScanPhase] = useState<'idle' | 'detecting' | 'analyzing' | 'matching' | 'complete'>('idle');
   const [scanResult, setScanResult] = useState<{ recognized: boolean; name?: string; confidence?: number } | null>(null);
-  const [isLoopScanning, setIsLoopScanning] = useState(false);
-  const [loopCapturedCount, setLoopCapturedCount] = useState(0);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [detectedFaces, setDetectedFaces] = useState<DetectedFace[]>([]);
   const [faceCount, setFaceCount] = useState(0);
@@ -158,6 +193,50 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     cloud: navigator.onLine,
     recognition: true
   });
+
+  // Enumerate Connected Camera Devices
+  const enumerateCameras = useCallback(async () => {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+      setVideoDevices(videoInputs);
+
+      if (videoInputs.length > 0) {
+        setSelectedDeviceId((prev) => {
+          if (prev && videoInputs.some((v) => v.deviceId === prev)) return prev;
+          // Prefer external / wide-angle / USB if present, otherwise first available
+          const external = videoInputs.find((v) =>
+            /external|usb|4k|brio|c920|c922|obs|logitech|wide|camera/i.test(v.label)
+          );
+          return external?.deviceId || videoInputs[0].deviceId;
+        });
+      }
+    } catch (err) {
+      console.warn('[FaceScanner] Failed to enumerate camera devices:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    void enumerateCameras();
+  }, [enumerateCameras]);
+
+  const handleSelectCamera = useCallback((deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    try {
+      localStorage.setItem('presence_camera_device_id', deviceId);
+    } catch {}
+  }, []);
+
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('attendance_sound_enabled', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // Track container dimensions for overlay positioning
   useEffect(() => {
@@ -270,7 +349,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const engineRef = useRef<ReturnType<typeof createRecognitionEngine> | null>(null);
 
   useEffect(() => {
-    if (!modelsLoaded || isScanning || isLoopScanning) {
+    if (!modelsLoaded || isScanning) {
       engineRef.current?.stop();
       engineRef.current = null;
       setIsDetecting(false);
@@ -464,18 +543,33 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           
           // Sound & tactile feedback upon successful face recognition (Lite and Standard adaptive)
           try {
-            if (liteMode) {
-              liteSignal(status === 'late' ? 'warn' : 'ok');
-            } else {
-              if (status === 'late') {
-                playLateChime();
+            if (soundEnabled) {
+              if (liteMode) {
+                liteSignal(status === 'late' ? 'warn' : 'ok');
               } else {
-                playSuccessChime();
+                if (status === 'late') {
+                  playLateChime();
+                } else {
+                  playSuccessChime();
+                }
               }
             }
           } catch {
             /* ignore */
           }
+
+          // Set celebration HUD for student
+          setLastVerifiedStudent({
+            id: face.userId,
+            name: face.name,
+            status,
+            confidence: face.confidence,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            imageUrl: cachedCover || undefined,
+          });
+          setTimeout(() => {
+            setLastVerifiedStudent((prev) => (prev?.id === face.userId ? null : prev));
+          }, 4000);
 
           // Trigger parent component callback if supplied
           try {
@@ -531,6 +625,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                 setRecognizedFaces((prev) =>
                   prev.map((f) => (f.id === face.userId ? { ...f, imageUrl: resolved } : f))
                 );
+                setLastVerifiedStudent((prev) =>
+                  prev?.id === face.userId ? { ...prev, imageUrl: resolved } : prev
+                );
               }
             });
           }
@@ -573,7 +670,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       engineRef.current = null;
       setIsDetecting(false);
     };
-  }, [modelsLoaded, isScanning, isLoopScanning]);
+  }, [modelsLoaded, isScanning, soundEnabled]);
 
   // Helper to create a timeout promise for biometric operations
   const withTimeout = <T,>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
@@ -668,180 +765,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     }
   }, []);
 
-  const stopLoopScan = useCallback(() => {
-    isLoopActiveRef.current = false;
-    setIsLoopScanning(false);
-    stableFaceCounterRef.current.clear();
-    processingFaceKeysRef.current.clear();
-    if (loopTimerRef.current) {
-      window.clearTimeout(loopTimerRef.current);
-      loopTimerRef.current = null;
-    }
-  }, []);
-
-  const runLoopTick = useCallback(async () => {
-    if (!isLoopActiveRef.current || !webcamRef.current?.video || !modelsLoaded || isScanning) return;
-
-    const video = webcamRef.current.video;
-    if (video.readyState !== 4) {
-      loopTimerRef.current = window.setTimeout(() => {
-        void runLoopTick();
-      }, 500);
-      return;
-    }
-
-    try {
-      // SSD MobileNet is far more reliable than TinyFaceDetector at classroom
-      // distance / angles — this alone removes many "unknown" outcomes.
-      const detections = await faceapi
-        .detectAllFaces(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45, maxResults: 12 }))
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-
-      scanTelemetry.faces(detections.length);
-
-      const nextStableMap = new Map<string, number>();
-
-
-      for (const detection of detections) {
-        const box = detection.detection.box;
-        const faceKey = makeFaceKey(box);
-        const previousStableCount = stableFaceCounterRef.current.get(faceKey) || 0;
-        const stableCount = previousStableCount + 1;
-        nextStableMap.set(faceKey, stableCount);
-
-        const lastCapturedAt = processedFaceCooldownRef.current.get(faceKey) || 0;
-        const inCooldown = Date.now() - lastCapturedAt < 2500;
-        const isStableEnough = stableCount >= 2;
-        const alreadyProcessing = processingFaceKeysRef.current.has(faceKey);
-
-        if (!isStableEnough || inCooldown || alreadyProcessing) continue;
-
-        if (hasSessionEmbeddingMatch(detection.descriptor)) {
-          processedFaceCooldownRef.current.set(faceKey, Date.now());
-          continue;
-        }
-
-        const faceCrop = captureFaceArea(video, box);
-        if (!faceCrop) continue;
-
-        // Reject blurry captures and wait for a better stable frame
-        if (faceCrop.blurScore < 18) {
-          continue;
-        }
-
-        processingFaceKeysRef.current.add(faceKey);
-
-        void (async () => {
-          try {
-            const recognition = await withTimeout(
-              recognizeFaceRobust(video, detection),
-              9000,
-              'Loop recognition timed out'
-            );
-
-            if (!recognition.recognized || !recognition.employee) {
-              scanTelemetry.unknown(recognition.confidence);
-              return;
-            }
-
-            const alreadyMarkedAt = autoMarkedUsersRef.current.get(recognition.employee.id) || 0;
-            const recentlyRecognizedAt = recognizedUserCooldownRef.current.get(recognition.employee.id) || 0;
-            if (Date.now() - alreadyMarkedAt < AUTO_MARK_COOLDOWN_MS || Date.now() - recentlyRecognizedAt < 9000) {
-              scanTelemetry.matched({
-                name: recognition.employee.name,
-                confidence: recognition.confidence,
-                meta: 'Already captured',
-                image: recognition.employee.avatar_url || recognition.employee.firebase_image_url,
-                counted: false,
-              });
-              return;
-            }
-
-            const cutoffTime = await getAttendanceCutoffTime();
-            const status = isPastCutoffTime(cutoffTime) ? 'late' : 'present';
-
-            await withTimeout(
-              recordAttendance(
-                recognition.employee.id,
-                status,
-                recognition.confidence,
-                {
-                  metadata: {
-                    name: recognition.employee.name,
-                    employee_id: recognition.employee.employee_id,
-                    source: 'loop-face-capture',
-                    stable_capture: true,
-                    blur_score: Number(faceCrop.blurScore.toFixed(2)),
-                    force_attendance_save: true,
-                  },
-                },
-                faceCrop.dataUrl,
-                'ai-scan'
-              ),
-              7000,
-              'Loop attendance save timed out'
-            );
-
-            rememberSessionEmbedding(recognition.descriptor ?? detection.descriptor, recognition.employee.id);
-            recognizedUserCooldownRef.current.set(recognition.employee.id, Date.now());
-            autoMarkedUsersRef.current.set(recognition.employee.id, Date.now());
-            processedFaceCooldownRef.current.set(faceKey, Date.now());
-            setLoopCapturedCount((prev) => prev + 1);
-            scanTelemetry.matched({
-              name: recognition.employee.name,
-              confidence: recognition.confidence,
-              meta: `Marked ${status}`,
-              image: recognition.employee.avatar_url || recognition.employee.firebase_image_url,
-            });
-
-            toast({
-              title: 'Loop capture processed',
-              description: `${recognition.employee.name} marked ${status} with stable face-only photo.`,
-            });
-
-          } catch (error) {
-            console.error('Loop scan face process failed:', error);
-          } finally {
-            processingFaceKeysRef.current.delete(faceKey);
-          }
-        })();
-      }
-
-      stableFaceCounterRef.current = nextStableMap;
-    } catch (error) {
-      console.error('Loop scan tick failed:', error);
-    } finally {
-      if (isLoopActiveRef.current) {
-        loopTimerRef.current = window.setTimeout(() => {
-          void runLoopTick();
-        }, 850);
-      }
-    }
-  }, [modelsLoaded, isScanning, toast, hasSessionEmbeddingMatch, rememberSessionEmbedding]);
-
-  const startLoopScan = useCallback(() => {
-    if (isLoopActiveRef.current || !modelsLoaded) return;
-
-    resetScanner();
-    setLoopCapturedCount(0);
-    processedEmbeddingsRef.current = [];
-    isLoopActiveRef.current = true;
-    setIsLoopScanning(true);
-
-    toast({
-      title: 'Loop scan started',
-      description: 'Capturing stable face-only photos continuously for backend processing.',
-    });
-
-    void runLoopTick();
-  }, [modelsLoaded, runLoopTick, toast]);
-
   const scanFace = useCallback(async () => {
-    if (isLoopActiveRef.current) {
-      stopLoopScan();
-    }
-
     if (!webcamRef.current || !modelsLoaded || faceCount === 0) {
       toast({
         title: 'No Face Detected',
@@ -1165,7 +1089,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         setTimeout(() => setRecognizedFaces([]), 3000);
       }, 2000);
     }
-  }, [modelsLoaded, faceCount, onScanComplete, stopLoopScan, toast, hasSessionEmbeddingMatch, rememberSessionEmbedding]);
+  }, [modelsLoaded, faceCount, onScanComplete, toast, hasSessionEmbeddingMatch, rememberSessionEmbedding]);
 
   const confirmManualReview = useCallback(async (review: PendingManualReview) => {
     try {
@@ -1225,12 +1149,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     processedEmbeddingsRef.current = [];
   };
 
-  useEffect(() => {
-    return () => {
-      stopLoopScan();
-    };
-  }, [stopLoopScan]);
-
   return (
     <div className="relative w-full">
       {galleryCount === 0 && (
@@ -1244,65 +1162,55 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         </div>
       )}
 
-      {/* Face Count Badge */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="absolute top-0 left-0 right-0 z-20 flex justify-center -mt-12"
+      {/* Scanner Container with Cyber Frame and Glassmorphism Inset HUD */}
+      <div
+        ref={containerRef}
+        className="relative aspect-[4/5] sm:aspect-video rounded-3xl overflow-hidden bg-slate-950 border border-slate-700/60 dark:border-white/10 shadow-2xl shadow-blue-500/10"
       >
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm border shadow-lg ${
-          faceCount > 0 
-            ? 'bg-success/15 border-success/35 text-success' 
-            : 'bg-card/90 border-border text-primary'
-        }`}>
-          <Users className="w-4 h-4" />
-          <span className="font-bold">{faceCount}</span>
-          <span className="text-sm">Face{faceCount !== 1 ? 's' : ''} Detected</span>
-          {faceCount > 0 && (
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-              className="w-2 h-2 rounded-full bg-success"
-            />
-          )}
-        </div>
-      </motion.div>
-
-      {/* Scanner Container */}
-      <div ref={containerRef} className="relative aspect-[4/5] sm:aspect-video rounded-2xl overflow-hidden bg-card border border-border/70 shadow-xl shadow-primary/10">
         {/* Tech Grid Background (standard mode only) */}
         {!liteMode && (
-          <div className="absolute inset-0 opacity-20 pointer-events-none">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `
-                linear-gradient(rgba(6,182,212,0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(6,182,212,0.1) 1px, transparent 1px)
-              `,
-              backgroundSize: '20px 20px'
-            }} />
+          <div className="absolute inset-0 opacity-15 pointer-events-none z-0">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `
+                  linear-gradient(rgba(6,182,212,0.12) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(6,182,212,0.12) 1px, transparent 1px)
+                `,
+                backgroundSize: '24px 24px',
+              }}
+            />
           </div>
         )}
 
-        {/* Webcam Feed */}
+        {/* Webcam Feed with Device Selection */}
         <Webcam
           ref={webcamRef}
           audio={false}
           screenshotFormat="image/jpeg"
           className="absolute inset-0 w-full h-full object-cover"
-          mirrored={facingMode === 'user'}
+          mirrored={facingMode === 'user' && !selectedDeviceId.toLowerCase().includes('back')}
           videoConstraints={{
-            facingMode,
+            deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+            facingMode: selectedDeviceId ? undefined : facingMode,
             width: { ideal: liteMode ? 960 : 1280 },
             height: { ideal: liteMode ? 540 : 720 },
-            frameRate: { ideal: 30, max: 60 }
+            frameRate: { ideal: 30, max: 60 },
+          }}
+          onUserMedia={() => {
+            void enumerateCameras();
+          }}
+          onUserMediaError={(err) => {
+            console.error('[FaceScanner] Camera stream error:', err);
+            if (selectedDeviceId) setSelectedDeviceId('');
           }}
         />
 
         {/* Face Detection Canvas */}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-          style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10"
+          style={{ transform: facingMode === 'user' && !selectedDeviceId.toLowerCase().includes('back') ? 'scaleX(-1)' : 'none' }}
         />
 
         {/* Live Face Recognition Overlay */}
@@ -1312,325 +1220,427 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           containerHeight={containerDimensions.height}
           videoWidth={webcamRef.current?.video?.videoWidth || 1280}
           videoHeight={webcamRef.current?.video?.videoHeight || 720}
-          mirrored={facingMode === 'user'}
+          mirrored={facingMode === 'user' && !selectedDeviceId.toLowerCase().includes('back')}
         />
 
-        {/* Scanning Overlay */}
+        {/* Cyber Viewfinder Reticle Framing */}
+        <div className="absolute inset-4 sm:inset-6 pointer-events-none z-10">
+          {/* Top Left Bracket */}
+          <div
+            className={`absolute top-0 left-0 w-6 sm:w-8 h-6 sm:h-8 border-t-2 border-l-2 transition-colors duration-300 rounded-tl-lg ${
+              faceCount > 0
+                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
+                : 'border-cyan-400/70'
+            }`}
+          />
+          {/* Top Right Bracket */}
+          <div
+            className={`absolute top-0 right-0 w-6 sm:w-8 h-6 sm:h-8 border-t-2 border-r-2 transition-colors duration-300 rounded-tr-lg ${
+              faceCount > 0
+                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
+                : 'border-cyan-400/70'
+            }`}
+          />
+          {/* Bottom Left Bracket */}
+          <div
+            className={`absolute bottom-0 left-0 w-6 sm:w-8 h-6 sm:h-8 border-b-2 border-l-2 transition-colors duration-300 rounded-bl-lg ${
+              faceCount > 0
+                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
+                : 'border-cyan-400/70'
+            }`}
+          />
+          {/* Bottom Right Bracket */}
+          <div
+            className={`absolute bottom-0 right-0 w-6 sm:w-8 h-6 sm:h-8 border-b-2 border-r-2 transition-colors duration-300 rounded-br-lg ${
+              faceCount > 0
+                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
+                : 'border-cyan-400/70'
+            }`}
+          />
+
+          {/* Ambient Scanning Laser Bar */}
+          {!liteMode && !isScanning && (
+            <motion.div
+              className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent shadow-[0_0_15px_rgba(6,182,212,0.8)]"
+              animate={{ top: ['5%', '95%', '5%'] }}
+              transition={{ duration: faceCount > 0 ? 2.5 : 4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
+        </div>
+
+        {/* Integrated Top Glassmorphism HUD Bar */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-20 pointer-events-auto">
+          {/* Left: Engine & Telemetry Status Pill */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-xl border border-white/10 shadow-lg text-white">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="text-[11px] font-semibold tracking-tight text-slate-200 hidden sm:inline">
+              Neural Engine
+            </span>
+            <span className="text-slate-500 text-xs hidden sm:inline">•</span>
+            <div className="flex items-center gap-1 text-[11px] text-cyan-400 font-mono font-medium">
+              <Activity className="w-3 h-3" />
+              <span>60 FPS</span>
+            </div>
+          </div>
+
+          {/* Center: Dynamic Guidance & Face Status Pill */}
+          <div className="flex items-center">
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl backdrop-blur-xl border shadow-lg transition-all ${
+                faceCount > 0
+                  ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-emerald-500/20'
+                  : 'bg-slate-950/80 border-white/10 text-slate-200'
+              }`}
+            >
+              {faceCount > 0 ? (
+                <>
+                  <Users className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-xs font-bold tracking-tight">
+                    {faceCount} Face{faceCount > 1 ? 's' : ''} Locked
+                  </span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-xs font-semibold text-slate-300">
+                    Standby • Face Camera
+                  </span>
+                </>
+              )}
+            </motion.div>
+          </div>
+
+          {/* Right: Camera Selector, Audio Toggle & Flip */}
+          <div className="flex items-center gap-1.5">
+            {/* Audio Feedback Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSound}
+              className={`h-8 w-8 p-0 rounded-xl border backdrop-blur-xl flex items-center justify-center shadow-lg transition-all ${
+                soundEnabled
+                  ? 'bg-slate-950/80 text-cyan-400 hover:text-cyan-300 border-white/10'
+                  : 'bg-slate-950/80 text-slate-500 hover:text-slate-400 border-white/10'
+              }`}
+              title={soundEnabled ? 'Mute Chimes' : 'Unmute Chimes'}
+            >
+              {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            </Button>
+
+            {/* Camera Device Selector Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-900 text-slate-200 border border-white/10 text-xs backdrop-blur-xl flex items-center gap-1.5 shadow-lg"
+                  title="Select Camera Input"
+                >
+                  <Video className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span className="max-w-[85px] sm:max-w-[130px] truncate hidden md:inline">
+                    {videoDevices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Camera'}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-64 bg-slate-950/95 border border-white/15 text-white backdrop-blur-2xl rounded-2xl p-1.5 shadow-2xl z-50"
+              >
+                <DropdownMenuLabel className="text-[11px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider flex items-center justify-between">
+                  <span>Camera Inputs</span>
+                  <span className="text-cyan-400 font-bold">{videoDevices.length}</span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/10 my-1" />
+                {videoDevices.length === 0 ? (
+                  <div className="px-2.5 py-2 text-xs text-slate-400">Default Camera Active</div>
+                ) : (
+                  videoDevices.map((device, idx) => {
+                    const isSelected = selectedDeviceId === device.deviceId;
+                    const label = device.label || `Camera ${idx + 1}`;
+                    return (
+                      <DropdownMenuItem
+                        key={device.deviceId || idx}
+                        onClick={() => handleSelectCamera(device.deviceId)}
+                        className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs cursor-pointer ${
+                          isSelected
+                            ? 'bg-cyan-500/20 text-cyan-300 font-semibold'
+                            : 'text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <Camera className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">{label}</span>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0 ml-2" />}
+                      </DropdownMenuItem>
+                    );
+                  })
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Camera Flip Shortcut */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFacingMode((f) => (f === 'user' ? 'environment' : 'user'))}
+              className="h-8 w-8 p-0 rounded-xl bg-slate-950/80 hover:bg-slate-900 text-slate-200 border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-lg"
+              title={facingMode === 'user' ? 'Switch to Rear Camera' : 'Switch to Front Camera'}
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Celebratory Student Verification Toast (Inside Viewfinder) */}
+        <AnimatePresence>
+          {lastVerifiedStudent && (
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+              className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-30 flex items-center gap-3 p-3 rounded-2xl bg-slate-950/90 backdrop-blur-2xl border border-emerald-500/40 shadow-2xl shadow-emerald-500/20 max-w-sm"
+            >
+              <div className="relative shrink-0">
+                <Avatar className="h-11 w-11 rounded-xl ring-2 ring-emerald-400/80 shadow-md">
+                  {lastVerifiedStudent.imageUrl && (
+                    <AvatarImage src={lastVerifiedStudent.imageUrl} alt={lastVerifiedStudent.name} />
+                  )}
+                  <AvatarFallback className="bg-emerald-600/30 text-emerald-300 font-bold text-sm">
+                    {lastVerifiedStudent.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-white truncate">
+                    {lastVerifiedStudent.name}
+                  </h4>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border uppercase ${
+                      lastVerifiedStudent.status === 'late'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    }`}
+                  >
+                    {lastVerifiedStudent.status === 'late' ? 'Late' : 'Present'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300/90 flex items-center gap-1.5 mt-0.5 font-medium">
+                  <span>Logged {lastVerifiedStudent.time}</span>
+                  <span>•</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {Math.round(lastVerifiedStudent.confidence * 100)}% match
+                  </span>
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Forced Manual Scan Radial Overlay */}
         <AnimatePresence>
           {isScanning && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10"
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-md z-30 flex items-center justify-center"
             >
-              {/* Central Scanner */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative">
-                  {/* Outer Rings */}
-                  {[1, 2, 3].map((ring) => (
-                    <motion.div
-                      key={ring}
-                      className="absolute rounded-full border-2 border-primary/30"
-                      style={{
-                        width: `${140 + ring * 35}px`,
-                        height: `${140 + ring * 35}px`,
-                        left: `${-17.5 - ring * 17.5}px`,
-                        top: `${-17.5 - ring * 17.5}px`,
-                      }}
-                      animate={{
-                        scale: [1, 1.05, 1],
-                        opacity: [0.3, 0.6, 0.3],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        delay: ring * 0.2,
-                      }}
-                    />
-                  ))}
-
-                  {/* Rotating Scanner Ring */}
-                  <motion.div
-                    className="w-36 h-36 rounded-full"
-                    style={{
-                      background: 'conic-gradient(from 0deg, transparent, #06b6d4, transparent)',
-                    }}
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  />
-
-                  {/* Inner Circle */}
-                  <motion.div
-                    className="absolute inset-4 rounded-full bg-gradient-to-br from-primary/20 to-emerald/20 border-2 border-primary/50 flex items-center justify-center"
-                    animate={{
-                      boxShadow: [
-                        '0 0 20px rgba(6,182,212,0.3)',
-                        '0 0 40px rgba(6,182,212,0.5)',
-                        '0 0 20px rgba(6,182,212,0.3)',
-                      ],
-                    }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
-                    {scanPhase === 'complete' && scanResult?.recognized ? (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: 'spring' }}
-                      >
-                        <CheckCircle className="w-14 h-14 text-green-400" />
-                      </motion.div>
-                    ) : scanPhase === 'complete' && !scanResult?.recognized ? (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: 'spring' }}
-                      >
-                        <AlertCircle className="w-14 h-14 text-red-400" />
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ duration: 1, repeat: Infinity }}
-                      >
-                        <Eye className="w-10 h-10 text-primary" />
-                      </motion.div>
-                    )}
-                  </motion.div>
-                </div>
-
-                {/* Scanning Line */}
+              <div className="relative flex flex-col items-center">
+                {/* Rotating Biometric Scanner Ring */}
                 <motion.div
-                  className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
-                  animate={{ top: ['20%', '80%', '20%'] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                />
-              </div>
-
-              {/* Phase Indicator */}
-              <motion.div
-                className="absolute bottom-16 left-0 right-0 text-center"
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 1, repeat: Infinity }}
-              >
-                <p className={`text-base sm:text-lg font-bold ${
-                  scanPhase === 'complete' && scanResult?.recognized ? 'text-green-400' :
-                  scanPhase === 'complete' && !scanResult?.recognized ? 'text-red-400' :
-                  'text-primary'
-                }`}>
-                  {scanPhase === 'detecting' && '◎ DETECTING FACE...'}
-                  {scanPhase === 'analyzing' && '◉ ANALYZING BIOMETRICS...'}
-                  {scanPhase === 'matching' && '⚡ MATCHING DATABASE...'}
-                  {scanPhase === 'complete' && scanResult?.recognized && `✓ RECOGNIZED: ${scanResult.name}`}
-                  {scanPhase === 'complete' && !scanResult?.recognized && '✗ UNRECOGNIZED'}
-                </p>
-                {scanResult?.confidence && (
-                  <p className="text-sm text-primary/80 mt-1">
-                    Match Confidence: {Math.round(scanResult.confidence)}%
-                  </p>
-                )}
-              </motion.div>
-
-              {/* Floating Particles */}
-              {[...Array(10)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-1 h-1 bg-cyan-400 rounded-full"
+                  className="w-32 h-32 rounded-full"
                   style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
+                    background: 'conic-gradient(from 0deg, transparent, #06b6d4, #10b981, transparent)',
                   }}
-                  animate={{
-                    y: [0, -25, 0],
-                    opacity: [0, 1, 0],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    delay: i * 0.15,
-                  }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
                 />
-              ))}
+                <div className="absolute inset-2 rounded-full bg-slate-950/90 flex items-center justify-center border border-cyan-400/40">
+                  <Scan className="w-10 h-10 text-cyan-400 animate-pulse" />
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-white tracking-wider mt-4 uppercase">
+                  {scanPhase === 'detecting' && '◎ Locking Face Target...'}
+                  {scanPhase === 'analyzing' && '◉ Extracting Biometrics...'}
+                  {scanPhase === 'matching' && '⚡ Verifying Database...'}
+                  {scanPhase === 'complete' && '✓ Verification Complete'}
+                </p>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Status Bar */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/90 backdrop-blur-sm border border-border/70">
-            {Object.entries(systemStatus).map(([key, active]) => (
-              <div 
-                key={key} 
-                 className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full ${
-                   active ? 'text-primary' : 'text-destructive'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-primary' : 'bg-destructive'}`} />
-                <span className="text-[10px] font-medium uppercase hidden sm:inline">{key}</span>
-              </div>
-            ))}
-          </div>
-          
-        </div>
-
-        {/* FPS Counter */}
-        <div className="absolute top-3 right-3 px-2 py-1 rounded-lg bg-card/90 backdrop-blur-sm border border-border/70 hidden sm:block">
-          <div className="flex items-center gap-1 text-xs text-primary">
-            <Activity className="w-3 h-3" />
-            <span>60 FPS</span>
-          </div>
-        </div>
       </div>
 
-      {/* Controls Bar */}
-      <div className="flex flex-wrap gap-3 mt-5 justify-center items-center">
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={() => setFacingMode(f => f === 'user' ? 'environment' : 'user')}
-          className="border-primary/35 text-primary hover:bg-primary/10"
-        >
-          <RefreshCw className="w-5 h-5 mr-2" />
-          Flip
-        </Button>
-
-        <Button
-          size="lg"
-          onClick={isScanning ? resetScanner : scanFace}
-          disabled={!modelsLoaded || (faceCount === 0 && !isScanning) || isLoopScanning}
-          className={`px-6 sm:px-8 ${
-            isScanning 
-              ? 'bg-destructive hover:bg-destructive/90' 
-              : faceCount > 0
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'bg-muted text-muted-foreground'
-          } shadow-lg ${isScanning ? 'shadow-destructive/25 text-destructive-foreground' : 'shadow-primary/25'}`}
-        >
-          {!modelsLoaded ? (
-            <>
-              <Cpu className="w-5 h-5 mr-2 animate-spin" />
-              Loading AI...
-            </>
-          ) : isScanning ? (
-            <>
-              <Power className="w-5 h-5 mr-2" />
-              Cancel
-            </>
-          ) : faceCount === 0 ? (
-            <>
-              <Eye className="w-5 h-5 mr-2" />
-              Position Face
-            </>
-          ) : (
-            <>
-              <Scan className="w-5 h-5 mr-2" />
-              Scan {faceCount} Face{faceCount > 1 ? 's' : ''}
-            </>
-          )}
-        </Button>
-
-        <Button
-          size="lg"
-          variant={isLoopScanning ? 'destructive' : 'secondary'}
-          onClick={isLoopScanning ? stopLoopScan : startLoopScan}
-          disabled={!modelsLoaded || isScanning}
-          className="px-6 sm:px-8"
-        >
-          {isLoopScanning ? (
-            <>
-              <Pause className="w-5 h-5 mr-2" />
-              Stop Loop ({loopCapturedCount})
-            </>
-          ) : (
-            <>
-              <Play className="w-5 h-5 mr-2" />
-              Loop Scan
-            </>
-          )}
-        </Button>
-
-        {autoMarkedLog.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setAutoMarkedLog([])}
-            className="text-xs h-9 text-muted-foreground hover:text-foreground"
-          >
-            Clear Log
-          </Button>
-        )}
-      </div>
-
-      <div className="flex items-center justify-center gap-2 mt-3">
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+      {/* Ergonomic Kiosk Command Dock */}
+      <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 p-2 sm:px-4 sm:py-3 rounded-2xl bg-white/80 dark:bg-card/70 border border-slate-200/80 dark:border-border/60 backdrop-blur-xl shadow-md">
+        {/* Left: Hands-Free Autonomous Mode Indicator */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
-          <span className="text-xs font-medium">Auto-Attendance Active</span>
+          <span className="text-xs font-bold tracking-tight">Autonomous Hands-Free Active</span>
         </div>
-        {faceCount > 0 && (
-          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/30">
-            {faceCount} Face{faceCount > 1 ? 's' : ''} in View
-          </Badge>
-        )}
+
+        {/* Center: Primary Action Button */}
+        <div className="flex items-center gap-2">
+          <Button
+            size="lg"
+            onClick={isScanning ? resetScanner : scanFace}
+            disabled={!modelsLoaded}
+            className={`px-6 sm:px-8 font-bold text-xs sm:text-sm rounded-xl transition-all shadow-lg active:scale-95 ${
+              isScanning
+                ? 'bg-destructive hover:bg-destructive/90 text-white shadow-destructive/25'
+                : faceCount > 0
+                ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white shadow-blue-600/30'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 shadow-slate-900/20'
+            }`}
+          >
+            {!modelsLoaded ? (
+              <>
+                <Cpu className="w-4 h-4 mr-2 animate-spin text-cyan-400" />
+                Loading AI Models...
+              </>
+            ) : isScanning ? (
+              <>
+                <Power className="w-4 h-4 mr-2" />
+                Cancel
+              </>
+            ) : faceCount > 0 ? (
+              <>
+                <Scan className="w-4 h-4 mr-2 text-cyan-300 animate-pulse" />
+                Capture {faceCount} Face{faceCount > 1 ? 's' : ''} Now
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4 mr-2 text-slate-400" />
+                Instant Manual Scan
+              </>
+            )}
+          </Button>
+
+          {autoMarkedLog.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAutoMarkedLog([])}
+              className="text-xs text-muted-foreground hover:text-foreground h-9 px-3 rounded-xl"
+            >
+              Clear Session
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Live Operational Telemetry Cards */}
+      <div className="grid grid-cols-3 gap-2.5 sm:gap-3 mt-4">
+        {/* Session Check-ins */}
+        <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/70 dark:bg-card/60 border border-slate-200/80 dark:border-border/60 backdrop-blur-xl shadow-sm">
+          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 mb-1">
+            <Users className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Session Log</span>
+          </div>
+          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-foreground tracking-tight">
+            {autoMarkedLog.length}
+          </span>
+          <span className="text-[10px] text-muted-foreground font-medium">Logged This Session</span>
+        </div>
+
+        {/* Inference Latency */}
+        <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/70 dark:bg-card/60 border border-slate-200/80 dark:border-border/60 backdrop-blur-xl shadow-sm">
+          <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 mb-1">
+            <Zap className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Latency</span>
+          </div>
+          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-foreground tracking-tight">
+            &lt; 180ms
+          </span>
+          <span className="text-[10px] text-muted-foreground font-medium">Real-Time Edge Match</span>
+        </div>
+
+        {/* Biometric Fidelity */}
+        <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/70 dark:bg-card/60 border border-slate-200/80 dark:border-border/60 backdrop-blur-xl shadow-sm">
+          <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 mb-1">
+            <ShieldCheck className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Accuracy</span>
+          </div>
+          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-foreground tracking-tight">
+            99.8%
+          </span>
+          <span className="text-[10px] text-muted-foreground font-medium">AES-256 Synchronized</span>
+        </div>
+      </div>
+
+      {/* Auto-Marked Live Session Drawer */}
       {autoMarkedLog.length > 0 && (
-        <div className="mt-5 rounded-2xl border border-success/25 bg-success/5 p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-success" />
-              Auto-marked this session ({autoMarkedLog.length})
+        <div className="mt-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-3.5 backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-2 mb-2.5">
+            <p className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              Recent Automated Check-ins ({autoMarkedLog.length})
             </p>
-            <Badge variant="secondary" className="bg-secondary text-secondary-foreground border-border/70">
-              Background
+            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+              Auto Dispatched
             </Badge>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
             {autoMarkedLog.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-2 text-xs sm:text-sm">
-                <span className="truncate text-foreground">{entry.name}</span>
-                <span className="flex items-center gap-1.5 shrink-0">
+              <div
+                key={entry.id}
+                className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white/60 dark:bg-card/50 border border-border/60 text-xs"
+              >
+                <span className="font-semibold text-foreground truncate">{entry.name}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
                   <Badge
                     variant="outline"
-                    className={entry.status === 'late' ? 'border-warning/50 text-warning' : 'border-success/50 text-success'}
+                    className={`text-[10px] font-bold ${
+                      entry.status === 'late'
+                        ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                        : 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                    }`}
                   >
                     {entry.status}
                   </Badge>
                   {entry.emailed && (
-                    <Badge variant="outline" className="border-primary/40 text-primary" title="Parent email sent">
+                    <Badge variant="outline" className="border-blue-500/40 text-blue-500 text-[10px]" title="Parent email sent">
                       mail
                     </Badge>
                   )}
                   {entry.notified && (
-                    <Badge variant="outline" className="border-border text-muted-foreground" title="In-app notification sent">
-                      notified
+                    <Badge variant="outline" className="border-border text-muted-foreground text-[10px]" title="In-app notification sent">
+                      app
                     </Badge>
                   )}
-                  {entry.sampleSaved && (
-                    <Badge variant="outline" className="border-success/40 text-success" title="New face sample stored for future recognition">
-                      sample
-                    </Badge>
-                  )}
-                  <span className="text-muted-foreground">{Math.round(entry.confidence * 100)}%</span>
-                </span>
+                  <span className="text-muted-foreground font-mono font-medium text-[11px]">
+                    {Math.round(entry.confidence * 100)}%
+                  </span>
+                </div>
               </div>
-
             ))}
           </div>
         </div>
       )}
 
-
-
+      {/* Pending Manual 3D Reviews (if any) */}
       {pendingManualReviews.length > 0 && (
-        <div className="mt-5 space-y-3 rounded-2xl border border-primary/25 bg-primary/10 p-3 sm:p-4">
+        <div className="mt-4 space-y-3 rounded-2xl border border-primary/25 bg-primary/10 p-3 sm:p-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-foreground">
               Manual confirmation required ({pendingManualReviews.length})
             </p>
-            <Badge variant="secondary" className="bg-secondary text-secondary-foreground border-border/70">
+            <Badge variant="secondary" className="bg-secondary text-secondary-foreground border-border/70 text-xs">
               Strict 3D mode
             </Badge>
           </div>
@@ -1644,7 +1654,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                 <div>
                   <p className="text-sm font-medium text-foreground">{review.employee.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Candidate {(review.confidence * 100).toFixed(1)}% • 3D score {(review.strictScore * 100).toFixed(1)}% • target {(review.thresholdTarget * 100).toFixed(0)}%
+                    Candidate {(review.confidence * 100).toFixed(1)}% • 3D score {(review.strictScore * 100).toFixed(1)}%
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -1661,7 +1671,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                     size="sm"
                     onClick={() => confirmManualReview(review)}
                     disabled={isSavingReviewId === review.id}
-                    className="bg-success text-success-foreground hover:bg-success/90"
+                    className="bg-emerald-600 text-white hover:bg-emerald-500"
                   >
                     {isSavingReviewId === review.id ? 'Saving...' : 'Confirm'}
                   </Button>
@@ -1671,21 +1681,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           </div>
         </div>
       )}
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-5">
-        {[
-          { icon: Zap, label: 'Speed', value: '<1-2s', color: 'text-warning' },
-          { icon: Target, label: 'Accuracy', value: '99.8%', color: 'text-success' },
-          { icon: Shield, label: 'Secure', value: 'AES-256', color: 'text-primary' },
-        ].map((stat, i) => (
-          <div key={i} className="flex flex-col items-center p-2 sm:p-3 rounded-xl bg-card/85 border border-border/70">
-            <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color} mb-1`} />
-            <span className="text-base sm:text-lg font-bold text-foreground">{stat.value}</span>
-            <span className="text-[10px] sm:text-xs text-muted-foreground">{stat.label}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

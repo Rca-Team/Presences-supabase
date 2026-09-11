@@ -33,7 +33,7 @@ function calculateCardPosition(
   vh: number,
   mirrored: boolean
 ) {
-  if (!cw || !ch) return { left: 16, top: 16 };
+  if (!cw || !ch) return { left: 16, top: 16, boxX: 0, boxY: 0, boxW: 0, boxH: 0 };
 
   const safeVw = vw || 1280;
   const safeVh = vh || 720;
@@ -68,7 +68,7 @@ function calculateCardPosition(
   left = Math.max(16, Math.min(left, cw - CARD_WIDTH - 16));
   top = Math.max(16, Math.min(top, ch - CARD_HEIGHT - 16));
 
-  return { left, top };
+  return { left, top, boxX: screenX, boxY: screenY, boxW: screenW, boxH: screenH };
 }
 
 const LiveFaceOverlay: React.FC<LiveFaceOverlayProps> = ({
@@ -85,7 +85,7 @@ const LiveFaceOverlay: React.FC<LiveFaceOverlayProps> = ({
     <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
       <AnimatePresence>
         {faces.map((face, index) => {
-          const { left, top } = calculateCardPosition(
+          const { left, top, boxX, boxY, boxW, boxH } = calculateCardPosition(
             face.box,
             containerWidth,
             containerHeight,
@@ -139,19 +139,82 @@ const LiveFaceOverlay: React.FC<LiveFaceOverlayProps> = ({
             : (face.name || 'Student');
 
           return (
-            <motion.div
-              key={face.id}
-              initial={{ opacity: 0, y: 8, scale: 0.94 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.94 }}
-              transition={{ delay: index * 0.05, duration: 0.25, ease: 'easeOut' }}
-              className="absolute pointer-events-none"
-              style={{
-                left: `${left}px`,
-                top: `${top}px`,
-                width: '220px',
-              }}
-            >
+            <React.Fragment key={face.id}>
+              {/* Cyber Face Tracking Reticle */}
+              {boxW > 0 && boxH > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${boxX}px`,
+                    top: `${boxY}px`,
+                    width: `${boxW}px`,
+                    height: `${boxH}px`,
+                  }}
+                >
+                  <div
+                    className={`absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 rounded-tl ${
+                      isPresent
+                        ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                        : isLate
+                        ? 'border-amber-400'
+                        : isReview
+                        ? 'border-blue-400'
+                        : 'border-rose-400'
+                    }`}
+                  />
+                  <div
+                    className={`absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 rounded-tr ${
+                      isPresent
+                        ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                        : isLate
+                        ? 'border-amber-400'
+                        : isReview
+                        ? 'border-blue-400'
+                        : 'border-rose-400'
+                    }`}
+                  />
+                  <div
+                    className={`absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 rounded-bl ${
+                      isPresent
+                        ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                        : isLate
+                        ? 'border-amber-400'
+                        : isReview
+                        ? 'border-blue-400'
+                        : 'border-rose-400'
+                    }`}
+                  />
+                  <div
+                    className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 rounded-br ${
+                      isPresent
+                        ? 'border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                        : isLate
+                        ? 'border-amber-400'
+                        : isReview
+                        ? 'border-blue-400'
+                        : 'border-rose-400'
+                    }`}
+                  />
+                </motion.div>
+              )}
+
+              {/* Floating ID Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.94 }}
+                transition={{ delay: index * 0.05, duration: 0.25, ease: 'easeOut' }}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${left}px`,
+                  top: `${top}px`,
+                  width: '220px',
+                }}
+              >
               <div
                 className={`flex items-center gap-2.5 p-2 rounded-2xl bg-card/95 dark:bg-zinc-950/90 backdrop-blur-xl border ${accentBorder} shadow-xl shadow-black/10 transition-all`}
               >
@@ -235,8 +298,9 @@ const LiveFaceOverlay: React.FC<LiveFaceOverlayProps> = ({
                 </div>
               </div>
             </motion.div>
-          );
-        })}
+          </React.Fragment>
+        );
+      })}
       </AnimatePresence>
     </div>
   );
