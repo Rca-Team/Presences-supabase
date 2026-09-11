@@ -289,13 +289,23 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
       tracks.forEach((track, i) => {
         const box = track.box;
-        ctx.strokeStyle = track.identity ? '#34d399' : '#22d3ee';
-        ctx.lineWidth = 3;
+        const isVerified = track.identity?.verified;
+        const isHolding = track.identity && !isVerified;
+        const progress = Math.max(0, Math.min(1, track.holdingProgress || 0));
+
+        // Styling: Verified -> Emerald, Holding (1s countdown) -> Amber, Unidentified -> Cyan
+        const strokeColor = isVerified ? '#10b981' : isHolding ? '#f59e0b' : '#06b6d4';
+        const glowColor = isVerified ? 'rgba(16, 185, 129, 0.4)' : isHolding ? 'rgba(245, 158, 11, 0.4)' : 'rgba(6, 182, 212, 0.3)';
+
+        // Box
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = isVerified ? 3.5 : 2.5;
         ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-        const cornerSize = 15;
-        ctx.strokeStyle = track.identity ? '#10b981' : '#06b6d4';
-        ctx.lineWidth = 4;
+        // Tech Corner Brackets
+        const cornerSize = 16;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = isVerified ? 5 : 4;
 
         ctx.beginPath();
         ctx.moveTo(box.x, box.y + cornerSize);
@@ -321,21 +331,63 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         ctx.lineTo(box.x + box.width, box.y + box.height - cornerSize);
         ctx.stroke();
 
-        ctx.fillStyle = track.identity ? '#10b981' : '#06b6d4';
-        ctx.font = 'bold 14px Inter';
-        ctx.fillText(track.identity ? track.identity.name : `Face ${i + 1}`, box.x, box.y - 8);
+        // Label above face box
+        ctx.font = 'bold 13px Inter, -apple-system, sans-serif';
+        const nameLabel = isVerified
+          ? `✓ ${track.identity!.name}`
+          : isHolding
+          ? `${track.identity!.name}`
+          : `Detecting Face...`;
+
+        const textMetrics = ctx.measureText(nameLabel);
+        const pillW = textMetrics.width + 16;
+        const pillH = 22;
+        const pillX = box.x;
+        const pillY = Math.max(8, box.y - 28);
+
+        ctx.fillStyle = 'rgba(11, 16, 27, 0.88)';
+        ctx.fillRect(pillX, pillY, pillW, pillH);
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pillX, pillY, pillW, pillH);
+
+        ctx.fillStyle = strokeColor;
+        ctx.fillText(nameLabel, pillX + 8, pillY + 15);
+
+        // Continuous 1-Second Verification HUD
+        if (isHolding) {
+          const barH = 6;
+          const barY = box.y + box.height + 6;
+          const barW = Math.max(120, box.width);
+          const barX = box.x;
+
+          // Track bg
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+          ctx.fillRect(barX, barY, barW, barH);
+          // Animated progress fill
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(barX, barY, Math.max(4, barW * progress), barH);
+
+          // Subtext
+          ctx.font = 'bold 11px Inter, -apple-system, sans-serif';
+          ctx.fillStyle = '#fef3c7';
+          ctx.fillText(`Hold steady: ${Math.round(progress * 100)}%`, barX, barY + 18);
+        } else if (isVerified) {
+          const badgeY = box.y + box.height + 6;
+          ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
+          ctx.fillStyle = '#10b981';
+          ctx.fillText(`✓ Attendance Recorded`, box.x, badgeY + 16);
+        }
       });
     };
 
     const engine = createRecognitionEngine(() => webcamRef.current?.video ?? null, {
       detectFps: 10,
       detectionWidth: 640,
-      maxConcurrentJobs: 2,
-      identityTtlMs: 3000,
-      maxMissed: 3,
+      maxConcurrentJobs: 1,
+      identityTtlMs: 3500,
+      maxMissed: 4,
       onTracks: (tracks) => {
-        // Boxes live on the canvas overlay; React state only tracks the count so
-        // the camera loop never triggers a full re-render per frame.
         drawTracks(tracks);
         setFaceCount((prev) => (prev === tracks.length ? prev : tracks.length));
       },
@@ -1214,8 +1266,8 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           mirrored={facingMode === 'user'}
           videoConstraints={{
             facingMode,
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           }}
         />
 
@@ -1611,4 +1663,4 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   );
 };
 
-export default FuturisticFaceScanner;
+export default React.memo(FuturisticFaceScanner);

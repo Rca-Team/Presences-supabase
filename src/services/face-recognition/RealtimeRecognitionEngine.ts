@@ -222,7 +222,7 @@ export function createRecognitionEngine(
   const detectionWidth = options.detectionWidth ?? 640;
   const matchThreshold = options.matchThreshold ?? 0.50;
   const shortlist = options.shortlist ?? 16;
-  const maxConcurrentJobs = options.maxConcurrentJobs ?? 4;
+  const maxConcurrentJobs = options.maxConcurrentJobs ?? 1;
 
   const tracker = createFaceTracker({
     identityTtlMs: options.identityTtlMs ?? 3500,
@@ -270,11 +270,15 @@ export function createRecognitionEngine(
     if (!vw || !vh) return;
 
     const scale = Math.min(1, detectionWidth / vw);
-    detectCanvas.width = Math.round(vw * scale);
-    detectCanvas.height = Math.round(vh * scale);
+    const targetW = Math.round(vw * scale);
+    const targetH = Math.round(vh * scale);
+    if (detectCanvas.width !== targetW || detectCanvas.height !== targetH) {
+      detectCanvas.width = targetW;
+      detectCanvas.height = targetH;
+    }
     const ctx = detectCanvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0, detectCanvas.width, detectCanvas.height);
+    ctx.drawImage(video, 0, 0, targetW, targetH);
 
     const detections = await faceapi.detectAllFaces(
       detectCanvas,
@@ -317,7 +321,7 @@ export function createRecognitionEngine(
     while (activeJobs < maxConcurrentJobs && queue.length > 0) {
       const trackId = queue.shift()!;
       const track = tracker.getTracks().find(t => t.id === trackId);
-      if (!track || track.identity) continue;
+      if (!track || track.identity?.verified) continue;
       activeJobs++;
       tracker.markPending(trackId, true);
       void recognizeTrack(video, track).finally(() => {
@@ -411,7 +415,14 @@ export function createRecognitionEngine(
         stats.matchMs = performance.now() - tMatch;
 
         if (!match) {
-          tracker.assignIdentity(track.id, null);
+          const now = Date.now();
+          if (track.candidate && now - track.candidate.lastMatchedAt < 350) {
+            // Keep candidate across single micro-blink/motion-blur frame
+          } else {
+            track.candidate = null;
+            track.holdingProgress = 0;
+            tracker.assignIdentity(track.id, null);
+          }
           publishStats();
           return;
         }
@@ -420,50 +431,59 @@ export function createRecognitionEngine(
       }
 
       if (!det || !match) {
+        track.candidate = null;
+        track.holdingProgress = 0;
         tracker.assignIdentity(track.id, null);
         return;
       }
 
-      // Consensus Voting: Accumulate votes across frames within CONSENSUS_WINDOW_MS
+      // ── Continuous 1-Second Recognition Requirement ──
+      const REQUIRED_HOLD_MS = 1000;
       const now = Date.now();
-      let buf = consensusBuffers.get(track.id);
-      if (!buf || now - buf.firstSeen > CONSENSUS_WINDOW_MS) {
-        buf = { votes: [], firstSeen: now };
-        consensusBuffers.set(track.id, buf);
+
+      const prevCand = track.candidate;
+      const isSamePerson = prevCand && prevCand.userId === match.userId;
+
+      let firstMatchedAt = now;
+      let continuousHoldMs = 0;
+
+      if (isSamePerson) {
+        firstMatchedAt = prevCand.firstMatchedAt;
+        continuousHoldMs = now - firstMatchedAt;
+      } else {
+        firstMatchedAt = now;
+        continuousHoldMs = 0;
       }
-      buf.votes.push({
+
+      const holdingProgress = Math.min(1.0, continuousHoldMs / REQUIRED_HOLD_MS);
+
+      track.candidate = {
         userId: match.userId,
         name: match.name,
-        distance: match.distance,
         confidence: match.confidence,
-        timestamp: now,
-      });
+        distance: match.distance,
+        firstMatchedAt,
+        lastMatchedAt: now,
+        continuousHoldMs,
+      };
+      track.holdingProgress = holdingProgress;
 
-      // Filter recent votes
-      buf.votes = buf.votes.filter(v => now - v.timestamp <= CONSENSUS_WINDOW_MS);
-
-      // Check consensus agreement: how many votes agree with current match?
-      const matchingVotes = buf.votes.filter(v => v.userId === match!.userId);
-      const agreementRatio = matchingVotes.length / Math.max(1, buf.votes.length);
-
-      // Instant Attendance Recognition:
-      // When a valid biometric match is found, mark instantly on the first frame
-      const isConsensusReached = match.confidence >= 0.50;
-
-      if (!isConsensusReached) {
-        // Not enough confidence yet — keep tracking
-        return;
-      }
+      const isVerified = continuousHoldMs >= REQUIRED_HOLD_MS;
 
       tracker.assignIdentity(track.id, {
         userId: match.userId,
         name: match.name,
         confidence: match.confidence,
-        recognizedAt: Date.now(),
+        recognizedAt: now,
+        verified: isVerified,
       });
 
-      // Fire per *person*, not per track id: a track can be reused by the next
-      // person standing in the same spot, and identities re-verify on TTL.
+      // Keep tracking until held continuously for 1 full second
+      if (!isVerified) {
+        return;
+      }
+
+      // 1 SECOND CONSTANTLY HELD: Confirm identity and mark attendance
       if (markedByTrack.get(track.id) !== match.userId) {
         markedByTrack.set(track.id, match.userId);
         const identified: IdentifiedFace = {

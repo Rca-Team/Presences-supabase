@@ -111,34 +111,39 @@ const LiveAttendanceFeed: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let isCancelled = false;
     const fetchProfileImages = async () => {
       const userIds = Array.from(
         new Set(records.map(r => r.user_id).filter((id): id is string => Boolean(id)))
       );
-      if (!userIds.length) return;
+      const missingIds = userIds.filter(uid => !profileAvatarByUserId[uid]);
+      if (!missingIds.length) return;
 
-      // Preload cover photos for all students appearing in feed
-      await prefetchStudentCoverPhotos(userIds);
+      void prefetchStudentCoverPhotos(missingIds);
 
-      const nextMap: Record<string, string> = { ...profileAvatarByUserId };
-      let changed = false;
-
-      for (const uid of userIds) {
-        if (!nextMap[uid]) {
+      const results = await Promise.all(
+        missingIds.map(async (uid) => {
           const cover = getCachedStudentCoverPhoto(uid) || (await getStudentCoverPhoto(uid));
-          if (cover) {
-            nextMap[uid] = cover;
-            changed = true;
-          }
-        }
-      }
+          return { uid, cover };
+        })
+      );
 
-      if (changed) {
-        setProfileAvatarByUserId(nextMap);
+      if (isCancelled) return;
+
+      const newEntries: Record<string, string> = {};
+      results.forEach(({ uid, cover }) => {
+        if (cover) newEntries[uid] = cover;
+      });
+
+      if (Object.keys(newEntries).length > 0) {
+        setProfileAvatarByUserId(prev => ({ ...prev, ...newEntries }));
       }
     };
 
     fetchProfileImages();
+    return () => {
+      isCancelled = true;
+    };
   }, [records]);
 
   const presentCount = records.filter(r => r.status === 'present').length;
@@ -300,4 +305,4 @@ const LiveAttendanceFeed: React.FC = () => {
   );
 };
 
-export default LiveAttendanceFeed;
+export default React.memo(LiveAttendanceFeed);

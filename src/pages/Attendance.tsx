@@ -102,6 +102,15 @@ const Attendance: React.FC = () => {
     }
   };
 
+  const refreshTimerRef = useRef<number | null>(null);
+  const debouncedRefreshStats = useCallback(() => {
+    if (refreshTimerRef.current) return;
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      refreshStats();
+    }, 2500);
+  }, []);
+
   useEffect(() => {
     refreshStats();
     const timer = window.setTimeout(() => setIsInitialLoading(false), 220);
@@ -109,18 +118,21 @@ const Attendance: React.FC = () => {
     const channel = supabase
       .channel('attendance-page-live-metrics')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
-        refreshStats();
+        debouncedRefreshStats();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, () => {
-        refreshStats();
+        debouncedRefreshStats();
       })
       .subscribe();
 
     return () => {
       window.clearTimeout(timer);
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [debouncedRefreshStats]);
 
   const isQRKioskMode = searchParams.get('mode') === 'qr' && searchParams.get('autostart') === '1';
 

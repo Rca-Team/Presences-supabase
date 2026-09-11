@@ -29,7 +29,20 @@ export interface FaceTrack {
     name: string;
     confidence: number;
     recognizedAt: number;
+    verified?: boolean;
   } | null;
+  /** candidate tracking for continuous 1-second verification */
+  candidate?: {
+    userId: string;
+    name: string;
+    confidence: number;
+    distance: number;
+    firstMatchedAt: number;
+    lastMatchedAt: number;
+    continuousHoldMs: number;
+  } | null;
+  /** holding progress from 0.0 to 1.0 */
+  holdingProgress?: number;
   /** true while a recognition request for this track is in flight */
   pending: boolean;
   /** recognition attempts that produced no match */
@@ -94,6 +107,10 @@ export function createFaceTracker(options: TrackerOptions = {}) {
         track.missed = 0;
       } else {
         track.missed += 1;
+        if (track.missed > 2) {
+          track.candidate = null;
+          track.holdingProgress = 0;
+        }
       }
     }
 
@@ -107,6 +124,8 @@ export function createFaceTracker(options: TrackerOptions = {}) {
         hits: 1,
         missed: 0,
         identity: null,
+        candidate: null,
+        holdingProgress: 0,
         pending: false,
         failedAttempts: 0,
       });
@@ -115,6 +134,8 @@ export function createFaceTracker(options: TrackerOptions = {}) {
     for (const track of tracks) {
       if (track.identity && now - track.identity.recognizedAt > identityTtlMs) {
         track.identity = null;
+        track.candidate = null;
+        track.holdingProgress = 0;
         track.failedAttempts = 0;
       }
     }
@@ -123,11 +144,11 @@ export function createFaceTracker(options: TrackerOptions = {}) {
     return tracks;
   }
 
-  /** Tracks that still need a recognition pass (recognise only new faces) */
+  /** Tracks that still need a recognition pass (recognise until verified) */
   function pendingRecognition(minHits = 1): FaceTrack[] {
     return tracks.filter(
       t =>
-        !t.identity &&
+        (!t.identity || !t.identity.verified) &&
         !t.pending &&
         t.missed === 0 &&
         t.hits >= minHits &&
@@ -149,6 +170,10 @@ export function createFaceTracker(options: TrackerOptions = {}) {
       t.failedAttempts = 0;
     } else {
       t.failedAttempts += 1;
+      if (t.failedAttempts >= 2) {
+        t.candidate = null;
+        t.holdingProgress = 0;
+      }
     }
   }
 
