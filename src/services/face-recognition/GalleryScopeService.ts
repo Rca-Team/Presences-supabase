@@ -21,10 +21,29 @@ export interface GalleryScope {
   categories: string[];
 }
 
+export interface ExplicitClassScope {
+  className: string;
+  section: string;
+}
+
+let explicitScope: ExplicitClassScope | null = null;
 let cached: { at: number; scope: GalleryScope } | null = null;
 let inFlight: Promise<GalleryScope> | null = null;
 
 const UNRESTRICTED: GalleryScope = { userIds: null, categories: [] };
+
+export function setExplicitClassScope(className: string | null, section: string | null) {
+  if (className && section) {
+    explicitScope = { className: className.trim(), section: section.trim() };
+  } else {
+    explicitScope = null;
+  }
+  clearGalleryScope();
+}
+
+export function getExplicitClassScope(): ExplicitClassScope | null {
+  return explicitScope;
+}
 
 export function clearGalleryScope() {
   cached = null;
@@ -33,6 +52,29 @@ export function clearGalleryScope() {
 
 async function resolve(): Promise<GalleryScope> {
   const db = supabase as any;
+
+  // 1. Explicit Classroom Scope (used by Classroom Panoramic Mode)
+  if (explicitScope) {
+    const allowed = new Set<string>();
+    const category = `${explicitScope.className}-${explicitScope.section}`;
+
+    const byClass = await db
+      .from('profiles')
+      .select('user_id')
+      .eq('class', explicitScope.className)
+      .eq('section', explicitScope.section);
+    (byClass?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+
+    const registered = await db
+      .from('attendance_records')
+      .select('user_id')
+      .eq('class', explicitScope.className)
+      .eq('section', explicitScope.section)
+      .eq('status', 'registered');
+    (registered?.data || []).forEach((r: any) => r?.user_id && allowed.add(r.user_id));
+
+    return { userIds: allowed, categories: [category] };
+  }
 
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;

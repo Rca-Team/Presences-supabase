@@ -4,13 +4,14 @@ import {
   Shield, X, Volume2, VolumeX, Maximize, Minimize,
   Users, CheckCircle2, Wifi, WifiOff, Wand2,
   DoorOpen, ChevronUp, ChevronDown, AlertTriangle, CloudOff, Cctv, Shirt, Navigation, Activity,
-  QrCode,
+  QrCode, GraduationCap, Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import GateModeScanner from '@/components/gate/GateModeScanner';
+import ClassroomPanoramicScanner from '@/components/gate/ClassroomPanoramicScanner';
 import GateEntryFeedback from '@/components/gate/GateEntryFeedback';
 import GateStatsOverlay from '@/components/gate/GateStatsOverlay';
 import StrangerAlert from '@/components/gate/StrangerAlert';
@@ -96,6 +97,7 @@ const GateMode = () => {
   const navigate   = useNavigate();
   const isMobile   = useIsMobile();
 
+  const [activeGateMode,   setActiveGateMode]   = useState<'classroom' | 'turnstile'>('classroom');
   const [isSetup,          setIsSetup]          = useState(false);
   const [isBootstrapping,  setIsBootstrapping]  = useState(false);
   const [isStartingSession,setIsStartingSession]= useState(false);
@@ -481,7 +483,73 @@ const GateMode = () => {
     toast.warning(`Crowd hotspot detected (${event.count} students in one area)`);
   }, [addSmartEvent, playSound]);
 
-  // ── Active gate session ────────────────────────────────────────────────────
+  // ── Classroom Panoramic Mode (Primary Gate Function) ──────────────────────
+  if (activeGateMode === 'classroom') {
+    return (
+      <div ref={containerRef} className="fixed inset-0 bg-[#070b14] z-40 flex flex-col overflow-hidden text-foreground">
+        {/* Top Command Bar for Classroom Panoramic Mode */}
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-card/80 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
+            
+            {/* Mode Switcher Tabs */}
+            <div className="flex items-center bg-background/60 p-0.5 rounded-xl border border-border/60">
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 px-2.5 sm:px-3 text-xs font-black gap-1.5 rounded-lg bg-primary text-primary-foreground shadow-sm"
+              >
+                <GraduationCap className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">Classroom Seated</span>
+                <Badge variant="secondary" className="text-[9px] py-0 px-1 ml-0.5 uppercase bg-white/20 text-white font-black">Primary</Badge>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 sm:px-3 text-xs font-semibold gap-1.5 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={() => setActiveGateMode('turnstile')}
+              >
+                <DoorOpen className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">Turnstile Gate</span>
+              </Button>
+            </div>
+
+            <Badge variant="outline" className="hidden md:inline-flex text-xs px-2 py-0.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-bold">
+              <Sparkles className="h-3 w-3 mr-1 text-emerald-400 animate-pulse" />
+              99%+ Seated Accuracy
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={toggleFullscreen}>
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs px-3 rounded-xl font-bold gap-1 shadow-md shadow-destructive/20"
+              onClick={() => navigate('/admin')}
+            >
+              <X className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Exit</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Classroom Panoramic Scanner Component */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ClassroomPanoramicScanner
+            onSwitchToGateFlow={() => setActiveGateMode('turnstile')}
+            onSessionComplete={({ total, present, absent }) => {
+              toast.success(`Classroom session completed: ${present}/${total} present (${absent} absent)`);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Active gate session (Turnstile Secondary Mode) ──────────────────────────
   return (
     <div ref={containerRef} className="fixed inset-0 bg-[#070b14] z-40 flex flex-col overflow-hidden text-foreground">
 
@@ -511,6 +579,18 @@ const GateMode = () => {
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Switch to Classroom Seated (Primary) */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-[11px] font-bold rounded-xl gap-1 border-primary/40 text-primary bg-primary/10 hover:bg-primary/20"
+              onClick={() => setActiveGateMode('classroom')}
+              title="Switch to Classroom Seated Mode"
+            >
+              <GraduationCap className="h-3.5 w-3.5" />
+              <span>Class</span>
+            </Button>
+
             {/* Voice Greeting Toggle */}
             <Button
               variant="ghost"
@@ -558,6 +638,28 @@ const GateMode = () => {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
             
+            {/* Mode Switcher Tabs */}
+            <div className="flex items-center bg-background/60 p-0.5 rounded-xl border border-border/60">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 sm:px-3 text-xs font-semibold gap-1.5 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={() => setActiveGateMode('classroom')}
+              >
+                <GraduationCap className="h-3.5 w-3.5 text-primary" />
+                <span className="hidden xs:inline">Classroom Seated</span>
+                <Badge variant="secondary" className="text-[9px] py-0 px-1 ml-0.5 uppercase bg-primary/20 text-primary font-black">Primary</Badge>
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 px-2.5 sm:px-3 text-xs font-black gap-1.5 rounded-lg bg-primary text-primary-foreground shadow-sm"
+              >
+                <DoorOpen className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">Gate Entry Flow</span>
+              </Button>
+            </div>
+
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 border border-primary/20">
               <DoorOpen className="h-4 w-4 text-primary" />
               <select
