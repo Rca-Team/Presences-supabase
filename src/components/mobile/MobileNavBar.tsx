@@ -31,15 +31,12 @@ const MobileNavBar: React.FC = () => {
       transition={{ type: 'spring', stiffness: 260, damping: 28, delay: 0.15 }}
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-area-bottom"
     >
-      {/* Outer frosted-glass shell */}
+      {/* Outer nano-glass shell */}
       <div
         className={cn(
-          "mx-3 mb-2 rounded-[28px] overflow-hidden relative",
-          "border border-white/25 dark:border-white/10",
-          "bg-white/45 dark:bg-black/35",
-          "backdrop-blur-3xl backdrop-saturate-[1.8]",
-          "shadow-[0_8px_40px_-8px_rgba(0,0,0,0.18),inset_0_0.5px_0_rgba(255,255,255,0.35)]",
-          "dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.5),inset_0_0.5px_0_rgba(255,255,255,0.08)]"
+          "mx-3 mb-2 rounded-[28px] overflow-hidden relative nano-glass-dock",
+          "shadow-[0_8px_32px_-8px_rgba(0,0,0,0.14),inset_0_0.5px_0_rgba(255,255,255,0.4)]",
+          "dark:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5),inset_0_0.5px_0_rgba(255,255,255,0.12)]"
         )}
       >
         {/* Subtle top-edge highlight */}

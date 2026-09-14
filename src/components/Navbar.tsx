@@ -79,23 +79,22 @@ const Navbar = () => {
   return (
     <header 
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 px-6 md:px-8 py-4",
+        "fixed top-0 left-0 right-0 z-50 px-6 md:px-8 py-3.5 transition-all duration-300",
         isScrolled 
-          ? "premium-glass-navbar backdrop-blur-3xl shadow-lg border-b" 
-          : "bg-transparent backdrop-blur-sm"
+          ? "nano-glass shadow-lg shadow-slate-950/5 border-b border-slate-200/70 dark:border-white/10" 
+          : "bg-transparent"
       )}
-      style={{ transition: 'background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease' }}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="animate-ios-bounce" onClick={() => haptic('selection')}>
           <Logo />
         </Link>
         
-        {/* Desktop Navigation Dock with Royal Neon Sliding Tabs */}
+        {/* Desktop Navigation Dock with Apple Nano-Glass Segmented Tabs */}
         <LayoutGroup id="navbar-dock-tabs">
           <nav
             onMouseLeave={() => setHoveredPath(null)}
-            className="hidden md:flex items-center gap-1.5 animate-fade-in royal-neon-dock rounded-full p-1.5 shadow-2xl"
+            className="hidden md:flex items-center gap-1.5 nano-glass-dock rounded-full p-1.5 shadow-xl shadow-slate-900/5"
           >
             {navLinks.map((item) => {
               const active = isActive(item.path);
@@ -113,7 +112,7 @@ const Navbar = () => {
                     import('@/lib/preloadRoute').then((m) => m.preloadRoute(item.path)).catch(() => undefined);
                   }}
                   whileHover={{ y: -1, scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={{ scale: 0.96 }}
                   transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.6 }}
                   className="relative select-none"
                 >
@@ -121,9 +120,9 @@ const Navbar = () => {
                     to={item.path}
                     onClick={() => haptic('selection')}
                     className={cn(
-                      "relative block px-5 py-2 rounded-full text-sm font-medium mobile-touch-target transition-colors duration-200",
+                      "relative block px-5 py-2 rounded-full text-sm font-semibold mobile-touch-target transition-colors duration-200",
                       active
-                        ? "text-slate-900 dark:text-white font-bold"
+                        ? "text-white font-bold"
                         : "text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
                     )}
                   >
@@ -136,20 +135,20 @@ const Navbar = () => {
                       />
                     )}
 
-                    {/* Minimal Clean Active Sliding Pill */}
+                    {/* Apple iOS Fluid Active Sliding Pill */}
                     {active && (
                       <motion.div
                         layoutId="navbar-active-pill"
-                        className="absolute inset-0 rounded-full royal-neon-active-pill"
+                        className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-md shadow-blue-600/30 border border-white/25"
                         transition={{
                           type: "spring",
-                          stiffness: 380,
-                          damping: 30,
+                          stiffness: 420,
+                          damping: 32,
                           mass: 0.7,
                         }}
                       >
-                        {/* Soft inner top reflection */}
-                        <span className="pointer-events-none absolute inset-x-2.5 top-0 h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/80 dark:via-white/50 to-transparent" />
+                        {/* Soft inner specular reflection */}
+                        <span className="pointer-events-none absolute inset-x-3 top-0 h-[1px] rounded-full bg-gradient-to-r from-transparent via-white/80 to-transparent" />
                       </motion.div>
                     )}
 

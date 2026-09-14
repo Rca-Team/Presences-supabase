@@ -467,119 +467,119 @@ const Admin = () => {
 
   return (
     <PageTransition>
-      <PageLayout className="min-h-screen bg-background p-0" fullWidth noFooter>
+      <PageLayout className="min-h-screen bg-slate-50/50 dark:bg-slate-950 p-0" fullWidth noFooter>
         <div className="flex h-[calc(100dvh-4rem)] overflow-hidden">
-          {/* Desktop Sidebar */}
-          {!isMobile &&
-          <aside
-            data-lenis-prevent="true"
-            className={cn(
-              "border-r border-border bg-card flex flex-col transition-all duration-200 h-full min-h-0 select-none overflow-hidden shrink-0",
-              sidebarCollapsed ? "w-16" : "w-56"
-            )}
-          >
-              <div className="p-3 border-b border-border flex items-center gap-2 shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-                  <Shield className="w-4 h-4 text-primary-foreground" />
+          {/* Desktop Sidebar — Apple macOS Nano-Glass Style */}
+          {!isMobile && (
+            <aside
+              data-lenis-prevent="true"
+              className={cn(
+                "border-r border-slate-200/80 dark:border-white/10 nano-glass flex flex-col transition-all duration-300 h-full min-h-0 select-none overflow-hidden shrink-0 shadow-lg",
+                sidebarCollapsed ? "w-16" : "w-60"
+              )}
+            >
+              <div className="p-3.5 border-b border-slate-200/70 dark:border-white/10 flex items-center gap-2.5 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center flex-shrink-0 text-white shadow-md shadow-blue-600/25 border border-white/20">
+                  <Shield className="w-4 h-4 text-white" />
                 </div>
-                {!sidebarCollapsed &&
-              <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">Admin</p>
-                    <p className="text-[10px] text-muted-foreground">Management</p>
+                {!sidebarCollapsed && (
+                  <div className="min-w-0">
+                    <p className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white truncate">Admin Center</p>
+                    <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">Campus Control</p>
                   </div>
-              }
+                )}
               </div>
 
-              <ScrollArea data-lenis-prevent="true" className="flex-1 min-h-0 py-2 overscroll-contain">
-                {groups.map((group) =>
-              <div key={group} className="mb-1">
-                    {!sidebarCollapsed &&
-                <p className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <ScrollArea data-lenis-prevent="true" className="flex-1 min-h-0 p-2 overscroll-contain">
+                {groups.map((group) => (
+                  <div key={group} className="mb-2">
+                    {!sidebarCollapsed && (
+                      <p className="px-3 py-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                         {group}
                       </p>
-                }
+                    )}
                     {navItems.filter((n) => n.group === group).map((item) => {
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      data-nav-id={item.id}
-                      onClick={() => handleTabChange(item.id)}
-                      className={cn(
-                        "relative w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors duration-200",
-                        isActive ?
-                        "text-primary font-medium" :
-                        "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                      )}
-                      title={sidebarCollapsed ? item.label : undefined}>
-
-                          {isActive &&
-                      <motion.span
-                        layoutId="admin-nav-active"
-                        className="absolute inset-0 bg-primary/10 border-r-2 border-primary"
-                        transition={{ type: 'spring', stiffness: 480, damping: 38, mass: 0.8 }} />
-                      }
-                          <item.icon className={cn("relative z-10 w-4 h-4 flex-shrink-0", isActive && "text-primary")} />
-                          {!sidebarCollapsed &&
-                      <>
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          data-nav-id={item.id}
+                          onClick={() => handleTabChange(item.id)}
+                          className={cn(
+                            "relative w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200",
+                            isActive
+                              ? "text-blue-600 dark:text-blue-400 font-bold"
+                              : "text-slate-600 hover:bg-white/60 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300"
+                          )}
+                          title={sidebarCollapsed ? item.label : undefined}
+                        >
+                          {isActive && (
+                            <motion.span
+                              layoutId="admin-nav-active"
+                              className="absolute inset-0 rounded-xl bg-blue-500/15 dark:bg-blue-400/15 border border-blue-500/30 dark:border-blue-400/25 shadow-sm"
+                              transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.7 }}
+                            />
+                          )}
+                          <item.icon className={cn("relative z-10 w-4 h-4 flex-shrink-0", isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500")} />
+                          {!sidebarCollapsed && (
+                            <>
                               <span className="relative z-10 truncate flex-1 text-left">{item.label}</span>
-                              {item.badge &&
-                        <span className="relative z-10 w-1.5 h-1.5 rounded-full bg-green-500" />
-                        }
-                              {item.count !== undefined && item.count > 0 &&
-                        <Badge variant="destructive" className="relative z-10 text-[8px] px-1 py-0 h-3.5 min-w-[14px]">
-                          {item.count}
-                        </Badge>
-                        }
+                              {item.badge && (
+                                <span className="relative z-10 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              )}
+                              {item.count !== undefined && item.count > 0 && (
+                                <Badge variant="destructive" className="relative z-10 text-[8px] px-1 py-0 h-3.5 min-w-[14px]">
+                                  {item.count}
+                                </Badge>
+                              )}
                             </>
-                      }
-                        </button>);
-
-
-                })}
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
-              )}
+                ))}
               </ScrollArea>
 
-              <div className="p-2 border-t border-border space-y-1">
-                <div className="flex items-center justify-between px-2">
+              <div className="p-2.5 border-t border-slate-200/70 dark:border-white/10 space-y-1.5">
+                <div className="flex items-center justify-between px-1.5">
                   <ThemeToggle />
                   <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-                  
-                    <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", sidebarCollapsed && "rotate-180")} />
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-xl hover:bg-white/60 dark:hover:bg-white/10"
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  >
+                    <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-300", sidebarCollapsed && "rotate-180")} />
                   </Button>
                 </div>
-                {!sidebarCollapsed &&
-              <div className="flex gap-1">
+                {!sidebarCollapsed && (
+                  <div className="flex gap-1">
                     <Suspense fallback={<div className="h-8 flex-1 rounded-md bg-muted/40" />}>
                       <AttendanceExport />
                       <BulkNotificationService availableFaces={availableFaces} />
                     </Suspense>
                   </div>
-              }
+                )}
               </div>
             </aside>
-          }
+          )}
 
-          {/* Main Content */}
-          <main data-lenis-prevent="true" className="flex-1 flex flex-col min-w-0 h-full min-h-0 overflow-hidden bg-background/50">
-            {/* Top Bar - Premium Glassmorphism */}
-            <div className="border-b border-border/60 bg-card/70 backdrop-blur-2xl px-3 sm:px-5 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 shadow-sm">
+          {/* Main Content Stage */}
+          <main data-lenis-prevent="true" className="flex-1 flex flex-col min-w-0 h-full min-h-0 overflow-hidden bg-transparent will-change-transform">
+            {/* Top Bar - Apple Nano-Glass Header */}
+            <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h1 className="text-sm sm:text-lg font-bold tracking-tight text-foreground truncate">
+                    <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-white truncate">
                       {navItems.find((n) => n.id === activeTab)?.label || 'Dashboard'}
                     </h1>
-                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-semibold">
-                      PM Shri Kendriya Vidyalaya
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-bold">
+                      PM Shri KV NFC
                     </span>
                   </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block truncate mt-0.5">
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate mt-0.5">
                     {activeTab === 'dashboard' && 'School-wide attendance command center and analytics'}
                     {activeTab === 'students' && 'Manage registered student biometric profiles and class assignments'}
                     {activeTab === 'reports' && 'Generate and export official attendance reports and daily logs'}
@@ -593,32 +593,40 @@ const Admin = () => {
                 <Suspense fallback={null}>
                   <AdminTutorial onNavigate={handleTabChange} />
                 </Suspense>
-                <Button variant="outline" size="sm" className="h-8 px-2.5 rounded-xl border-border/60 bg-card/60 hover:bg-muted text-xs font-semibold btn-spring" onClick={handleRefresh}>
-                  <RefreshCw className="h-3.5 w-3.5 sm:mr-1.5" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 rounded-xl border-slate-200/80 dark:border-white/10 nano-glass-dock hover:bg-white dark:hover:bg-slate-800 text-xs font-bold btn-spring"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 sm:mr-1.5 text-blue-500" />
                   <span className="hidden sm:inline">Refresh</span>
                 </Button>
                 {isMobile && <ThemeToggle />}
               </div>
             </div>
 
-            {/* Stats Bar - Premium SaaS Metric Strip */}
-            <div className="border-b border-border/60 bg-card/40 backdrop-blur-xl px-3 sm:px-5 py-2">
-              <div className="flex gap-3 sm:gap-6 overflow-x-auto no-scrollbar items-center">
-                {statsCards.map((stat, i) =>
-                  <div key={i} className="flex items-center gap-2 py-0.5 min-w-fit px-2.5 py-1 rounded-xl bg-card/50 border border-border/40 shadow-xs hover:border-primary/30 transition-all card-hover-pop">
-                    <div className="p-1.5 rounded-lg bg-muted/60">
+            {/* Stats Bar - Nano-Glass Modular Strip */}
+            <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass-dock px-3.5 sm:px-6 py-2">
+              <div className="flex gap-2.5 sm:gap-4 overflow-x-auto no-scrollbar items-center">
+                {statsCards.map((stat, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-2xl nano-glass border border-slate-200/60 dark:border-white/10 shadow-xs hover:border-blue-500/30 transition-all card-hover-pop shrink-0"
+                  >
+                    <div className="p-1.5 rounded-xl bg-blue-500/10 dark:bg-blue-400/10">
                       <stat.icon className={cn("w-3.5 h-3.5", stat.color)} />
                     </div>
                     <div>
-                      <div className="text-xs sm:text-sm font-extrabold tabular-nums tracking-tight text-foreground">
+                      <div className="text-xs sm:text-sm font-black tabular-nums tracking-tight text-slate-900 dark:text-white font-mono">
                         {stat.value}
                       </div>
-                      <div className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      <div className="text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                         {stat.label}
                       </div>
                     </div>
                   </div>
-                )}
+                ))}
               </div>
             </div>
 

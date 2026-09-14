@@ -407,16 +407,26 @@ body {
   }
 
   .liquid-glass-surface {
-    @apply border rounded-3xl backdrop-blur-2xl;
-    background:
-      linear-gradient(140deg, hsl(var(--card) / 0.92), hsl(var(--card) / 0.8)),
-      linear-gradient(115deg, hsl(var(--neon-orange) / 0.16), transparent 60%),
-      linear-gradient(300deg, hsl(var(--neon-pink) / 0.17), transparent 64%);
-    border-color: hsl(var(--border) / 0.86);
+    @apply border rounded-3xl backdrop-blur-xl;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(245, 248, 255, 0.76) 100%);
+    border-color: rgba(255, 255, 255, 0.75);
     box-shadow:
-      0 20px 44px -24px hsl(var(--background) / 0.76),
-      0 10px 24px -14px hsl(var(--neon-violet) / 0.33),
-      inset 0 1px 0 hsl(var(--foreground) / 0.22);
+      inset 0 1.5px 0 0 rgba(255, 255, 255, 0.90),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.04),
+      0 16px 36px -12px rgba(15, 23, 42, 0.08),
+      0 2px 6px -1px rgba(15, 23, 42, 0.03);
+    transform: translateZ(0);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .dark .liquid-glass-surface {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.82) 0%, rgba(30, 41, 59, 0.74) 100%);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      inset 0 1.5px 0 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
+      0 20px 44px -14px rgba(0, 0, 0, 0.6),
+      0 2px 8px 0 rgba(0, 0, 0, 0.3);
   }
 
   .liquid-glass-highlight {
@@ -426,14 +436,13 @@ body {
   .liquid-glass-highlight::before {
     content: '';
     @apply absolute inset-0 pointer-events-none;
-    background: linear-gradient(120deg, hsl(var(--foreground) / 0.14), transparent 36%);
+    background: linear-gradient(120deg, rgba(255, 255, 255, 0.18), transparent 40%);
   }
 
   .neon-liquid-bg {
     background:
-      radial-gradient(620px 420px at 14% 16%, hsl(var(--neon-orange) / 0.24), transparent 70%),
-      radial-gradient(640px 450px at 84% 24%, hsl(var(--neon-pink) / 0.24), transparent 72%),
-      radial-gradient(760px 520px at 48% 86%, hsl(var(--neon-violet) / 0.2), transparent 74%),
+      radial-gradient(620px 420px at 14% 16%, rgba(59, 130, 246, 0.12), transparent 70%),
+      radial-gradient(640px 450px at 84% 24%, rgba(168, 85, 247, 0.09), transparent 72%),
       linear-gradient(165deg, hsl(var(--background)), hsl(var(--secondary) / 0.94));
   }
 
