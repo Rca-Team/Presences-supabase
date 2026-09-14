@@ -518,23 +518,9 @@ const Attendance: React.FC = () => {
                       <FuturisticFaceScanner />
                     </div>
 
-                    {/* Right 1/3: iOS Lock Screen Style Live Activity Feed */}
-                    <div className="nano-glass rounded-[32px] p-4 shadow-2xl border border-white/70 dark:border-white/10 sticky top-4 space-y-3">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-white/10 px-1">
-                        <div className="flex items-center gap-2">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                          </span>
-                          <h2 className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">
-                            Live Activity Stream
-                          </h2>
-                        </div>
-                        <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-                          Real-time
-                        </span>
-                      </div>
-                      <LiveAttendanceFeed />
+                    {/* Right 1/3: iOS 18 Dynamic Island Live Activity Feed */}
+                    <div className="nano-glass rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 sticky top-4 hardware-layer">
+                      <LiveAttendanceFeed scopedCategory={scopedCategory} />
                     </div>
                   </div>
 
@@ -569,8 +555,8 @@ const Attendance: React.FC = () => {
                     <div className="lg:col-span-2 nano-glass rounded-[32px] p-5 sm:p-7 shadow-2xl border border-white/70 dark:border-white/10">
                       <QRCodeScanner autoStart={true} hideManualControls={isQRKioskMode} />
                     </div>
-                    <div className="nano-glass rounded-[32px] p-4 shadow-2xl border border-white/70 dark:border-white/10 space-y-3">
-                      <LiveAttendanceFeed />
+                    <div className="nano-glass rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 hardware-layer">
+                      <LiveAttendanceFeed scopedCategory={scopedCategory} />
                     </div>
                   </div>
                 </motion.div>
@@ -590,8 +576,8 @@ const Attendance: React.FC = () => {
                     <div className="lg:col-span-2 nano-glass rounded-[32px] p-5 sm:p-7 shadow-2xl border border-white/70 dark:border-white/10">
                       <AttendanceStats />
                     </div>
-                    <div className="nano-glass rounded-[32px] p-4 shadow-2xl border border-white/70 dark:border-white/10 space-y-3">
-                      <LiveAttendanceFeed />
+                    <div className="nano-glass rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 hardware-layer">
+                      <LiveAttendanceFeed scopedCategory={scopedCategory} />
                     </div>
                   </div>
                 </motion.div>
