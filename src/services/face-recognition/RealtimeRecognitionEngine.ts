@@ -641,7 +641,7 @@ export function createRecognitionEngine(
       rafId = null;
       queue = [];
       markedByTrack.clear();
-      markedUserIds.clear();
+      markedIdentities.clear();
       bestShotByTrack.clear();
       tracker.reset();
     },

@@ -556,7 +556,22 @@ export async function recordAttendance(
       }
     }
 
-    // 2. Check Database for today's existing present/late record
+    // 2. In-flight mutex: if another call for the same student is already executing,
+    //    wait for its result instead of racing through to a second insert.
+    const inFlightKey = candidateKeys.slice().sort().join(':');
+    if (inFlightAttendance.has(inFlightKey)) {
+      console.log(`[Deduplication] Awaiting in-flight attendance promise for ${inFlightKey}`);
+      return await inFlightAttendance.get(inFlightKey)!;
+    }
+
+    // 3. Eagerly reserve the cache slot BEFORE any async work (image upload, DB query)
+    //    so that concurrent calls hitting step 1 above will see the reservation immediately.
+    const earlyPlaceholder = { id: '__pending__', status, timestamp: new Date().toISOString(), student_name: null };
+    for (const k of candidateKeys) {
+      markedTodayCache.set(k, earlyPlaceholder);
+    }
+
+    // 4. Check Database for today's existing present/late record
     try {
       const orFilter = candidateKeys.map(k => `user_id.eq.${k},student_id.eq.${k}`).join(',');
       const { data: existingRows } = await supabase
@@ -587,13 +602,6 @@ export async function recordAttendance(
       }
     } catch (checkErr) {
       console.warn('Attendance duplicate check warning:', checkErr);
-    }
-
-    // 3. In-flight mutex for concurrent recognition passes
-    const inFlightKey = candidateKeys.slice().sort().join(':');
-    if (inFlightAttendance.has(inFlightKey)) {
-      console.log(`[Deduplication] Awaiting in-flight attendance promise for ${inFlightKey}`);
-      return await inFlightAttendance.get(inFlightKey)!;
     }
   }
 

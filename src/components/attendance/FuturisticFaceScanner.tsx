@@ -145,6 +145,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const processedEmbeddingsRef = useRef<Array<{ descriptor: Float32Array; employeeId?: string; ts: number }>>([]);
   const autoMarkedUsersRef = useRef<Map<string, number>>(new Map());
   const inFlightMarkingRef = useRef<Set<string>>(new Set());
+  const soundEnabledRef = useRef(true);
   const cutoffCacheRef = useRef<{ value: { hour: number; minute: number }; at: number } | null>(null);
   const sharedCropCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [autoMarkedLog, setAutoMarkedLog] = useState<AutoMarkedEntry[]>([]);
@@ -165,6 +166,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       return true;
     }
   });
+  soundEnabledRef.current = soundEnabled;
   const [lastVerifiedStudent, setLastVerifiedStudent] = useState<{
     id: string;
     name: string;
@@ -507,7 +509,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
 
           // ⚡ INSTANT FEEDBACK: Immediate celebratory UI card and audio chime (0ms latency!)
           try {
-            if (soundEnabled) {
+            if (soundEnabledRef.current) {
               if (liteMode) {
                 liteSignal(status === 'late' ? 'warn' : 'ok');
               } else {
@@ -671,7 +673,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       engineRef.current = null;
       setIsDetecting(false);
     };
-  }, [modelsLoaded, isScanning, soundEnabled]);
+  }, [modelsLoaded, isScanning]);
 
   // Helper to create a timeout promise for biometric operations
   const withTimeout = <T,>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
