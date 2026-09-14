@@ -58,6 +58,7 @@ import {
   stringToDescriptor,
 } from '@/services/face-recognition/ModelService';
 import FaceSampleDeduplicationModal from './FaceSampleDeduplicationModal';
+import CaptureFaceDialog from './CaptureFaceDialog';
 import { resolveStudentPhotoUrl } from '@/utils/studentPhotoResolver';
 import {
   scanDuplicateFaceSamples,
@@ -313,6 +314,7 @@ const StudentFaceSamplesManager: React.FC = () => {
 
   // Database Root-Cause Duplicate Merger states
   const [mergingAllDuplicates, setMergingAllDuplicates] = useState(false);
+  const [recaptureDialogOpen, setRecaptureDialogOpen] = useState(false);
 
   // Train from All Photos states
   const [trainingStudent, setTrainingStudent] = useState(false);
@@ -1729,6 +1731,20 @@ const StudentFaceSamplesManager: React.FC = () => {
                           <Button
                             size="icon"
                             variant="ghost"
+                            title={`Recapture 3D face for ${g.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedUserId(g.userId || g.employeeId);
+                              setRecaptureDialogOpen(true);
+                            }}
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/15 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                          >
+                            <ScanFace className="h-3.5 w-3.5" />
+                          </Button>
+
+                          <Button
+                            size="icon"
+                            variant="ghost"
                             title={`Delete ${g.name} entirely from database`}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1800,6 +1816,16 @@ const StudentFaceSamplesManager: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => setRecaptureDialogOpen(true)}
+                    className="rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-700 hover:to-indigo-700 text-white text-xs font-bold gap-1.5 shadow-md shadow-blue-500/20 active:scale-95 transition-all"
+                  >
+                    <ScanFace className="h-3.5 w-3.5" />
+                    Recapture 3D Face
+                  </Button>
+
                   <Button
                     size="sm"
                     variant="default"
@@ -2161,6 +2187,27 @@ const StudentFaceSamplesManager: React.FC = () => {
         onOpenChange={setDedupModalOpen}
         targetUserId={dedupTargetUserId}
         onCompleted={() => fetchSamples({ silent: true })}
+      />
+
+      {/* 3D Face Recapture Modal */}
+      <CaptureFaceDialog
+        open={recaptureDialogOpen}
+        onOpenChange={setRecaptureDialogOpen}
+        student={
+          selectedGroup
+            ? {
+                id: selectedGroup.userId || selectedGroup.employeeId,
+                user_id: selectedGroup.userId,
+                name: selectedGroup.name,
+                employee_id: selectedGroup.employeeId,
+                roll_number: selectedGroup.rollNumber,
+                category: selectedGroup.classSection,
+              }
+            : null
+        }
+        onSuccess={() => {
+          fetchSamples();
+        }}
       />
 
       {/* Delete Student Entirely Confirmation Modal */}

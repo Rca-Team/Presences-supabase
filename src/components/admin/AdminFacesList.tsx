@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, User, Users, UserCheck, UserX, Calendar, MoreVertical, Phone, Filter, ArrowUpDown, Clock, CheckCircle2, XCircle, SortAsc, SortDesc, Trash2, BellRing, X, BrainCircuit } from 'lucide-react';
+import { Search, User, Users, UserCheck, UserX, Calendar, MoreVertical, Phone, Filter, ArrowUpDown, Clock, CheckCircle2, XCircle, SortAsc, SortDesc, Trash2, BellRing, X, BrainCircuit, ScanFace } from 'lucide-react';
 import NotificationService from './NotificationService';
 import ExistingUserContactPopup from './ExistingUserContactPopup';
 import AttendanceCalendar from './AttendanceCalendar';
+import CaptureFaceDialog from './CaptureFaceDialog';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -91,6 +92,13 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
   const [teacherCategories, setTeacherCategories] = useState<string[]>([]);
   const [classTeacherCategory, setClassTeacherCategory] = useState<string>('none');
   const [isPromoting, setIsPromoting] = useState(false);
+  const [recaptureStudent, setRecaptureStudent] = useState<{
+    id: string;
+    user_id?: string;
+    name: string;
+    employee_id: string;
+    category?: string;
+  } | null>(null);
 
   const extractSection = (department: string): string => {
     if (!department) return '';
@@ -607,6 +615,29 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
               )}
             </button>
           </div>
+
+          {selectedFaceId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const selected = faces.find(f => f.id === selectedFaceId);
+                if (selected) {
+                  setRecaptureStudent({
+                    id: selected.id,
+                    user_id: selected.user_id || selected.id,
+                    name: selected.name,
+                    employee_id: selected.employee_id,
+                    category: selected.department,
+                  });
+                }
+              }}
+              className="h-8 text-xs font-semibold rounded-xl border-primary/40 text-primary hover:bg-primary/10 gap-1.5 shadow-sm"
+            >
+              <ScanFace className="w-3.5 h-3.5" />
+              <span>Recapture 3D Face</span>
+            </Button>
+          )}
         </div>
 
         {subTab === 'calendar' ? (
@@ -809,13 +840,25 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
                                   <MoreVertical className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem onClick={(e) => { 
                                   e.stopPropagation(); 
                                   setSelectedFaceId(face.id); 
                                   setSubTab('calendar');
                                 }} className="text-xs gap-2">
                                   <Calendar className="h-3 w-3" /> View Calendar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setRecaptureStudent({
+                                    id: face.id,
+                                    user_id: face.user_id || face.id,
+                                    name: face.name,
+                                    employee_id: face.employee_id,
+                                    category: face.department,
+                                  });
+                                }} className="text-xs gap-2 text-primary font-semibold">
+                                  <ScanFace className="h-3.5 w-3.5 text-primary" /> Recapture 3D Face
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openPromoteDialog(face); }} className="text-xs gap-2">
                                   <UserCheck className="h-3 w-3" /> Make Teacher
@@ -898,6 +941,15 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      <CaptureFaceDialog
+        open={!!recaptureStudent}
+        onOpenChange={(open) => !open && setRecaptureStudent(null)}
+        student={recaptureStudent}
+        onSuccess={() => {
+          fetchRegisteredFaces();
+        }}
+      />
     </>
   );
 };
