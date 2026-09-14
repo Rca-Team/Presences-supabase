@@ -1196,8 +1196,8 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           videoConstraints={{
             deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
             facingMode: 'user',
-            width: { ideal: liteMode ? 960 : 1280 },
-            height: { ideal: liteMode ? 540 : 720 },
+            width: { ideal: 960, max: 1280 },
+            height: { ideal: 540, max: 720 },
             frameRate: { ideal: 30, max: 60 },
           }}
           onUserMedia={() => {

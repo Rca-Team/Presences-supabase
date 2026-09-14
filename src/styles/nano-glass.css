@@ -5,9 +5,9 @@
 
 /* Nano-Textured Frosted Glass Surface (GPU-Accelerated) */
 .nano-glass {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.70);
   box-shadow: 
     inset 0 1.5px 0 0 rgba(255, 255, 255, 0.85),
@@ -16,13 +16,14 @@
     0 2px 6px -1px rgba(15, 23, 42, 0.03);
   position: relative;
   transform: translateZ(0);
+  contain: layout style;
   transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .dark .nano-glass {
-  background: rgba(15, 23, 42, 0.78);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 
     inset 0 1.5px 0 0 rgba(255, 255, 255, 0.22),
@@ -35,12 +36,12 @@
 .nano-glass-hero {
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.88) 0%,
-    rgba(240, 245, 255, 0.78) 50%,
-    rgba(255, 255, 255, 0.84) 100%
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(240, 245, 255, 0.86) 50%,
+    rgba(255, 255, 255, 0.90) 100%
   );
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 
     inset 0 2px 0 0 rgba(255, 255, 255, 0.95),
@@ -48,17 +49,18 @@
     0 18px 40px -10px rgba(37, 99, 235, 0.10),
     0 4px 12px 0 rgba(15, 23, 42, 0.04);
   transform: translateZ(0);
+  contain: layout style;
 }
 
 .dark .nano-glass-hero {
   background: linear-gradient(
     135deg,
-    rgba(30, 41, 59, 0.85) 0%,
-    rgba(15, 23, 42, 0.80) 50%,
-    rgba(17, 24, 39, 0.88) 100%
+    rgba(30, 41, 59, 0.90) 0%,
+    rgba(15, 23, 42, 0.88) 50%,
+    rgba(17, 24, 39, 0.92) 100%
   );
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 
     inset 0 2px 0 0 rgba(255, 255, 255, 0.28),
@@ -69,9 +71,9 @@
 
 /* Micro-Pill Floating Segmented Dock */
 .nano-glass-dock {
-  background: rgba(255, 255, 255, 0.80);
-  backdrop-filter: blur(10px) saturate(150%);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.75);
   box-shadow: 
     inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
@@ -80,40 +82,25 @@
 }
 
 .dark .nano-glass-dock {
-  background: rgba(15, 23, 42, 0.78);
-  backdrop-filter: blur(10px) saturate(150%);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 
     inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
     0 12px 28px -6px rgba(0, 0, 0, 0.5);
 }
 
-/* Subtle Nano-Textured Micro Grain Overlay */
+/* Subtle Nano-Textured Micro Grain Overlay (Fast CSS, Zero SVG Overhead) */
 .nano-texture-grain {
   position: relative;
 }
 
-.nano-texture-grain::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0.025;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  z-index: 1;
-}
-
-.dark .nano-texture-grain::before {
-  opacity: 0.04;
-}
-
 /* Dynamic Island Capsule */
 .dynamic-island {
-  background: rgba(10, 15, 28, 0.88);
-  backdrop-filter: blur(32px) saturate(220%);
-  -webkit-backdrop-filter: blur(32px) saturate(220%);
+  background: rgba(10, 15, 28, 0.94);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 
     inset 0 1px 0 0 rgba(255, 255, 255, 0.26),
@@ -139,9 +126,9 @@
 
 /* Nano-Textured Card Surface */
 .nano-card {
-  background: rgba(255, 255, 255, 0.84);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.75);
   box-shadow: 
     inset 0 1.5px 0 0 rgba(255, 255, 255, 0.9),
@@ -150,13 +137,14 @@
     0 2px 6px -1px rgba(15, 23, 42, 0.04);
   border-radius: 1.5rem;
   transform: translateZ(0);
+  contain: layout style;
   transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.26s cubic-bezier(0.32, 0.72, 0, 1), border-color 0.2s ease;
 }
 
 .dark .nano-card {
-  background: rgba(15, 23, 42, 0.76);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 
     inset 0 1.5px 0 0 rgba(255, 255, 255, 0.22),
@@ -193,9 +181,9 @@
 
 /* Bento Grid Surfaces */
 .nano-glass-bento {
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 
     inset 0 2px 0 0 rgba(255, 255, 255, 0.95),
@@ -205,12 +193,13 @@
   position: relative;
   overflow: hidden;
   transform: translateZ(0);
+  contain: layout style;
 }
 
 .dark .nano-glass-bento {
-  background: rgba(15, 23, 42, 0.80);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 
     inset 0 2px 0 0 rgba(255, 255, 255, 0.24),

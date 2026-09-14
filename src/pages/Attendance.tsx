@@ -223,30 +223,13 @@ const Attendance: React.FC = () => {
   return (
     <PageTransition>
       <PageLayout className="min-h-screen bg-slate-50/60 dark:bg-slate-950 pb-16 selection:bg-blue-500/20">
-        {/* Multi-Chromic Ambient Light Backing (Hardware-Accelerated Glow without GPU Stalls) */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 will-change-transform">
-          <div
-            className="absolute -top-32 -right-32 w-[32rem] h-[32rem] rounded-full opacity-40 dark:opacity-20 pointer-events-none"
-            style={{
-              background: 'radial-gradient(circle, rgba(59, 130, 246, 0.20) 0%, rgba(99, 102, 241, 0.06) 40%, transparent 70%)',
-              transform: 'translateZ(0)',
-            }}
-          />
-          <div
-            className="absolute top-1/3 -left-32 w-[30rem] h-[30rem] rounded-full opacity-35 dark:opacity-15 pointer-events-none"
-            style={{
-              background: 'radial-gradient(circle, rgba(168, 85, 247, 0.16) 0%, rgba(236, 72, 153, 0.04) 40%, transparent 70%)',
-              transform: 'translateZ(0)',
-            }}
-          />
-          <div
-            className="absolute -bottom-32 right-1/4 w-[32rem] h-[32rem] rounded-full opacity-35 dark:opacity-15 pointer-events-none"
-            style={{
-              background: 'radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, rgba(6, 182, 212, 0.05) 40%, transparent 70%)',
-              transform: 'translateZ(0)',
-            }}
-          />
-        </div>
+        {/* Optimized Multi-Chromic Ambient Light Backing (Single Composite Layer) */}
+        <div 
+          className="fixed inset-0 pointer-events-none -z-10 opacity-60 dark:opacity-25"
+          style={{
+            background: 'radial-gradient(ellipse 60% 40% at 80% 0%, rgba(59, 130, 246, 0.18) 0%, transparent 70%), radial-gradient(ellipse 50% 40% at 10% 40%, rgba(168, 85, 247, 0.12) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 70% 90%, rgba(16, 185, 129, 0.10) 0%, transparent 70%)',
+          }}
+        />
 
         <div className="relative max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
           {/* 1. iOS Dynamic Island Command Header */}
