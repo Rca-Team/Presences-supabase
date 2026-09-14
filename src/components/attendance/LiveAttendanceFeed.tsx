@@ -12,6 +12,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import {
   Activity,
@@ -28,6 +39,9 @@ import {
   QrCode,
   ChevronRight,
   X,
+  Trash2,
+  Camera,
+  Loader2,
 } from 'lucide-react';
 
 import {
@@ -114,12 +128,36 @@ const playArrivalChime = (status: string | null) => {
   } catch {}
 };
 
+// Extract relative file path from full storage URL or path string
+const extractStoragePath = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  if (url.startsWith('data:')) return null; // base64 inline in database
+
+  const marker = '/storage/v1/object/public/face-images/';
+  const markerIdx = url.indexOf(marker);
+  if (markerIdx !== -1) {
+    return decodeURIComponent(url.slice(markerIdx + marker.length));
+  }
+
+  if (url.includes('face-images/')) {
+    const parts = url.split('face-images/');
+    return decodeURIComponent(parts[parts.length - 1]);
+  }
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return url;
+  }
+
+  return null;
+};
+
 const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
   scopedCategory = null,
   maxInitialCount = 25,
   className = '',
   showHeader = true,
 }) => {
+  const { toast } = useToast();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [visibleCount, setVisibleCount] = useState(14);
   const [profileAvatarByUserId, setProfileAvatarByUserId] = useState<Record<string, string>>({});
@@ -135,6 +173,8 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
   });
   const [isStreamPaused, setIsStreamPaused] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<AttendanceRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [, setRelativeTimeTick] = useState(0);
 
   // Update relative time every 10 seconds for live feel
@@ -195,6 +235,21 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
     return null;
   }, [profileAvatarByUserId]);
 
+  // Actual camera snapshot captured during attendance
+  const getCapturedSnapshotUrl = useCallback((record: AttendanceRecord): string | null => {
+    if (record.image_url) {
+      if (record.image_url.startsWith('data:') || record.image_url.startsWith('http')) {
+        return record.image_url;
+      }
+      return `${STORAGE_BASE_URL}${record.image_url}`;
+    }
+    const dev = record.device_info;
+    if (dev?.snapshot_url) return dev.snapshot_url;
+    if (dev?.captured_image) return dev.captured_image;
+    if (dev?.image_data_url) return dev.image_data_url;
+    return null;
+  }, []);
+
   const isGateEntry = (record: AttendanceRecord): boolean => {
     return (
       record.device_info?.gate === true ||
@@ -216,6 +271,75 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
     }
     const confidencePct = record.confidence ? Math.round(record.confidence * 100) : 99;
     return { label: `Face AI • ${confidencePct}%`, icon: Zap, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' };
+  };
+
+  // ── Instant Delete Function: Record + Captured Image ────────────────────────
+  const handleDeleteRecordWithImage = async (record: AttendanceRecord) => {
+    const studentName = getStudentName(record);
+    setIsDeleting(true);
+
+    // 1. Optimistically delete immediately from UI (zero-lag instant disappearance)
+    setRecords(prev => prev.filter(r => r.id !== record.id));
+    if (selectedRecord?.id === record.id) {
+      setSelectedRecord(null);
+    }
+    setRecordToDelete(null);
+
+    try {
+      // 2. Locate and delete captured image files from Supabase storage
+      const pathsToDelete: string[] = [];
+      const mainPath = extractStoragePath(record.image_url);
+      if (mainPath) pathsToDelete.push(mainPath);
+
+      if (record.device_info?.image_path) {
+        const p = extractStoragePath(record.device_info.image_path);
+        if (p && !pathsToDelete.includes(p)) pathsToDelete.push(p);
+      }
+      if (record.device_info?.snapshot_path) {
+        const p = extractStoragePath(record.device_info.snapshot_path);
+        if (p && !pathsToDelete.includes(p)) pathsToDelete.push(p);
+      }
+
+      if (pathsToDelete.length > 0) {
+        const { error: storageErr } = await supabase.storage
+          .from('face-images')
+          .remove(pathsToDelete);
+
+        if (storageErr) {
+          console.warn('[LiveFeed] Storage image remove warning:', storageErr);
+        }
+      }
+
+      // 3. Delete attendance record row from Supabase database
+      const { error: dbErr } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('id', record.id);
+
+      if (dbErr) {
+        console.warn('[LiveFeed] Database row delete error:', dbErr);
+        throw dbErr;
+      }
+
+      // 4. If linked to a gate entry, remove corresponding row from gate_entries
+      if (record.device_info?.gate_entry_id) {
+        await supabase.from('gate_entries').delete().eq('id', record.device_info.gate_entry_id);
+      }
+
+      toast({
+        title: 'Record & Snapshot Deleted',
+        description: `Permanently removed check-in and captured image for ${studentName}.`,
+      });
+    } catch (err: any) {
+      console.error('[LiveFeed] Failed to complete deletion:', err);
+      toast({
+        title: 'Delete Failed',
+        description: err?.message || 'Could not remove record from server.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Initial Fetch & Realtime Subscription
@@ -263,6 +387,16 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
               const filtered = prev.filter(r => r.id !== newRecord.id);
               return [newRecord, ...filtered].slice(0, 40);
             });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'attendance_records' },
+        payload => {
+          const deletedId = (payload.old as any)?.id;
+          if (deletedId) {
+            setRecords(prev => prev.filter(r => r.id !== deletedId));
           }
         }
       )
@@ -525,8 +659,7 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
           initial={{ opacity: 0, scale: 0.96, y: -10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={iosSpring}
-          onClick={() => setSelectedRecord(latestRecord)}
-          className="nano-glass-hero rounded-2xl p-3 border border-emerald-500/40 dark:border-emerald-400/30 shadow-md hover:shadow-lg transition-all cursor-pointer group"
+          className="nano-glass-hero rounded-2xl p-3 border border-emerald-500/40 dark:border-emerald-400/30 shadow-md hover:shadow-lg transition-all group relative"
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
@@ -536,12 +669,30 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
               </span>
               Latest Arrival Spotlight
             </span>
-            <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">
-              {getRelativeTime(latestRecord.timestamp)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                {getRelativeTime(latestRecord.timestamp)}
+              </span>
+              {/* Delete Button on Spotlight Card */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRecordToDelete(latestRecord);
+                }}
+                className="h-6 w-6 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center transition-colors"
+                title="Delete this record & captured image"
+                aria-label="Delete this record"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div
+            onClick={() => setSelectedRecord(latestRecord)}
+            className="flex items-center gap-3 cursor-pointer"
+          >
             <div className="relative shrink-0">
               <Avatar className="h-12 w-12 rounded-2xl border-2 border-emerald-500/60 shadow-md object-cover">
                 {getStudentImage(latestRecord) ? (
@@ -644,7 +795,7 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
 
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate max-w-[120px] sm:max-w-[150px]">
+                      <p className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate max-w-[110px] sm:max-w-[140px]">
                         {studentName}
                       </p>
                       {record.confidence && record.confidence > 0.85 && (
@@ -667,33 +818,49 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
                   </div>
                 </div>
 
-                {/* Right: Method Tag & Timestamp */}
-                <div className="flex flex-col items-end gap-1 shrink-0 pl-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${method.color}`}>
-                      <MethodIcon className="h-2.5 w-2.5" />
-                      <span className="hidden xs:inline">{method.label}</span>
-                    </span>
+                {/* Right: Method Tag, Timestamp & Instant Delete Action */}
+                <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${method.color}`}>
+                        <MethodIcon className="h-2.5 w-2.5" />
+                        <span className="hidden xs:inline">{method.label}</span>
+                      </span>
 
-                    <Badge
-                      variant="outline"
-                      className={`text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${
-                        isPresent
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                          : isLate
-                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                      }`}
-                    >
-                      {isPresent ? 'Present' : isLate ? 'Late' : 'Absent'}
-                    </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${
+                          isPresent
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                            : isLate
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                            : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                        }`}
+                      >
+                        {isPresent ? 'Present' : isLate ? 'Late' : 'Absent'}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                      <Clock className="h-2.5 w-2.5" />
+                      <span>{timeStr}</span>
+                      <span className="hidden sm:inline">({relativeTime})</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                    <Clock className="h-2.5 w-2.5" />
-                    <span>{timeStr}</span>
-                    <span className="hidden sm:inline">({relativeTime})</span>
-                  </div>
+                  {/* Delete Button on Each Item */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRecordToDelete(record);
+                    }}
+                    className="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-500/10 flex items-center justify-center transition-colors opacity-70 group-hover:opacity-100 ml-1"
+                    title="Delete record & captured image"
+                    aria-label={`Delete record for ${studentName}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </motion.div>
             );
@@ -737,7 +904,7 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
 
       {/* ── Student Check-In Detail Inspection Modal ── */}
       <Dialog open={!!selectedRecord} onOpenChange={open => !open && setSelectedRecord(null)}>
-        <DialogContent className="max-w-sm rounded-[28px] nano-glass border border-white/80 dark:border-white/15 p-6 shadow-2xl">
+        <DialogContent className="max-w-sm rounded-[28px] nano-glass border border-white/80 dark:border-white/15 p-5 sm:p-6 shadow-2xl">
           {selectedRecord && (
             <div className="space-y-4">
               <DialogHeader className="text-center pb-2 border-b border-slate-200/60 dark:border-white/10">
@@ -749,25 +916,49 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Student Header */}
+              {/* Student Header & Captured Image Gallery */}
               <div className="flex flex-col items-center text-center">
-                <Avatar className="h-20 w-20 rounded-3xl border-4 border-white dark:border-slate-800 shadow-xl object-cover mb-3">
-                  {getStudentImage(selectedRecord) ? (
-                    <AvatarImage src={getStudentImage(selectedRecord)!} alt={getStudentName(selectedRecord)} className="object-cover" />
-                  ) : null}
-                  <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-black text-xl rounded-3xl">
-                    {getStudentName(selectedRecord).slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  {/* Master Profile Avatar */}
+                  <div className="relative">
+                    <Avatar className="h-16 w-16 rounded-2xl border-2 border-white dark:border-slate-800 shadow-md object-cover">
+                      {getStudentImage(selectedRecord) ? (
+                        <AvatarImage src={getStudentImage(selectedRecord)!} alt={getStudentName(selectedRecord)} className="object-cover" />
+                      ) : null}
+                      <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-black text-base rounded-2xl">
+                        {getStudentName(selectedRecord).slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="absolute -bottom-1 inset-x-0 text-[9px] font-extrabold uppercase bg-slate-900/80 text-white rounded-md py-0.2">
+                      Profile
+                    </span>
+                  </div>
 
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  {/* Captured Live Camera Snapshot (if available) */}
+                  {getCapturedSnapshotUrl(selectedRecord) && (
+                    <div className="relative">
+                      <div className="h-16 w-16 rounded-2xl border-2 border-blue-500 shadow-md overflow-hidden bg-black flex items-center justify-center">
+                        <img
+                          src={getCapturedSnapshotUrl(selectedRecord)!}
+                          alt="Captured Live"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <span className="absolute -bottom-1 inset-x-0 text-[9px] font-extrabold uppercase bg-blue-600 text-white rounded-md py-0.2 flex items-center justify-center gap-0.5">
+                        <Camera className="h-2 w-2" /> Live
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <h3 className="text-base font-black text-slate-900 dark:text-white mt-1">
                   {getStudentName(selectedRecord)}
                 </h3>
                 <p className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5">
                   ID: {getStudentAdmissionId(selectedRecord)}
                 </p>
                 {getStudentClass(selectedRecord) && (
-                  <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <span className="mt-1 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-xs font-bold text-slate-700 dark:text-slate-300">
                     Class {getStudentClass(selectedRecord)}
                   </span>
                 )}
@@ -792,9 +983,9 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
 
                 <div className="p-2.5 rounded-xl nano-glass border border-slate-200/60 dark:border-white/10">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Verification</span>
-                  <p className="mt-1 font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                    <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
-                    <span>{getVerificationMethod(selectedRecord).label}</span>
+                  <p className="mt-1 font-bold text-slate-900 dark:text-white flex items-center gap-1 truncate">
+                    <ShieldCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                    <span className="truncate">{getVerificationMethod(selectedRecord).label}</span>
                   </p>
                 </div>
 
@@ -807,18 +998,79 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
                 </div>
               </div>
 
-              {/* Action Button */}
-              <Button
-                variant="outline"
-                className="w-full rounded-xl nano-glass hover:bg-white dark:hover:bg-white/10 font-bold text-xs btn-spring"
-                onClick={() => setSelectedRecord(null)}
-              >
-                Close Inspection
-              </Button>
+              {/* Action Buttons: Delete & Close */}
+              <div className="space-y-2 pt-1">
+                <Button
+                  variant="destructive"
+                  className="w-full rounded-xl gap-2 font-bold text-xs btn-spring bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+                  onClick={() => setRecordToDelete(selectedRecord)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete Record & Captured Image</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="w-full rounded-xl nano-glass hover:bg-white dark:hover:bg-white/10 font-bold text-xs btn-spring"
+                  onClick={() => setSelectedRecord(null)}
+                >
+                  Close Inspection
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <AlertDialog open={!!recordToDelete} onOpenChange={open => !open && setRecordToDelete(null)}>
+        <AlertDialogContent className="max-w-sm rounded-[28px] nano-glass border border-rose-500/30 p-6 shadow-2xl">
+          <AlertDialogHeader>
+            <div className="h-12 w-12 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-2 border border-rose-500/20">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <AlertDialogTitle className="text-center text-base font-black text-slate-900 dark:text-white">
+              Delete Attendance Record?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-xs text-muted-foreground">
+              {recordToDelete && (
+                <>
+                  Are you sure you want to permanently delete the attendance check-in for{' '}
+                  <strong className="text-slate-900 dark:text-white">{getStudentName(recordToDelete)}</strong>{' '}
+                  ({getStudentAdmissionId(recordToDelete)})?
+                  <br />
+                  <span className="text-rose-600 dark:text-rose-400 font-semibold mt-1 inline-block">
+                    This will delete both the database record and the captured camera image file from storage.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-2">
+            <AlertDialogCancel className="rounded-xl nano-glass font-bold text-xs m-0">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs btn-spring m-0"
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                if (recordToDelete) {
+                  void handleDeleteRecordWithImage(recordToDelete);
+                }
+              }}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Deleting...
+                </>
+              ) : (
+                'Delete Permanently'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
