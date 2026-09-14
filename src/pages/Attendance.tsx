@@ -8,7 +8,6 @@ import AttendanceStats from '@/components/attendance/AttendanceStats';
 import FuturisticFaceScanner from '@/components/attendance/FuturisticFaceScanner';
 import QRCodeScanner from '@/components/attendance/QRCodeScanner';
 import LiveAttendanceFeed from '@/components/attendance/LiveAttendanceFeed';
-import VoiceCommands from '@/components/attendance/VoiceCommands';
 import {
   BarChart3,
   Info,
@@ -521,21 +520,6 @@ const Attendance: React.FC = () => {
                     {/* Right 1/3: iOS 18 Dynamic Island Live Activity Feed */}
                     <div className="nano-glass rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 sticky top-4 hardware-layer">
                       <LiveAttendanceFeed scopedCategory={scopedCategory} />
-                    </div>
-                  </div>
-
-                  {/* Floating Voice Helper */}
-                  <div className="hidden sm:block">
-                    <div className="nano-glass-dock rounded-2xl p-2.5 max-w-2xl mx-auto shadow-lg">
-                      <VoiceCommands
-                        onCommand={(cmd) => {
-                          if (cmd === 'stats') setActiveTab('analytics');
-                          if (cmd === 'help') setActiveTab('help');
-                        }}
-                        onStartScan={() => toast({ title: 'Voice Activated', description: 'Autonomous Face Recognition Active' })}
-                        onStopScan={() => toast({ title: 'Standby', description: 'Scanner on Standby' })}
-                        onConfirmAttendance={() => toast({ title: 'Confirmed', description: 'Attendance Recorded' })}
-                      />
                     </div>
                   </div>
                 </motion.div>
