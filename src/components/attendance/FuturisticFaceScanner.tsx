@@ -144,6 +144,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
   const hasCompletedFirstRecognitionRef = useRef(false);
   const processedEmbeddingsRef = useRef<Array<{ descriptor: Float32Array; employeeId?: string; ts: number }>>([]);
   const autoMarkedUsersRef = useRef<Map<string, number>>(new Map());
+  const inFlightMarkingRef = useRef<Set<string>>(new Set());
   const cutoffCacheRef = useRef<{ value: { hour: number; minute: number }; at: number } | null>(null);
   const sharedCropCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [autoMarkedLog, setAutoMarkedLog] = useState<AutoMarkedEntry[]>([]);
@@ -470,14 +471,18 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         });
       },
       // Thread 4: attendance persistence off the recognition path (background
-      // write queue with de-duplication, so the camera never stalls).
       markAttendance: async (face) => {
         const normName = face.name.toLowerCase().trim();
+        const dedupeKey = `${face.userId}:${normName}`;
+        if (inFlightMarkingRef.current.has(dedupeKey)) return;
+
         const alreadyMarkedAt = Math.max(
           autoMarkedUsersRef.current.get(face.userId) || 0,
           normName !== 'unknown' ? (autoMarkedUsersRef.current.get(`name:${normName}`) || 0) : 0
         );
         if (Date.now() - alreadyMarkedAt < AUTO_MARK_COOLDOWN_MS) return;
+
+        inFlightMarkingRef.current.add(dedupeKey);
         autoMarkedUsersRef.current.set(face.userId, Date.now());
         if (normName !== 'unknown') {
           autoMarkedUsersRef.current.set(`name:${normName}`, Date.now());
@@ -647,7 +652,12 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           });
         } catch (err) {
           autoMarkedUsersRef.current.delete(face.userId);
+          if (normName !== 'unknown') {
+            autoMarkedUsersRef.current.delete(`name:${normName}`);
+          }
           console.error('Error in markAttendance:', err);
+        } finally {
+          inFlightMarkingRef.current.delete(dedupeKey);
         }
       },
     });
