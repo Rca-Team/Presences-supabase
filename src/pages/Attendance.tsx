@@ -224,27 +224,27 @@ const Attendance: React.FC = () => {
   return (
     <PageTransition>
       <PageLayout className="min-h-screen bg-slate-50/60 dark:bg-slate-950 pb-16 selection:bg-blue-500/20">
-        {/* Multi-Chromic Ambient Light Backing (Softly illuminates through nano-glass) */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+        {/* Multi-Chromic Ambient Light Backing (Hardware-Accelerated Glow without GPU Stalls) */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 will-change-transform">
           <div
-            className="absolute -top-40 -right-40 w-[36rem] h-[36rem] rounded-full opacity-40 dark:opacity-20 transition-all duration-1000"
+            className="absolute -top-32 -right-32 w-[32rem] h-[32rem] rounded-full opacity-40 dark:opacity-20 pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(59, 130, 246, 0.22) 0%, rgba(99, 102, 241, 0.08) 50%, transparent 70%)',
-              filter: 'blur(80px)',
+              background: 'radial-gradient(circle, rgba(59, 130, 246, 0.20) 0%, rgba(99, 102, 241, 0.06) 40%, transparent 70%)',
+              transform: 'translateZ(0)',
             }}
           />
           <div
-            className="absolute top-1/3 -left-40 w-[34rem] h-[34rem] rounded-full opacity-35 dark:opacity-15 transition-all duration-1000"
+            className="absolute top-1/3 -left-32 w-[30rem] h-[30rem] rounded-full opacity-35 dark:opacity-15 pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(168, 85, 247, 0.18) 0%, rgba(236, 72, 153, 0.06) 50%, transparent 70%)',
-              filter: 'blur(80px)',
+              background: 'radial-gradient(circle, rgba(168, 85, 247, 0.16) 0%, rgba(236, 72, 153, 0.04) 40%, transparent 70%)',
+              transform: 'translateZ(0)',
             }}
           />
           <div
-            className="absolute -bottom-40 right-1/4 w-[38rem] h-[38rem] rounded-full opacity-35 dark:opacity-15 transition-all duration-1000"
+            className="absolute -bottom-32 right-1/4 w-[32rem] h-[32rem] rounded-full opacity-35 dark:opacity-15 pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.08) 50%, transparent 70%)',
-              filter: 'blur(80px)',
+              background: 'radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, rgba(6, 182, 212, 0.05) 40%, transparent 70%)',
+              transform: 'translateZ(0)',
             }}
           />
         </div>

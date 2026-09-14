@@ -126,13 +126,15 @@ export function analyzeCanvasTexture(canvas: HTMLCanvasElement): {
   const startY = Math.floor(h * 0.2);
   const endY = Math.floor(h * 0.8);
 
-  const laplacianValues: number[] = [];
+  let lapSum = 0;
+  let lapSumSq = 0;
+  let lapCount = 0;
 
-  for (let y = startY; y < endY; y += 2) {
-    for (let x = startX; x < endX; x += 2) {
+  for (let y = startY; y < endY; y += 4) {
+    for (let x = startX; x < endX; x += 4) {
       const idx = (y * w + x) * 4;
-      const rightIdx = (y * w + (x + 1)) * 4;
-      const downIdx = ((y + 1) * w + x) * 4;
+      const rightIdx = (y * w + (x + 2)) * 4;
+      const downIdx = ((y + 2) * w + x) * 4;
 
       const luma = data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114;
       const rightLuma =
@@ -145,18 +147,20 @@ export function analyzeCanvasTexture(canvas: HTMLCanvasElement): {
       sampleCount++;
 
       // Laplacian kernel: 4*center - left - right - up - down
-      if (x > 1 && x < w - 1 && y > 1 && y < h - 1) {
+      if (x > 2 && x < w - 2 && y > 2 && y < h - 2) {
         const leftLuma =
-          data[(y * w + (x - 1)) * 4] * 0.299 +
-          data[(y * w + (x - 1)) * 4 + 1] * 0.587 +
-          data[(y * w + (x - 1)) * 4 + 2] * 0.114;
+          data[(y * w + (x - 2)) * 4] * 0.299 +
+          data[(y * w + (x - 2)) * 4 + 1] * 0.587 +
+          data[(y * w + (x - 2)) * 4 + 2] * 0.114;
         const upLuma =
-          data[((y - 1) * w + x) * 4] * 0.299 +
-          data[((y - 1) * w + x) * 4 + 1] * 0.587 +
-          data[((y - 1) * w + x) * 4 + 2] * 0.114;
+          data[((y - 2) * w + x) * 4] * 0.299 +
+          data[((y - 2) * w + x) * 4 + 1] * 0.587 +
+          data[((y - 2) * w + x) * 4 + 2] * 0.114;
 
         const lap = Math.abs(4 * luma - leftLuma - rightLuma - upLuma - downLuma);
-        laplacianValues.push(lap);
+        lapSum += lap;
+        lapSumSq += lap * lap;
+        lapCount++;
       }
     }
   }
@@ -165,11 +169,9 @@ export function analyzeCanvasTexture(canvas: HTMLCanvasElement): {
 
   // Liveness score: standard deviation of Laplacian values in face interior
   let livenessScore = 0;
-  if (laplacianValues.length > 10) {
-    const mean = laplacianValues.reduce((a, b) => a + b, 0) / laplacianValues.length;
-    const variance =
-      laplacianValues.reduce((acc, val) => acc + (val - mean) ** 2, 0) /
-      laplacianValues.length;
+  if (lapCount > 8) {
+    const mean = lapSum / lapCount;
+    const variance = Math.max(0, (lapSumSq / lapCount) - (mean * mean));
     livenessScore = Math.sqrt(variance);
   }
 

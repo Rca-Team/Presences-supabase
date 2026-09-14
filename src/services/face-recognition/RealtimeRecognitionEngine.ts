@@ -286,7 +286,7 @@ export function createRecognitionEngine(
 
     const detections = await faceapi.detectAllFaces(
       detectCanvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.28 }),
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.28 }),
     );
 
     // Map small-frame boxes back to full-resolution coordinates
