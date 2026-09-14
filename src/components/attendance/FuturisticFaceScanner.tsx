@@ -1276,9 +1276,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         </div>
 
         {/* Integrated Top Glassmorphism HUD Bar */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-20 pointer-events-auto">
+        <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 right-2.5 sm:right-3 flex items-center justify-between gap-2 z-20 pointer-events-auto">
           {/* Left: Engine & Telemetry Status Pill */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-xl border border-white/10 shadow-lg text-white">
+          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-xl border border-white/10 shadow-lg text-white">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -1291,36 +1291,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               <Activity className="w-3 h-3" />
               <span>60 FPS</span>
             </div>
-          </div>
-
-          {/* Center: Dynamic Guidance & Face Status Pill */}
-          <div className="flex items-center">
-            <motion.div
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl backdrop-blur-xl border shadow-lg transition-all ${
-                faceCount > 0
-                  ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-emerald-500/20'
-                  : 'bg-slate-950/80 border-white/10 text-slate-200'
-              }`}
-            >
-              {faceCount > 0 ? (
-                <>
-                  <Users className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-xs font-bold tracking-tight">
-                    {faceCount} Face{faceCount > 1 ? 's' : ''} Locked
-                  </span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                </>
-              ) : (
-                <>
-                  <Eye className="w-3.5 h-3.5 text-cyan-400" />
-                  <span className="text-xs font-semibold text-slate-300">
-                    Standby • Face Camera
-                  </span>
-                </>
-              )}
-            </motion.div>
           </div>
 
           {/* Right: Camera Selector, Audio Toggle & Flip */}
@@ -1346,14 +1316,14 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-900 text-slate-200 border border-white/10 text-xs backdrop-blur-xl flex items-center gap-1.5 shadow-lg"
+                  className="h-8 w-8 sm:w-auto sm:px-2.5 p-0 sm:py-1 rounded-xl bg-slate-950/80 hover:bg-slate-900 text-slate-200 border border-white/10 text-xs backdrop-blur-xl flex items-center justify-center sm:gap-1.5 shadow-lg"
                   title="Select Camera Input"
                 >
                   <Video className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                   <span className="max-w-[85px] sm:max-w-[130px] truncate hidden md:inline">
                     {videoDevices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Camera'}
                   </span>
-                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0 hidden sm:inline" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -1404,6 +1374,36 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
             </Button>
           </div>
+        </div>
+
+        {/* Dynamic Center Guidance & Face Status Pill (Floats cleanly below controls on mobile, centered on desktop) */}
+        <div className="absolute top-13 sm:top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none max-w-[90%]">
+          <motion.div
+            initial={{ scale: 0.95 }}
+            animate={{ scale: 1 }}
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 rounded-2xl backdrop-blur-xl border shadow-lg transition-all ${
+              faceCount > 0
+                ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-emerald-500/20'
+                : 'bg-slate-950/80 border-white/10 text-slate-200'
+            }`}
+          >
+            {faceCount > 0 ? (
+              <>
+                <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="text-xs font-bold tracking-tight whitespace-nowrap">
+                  {faceCount} Face{faceCount > 1 ? 's' : ''} Locked
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="text-xs font-semibold text-slate-300 whitespace-nowrap">
+                  Standby • Face Camera
+                </span>
+              </>
+            )}
+          </motion.div>
         </div>
 
         {/* Celebratory Student Verification Toast (Inside Viewfinder) */}
@@ -1491,10 +1491,10 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       </div>
 
       {/* Ergonomic Kiosk Command Dock */}
-      <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 p-2.5 sm:px-4 sm:py-3 rounded-[24px] nano-glass-dock shadow-lg">
+      <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 sm:px-4 sm:py-3 rounded-[24px] nano-glass-dock shadow-lg">
         {/* Left: Hands-Free Autonomous Mode Indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
-          <span className="relative flex h-2 w-2">
+        <div className="flex items-center justify-center sm:justify-start gap-2 px-3 py-2 sm:py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+          <span className="relative flex h-2 w-2 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
@@ -1502,12 +1502,12 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         </div>
 
         {/* Center: Primary Action Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button
             size="lg"
             onClick={isScanning ? resetScanner : scanFace}
             disabled={!modelsLoaded}
-            className={`px-6 sm:px-8 font-bold text-xs sm:text-sm rounded-2xl transition-all shadow-lg active:scale-95 ${
+            className={`w-full sm:w-auto flex-1 sm:flex-initial h-12 sm:h-11 px-6 sm:px-8 font-bold text-xs sm:text-sm rounded-2xl transition-all shadow-lg active:scale-95 ${
               isScanning
                 ? 'bg-destructive hover:bg-destructive/90 text-white shadow-destructive/25'
                 : faceCount > 0
@@ -1543,9 +1543,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               variant="ghost"
               size="sm"
               onClick={() => setAutoMarkedLog([])}
-              className="text-xs text-muted-foreground hover:text-foreground h-9 px-3 rounded-xl"
+              className="text-xs text-muted-foreground hover:text-foreground h-12 sm:h-9 px-3 rounded-xl shrink-0"
             >
-              Clear Session
+              Clear
             </Button>
           )}
         </div>

@@ -95,13 +95,15 @@ const AppleLiveClock: React.FC = () => {
   }, []);
 
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const timeStrShort = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
-    <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium tracking-tight text-slate-800 dark:text-slate-200">
+    <div className="flex items-center gap-2 text-xs sm:text-sm font-medium tracking-tight text-slate-800 dark:text-slate-200">
       <div className="flex items-center gap-1.5 font-mono font-semibold tracking-normal text-slate-900 dark:text-white">
-        <Clock className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
-        <span>{timeStr}</span>
+        <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 animate-pulse" />
+        <span className="hidden sm:inline">{timeStr}</span>
+        <span className="sm:hidden">{timeStrShort}</span>
       </div>
       <span className="text-slate-300 dark:text-slate-700 hidden md:inline">•</span>
       <span className="text-slate-500 dark:text-slate-400 text-xs hidden md:inline">{dateStr}</span>
@@ -185,10 +187,10 @@ const Attendance: React.FC = () => {
 
   // iOS Dock Navigation Items
   const tabs = [
-    { id: 'kiosk', label: 'Face Terminal', badge: 'Ultra-Fast', icon: Scan },
-    { id: 'qr', label: 'Digital ID Pass', badge: 'Contactless', icon: QrCode },
-    { id: 'analytics', label: 'Telemetry & Stats', badge: null, icon: BarChart3 },
-    { id: 'help', label: 'Operations Guide', badge: null, icon: Info },
+    { id: 'kiosk', label: 'Face Terminal', shortLabel: 'Face', badge: 'Ultra-Fast', icon: Scan },
+    { id: 'qr', label: 'Digital ID Pass', shortLabel: 'QR Pass', badge: 'Contactless', icon: QrCode },
+    { id: 'analytics', label: 'Telemetry & Stats', shortLabel: 'Stats', badge: null, icon: BarChart3 },
+    { id: 'help', label: 'Operations Guide', shortLabel: 'Guide', badge: null, icon: Info },
   ];
 
   // ---------------------------------------------------------------------------
@@ -459,14 +461,14 @@ const Attendance: React.FC = () => {
             transition={iosSpring}
             className="flex justify-center"
           >
-            <div className="nano-glass-dock rounded-full p-1.5 inline-flex items-center gap-1 shadow-xl shadow-slate-900/5 max-w-full overflow-x-auto">
+            <div className="nano-glass-dock rounded-full p-1 sm:p-1.5 inline-flex items-center gap-0.5 sm:gap-1 shadow-xl shadow-slate-900/5 max-w-full overflow-x-auto no-scrollbar scrollbar-none">
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`relative px-4 sm:px-6 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center gap-2 shrink-0 ${
+                    className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center gap-1.5 sm:gap-2 shrink-0 ${
                       isActive ? 'text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
@@ -477,8 +479,9 @@ const Attendance: React.FC = () => {
                         transition={iosSpring}
                       />
                     )}
-                    <tab.icon className="h-4 w-4 relative z-10" />
-                    <span className="relative z-10">{tab.label}</span>
+                    <tab.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 relative z-10" />
+                    <span className="relative z-10 hidden sm:inline">{tab.label}</span>
+                    <span className="relative z-10 sm:hidden">{tab.shortLabel}</span>
                     {tab.badge && (
                       <span
                         className={`relative z-10 text-[9px] uppercase px-1.5 py-0.2 rounded-md font-extrabold hidden md:inline ${

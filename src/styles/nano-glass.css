@@ -126,3 +126,16 @@
 .ios-spring-snappy {
   transition: all 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
+
+/* Scrollbar killer for mobile devices */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
