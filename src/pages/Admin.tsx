@@ -630,10 +630,10 @@ const Admin = () => {
               </div>
             </div>
 
-            {/* Mobile feature navigation moved to top for faster access */}
+            {/* Mobile feature navigation - Apple Nano-Glass Segmented Capsule */}
             {isMobile && (
-              <div className="border-b border-border bg-card px-2 py-2 sticky top-0 z-20">
-                <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass px-2.5 py-2 sticky top-0 z-20">
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
                   {navItems.map((item) => {
                     const isActive = activeTab === item.id;
                     return (
@@ -641,23 +641,23 @@ const Admin = () => {
                         key={item.id}
                         onClick={() => handleTabChange(item.id)}
                         className={cn(
-                          "relative shrink-0 h-8 px-2.5 rounded-md border flex items-center gap-1.5 transition-colors duration-200",
+                          "relative shrink-0 h-8 px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold select-none transition-all duration-200 active:scale-95",
                           isActive
-                            ? "border-transparent text-primary-foreground"
-                            : "border-border text-muted-foreground active:scale-[0.97]"
+                            ? "text-white font-bold"
+                            : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                         )}
                       >
                         {isActive && (
                           <motion.span
                             layoutId="admin-mobile-nav-active"
-                            className="absolute inset-0 rounded-md bg-primary"
-                            transition={{ type: 'spring', stiffness: 500, damping: 40, mass: 0.7 }}
+                            className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-md shadow-blue-600/30 border border-white/20"
+                            transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.7 }}
                           />
                         )}
                         <item.icon className="relative z-10 w-3.5 h-3.5" />
                         <span className="relative z-10 text-[11px] whitespace-nowrap">{item.label}</span>
                         {item.count !== undefined && item.count > 0 && (
-                          <Badge variant="destructive" className="relative z-10 text-[8px] h-4 min-w-[14px] px-1">
+                          <Badge variant="destructive" className="relative z-10 text-[8px] h-4 min-w-[14px] px-1 rounded-full">
                             {item.count}
                           </Badge>
                         )}
@@ -674,10 +674,10 @@ const Admin = () => {
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
                     key={isDataLoading ? 'loading' : activeTab}
-                    initial={{ opacity: 0, y: 6 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.7 }}
                     style={{ willChange: 'opacity, transform' }}>
 
                     {isDataLoading ? (

@@ -1039,97 +1039,87 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
 
       {activeClass && (
         <div className="space-y-4">
-          {/* Quick Metrics Bar */}
+          {/* Quick Metrics Bar - Nano Card Bento Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <Card className="bg-card/60 backdrop-blur-xl border">
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium">Total Students</p>
-                  <p className="text-2xl font-bold text-foreground mt-0.5">{stats.total}</p>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-muted/60 flex items-center justify-center text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="nano-card p-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Total Students</p>
+                <p className="text-2xl font-bold text-foreground mt-0.5">{stats.total}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-muted/60 flex items-center justify-center text-muted-foreground">
+                <Users className="h-4 w-4" />
+              </div>
+            </div>
 
-            <Card className="bg-emerald-500/5 border-emerald-500/20">
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Present Today</p>
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{stats.present}</p>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                  <CheckCircle2 className="h-4 w-4" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="nano-card p-3.5 flex items-center justify-between border-emerald-500/20 bg-emerald-500/5">
+              <div>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Present Today</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{stats.present}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+            </div>
 
-            <Card className="bg-amber-500/5 border-amber-500/20">
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Late Arrivals</p>
-                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{stats.late}</p>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-                  <Clock className="h-4 w-4" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="nano-card p-3.5 flex items-center justify-between border-amber-500/20 bg-amber-500/5">
+              <div>
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Late Arrivals</p>
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{stats.late}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
 
-            <Card className="bg-rose-500/5 border-rose-500/20">
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">Absent Today</p>
-                  <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">{stats.absent}</p>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
-                  <XCircle className="h-4 w-4" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="nano-card p-3.5 flex items-center justify-between border-rose-500/20 bg-rose-500/5">
+              <div>
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">Absent Today</p>
+                <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">{stats.absent}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
+                <XCircle className="h-4 w-4" />
+              </div>
+            </div>
 
-            <Card className="bg-blue-500/5 border-blue-500/20 col-span-2 sm:col-span-1">
-              <CardContent className="p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Attendance %</p>
-                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{stats.attendancePct}%</p>
-                </div>
-                <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
-                  <Zap className="h-4 w-4" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="nano-card p-3.5 flex items-center justify-between col-span-2 sm:col-span-1 border-primary/20 bg-primary/5">
+              <div>
+                <p className="text-xs text-primary font-medium">Attendance Rate</p>
+                <p className="text-2xl font-black text-primary mt-0.5 font-mono">{stats.attendancePct}%</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                <Zap className="h-4 w-4" />
+              </div>
+            </div>
           </div>
 
           {/* Main Navigation Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
-            <div className="overflow-x-auto pb-1">
-              <TabsList className="bg-muted/50 p-1 rounded-2xl inline-flex w-full sm:w-auto">
-                <TabsTrigger value="daily" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold">
-                  <CheckSquare className="h-4 w-4 text-primary" /> Daily Attendance
+            <div className="overflow-x-auto pb-1 no-scrollbar">
+              <TabsList className="nano-glass-dock p-1.5 rounded-2xl inline-flex w-full sm:w-auto border border-slate-200/70 dark:border-white/10 shadow-xs">
+                <TabsTrigger value="daily" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                  <CheckSquare className="h-4 w-4" /> Daily Attendance
                   {stats.unmarked > 0 && (
                     <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-rose-500 text-white rounded-full font-extrabold leading-none">
                       {stats.unmarked}
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="register" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
+                <TabsTrigger value="register" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <Calendar className="h-4 w-4" /> Monthly Register
                 </TabsTrigger>
-                <TabsTrigger value="students" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
+                <TabsTrigger value="students" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <Users className="h-4 w-4" /> Student Management ({students.length})
                 </TabsTrigger>
-                <TabsTrigger value="notifications" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
+                <TabsTrigger value="notifications" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <Send className="h-4 w-4" /> Parent Notices
                 </TabsTrigger>
-                <TabsTrigger value="reports" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
+                <TabsTrigger value="reports" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <FileDown className="h-4 w-4" /> Class Reports
                 </TabsTrigger>
-                <TabsTrigger value="timetable" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5">
+                <TabsTrigger value="timetable" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <Calendar className="h-4 w-4" /> Timetable
                 </TabsTrigger>
-                <TabsTrigger value="gate_passes" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-medium">
+                <TabsTrigger value="gate_passes" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <QrCode className="h-4 w-4 text-amber-500" /> Gate Passes
                   {pendingGatePassesCount > 0 && (
                     <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-amber-500 text-white rounded-full font-extrabold leading-none animate-pulse">

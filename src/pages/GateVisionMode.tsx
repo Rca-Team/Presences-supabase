@@ -290,34 +290,34 @@ export default function GateVisionMode() {
             )}
           </Card>
 
-          <Card className="p-4 rounded-2xl">
+          <div className="nano-card p-4 rounded-3xl">
             <h3 className="font-semibold mb-3 text-sm text-muted-foreground uppercase tracking-wider">Session context</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <label className="block">
                 <span className="text-xs text-muted-foreground">Class key</span>
                 <input value={classKey} onChange={(e) => setClassKey(e.target.value)}
                   disabled={running}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                  className="mt-1 w-full rounded-xl border border-border/80 bg-background/60 px-3 py-2 text-sm" />
               </label>
               <label className="block">
                 <span className="text-xs text-muted-foreground">Period key</span>
                 <input value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}
                   disabled={running}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                  className="mt-1 w-full rounded-xl border border-border/80 bg-background/60 px-3 py-2 text-sm" />
               </label>
               <label className="block sm:col-span-1 col-span-2">
                 <span className="text-xs text-muted-foreground">Scheduled teacher (optional)</span>
                 <input value={teacherName} onChange={(e) => setTeacherName(e.target.value)}
                   disabled={running}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+                  className="mt-1 w-full rounded-xl border border-border/80 bg-background/60 px-3 py-2 text-sm" />
               </label>
             </div>
-          </Card>
+          </div>
         </div>
 
         {/* Stats + timeline */}
         <div className="space-y-4">
-          <Card className="p-4 rounded-2xl">
+          <div className="nano-card p-4 rounded-3xl">
             <h3 className="font-semibold mb-3 text-sm text-muted-foreground uppercase tracking-wider">Live stats</h3>
             <div className="grid grid-cols-2 gap-3">
               <Stat icon={<Users className="h-4 w-4" />} label="Active tracks" value={stats.tracks} />
@@ -329,26 +329,26 @@ export default function GateVisionMode() {
               <div className="text-xs text-muted-foreground uppercase tracking-wider">Teacher</div>
               <div className="font-semibold">{stats.teacherStatus}</div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="p-4 rounded-2xl">
+          <div className="nano-card p-4 rounded-3xl">
             <h3 className="font-semibold mb-3 text-sm text-muted-foreground uppercase tracking-wider">People in view</h3>
             {tracksSnap.length === 0 ? (
               <p className="text-sm text-muted-foreground">No one detected yet.</p>
             ) : (
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {tracksSnap.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted/30">
+                  <div key={t.id} className="flex items-center justify-between text-sm p-2 rounded-xl bg-muted/30">
                     <span className="font-mono text-xs opacity-70">{t.id.slice(0, 6)}</span>
                     <span>{t.identity?.subjectName ?? 'unknown'}</span>
-                    <Badge variant="outline" className="text-[10px]">{t.zone ?? '—'}</Badge>
+                    <Badge variant="outline" className="text-[10px] rounded-lg">{t.zone ?? '—'}</Badge>
                   </div>
                 ))}
               </div>
             )}
-          </Card>
+          </div>
 
-          <Card className="p-4 rounded-2xl">
+          <div className="nano-card p-4 rounded-3xl">
             <h3 className="font-semibold mb-3 text-sm text-muted-foreground uppercase tracking-wider">Live timeline</h3>
             <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
               <AnimatePresence initial={false}>
@@ -361,7 +361,8 @@ export default function GateVisionMode() {
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="flex items-start justify-between gap-2 text-xs p-2 rounded-lg bg-muted/30"
+                    transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                    className="flex items-start justify-between gap-2 text-xs p-2.5 rounded-xl bg-muted/30"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium">{ev.type}</div>
@@ -369,14 +370,14 @@ export default function GateVisionMode() {
                         {ev.subject ?? '—'} {ev.zone ? `· ${ev.zone}` : ''}
                       </div>
                     </div>
-                    <div className="text-muted-foreground whitespace-nowrap">
+                    <div className="text-muted-foreground whitespace-nowrap font-mono text-[11px]">
                       {ev.at.toLocaleTimeString()}
                     </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
             </div>
-          </Card>
+          </div>
         </div>
       </main>
     </div>

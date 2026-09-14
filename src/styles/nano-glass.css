@@ -130,6 +130,154 @@
   transition: all 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
+/* GPU Hardware Layer Promotion */
+.gpu-layer {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+/* Nano-Textured Card Surface */
+.nano-card {
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.04),
+    0 12px 30px -10px rgba(15, 23, 42, 0.08),
+    0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  border-radius: 1.5rem;
+  transform: translateZ(0);
+  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.26s cubic-bezier(0.32, 0.72, 0, 1), border-color 0.2s ease;
+}
+
+.dark .nano-card {
+  background: rgba(15, 23, 42, 0.76);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
+    0 18px 40px -12px rgba(0, 0, 0, 0.55),
+    0 3px 10px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* Interactive Card with iOS Spring Hover & Tap */
+.nano-card-interactive {
+  cursor: pointer;
+  user-select: none;
+}
+
+.nano-card-interactive:hover {
+  transform: translateY(-3px) scale(1.008);
+  box-shadow: 
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.95),
+    0 20px 42px -12px rgba(37, 99, 235, 0.14),
+    0 4px 12px 0 rgba(15, 23, 42, 0.06);
+}
+
+.dark .nano-card-interactive:hover {
+  box-shadow: 
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.28),
+    0 24px 48px -12px rgba(0, 0, 0, 0.65),
+    0 6px 16px 0 rgba(0, 0, 0, 0.4);
+}
+
+.nano-card-interactive:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 0.12s;
+}
+
+/* Bento Grid Surfaces */
+.nano-glass-bento {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.05),
+    0 14px 34px -10px rgba(15, 23, 42, 0.07);
+  border-radius: 1.75rem;
+  position: relative;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+
+.dark .nano-glass-bento {
+  background: rgba(15, 23, 42, 0.80);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 
+    inset 0 2px 0 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.5),
+    0 20px 44px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* iOS-Style Nano Segmented Switcher */
+.nano-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem;
+  border-radius: 9999px;
+  background: rgba(241, 245, 249, 0.85);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 3px 0 rgba(0, 0, 0, 0.06);
+}
+
+.dark .nano-segmented-control {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+}
+
+.nano-segmented-item {
+  position: relative;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  transition: color 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+  user-select: none;
+}
+
+/* Nano Glass Tactile Button */
+.nano-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0.625rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
+    0 8px 20px -6px rgba(15, 23, 42, 0.1);
+  transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dark .nano-button {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
+    0 8px 22px -6px rgba(0, 0, 0, 0.5);
+}
+
+.nano-button:active {
+  transform: scale(0.96);
+}
+
 /* Scrollbar killer for mobile devices */
 .no-scrollbar::-webkit-scrollbar,
 .scrollbar-none::-webkit-scrollbar {

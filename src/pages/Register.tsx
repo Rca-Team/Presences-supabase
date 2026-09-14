@@ -738,38 +738,38 @@ const Register = () => {
                                 </Button>
                               </motion.div>
                             ) : (
-                              <div className="space-y-3">
-                                {/* Mode toggle */}
-                                <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
-                                  <button
-                                    type="button"
-                                    onClick={() => setCaptureMode('auto')}
-                                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
-                                      captureMode === 'auto'
-                                        ? 'bg-background shadow-sm text-primary'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                    }`}
-                                  >
-                                    <Zap className="h-3.5 w-3.5" /> Auto (10 photos · 5s)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setCaptureMode('3d')}
-                                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold transition-all ${
-                                      captureMode === '3d'
-                                        ? 'bg-background shadow-sm text-primary'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                    }`}
-                                  >
-                                    <Scan className="h-3.5 w-3.5" /> 3D Scan (guided)
-                                  </button>
+                                <div className="space-y-3">
+                                  {/* Mode toggle - Apple Nano-Segmented Switcher */}
+                                  <div className="grid grid-cols-2 gap-1.5 p-1 nano-glass-dock rounded-full">
+                                    <button
+                                      type="button"
+                                      onClick={() => setCaptureMode('auto')}
+                                      className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-full text-xs font-bold transition-all duration-200 active:scale-95 ${
+                                        captureMode === 'auto'
+                                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30'
+                                          : 'text-muted-foreground hover:text-foreground'
+                                      }`}
+                                    >
+                                      <Zap className="h-3.5 w-3.5" /> Auto (10 photos · 5s)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setCaptureMode('3d')}
+                                      className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-full text-xs font-bold transition-all duration-200 active:scale-95 ${
+                                        captureMode === '3d'
+                                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30'
+                                          : 'text-muted-foreground hover:text-foreground'
+                                      }`}
+                                    >
+                                      <Scan className="h-3.5 w-3.5" /> 3D Scan (guided)
+                                    </button>
+                                  </div>
+                                  {captureMode === 'auto' ? (
+                                    <AutoCapture10 onComplete={handleMultiAngleComplete} isModelLoading={isModelLoading} />
+                                  ) : (
+                                    <Scan3DCapture onComplete={handleMultiAngleComplete} isModelLoading={isModelLoading} />
+                                  )}
                                 </div>
-                                {captureMode === 'auto' ? (
-                                  <AutoCapture10 onComplete={handleMultiAngleComplete} isModelLoading={isModelLoading} />
-                                ) : (
-                                  <Scan3DCapture onComplete={handleMultiAngleComplete} isModelLoading={isModelLoading} />
-                                )}
-                              </div>
                             )}
                           </div>
                         </div>

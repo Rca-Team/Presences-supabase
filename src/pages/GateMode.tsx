@@ -832,12 +832,12 @@ const GateMode = () => {
             <div className="absolute bottom-4 left-3 right-3 flex items-center justify-between z-20 pointer-events-auto">
               {/* Left quick metric capsule */}
               <div className="flex items-center gap-1.5">
-                <div className="bg-[#0b101b]/90 backdrop-blur-2xl border border-border/80 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-2xl">
+                <div className="dynamic-island rounded-full px-3.5 py-1.5 flex items-center gap-1.5 shadow-2xl">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                  <span className="text-xs font-black text-foreground tracking-tight">{totalPresentToday} Marked</span>
+                  <span className="text-xs font-black text-white tracking-tight">{totalPresentToday} Marked</span>
                 </div>
                 {smartMonitoring.uniformCompliant > 0 && (
-                  <div className="hidden xs:flex bg-indigo-500/20 backdrop-blur-2xl border border-indigo-500/40 rounded-full px-2.5 py-1.5 items-center gap-1 text-indigo-300 shadow-xl">
+                  <div className="hidden xs:flex dynamic-island rounded-full px-2.5 py-1.5 items-center gap-1 text-indigo-300 shadow-xl border border-indigo-500/40">
                     <Shirt className="h-3.5 w-3.5" />
                     <span className="text-[11px] font-bold">{smartMonitoring.uniformCompliant} Dress✓</span>
                   </div>
@@ -855,7 +855,7 @@ const GateMode = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={`h-9 px-3 rounded-full shadow-2xl text-xs font-black gap-1 bg-[#0b101b]/90 border-amber-500/40 text-amber-500 hover:bg-amber-500/10 ${
+                  className={`h-9 px-3.5 rounded-full shadow-2xl text-xs font-black gap-1 nano-button border-amber-500/40 text-amber-500 hover:bg-amber-500/10 active:scale-95 ${
                     approvedPassesCount > 0 ? 'ring-1 ring-amber-500/50' : ''
                   }`}
                   onClick={() => setIsGatePassModalOpen(true)}

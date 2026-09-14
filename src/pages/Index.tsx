@@ -226,7 +226,7 @@ const Index = () => {
             {/* Left Hero Main Card */}
             <RoyalReveal
               effect="fade-up"
-              className="liquid-glass-surface liquid-glass-highlight col-span-12 lg:col-span-7 rounded-3xl p-6 sm:p-10 md:p-12 lg:p-14 border border-border/80 dark:border-white/10 shadow-2xl backdrop-blur-2xl flex flex-col justify-between bg-white/90 dark:bg-card/75"
+              className="nano-glass-hero nano-texture-grain col-span-12 lg:col-span-7 rounded-3xl p-6 sm:p-10 md:p-12 lg:p-14 border border-white/80 dark:border-white/10 shadow-2xl flex flex-col justify-between"
             >
               <div>
                 {/* Collaboration & Active Status Badges */}
@@ -266,7 +266,7 @@ const Index = () => {
                   <div className="flex flex-wrap items-center gap-3">
                     <Link to="/attendance">
                       <Button
-                        className="h-12 sm:h-13 rounded-full bg-[#22d3ee] hover:bg-[#06b6d4] text-slate-950 font-bold px-7 text-sm sm:text-base shadow-[0_0_24px_rgba(34,211,238,0.45)] hover:shadow-[0_0_32px_rgba(34,211,238,0.6)] transition-all duration-200 btn-spring gap-2.5"
+                        className="h-12 sm:h-13 rounded-full bg-[#22d3ee] hover:bg-[#06b6d4] text-slate-950 font-bold px-7 text-sm sm:text-base shadow-[0_0_24px_rgba(34,211,238,0.45)] hover:shadow-[0_0_32px_rgba(34,211,238,0.6)] transition-all duration-200 btn-spring gap-2.5 active:scale-95"
                       >
                         <Scan className="w-5 h-5 stroke-[2.2]" />
                         <span>Launch Attendance</span>
@@ -276,7 +276,7 @@ const Index = () => {
                     <Link to="/parent">
                       <Button
                         variant="outline"
-                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
                       >
                         <Globe className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                         <span>Parent Portal</span>
@@ -289,7 +289,7 @@ const Index = () => {
                     <Link to="/gate">
                       <Button
                         variant="outline"
-                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
                       >
                         <DoorOpen className="w-4 h-4 text-fuchsia-500 dark:text-fuchsia-400" />
                         <span>Gate Kiosk</span>
@@ -298,13 +298,13 @@ const Index = () => {
                     <Link to="/admin?tab=timetable">
                       <Button
                         variant="outline"
-                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
                       >
                         <BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                         <span>Timetable</span>
                       </Button>
                     </Link>
-                    <ThemeToggle className="h-12 w-12 sm:h-13 sm:w-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md btn-spring text-slate-900 dark:text-white" />
+                    <ThemeToggle className="h-12 w-12 sm:h-13 sm:w-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md btn-spring text-slate-900 dark:text-white active:scale-95" />
                   </div>
                 </div>
               </div>
@@ -338,7 +338,7 @@ const Index = () => {
               <RoyalReveal
                 effect="fade-up"
                 delay={0.15}
-                className="liquid-glass-surface rounded-3xl p-6 sm:p-7 border border-border/80 dark:border-white/10 shadow-2xl backdrop-blur-2xl flex-1 flex flex-col justify-between bg-white/90 dark:bg-card/75"
+                className="nano-glass-bento rounded-3xl p-6 sm:p-7 border border-white/80 dark:border-white/10 shadow-2xl flex-1 flex flex-col justify-between"
               >
                 <div>
                   <div className="mb-5 flex items-center justify-between">
@@ -358,9 +358,9 @@ const Index = () => {
                           type="button"
                           onClick={() => navigate(mod.to)}
                           aria-label={`Open ${mod.label}`}
-                          className="w-full rounded-2xl border border-border/80 dark:border-border/60 bg-white/80 dark:bg-card/55 p-3.5 text-center transition-all hover:border-primary/60 hover:bg-white dark:hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 card-hover-pop btn-spring shadow-xs"
+                          className="w-full nano-card nano-card-interactive p-3.5 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 shadow-xs"
                           whileHover={{ y: -3 }}
-                          whileTap={{ scale: 0.97 }}
+                          whileTap={{ scale: 0.95 }}
                           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                         >
                           <div className={`mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl ${mod.tone}`}>
@@ -731,7 +731,7 @@ const Index = () => {
           <RoyalStaggerGroup className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-6" stagger={0.08}>
             {stats.map((stat) => (
               <RoyalStaggerItem key={stat.label}>
-                <div className="liquid-glass-surface rounded-3xl p-6 text-center card-hover-pop transition-transform duration-300 hover:-translate-y-1.5 border border-border/80 dark:border-white/10 shadow-xl backdrop-blur-2xl bg-white/90 dark:bg-card/75">
+                <div className="nano-card nano-card-interactive rounded-3xl p-6 text-center transition-all duration-300 hover:-translate-y-1.5 border border-white/70 dark:border-white/10 shadow-xl">
                   <p className="text-3xl md:text-5xl font-black bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 dark:from-cyan-300 dark:via-sky-300 dark:to-indigo-300 bg-clip-text text-transparent" style={{ fontFamily: 'Sora, sans-serif' }}>
                     {stat.value}
                   </p>
@@ -758,7 +758,7 @@ const Index = () => {
             <RoyalStaggerGroup className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6" stagger={0.05}>
               {cat.features.map((feature) => (
                 <RoyalStaggerItem key={feature.title}>
-                  <div className="liquid-glass-surface liquid-glass-highlight group relative overflow-hidden rounded-3xl p-6 h-full transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-primary/15 border border-border/80 dark:border-white/10 bg-white/90 dark:bg-card/75 flex flex-col justify-between">
+                  <div className="nano-glass-bento nano-card-interactive group relative overflow-hidden rounded-3xl p-6 h-full transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-primary/15 border border-white/80 dark:border-white/10 flex flex-col justify-between">
                     <div>
                       <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-primary via-accent to-warning" />
                       <div className="mb-4 inline-flex rounded-2xl bg-primary/15 p-3 text-primary">
