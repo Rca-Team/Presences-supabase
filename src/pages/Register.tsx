@@ -483,7 +483,7 @@ const Register = () => {
 
         {/* Right Panel - Form (Natural scroll flow) */}
         <div className="flex-1 flex flex-col min-h-screen bg-background/50">
-          <div className="lg:hidden p-4 border-b border-border/70 liquid-glass-surface flex items-center justify-between">
+          <div className="lg:hidden p-4 border-b border-slate-200/70 dark:border-white/10 nano-glass-dock flex items-center justify-between">
             <Link to="/"><Logo /></Link>
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
               PM Shri KV
@@ -491,8 +491,8 @@ const Register = () => {
           </div>
           <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-12 xl:px-16 py-8">
             <div className="w-full max-w-lg mx-auto">
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full liquid-glass-surface mb-4 border border-primary/20">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className="mb-8">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full nano-glass mb-4 border border-primary/20 hardware-layer shadow-xs">
                   <Scan className="w-4 h-4 text-primary" />
                   <span className="text-xs font-bold uppercase tracking-wider text-primary">Biometric Enrollment</span>
                 </div>
@@ -504,7 +504,8 @@ const Register = () => {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mb-6 rounded-xl border border-primary/25 liquid-glass-surface p-3"
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                  className="mb-6 rounded-2xl border border-primary/25 nano-glass p-3.5 hardware-layer shadow-xs"
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm font-semibold">
@@ -514,7 +515,7 @@ const Register = () => {
                   </div>
                   <div className="space-y-2">
                     {drafts.slice(0, 3).map((draft) => (
-                      <div key={draft.id} className="flex items-center justify-between rounded-lg border border-border/70 bg-card/80 px-3 py-2">
+                      <div key={draft.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-card/80 px-3 py-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{draft.formData.name || 'Unnamed student'}</p>
                           <p className="text-xs text-muted-foreground">
@@ -522,10 +523,10 @@ const Register = () => {
                           </p>
                         </div>
                         <div className="ml-3 flex items-center gap-1">
-                          <Button type="button" size="sm" variant="outline" onClick={() => resumeDraft(draft)}>
+                          <Button type="button" size="sm" variant="outline" className="rounded-xl btn-spring" onClick={() => resumeDraft(draft)}>
                             <Play className="mr-1 h-3.5 w-3.5" /> Resume
                           </Button>
-                          <Button type="button" size="icon" variant="ghost" onClick={() => clearDraftById(draft.id)}>
+                          <Button type="button" size="icon" variant="ghost" className="rounded-xl btn-spring" onClick={() => clearDraftById(draft.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>

@@ -556,7 +556,7 @@ const GateMode = () => {
       {/* ── Top Command Bar ── */}
       {isMobile ? (
         /* Mobile Dedicated Top Floating Header */
-        <div className="flex items-center justify-between px-3 py-2 bg-card/90 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
+        <div className="flex items-center justify-between px-3 py-2 nano-glass-dock border-b border-slate-200/70 dark:border-white/10 shadow-xs z-30 hardware-layer">
           <div className="flex items-center gap-1.5 min-w-0">
             <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 max-w-[130px]">
@@ -583,7 +583,7 @@ const GateMode = () => {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2 text-[11px] font-bold rounded-xl gap-1 border-primary/40 text-primary bg-primary/10 hover:bg-primary/20"
+              className="h-8 px-2 text-[11px] font-bold rounded-xl gap-1 border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 btn-spring"
               onClick={() => setActiveGateMode('classroom')}
               title="Switch to Classroom Seated Mode"
             >
@@ -595,7 +595,7 @@ const GateMode = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full text-foreground hover:bg-card/80"
+              className="h-8 w-8 rounded-full text-foreground hover:bg-card/80 btn-spring"
               onClick={() => setVoiceGreeting(curr => curr === 'voice' ? 'chime' : curr === 'chime' ? 'off' : 'voice')}
               title={`Voice: ${voiceGreeting}`}
             >
@@ -612,7 +612,7 @@ const GateMode = () => {
             <Button
               variant={uniformDetectionEnabled ? 'default' : 'outline'}
               size="icon"
-              className={`h-8 w-8 rounded-full ${
+              className={`h-8 w-8 rounded-full btn-spring ${
                 uniformDetectionEnabled ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40' : ''
               }`}
               onClick={() => setUniformDetectionEnabled(v => !v)}
@@ -625,7 +625,7 @@ const GateMode = () => {
             <Button
               variant="destructive"
               size="icon"
-              className="h-8 w-8 rounded-full shadow-md shadow-destructive/20 ml-0.5"
+              className="h-8 w-8 rounded-full shadow-md shadow-destructive/20 ml-0.5 btn-spring"
               onClick={() => navigate('/admin')}
             >
               <X className="h-3.5 w-3.5" />
@@ -634,7 +634,7 @@ const GateMode = () => {
         </div>
       ) : (
         /* Desktop Top Command Bar */
-        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-card/80 backdrop-blur-2xl border-b border-border/70 shadow-lg z-30">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 nano-glass-dock border-b border-slate-200/70 dark:border-white/10 shadow-xs z-30 hardware-layer">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link to="/" className="flex-shrink-0"><Logo size="sm" /></Link>
             

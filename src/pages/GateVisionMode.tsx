@@ -248,11 +248,11 @@ export default function GateVisionMode() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-slate-200/70 dark:border-white/10 nano-glass-dock shadow-xs hardware-layer">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <Link to="/gate">
-              <Button size="icon" variant="ghost"><ArrowLeft className="h-5 w-5" /></Button>
+              <Button size="icon" variant="ghost" className="rounded-xl btn-spring"><ArrowLeft className="h-5 w-5" /></Button>
             </Link>
             <div>
               <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
@@ -265,9 +265,9 @@ export default function GateVisionMode() {
           <div className="flex items-center gap-2">
             <Badge variant={ready ? 'default' : 'secondary'}>{ready ? 'AI ready' : 'loading…'}</Badge>
             {running ? (
-              <Button size="sm" variant="destructive" onClick={stop}><Square className="h-4 w-4 mr-1" /> Stop</Button>
+              <Button size="sm" variant="destructive" className="rounded-xl btn-spring shadow-xs" onClick={stop}><Square className="h-4 w-4 mr-1" /> Stop</Button>
             ) : (
-              <Button size="sm" onClick={start} disabled={!ready}><Play className="h-4 w-4 mr-1" /> Start</Button>
+              <Button size="sm" className="rounded-xl btn-spring shadow-xs" onClick={start} disabled={!ready}><Play className="h-4 w-4 mr-1" /> Start</Button>
             )}
           </div>
         </div>
@@ -276,7 +276,7 @@ export default function GateVisionMode() {
       <main className="max-w-7xl mx-auto p-4 grid lg:grid-cols-3 gap-4">
         {/* Video canvas */}
         <div className="lg:col-span-2 space-y-4">
-          <Card className="relative overflow-hidden rounded-3xl border-border/60 bg-black aspect-video">
+          <Card className="relative overflow-hidden rounded-3xl border-slate-200/80 dark:border-white/10 bg-black aspect-video shadow-md hardware-layer">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
             <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
             {!running && (

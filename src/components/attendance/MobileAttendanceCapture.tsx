@@ -346,17 +346,7 @@ const MobileAttendanceCapture: React.FC<MobileAttendanceCaptureProps> = ({ onCom
           </Badge>
         </div>
 
-        {/* Camera Controls */}
-        <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-          <Button
-            variant="secondary"
-            size="icon"
-            onClick={toggleCamera}
-            className="h-12 w-12 rounded-full backdrop-blur-sm bg-background/80"
-          >
-            <FlipHorizontal className="h-5 w-5" />
-          </Button>
-        </div>
+        {/* Camera Controls - Removed manual invert/flip to enforce ideal natural mirror orientation */}
 
         {/* Processing Overlay */}
         <AnimatePresence>

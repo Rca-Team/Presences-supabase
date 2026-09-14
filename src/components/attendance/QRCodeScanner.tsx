@@ -671,13 +671,7 @@ const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
                 {torchOn ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4" />}
               </button>
             )}
-            <button
-              onClick={() => setFacingMode(f => (f === 'user' ? 'environment' : 'user'))}
-              aria-label="Flip camera"
-              className="h-9 w-9 rounded-full grid place-items-center bg-slate-900/70 text-white/90 hover:bg-slate-800/80 backdrop-blur-md border border-white/10 transition"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+
             <button
               onClick={toggleFullscreen}
               aria-label="Toggle fullscreen"

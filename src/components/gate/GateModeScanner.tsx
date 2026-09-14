@@ -1249,14 +1249,7 @@ const GateModeScanner = ({
                 {activeSource === 'webcam' ? <Cctv className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" /> : <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />}
               </button>
             )}
-            <button
-              onClick={flipCamera}
-              disabled={activeSource !== 'webcam'}
-              className="bg-card/80 backdrop-blur rounded-full p-2 sm:p-2.5 hover:bg-card transition-colors"
-              title={facingMode === 'user' ? 'Switch to rear camera' : 'Switch to front camera'}
-            >
-              <SwitchCamera className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
-            </button>
+
             <button
               onClick={() => setShowDepthPanel(v => !v)}
               className={`backdrop-blur rounded-full p-2 sm:p-2.5 transition-colors ${showDepthPanel ? 'bg-cyan-500 text-white' : 'bg-card/80 hover:bg-card text-foreground'}`}

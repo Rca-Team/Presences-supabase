@@ -293,17 +293,21 @@ const Profile = () => {
   return (
     <PageTransition>
       <PageLayout className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50 dark:from-slate-950 dark:via-blue-950/50 dark:to-indigo-950">
-        {/* Animated Background */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
-            className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl"
+        {/* Background Gradients - GPU Accelerated Zero-Lag */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none hardware-layer">
+          <div
+            className="absolute -top-40 -right-40 w-80 h-80 rounded-full"
+            style={{
+              background: 'radial-gradient(circle, rgba(96,165,250,0.18) 0%, rgba(34,211,238,0.08) 50%, transparent 70%)',
+              transform: 'translateZ(0)',
+            }}
           />
-          <motion.div
-            animate={{ rotate: -360 }}
-            transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-            className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-indigo-400/15 to-blue-400/15 rounded-full blur-3xl"
+          <div
+            className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full"
+            style={{
+              background: 'radial-gradient(circle, rgba(129,140,248,0.15) 0%, rgba(96,165,250,0.06) 50%, transparent 70%)',
+              transform: 'translateZ(0)',
+            }}
           />
         </div>
 
@@ -312,9 +316,10 @@ const Profile = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             className="text-center mb-6 sm:mb-8"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full nano-glass mb-4 border border-blue-500/20 shadow-xs hardware-layer">
               <User className="w-4 h-4 text-blue-500" />
               <span className="text-sm font-medium text-blue-600 dark:text-blue-400">My Profile</span>
             </div>
@@ -331,10 +336,10 @@ const Profile = () => {
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               className="lg:col-span-1"
             >
-              <Card className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-blue-100 dark:border-blue-900/50 shadow-xl overflow-hidden">
+              <Card className="nano-glass border border-slate-200/80 dark:border-white/10 shadow-lg overflow-hidden hardware-layer rounded-3xl">
                 {/* Profile Header */}
                 <div className="relative h-24 sm:h-32 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500">
                   <div className="absolute inset-0 opacity-20">
@@ -438,20 +443,20 @@ const Profile = () => {
 
               {/* Tabs */}
               <Tabs defaultValue="details" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 mb-4 sm:mb-6 bg-white/50 dark:bg-slate-800/50 p-1 rounded-xl border border-blue-100 dark:border-blue-900">
-                  <TabsTrigger value="details" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-lg">
+                <TabsList className="grid w-full grid-cols-4 mb-4 sm:mb-6 nano-glass-dock p-1.5 rounded-2xl border border-slate-200/70 dark:border-white/10 shadow-xs hardware-layer">
+                  <TabsTrigger value="details" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-xl">
                     <User className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Details</span>
                   </TabsTrigger>
-                  <TabsTrigger value="face" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-lg">
+                  <TabsTrigger value="face" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-xl">
                     <Scan className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Face ID</span>
                   </TabsTrigger>
-                  <TabsTrigger value="insights" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-lg">
+                  <TabsTrigger value="insights" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-xl">
                     <Sparkles className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">AI Insights</span>
                   </TabsTrigger>
-                  <TabsTrigger value="notifications" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-lg">
+                  <TabsTrigger value="notifications" className="text-xs sm:text-sm data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-xl">
                     <Bell className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Alerts</span>
                   </TabsTrigger>

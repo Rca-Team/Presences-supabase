@@ -63,7 +63,8 @@ import {
 
 const cardTilt = {
   whileHover: { y: -4 },
-  transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+  whileTap: { scale: 0.98 },
+  transition: { type: 'spring', stiffness: 420, damping: 28, mass: 0.6 },
 };
 
 const Index = () => {

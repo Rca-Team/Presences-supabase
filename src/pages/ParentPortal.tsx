@@ -66,11 +66,11 @@ export default function ParentPortal() {
   return (
     <div className="min-h-screen bg-background flex flex-col selection:bg-primary/20">
       {/* Top Navigation Header */}
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-card/80 px-4 py-3 backdrop-blur-2xl shadow-xs">
+      <header className="sticky top-0 z-40 border-b border-slate-200/70 dark:border-white/10 nano-glass-dock px-4 py-3 shadow-xs hardware-layer">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Link to="/">
-              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-muted">
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-muted btn-spring">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
@@ -90,7 +90,7 @@ export default function ParentPortal() {
               <>
                 <Badge
                   variant="outline"
-                  className="gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold bg-background/60 border-border/80"
+                  className="gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold nano-glass border-slate-200/80 dark:border-white/10 shadow-xs"
                 >
                   <span
                     className={`h-2 w-2 rounded-full ${
@@ -102,22 +102,12 @@ export default function ParentPortal() {
 
                 <Button
                   variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded-xl"
-                  onClick={handleRefresh}
-                  title="Refresh records"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-primary' : ''}`} />
-                </Button>
-
-                <Button
-                  variant="ghost"
                   size="sm"
-                  onClick={logout}
-                  className="rounded-xl text-xs text-muted-foreground hover:text-destructive h-8 px-2.5"
+                  onClick={handleRefresh}
+                  className="h-8 px-2.5 rounded-xl border-slate-200/80 dark:border-white/10 nano-glass-dock hover:bg-white dark:hover:bg-slate-800 text-xs font-bold btn-spring"
                 >
-                  <LogOut className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Enter Another Student</span>
+                  <RefreshCw className="h-3.5 w-3.5 text-blue-500 mr-1" />
+                  <span className="hidden sm:inline">Refresh</span>
                 </Button>
               </>
             )}
@@ -148,7 +138,7 @@ export default function ParentPortal() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.3 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               className="space-y-6"
             >
               {/* Primary Live Presence Hero Card */}
@@ -173,7 +163,7 @@ export default function ParentPortal() {
               >
                 {/* Horizontal Tab Navigation Bar */}
                 <div className="overflow-x-auto pb-1">
-                  <TabsList className="bg-card/80 backdrop-blur-xl border border-border/80 p-1 rounded-2xl h-11 inline-flex w-full sm:w-auto min-w-full sm:min-w-0 justify-start">
+                  <TabsList className="nano-glass-dock border border-slate-200/70 dark:border-white/10 p-1 rounded-2xl h-11 inline-flex w-full sm:w-auto min-w-full sm:min-w-0 justify-start hardware-layer shadow-xs">
                     <TabsTrigger
                       value="attendance"
                       className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
