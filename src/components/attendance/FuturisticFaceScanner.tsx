@@ -1197,10 +1197,10 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           audio={false}
           screenshotFormat="image/jpeg"
           className="absolute inset-0 w-full h-full object-cover"
-          mirrored={facingMode === 'user' && !selectedDeviceId.toLowerCase().includes('back')}
+          mirrored={!selectedDeviceId.toLowerCase().includes('back') && !selectedDeviceId.toLowerCase().includes('rear')}
           videoConstraints={{
             deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-            facingMode: selectedDeviceId ? undefined : facingMode,
+            facingMode: 'user',
             width: { ideal: liteMode ? 960 : 1280 },
             height: { ideal: liteMode ? 540 : 720 },
             frameRate: { ideal: 30, max: 60 },
@@ -1219,7 +1219,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           ref={canvasRef}
           className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10 will-change-transform"
           style={{
-            transform: facingMode === 'user' && !selectedDeviceId.toLowerCase().includes('back') ? 'scaleX(-1) translateZ(0)' : 'translateZ(0)',
+            transform: !selectedDeviceId.toLowerCase().includes('back') && !selectedDeviceId.toLowerCase().includes('rear')
+              ? 'scaleX(-1) translateZ(0)'
+              : 'translateZ(0)',
           }}
         />
 
@@ -1230,7 +1232,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           containerHeight={containerDimensions.height}
           videoWidth={webcamRef.current?.video?.videoWidth || 960}
           videoHeight={webcamRef.current?.video?.videoHeight || 540}
-          mirrored={facingMode === 'user' && !selectedDeviceId.toLowerCase().includes('back')}
+          mirrored={!selectedDeviceId.toLowerCase().includes('back') && !selectedDeviceId.toLowerCase().includes('rear')}
         />
 
         {/* Cyber Viewfinder Reticle Framing */}
@@ -1367,17 +1369,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {/* Camera Flip Shortcut */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setFacingMode((f) => (f === 'user' ? 'environment' : 'user'))}
-              className="h-8 w-8 p-0 rounded-xl bg-slate-950/80 hover:bg-slate-900 text-slate-200 border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-lg"
-              title={facingMode === 'user' ? 'Switch to Rear Camera' : 'Switch to Front Camera'}
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
-            </Button>
           </div>
         </div>
 

@@ -816,12 +816,6 @@ const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
       {!hideManualControls && (
         <div className="flex flex-wrap gap-3 mt-5 justify-center">
           <Button
-            variant="outline"
-            onClick={() => setFacingMode(f => (f === 'user' ? 'environment' : 'user'))}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" /> Flip Camera
-          </Button>
-          <Button
             variant={isScanning ? 'destructive' : 'default'}
             onClick={isScanning ? stopScanning : startScanning}
           >
