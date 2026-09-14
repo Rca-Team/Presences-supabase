@@ -485,14 +485,14 @@ export function createRecognitionEngine(
 
       // ── Continuous Verification Requirement ──
       // Dynamic verification timing:
-      // - High certainty match (distance <= 0.40): verifies in min 200ms
-      // - Standard confident match (distance <= 0.45): uses baseRequiredHoldMs (e.g. 300ms in Standard mode)
-      // - Borderline match (distance > 0.45): requires at least 650ms to ensure 100% true identity
-      const dynamicHoldMs = match.distance <= 0.40
-        ? Math.min(baseRequiredHoldMs, 200)
-        : match.distance <= 0.45
-        ? baseRequiredHoldMs
-        : Math.max(baseRequiredHoldMs, 650);
+      // - High certainty match (distance <= 0.44): instant verification in 80ms
+      // - Standard confident match (distance <= 0.48): instant verification in 150ms
+      // - Borderline match (distance > 0.48): verified in max 280ms
+      const dynamicHoldMs = match.distance <= 0.44
+        ? 80
+        : match.distance <= 0.48
+        ? 150
+        : Math.min(baseRequiredHoldMs, 280);
 
       const now = Date.now();
 

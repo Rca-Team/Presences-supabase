@@ -381,96 +381,69 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       hadDrawnTracks = true;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      tracks.forEach((track, i) => {
+      tracks.forEach((track) => {
         const box = track.box;
         const isVerified = track.identity?.verified;
         const isHolding = track.identity && !isVerified;
-        const progress = Math.max(0, Math.min(1, track.holdingProgress || 0));
 
-        // Styling: Verified -> Emerald, Holding (1s countdown) -> Amber, Unidentified -> Cyan
-        const strokeColor = isVerified ? '#10b981' : isHolding ? '#f59e0b' : '#06b6d4';
-        const glowColor = isVerified ? 'rgba(16, 185, 129, 0.4)' : isHolding ? 'rgba(245, 158, 11, 0.4)' : 'rgba(6, 182, 212, 0.3)';
+        // Styling: Verified -> Apple Emerald (#10b981), Recognizing -> Electric Sky (#38bdf8), Standby -> Pure Cyan (#06b6d4)
+        const strokeColor = isVerified ? '#10b981' : isHolding ? '#38bdf8' : 'rgba(56, 189, 248, 0.75)';
+        const cornerSize = Math.min(22, Math.max(12, box.width * 0.18));
+        const r = 4; // subtle rounded corner
 
-        // Box
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = isVerified ? 3.5 : 2.5;
-        ctx.strokeRect(box.x, box.y, box.width, box.height);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
-        // Tech Corner Brackets
-        const cornerSize = 16;
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = isVerified ? 5 : 4;
-
+        // Top Left
         ctx.beginPath();
         ctx.moveTo(box.x, box.y + cornerSize);
-        ctx.lineTo(box.x, box.y);
+        ctx.arcTo(box.x, box.y, box.x + cornerSize, box.y, r);
         ctx.lineTo(box.x + cornerSize, box.y);
         ctx.stroke();
 
+        // Top Right
         ctx.beginPath();
         ctx.moveTo(box.x + box.width - cornerSize, box.y);
-        ctx.lineTo(box.x + box.width, box.y);
+        ctx.arcTo(box.x + box.width, box.y, box.x + box.width, box.y + cornerSize, r);
         ctx.lineTo(box.x + box.width, box.y + cornerSize);
         ctx.stroke();
 
+        // Bottom Right
         ctx.beginPath();
-        ctx.moveTo(box.x, box.y + box.height - cornerSize);
-        ctx.lineTo(box.x, box.y + box.height);
-        ctx.lineTo(box.x + cornerSize, box.y + box.height);
+        ctx.moveTo(box.x + box.width, box.y + box.height - cornerSize);
+        ctx.arcTo(box.x + box.width, box.y + box.height, box.x + box.width - cornerSize, box.y + box.height, r);
+        ctx.lineTo(box.x + box.width - cornerSize, box.y + box.height);
         ctx.stroke();
 
+        // Bottom Left
         ctx.beginPath();
-        ctx.moveTo(box.x + box.width - cornerSize, box.y + box.height);
-        ctx.lineTo(box.x + box.width, box.y + box.height);
-        ctx.lineTo(box.x + box.width, box.y + box.height - cornerSize);
+        ctx.moveTo(box.x + cornerSize, box.y + box.height);
+        ctx.arcTo(box.x, box.y + box.height, box.x, box.y + box.height - cornerSize, r);
+        ctx.lineTo(box.x, box.y + box.height - cornerSize);
         ctx.stroke();
 
-        // Label above face box
-        ctx.font = 'bold 13px Inter, -apple-system, sans-serif';
-        const nameLabel = isVerified
-          ? `✓ ${track.identity!.name}`
-          : isHolding
-          ? `${track.identity!.name}`
-          : `Detecting Face...`;
+        // High-precision Name Tag above face box
+        if (track.identity?.name) {
+          ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+          const nameLabel = isVerified ? `✓ ${track.identity.name}` : track.identity.name;
+          const textMetrics = ctx.measureText(nameLabel);
+          const pillW = textMetrics.width + 16;
+          const pillH = 22;
+          const pillX = box.x + (box.width - pillW) / 2;
+          const pillY = Math.max(6, box.y - 28);
 
-        const textMetrics = ctx.measureText(nameLabel);
-        const pillW = textMetrics.width + 16;
-        const pillH = 22;
-        const pillX = box.x;
-        const pillY = Math.max(8, box.y - 28);
+          ctx.fillStyle = isVerified ? 'rgba(6, 78, 59, 0.88)' : 'rgba(15, 23, 42, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(pillX, pillY, pillW, pillH, 8);
+          ctx.fill();
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 1;
+          ctx.stroke();
 
-        ctx.fillStyle = 'rgba(11, 16, 27, 0.88)';
-        ctx.fillRect(pillX, pillY, pillW, pillH);
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(pillX, pillY, pillW, pillH);
-
-        ctx.fillStyle = strokeColor;
-        ctx.fillText(nameLabel, pillX + 8, pillY + 15);
-
-        // Continuous 1-Second Verification HUD
-        if (isHolding) {
-          const barH = 6;
-          const barY = box.y + box.height + 6;
-          const barW = Math.max(120, box.width);
-          const barX = box.x;
-
-          // Track bg
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-          ctx.fillRect(barX, barY, barW, barH);
-          // Animated progress fill
-          ctx.fillStyle = '#f59e0b';
-          ctx.fillRect(barX, barY, Math.max(4, barW * progress), barH);
-
-          // Subtext
-          ctx.font = 'bold 11px Inter, -apple-system, sans-serif';
-          ctx.fillStyle = '#fef3c7';
-          ctx.fillText(`Hold steady: ${Math.round(progress * 100)}%`, barX, barY + 18);
-        } else if (isVerified) {
-          const badgeY = box.y + box.height + 6;
-          ctx.font = 'bold 12px Inter, -apple-system, sans-serif';
-          ctx.fillStyle = '#10b981';
-          ctx.fillText(`✓ Attendance Recorded`, box.x, badgeY + 16);
+          ctx.fillStyle = isVerified ? '#6ee7b7' : '#f1f5f9';
+          ctx.fillText(nameLabel, pillX + 8, pillY + 15);
         }
       });
     };
@@ -479,7 +452,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       detectFps: signals.lowCPU ? 6 : 8, // 8 FPS gives instant face detection while keeping CPU under 35%
       detectionWidth: 384, // 384px width with TinyFaceDetector 320 runs in ~25ms without thread lockup
       matchThreshold: liteMode ? 0.50 : 0.48, // Strict precision gate for 100% true attendance
-      requiredHoldMs: liteMode ? 1000 : 250, // Standard mode marks in ~0.25-0.3s without freezing!
+      requiredHoldMs: liteMode ? 500 : 150, // Instant zero-lag mark in ~0.15s!
       maxConcurrentJobs: 1, // Single job queue: guarantees zero main-thread freezing and butter-smooth 60 FPS
       identityTtlMs: 3500,
       maxMissed: 4,
@@ -827,7 +800,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       if (!video) throw new Error('Video not available');
 
       // Phase 1: Detecting all faces with descriptors
-      await new Promise(r => setTimeout(r, 400));
       setScanPhase('analyzing');
 
       // Detect all faces with full descriptors
@@ -858,7 +830,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         throw new Error('No faces detected in frame');
       }
 
-      await new Promise(r => setTimeout(r, 400));
       setScanPhase('matching');
       scanTelemetry.set({ phase: 'analyzing', statusText: 'Matching biometric signature…', facesInFrame: fullDetections.length });
 
@@ -1247,51 +1218,40 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           mirrored={!selectedDeviceId.toLowerCase().includes('back') && !selectedDeviceId.toLowerCase().includes('rear')}
         />
 
-        {/* Cyber Viewfinder Reticle Framing */}
-        <div className="absolute inset-4 sm:inset-6 pointer-events-none z-10">
-          {/* Top Left Bracket */}
+        {/* Apple Face ID Biometric Viewfinder Reticle (Zero-Lag, Hardware-Accelerated) */}
+        <div className="absolute inset-4 sm:inset-6 pointer-events-none z-10 transition-all duration-300">
+          {/* Top Left Apple Reticle Corner */}
           <div
-            className={`absolute top-0 left-0 w-6 sm:w-8 h-6 sm:h-8 border-t-2 border-l-2 transition-colors duration-300 rounded-tl-lg ${
+            className={`absolute top-0 left-0 w-7 sm:w-9 h-7 sm:h-9 border-t-[3px] border-l-[3px] rounded-tl-2xl transition-all duration-300 ${
               faceCount > 0
-                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
-                : 'border-cyan-400/70'
+                ? 'border-emerald-400 scale-[0.98] shadow-[0_0_16px_rgba(16,185,129,0.5)]'
+                : 'border-cyan-400/60 apple-faceid-reticle'
             }`}
           />
-          {/* Top Right Bracket */}
+          {/* Top Right Apple Reticle Corner */}
           <div
-            className={`absolute top-0 right-0 w-6 sm:w-8 h-6 sm:h-8 border-t-2 border-r-2 transition-colors duration-300 rounded-tr-lg ${
+            className={`absolute top-0 right-0 w-7 sm:w-9 h-7 sm:h-9 border-t-[3px] border-r-[3px] rounded-tr-2xl transition-all duration-300 ${
               faceCount > 0
-                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
-                : 'border-cyan-400/70'
+                ? 'border-emerald-400 scale-[0.98] shadow-[0_0_16px_rgba(16,185,129,0.5)]'
+                : 'border-cyan-400/60 apple-faceid-reticle'
             }`}
           />
-          {/* Bottom Left Bracket */}
+          {/* Bottom Left Apple Reticle Corner */}
           <div
-            className={`absolute bottom-0 left-0 w-6 sm:w-8 h-6 sm:h-8 border-b-2 border-l-2 transition-colors duration-300 rounded-bl-lg ${
+            className={`absolute bottom-0 left-0 w-7 sm:w-9 h-7 sm:h-9 border-b-[3px] border-l-[3px] rounded-bl-2xl transition-all duration-300 ${
               faceCount > 0
-                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
-                : 'border-cyan-400/70'
+                ? 'border-emerald-400 scale-[0.98] shadow-[0_0_16px_rgba(16,185,129,0.5)]'
+                : 'border-cyan-400/60 apple-faceid-reticle'
             }`}
           />
-          {/* Bottom Right Bracket */}
+          {/* Bottom Right Apple Reticle Corner */}
           <div
-            className={`absolute bottom-0 right-0 w-6 sm:w-8 h-6 sm:h-8 border-b-2 border-r-2 transition-colors duration-300 rounded-br-lg ${
+            className={`absolute bottom-0 right-0 w-7 sm:w-9 h-7 sm:h-9 border-b-[3px] border-r-[3px] rounded-br-2xl transition-all duration-300 ${
               faceCount > 0
-                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
-                : 'border-cyan-400/70'
+                ? 'border-emerald-400 scale-[0.98] shadow-[0_0_16px_rgba(16,185,129,0.5)]'
+                : 'border-cyan-400/60 apple-faceid-reticle'
             }`}
           />
-
-          {/* Ambient Scanning Laser Bar - GPU Composite Transform */}
-          {!liteMode && !isScanning && (
-            <motion.div
-              className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent will-change-transform pointer-events-none"
-              style={{ transform: 'translateZ(0)' }}
-              initial={{ y: 16 }}
-              animate={{ y: [16, Math.max(120, (containerDimensions.height || 460) - 36), 16] }}
-              transition={{ duration: faceCount > 0 ? 2.5 : 4, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          )}
         </div>
 
         {/* Integrated Top Glassmorphism HUD Bar */}
@@ -1464,34 +1424,27 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           )}
         </AnimatePresence>
 
-        {/* Forced Manual Scan Radial Overlay */}
+        {/* Apple Dynamic Island Face ID Status Pill (Non-blocking, 0 Lag) */}
         <AnimatePresence>
           {isScanning && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-950/70 backdrop-blur-md z-30 flex items-center justify-center"
+              initial={{ opacity: 0, y: -16, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 480, damping: 28 }}
+              className="absolute top-14 sm:top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
             >
-              <div className="relative flex flex-col items-center">
-                {/* Rotating Biometric Scanner Ring */}
-                <motion.div
-                  className="w-32 h-32 rounded-full"
-                  style={{
-                    background: 'conic-gradient(from 0deg, transparent, #06b6d4, #10b981, transparent)',
-                  }}
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
-                />
-                <div className="absolute inset-2 rounded-full bg-slate-950/90 flex items-center justify-center border border-cyan-400/40">
-                  <Scan className="w-10 h-10 text-cyan-400 animate-pulse" />
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-white tracking-wider mt-4 uppercase">
-                  {scanPhase === 'detecting' && '◎ Locking Face Target...'}
-                  {scanPhase === 'analyzing' && '◉ Extracting Biometrics...'}
-                  {scanPhase === 'matching' && '⚡ Verifying Database...'}
-                  {scanPhase === 'complete' && '✓ Verification Complete'}
-                </p>
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-950/85 backdrop-blur-xl border border-cyan-400/40 shadow-xl shadow-cyan-500/20 text-white">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400" />
+                </span>
+                <span className="text-xs font-bold tracking-tight">
+                  {scanPhase === 'detecting' && 'Biometric Lock Active…'}
+                  {scanPhase === 'analyzing' && 'Analyzing 3D Descriptors…'}
+                  {scanPhase === 'matching' && 'Verifying Attendance…'}
+                  {scanPhase === 'complete' && '✓ Attendance Logged'}
+                </span>
               </div>
             </motion.div>
           )}

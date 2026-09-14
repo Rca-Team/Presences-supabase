@@ -290,3 +290,42 @@
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
 }
+
+/* ==========================================================================
+   Apple Face ID Biometric Reticle (100% GPU Hardware Accelerated, 0 CPU Lag)
+   ========================================================================== */
+@keyframes apple-faceid-breathe {
+  0%, 100% {
+    opacity: 0.65;
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale3d(1.006, 1.006, 1);
+  }
+}
+
+@keyframes apple-faceid-locked {
+  0% {
+    transform: scale3d(1.03, 1.03, 1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  }
+  70% {
+    transform: scale3d(1, 1, 1);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale3d(1, 1, 1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.apple-faceid-reticle {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  animation: apple-faceid-breathe 3.5s ease-in-out infinite;
+}
+
+.apple-faceid-locked {
+  animation: apple-faceid-locked 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
