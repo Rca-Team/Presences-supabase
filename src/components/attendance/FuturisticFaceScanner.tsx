@@ -499,9 +499,16 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       // Thread 4: attendance persistence off the recognition path (background
       // write queue with de-duplication, so the camera never stalls).
       markAttendance: async (face) => {
-        const alreadyMarkedAt = autoMarkedUsersRef.current.get(face.userId) || 0;
+        const normName = face.name.toLowerCase().trim();
+        const alreadyMarkedAt = Math.max(
+          autoMarkedUsersRef.current.get(face.userId) || 0,
+          normName !== 'unknown' ? (autoMarkedUsersRef.current.get(`name:${normName}`) || 0) : 0
+        );
         if (Date.now() - alreadyMarkedAt < AUTO_MARK_COOLDOWN_MS) return;
         autoMarkedUsersRef.current.set(face.userId, Date.now());
+        if (normName !== 'unknown') {
+          autoMarkedUsersRef.current.set(`name:${normName}`, Date.now());
+        }
         recognizedUserCooldownRef.current.set(face.userId, Date.now());
 
         try {
@@ -637,15 +644,20 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           );
 
           if (outcome?.skipped) {
-            autoMarkedUsersRef.current.delete(face.userId);
-            setLastVerifiedStudent(null);
-            setRecognizedFaces((prev) => prev.filter((f) => f.id !== face.userId));
-            setAutoMarkedLog((prev) => prev.filter((e) => e.id !== entryId));
+            if (outcome.reason !== 'already_marked') {
+              autoMarkedUsersRef.current.delete(face.userId);
+              if (normName !== 'unknown') {
+                autoMarkedUsersRef.current.delete(`name:${normName}`);
+              }
+              setLastVerifiedStudent(null);
+              setRecognizedFaces((prev) => prev.filter((f) => f.id !== face.userId));
+              setAutoMarkedLog((prev) => prev.filter((e) => e.id !== entryId));
+            }
             scanTelemetry.matched({
               name: face.name,
               confidence: face.confidence,
-              meta: 'Needs a clearer look',
-              counted: false,
+              meta: outcome.reason === 'already_marked' ? 'Already marked today' : 'Needs a clearer look',
+              counted: outcome.reason === 'already_marked',
             });
             return;
           }

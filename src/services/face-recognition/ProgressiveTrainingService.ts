@@ -247,10 +247,11 @@ export async function getAllTrainedDescriptors(): Promise<Map<string, {
     const rows = scope.userIds ? data.filter((r: any) => isRowInGalleryScope(scope, r)) : data;
     if (!rows.length) return new Map();
 
-    // Group by user
+    // Group by user with alias resolution to guarantee 1 entry per physical student
+    const aliasToCanonical = new Map<string, string>();
     const grouped = new Map<string, { descriptors: Float32Array[]; userName: string; studentId: string | null }>();
-    for (const rec of rows) {
 
+    for (const rec of rows) {
       const desc = parseStoredDescriptor(rec.descriptor);
       if (!desc) continue;
 
@@ -260,17 +261,34 @@ export async function getAllTrainedDescriptors(): Promise<Map<string, {
         rec.label ||
         ((rec as any).metadata as any)?.name ||
         'Unknown';
-      const resolvedStudentId = (rec as any).student_id || null;
+      const resolvedStudentId = (rec as any).student_id ? String((rec as any).student_id).trim() : null;
+      const normName = resolvedName !== 'Unknown' ? resolvedName.toLowerCase().trim() : null;
 
-      if (!grouped.has(rec.user_id)) {
-        grouped.set(rec.user_id, { descriptors: [], userName: resolvedName, studentId: resolvedStudentId });
+      // Find canonical key by student_id, normalized name, or user_id
+      let canonicalKey = (resolvedStudentId && aliasToCanonical.get(`sid:${resolvedStudentId}`)) ||
+                         (normName && aliasToCanonical.get(`name:${normName}`)) ||
+                         aliasToCanonical.get(`uid:${rec.user_id}`);
+
+      if (!canonicalKey) {
+        canonicalKey = rec.user_id;
+        aliasToCanonical.set(`uid:${rec.user_id}`, canonicalKey);
+        if (resolvedStudentId) aliasToCanonical.set(`sid:${resolvedStudentId}`, canonicalKey);
+        if (normName) aliasToCanonical.set(`name:${normName}`, canonicalKey);
+      } else {
+        // Associate this row's identifiers to the established canonical key
+        aliasToCanonical.set(`uid:${rec.user_id}`, canonicalKey);
+        if (resolvedStudentId) aliasToCanonical.set(`sid:${resolvedStudentId}`, canonicalKey);
+        if (normName) aliasToCanonical.set(`name:${normName}`, canonicalKey);
+      }
+
+      if (!grouped.has(canonicalKey)) {
+        grouped.set(canonicalKey, { descriptors: [], userName: resolvedName, studentId: resolvedStudentId });
       } else if (resolvedName !== 'Unknown') {
-        // Later entries may have a better name — always prefer a real name over 'Unknown'
-        const g = grouped.get(rec.user_id)!;
+        const g = grouped.get(canonicalKey)!;
         if (g.userName === 'Unknown') g.userName = resolvedName;
         if (!g.studentId && resolvedStudentId) g.studentId = resolvedStudentId;
       }
-      grouped.get(rec.user_id)!.descriptors.push(desc);
+      grouped.get(canonicalKey)!.descriptors.push(desc);
     }
 
     // Build result with robust averaged descriptor

@@ -240,8 +240,8 @@ export function createRecognitionEngine(
   let queue: number[] = [];
   /** trackId -> userId that was last handed to markAttendance for that track */
   const markedByTrack = new Map<number, string>();
-  /** Session-wide set of marked userIds to prevent cross-track duplicate attendance */
-  const markedUserIds = new Set<string>();
+  /** Session-wide set of marked userIds and names to prevent cross-track duplicate attendance */
+  const markedIdentities = new Set<string>();
   /** trackId -> best biometric shot recorded for this tracklet (Innovatrics best-shot selection) */
   const bestShotByTrack = new Map<number, { descriptor: Float32Array; quality: number }>();
 
@@ -541,9 +541,18 @@ export function createRecognitionEngine(
       // 1 SECOND CONSTANTLY HELD: Confirm identity and mark attendance
       // Innovatrics Tracklet Lock: once a tracklet has marked attendance, it is locked.
       // Furthermore, a student cannot be marked twice across tracks in the same session.
-      if (!markedByTrack.has(track.id) && !markedUserIds.has(match.userId)) {
+      const normName = match.name.toLowerCase().trim();
+      const isAlreadyMarkedInSession =
+        markedByTrack.has(track.id) ||
+        markedIdentities.has(`uid:${match.userId}`) ||
+        (normName !== 'unknown' && markedIdentities.has(`name:${normName}`));
+
+      if (!isAlreadyMarkedInSession) {
         markedByTrack.set(track.id, match.userId);
-        markedUserIds.add(match.userId);
+        markedIdentities.add(`uid:${match.userId}`);
+        if (normName !== 'unknown') {
+          markedIdentities.add(`name:${normName}`);
+        }
         const identified: IdentifiedFace = {
           trackId: track.id,
           userId: match.userId,

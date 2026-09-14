@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 
 // Retry a failed dynamic import and auto-recover from stale service workers / CDN hash updates
 export function lazyWithRetry<T extends React.ComponentType<any>>(
@@ -22,13 +22,13 @@ export function lazyWithRetry<T extends React.ComponentType<any>>(
       const hasReloaded = typeof window !== "undefined" ? sessionStorage.getItem(sessionKey) : null;
       const errorMsg = String(error?.message || error || "").toLowerCase();
       const isChunkError =
-        errorMsg.includes("dynamically imported module") ||
-        errorMsg.includes("loading chunk") ||
-        errorMsg.includes("mime type") ||
-        errorMsg.includes("failed to fetch") ||
-        errorMsg.includes("importing a module script failed") ||
-        errorMsg.includes("expected a javascript-or-wasm") ||
-        error?.name === "TypeError";
+        (errorMsg.includes("dynamically imported module") ||
+         errorMsg.includes("loading chunk") ||
+         errorMsg.includes("mime type") ||
+         errorMsg.includes("failed to fetch") ||
+         errorMsg.includes("importing a module script failed") ||
+         errorMsg.includes("expected a javascript-or-wasm")) &&
+        !hasReloaded;
 
       const reloadKey = "presence:global_chunk_reload";
       const lastReload = typeof window !== "undefined" ? Number(sessionStorage.getItem(reloadKey) || "0") : 0;

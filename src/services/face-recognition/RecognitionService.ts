@@ -490,6 +490,11 @@ async function isPastCutoffTime(): Promise<boolean> {
   }
 }
 
+// In-flight mutex to collapse concurrent marking attempts for the same identity into one
+const inFlightAttendance = new Map<string, Promise<any>>();
+// Fast in-memory cache of students marked present/late today
+const markedTodayCache = new Map<string, { id: string; status: string; timestamp: string; student_name?: string | null }>();
+
 export async function recordAttendance(
   userId: string,
   status: 'present' | 'late' | 'absent' | 'unauthorized',
@@ -505,8 +510,9 @@ export async function recordAttendance(
     deviceInfo?.metadata?.suppress_auto_notification !== true &&
     deviceInfo?.suppress_auto_notification !== true;
   const MIN_ATTENDANCE_CONFIDENCE = 0.50;
+  const isExplicitManual = Boolean(deviceInfo?.metadata?.manual_confirmation);
   const isManual =
-    Boolean(deviceInfo?.metadata?.manual_confirmation) ||
+    isExplicitManual ||
     Boolean(deviceInfo?.metadata?.force_attendance_save);
 
   if (
@@ -520,6 +526,75 @@ export async function recordAttendance(
       `Attendance skipped: confidence ${(confidence * 100).toFixed(1)}% < ${(MIN_ATTENDANCE_CONFIDENCE * 100).toFixed(0)}%`
     );
     return { skipped: true, reason: 'low_confidence', confidence };
+  }
+
+  const resolvedStudentId =
+    deviceInfo?.metadata?.employee_id ||
+    (deviceInfo as any)?.student_id ||
+    userId;
+
+  // Deduplication check: if student is already marked present/late today, prevent duplicate record
+  if (!isExplicitManual && (status === 'present' || status === 'late')) {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTodayMs = startOfToday.getTime();
+
+    const candidateKeys = Array.from(new Set([userId, resolvedStudentId].filter(Boolean) as string[]));
+
+    // 1. Check in-memory cache first
+    for (const key of candidateKeys) {
+      const cached = markedTodayCache.get(key);
+      if (cached && new Date(cached.timestamp).getTime() >= startOfTodayMs) {
+        console.log(`[Deduplication] Student ${key} already marked attendance today (${cached.status} at ${cached.timestamp}). Skipping duplicate.`);
+        return {
+          ...cached,
+          skipped: true,
+          reason: 'already_marked',
+          alreadyMarked: true,
+          status: cached.status,
+        };
+      }
+    }
+
+    // 2. Check Database for today's existing present/late record
+    try {
+      const orFilter = candidateKeys.map(k => `user_id.eq.${k},student_id.eq.${k}`).join(',');
+      const { data: existingRows } = await supabase
+        .from('attendance_records')
+        .select('id, status, timestamp, student_id, user_id, student_name')
+        .in('status', ['present', 'late'])
+        .gte('timestamp', startOfToday.toISOString())
+        .or(orFilter)
+        .order('timestamp', { ascending: false })
+        .limit(1);
+
+      if (existingRows && existingRows.length > 0) {
+        const existing = existingRows[0];
+        for (const k of candidateKeys) {
+          markedTodayCache.set(k, existing);
+        }
+        if (existing.student_name) {
+          markedTodayCache.set(existing.student_name.toLowerCase().trim(), existing);
+        }
+        console.log(`[Deduplication] DB record found for ${candidateKeys.join('/')}: already marked ${existing.status}. Skipping duplicate.`);
+        return {
+          ...existing,
+          skipped: true,
+          reason: 'already_marked',
+          alreadyMarked: true,
+          status: existing.status,
+        };
+      }
+    } catch (checkErr) {
+      console.warn('Attendance duplicate check warning:', checkErr);
+    }
+
+    // 3. In-flight mutex for concurrent recognition passes
+    const inFlightKey = candidateKeys.slice().sort().join(':');
+    if (inFlightAttendance.has(inFlightKey)) {
+      console.log(`[Deduplication] Awaiting in-flight attendance promise for ${inFlightKey}`);
+      return await inFlightAttendance.get(inFlightKey)!;
+    }
   }
 
   let adjustedStatus = status;
@@ -590,11 +665,6 @@ export async function recordAttendance(
     },
   };
 
-  const resolvedStudentId =
-    fullDeviceInfo?.metadata?.employee_id ||
-    (deviceInfo as any)?.student_id ||
-    userId;
-
   const { data, error } = await supabase
     .from('attendance_records')
     .insert({
@@ -615,6 +685,16 @@ export async function recordAttendance(
     .single();
 
   if (error) throw new Error(`Failed to record attendance: ${error.message}`);
+
+  if (data && (adjustedStatus === 'present' || adjustedStatus === 'late')) {
+    const keys = Array.from(new Set([userId, resolvedStudentId].filter(Boolean) as string[]));
+    for (const k of keys) {
+      markedTodayCache.set(k, data);
+    }
+    if (userName) {
+      markedTodayCache.set(userName.toLowerCase().trim(), data);
+    }
+  }
 
   // If image upload completed after the initial record insert, update the image_url seamlessly in background
   if (!uploadedImageUrl && capturedImageDataUrl && data?.id) {

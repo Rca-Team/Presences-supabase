@@ -159,7 +159,7 @@ const CaptureFaceDialog: React.FC<Props> = ({ open, onOpenChange, student, onSuc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden rounded-3xl border border-border/80 shadow-2xl">
+      <DialogContent className="w-[95vw] sm:max-w-xl max-h-[92dvh] overflow-y-auto p-0 rounded-[28px] border border-border/80 shadow-2xl">
         <DialogHeader className="px-5 pt-5 pb-4 border-b bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 dark:from-cyan-950/40 dark:via-blue-950/40 dark:to-indigo-950/40">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">

@@ -210,6 +210,8 @@ const Scan3DCapture: React.FC<Scan3DCaptureProps> = ({ onComplete, isModelLoadin
   useEffect(() => { faceDetectedRef.current = faceDetected; }, [faceDetected]);
   useEffect(() => { sectorCountsRef.current = sectorCounts; }, [sectorCounts]);
 
+  const streamRef = useRef<MediaStream | null>(null);
+
   // Start Camera
   useEffect(() => {
     let mounted = true;
@@ -226,9 +228,14 @@ const Scan3DCapture: React.FC<Scan3DCaptureProps> = ({ onComplete, isModelLoadin
           mediaStream.getTracks().forEach((t) => t.stop());
           return;
         }
+        streamRef.current = mediaStream;
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
-          await videoRef.current.play();
+          try {
+            await videoRef.current.play();
+          } catch (playErr) {
+            console.warn('Auto-play blocked, waiting for user gesture:', playErr);
+          }
           setCameraReady(true);
         }
         setStream(mediaStream);
@@ -240,7 +247,10 @@ const Scan3DCapture: React.FC<Scan3DCaptureProps> = ({ onComplete, isModelLoadin
     startCamera();
     return () => {
       mounted = false;
-      stream?.getTracks().forEach((t) => t.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
     };
   }, []);
 
@@ -848,9 +858,10 @@ const Scan3DCapture: React.FC<Scan3DCaptureProps> = ({ onComplete, isModelLoadin
   return (
     <div className="space-y-3 sm:space-y-4">
       {/* Video Viewport */}
-      <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] sm:aspect-[4/3] shadow-2xl border border-white/10">
+      <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] sm:aspect-[4/3] max-h-[46vh] sm:max-h-[55vh] shadow-2xl border border-white/10 mx-auto">
         <video
           ref={videoRef}
+          autoPlay
           muted
           playsInline
           className="w-full h-full object-cover"
