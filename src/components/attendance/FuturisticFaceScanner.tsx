@@ -63,7 +63,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import LiveFaceOverlay, { RecognizedFaceData } from './LiveFaceOverlay';
+import type { RecognizedFaceData } from './LiveFaceOverlay';
 import {
   getStudentCoverPhoto,
   getCachedStudentCoverPhoto,
@@ -426,28 +426,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         ctx.arcTo(box.x, box.y + box.height, box.x, box.y + box.height - cornerSize, r);
         ctx.lineTo(box.x, box.y + box.height - cornerSize);
         ctx.stroke();
-
-        // High-precision Name Tag above face box
-        if (track.identity?.name) {
-          ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-          const nameLabel = isVerified ? `✓ ${track.identity.name}` : track.identity.name;
-          const textMetrics = ctx.measureText(nameLabel);
-          const pillW = textMetrics.width + 16;
-          const pillH = 22;
-          const pillX = box.x + (box.width - pillW) / 2;
-          const pillY = Math.max(6, box.y - 28);
-
-          ctx.fillStyle = isVerified ? 'rgba(6, 78, 59, 0.88)' : 'rgba(15, 23, 42, 0.85)';
-          ctx.beginPath();
-          ctx.roundRect(pillX, pillY, pillW, pillH, 8);
-          ctx.fill();
-          ctx.strokeStyle = strokeColor;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          ctx.fillStyle = isVerified ? '#6ee7b7' : '#f1f5f9';
-          ctx.fillText(nameLabel, pillX + 8, pillY + 15);
-        }
       });
     };
 
@@ -1218,16 +1196,6 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               ? 'scaleX(-1) translateZ(0)'
               : 'translateZ(0)',
           }}
-        />
-
-        {/* Live Face Recognition Overlay */}
-        <LiveFaceOverlay
-          faces={recognizedFaces}
-          containerWidth={containerDimensions.width}
-          containerHeight={containerDimensions.height}
-          videoWidth={webcamRef.current?.video?.videoWidth || 960}
-          videoHeight={webcamRef.current?.video?.videoHeight || 540}
-          mirrored={!selectedDeviceId.toLowerCase().includes('back') && !selectedDeviceId.toLowerCase().includes('rear')}
         />
 
         {/* Apple Face ID Biometric Viewfinder Reticle (Zero-Lag, Hardware-Accelerated) */}
