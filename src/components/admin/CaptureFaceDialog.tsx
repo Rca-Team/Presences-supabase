@@ -59,6 +59,7 @@ const CaptureFaceDialog: React.FC<Props> = ({ open, onOpenChange, student, onSuc
     averaged: Float32Array,
     primaryImage: string,
     rawDescriptors: Float32Array[],
+    rawImages?: string[],
   ) => {
     if (!student) return;
     setIsSaving(true);
@@ -68,10 +69,11 @@ const CaptureFaceDialog: React.FC<Props> = ({ open, onOpenChange, student, onSuc
 
       // 1. Upload primary cropped image to Supabase Storage
       let imageUrl: string | null = null;
+      let primaryBlob: Blob | null = null;
       try {
         const response = await fetch(primaryImage);
-        const blob = await response.blob();
-        imageUrl = await uploadFaceImage(blob);
+        primaryBlob = await response.blob();
+        imageUrl = await uploadFaceImage(primaryBlob);
       } catch (uploadErr) {
         console.warn('Image upload failed, continuing without image URL', uploadErr);
       }
@@ -113,8 +115,20 @@ const CaptureFaceDialog: React.FC<Props> = ({ open, onOpenChange, student, onSuc
       }
 
       // 5. Store multi-angle training samples in database for progressive reinforcement
-      for (const d of rawDescriptors) {
-        await storeFaceSample(targetUserId, d, null, student.name, 1.0);
+      // Upload each specific angle snapshot so every model slot has its authentic face photo
+      for (let i = 0; i < rawDescriptors.length; i++) {
+        const d = rawDescriptors[i];
+        let sampleBlob: Blob | null = null;
+        if (rawImages && rawImages[i]) {
+          try {
+            const resp = await fetch(rawImages[i]);
+            sampleBlob = await resp.blob();
+          } catch {}
+        }
+        if (!sampleBlob && primaryBlob) {
+          sampleBlob = primaryBlob;
+        }
+        await storeFaceSample(targetUserId, d, sampleBlob, student.name, 1.0);
       }
 
       // 6. Instantly sync in-memory descriptor cache so attendance recognition updates immediately!

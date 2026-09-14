@@ -468,12 +468,13 @@ const StudentFaceSamplesManager: React.FC = () => {
       // 1. Process Descriptors (Live Model Slots)
       descriptorRows.forEach((row: any) => {
         const group = getOrCreateGroup(row.user_id, row.student_id, row.label || 'Trained Student');
+        const effectiveImg = row.image_url || group.avatarUrl || null;
         if (!group.samples.some(s => s.id === row.id)) {
           group.samples.push({
             id: row.id,
             user_id: row.user_id,
             label: row.label,
-            image_url: row.image_url,
+            image_url: effectiveImg,
             created_at: row.created_at,
             source: 'descriptor_registration',
             source_table: 'face_descriptors',
@@ -515,7 +516,9 @@ const StudentFaceSamplesManager: React.FC = () => {
         getOrCreateGroup(p.user_id, p.employee_id || p.roll_number || '', p.full_name || p.display_name || 'Student');
       });
 
-      // Ensure avatarUrl is populated for all students if they have any photo samples
+      // Ensure avatarUrl is populated for all students and backfill model slots missing images
+      const emptySlotUpdates: Array<{ id: string; image_url: string }> = [];
+
       studentGroupsMap.forEach((group) => {
         if (!group.avatarUrl && group.samples.length > 0) {
           const sampleWithImg = group.samples.find((s) => s.image_url);
@@ -523,7 +526,27 @@ const StudentFaceSamplesManager: React.FC = () => {
             group.avatarUrl = sampleWithImg.image_url;
           }
         }
+
+        // Fill any descriptor sample in group that was missing an image with the group's verified cover photo
+        if (group.avatarUrl) {
+          const persistentRef = toPersistentImageReference(group.avatarUrl) || group.avatarUrl;
+          group.samples.forEach((s) => {
+            if (s.source_table === 'face_descriptors' && !s.image_url) {
+              s.image_url = group.avatarUrl;
+              emptySlotUpdates.push({ id: s.id, image_url: persistentRef });
+            }
+          });
+        }
       });
+
+      // Background non-blocking auto-heal of missing image_urls in face_descriptors
+      if (emptySlotUpdates.length > 0) {
+        Promise.all(
+          emptySlotUpdates.map((item) =>
+            supabase.from('face_descriptors').update({ image_url: item.image_url }).eq('id', item.id)
+          )
+        ).catch((e) => console.warn('Descriptor image auto-heal error:', e));
+      }
 
       // Deduplicate unique student group references
       const uniqueGroups = Array.from(new Set(studentGroupsMap.values()));
@@ -629,17 +652,69 @@ const StudentFaceSamplesManager: React.FC = () => {
       });
   }, [groups, search, filterTab, sortBy]);
 
-  // Separate Trained Slots vs Captured Samples for active student
+  // Separate Trained Slots vs Captured Samples with ZERO duplicate overlap between sections
   const { trainedSlots, capturedPhotos } = useMemo(() => {
     if (!selectedGroup) return { trainedSlots: [], capturedPhotos: [] };
+
+    // 1. Live Model Slots from face_descriptors
     const trained = selectedGroup.samples.filter((s) => s.source_table === 'face_descriptors');
-    const captured = selectedGroup.samples.filter((s) => s.source_table === 'attendance_records');
+
+    // Index all image references present in Trained Model Slots & Cover ID
+    const trainedImageKeys = new Set<string>();
+    trained.forEach((s) => {
+      if (s.image_url) {
+        const raw = s.image_url.trim();
+        trainedImageKeys.add(raw);
+        const persistent = toPersistentImageReference(raw);
+        if (persistent) trainedImageKeys.add(persistent);
+      }
+    });
+
+    if (selectedGroup.avatarUrl) {
+      const raw = selectedGroup.avatarUrl.trim();
+      trainedImageKeys.add(raw);
+      const persistent = toPersistentImageReference(raw);
+      if (persistent) trainedImageKeys.add(persistent);
+    }
+
+    // 2. Captured Recognition Photos from attendance_records
+    // Exclude:
+    // - Initial registration record photos (since they are already in Live Model Slots)
+    // - Any photo that shares an image_url with a Live Model Slot (ZERO duplicate images between sections!)
+    // - Duplicate check-in snapshots within attendance_records itself
+    const seenCapturedKeys = new Set<string>();
+    const captured: FaceSample[] = [];
+
+    selectedGroup.samples.forEach((s) => {
+      if (s.source_table !== 'attendance_records') return;
+      if (!s.image_url) return;
+
+      // Exclude registration records (they are in Model Slots)
+      if (s.source === 'record_registration' || s.status === 'registered') return;
+
+      const raw = s.image_url.trim();
+      const persistent = toPersistentImageReference(raw);
+
+      // Exclude if already shown in Live Model Slots or Cover ID
+      if (trainedImageKeys.has(raw) || (persistent && trainedImageKeys.has(persistent))) {
+        return;
+      }
+
+      // Deduplicate duplicates within captured photos
+      const dedupeKey = persistent || raw;
+      if (seenCapturedKeys.has(dedupeKey)) return;
+      seenCapturedKeys.add(dedupeKey);
+
+      captured.push(s);
+    });
+
     return { trainedSlots: trained, capturedPhotos: captured };
   }, [selectedGroup]);
 
   // Photo Crop Modal Handler
   const openCropper = (sample: FaceSample) => {
-    const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : '';
+    const raw = sample.image_url || selectedGroup?.avatarUrl || '';
+    const url = raw ? resolvedUrls[raw] || raw : '';
     if (!url) {
       toast({ title: 'Image Not Available', description: 'Could not load photo for editing.', variant: 'destructive' });
       return;
@@ -678,7 +753,7 @@ const StudentFaceSamplesManager: React.FC = () => {
   // Set as Primary ID & Main Cover Photo
   const handleSetAsIdPhoto = async (sample: FaceSample) => {
     if (!selectedGroup) return;
-    const rawUrl = sample.image_url;
+    const rawUrl = sample.image_url || selectedGroup.avatarUrl;
     const persistentRef = toPersistentImageReference(rawUrl) || rawUrl;
     if (!persistentRef) {
       toast({ title: 'No Photo', description: 'Photo reference is missing.', variant: 'destructive' });
@@ -1908,11 +1983,20 @@ const StudentFaceSamplesManager: React.FC = () => {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {trainedSlots.map((sample) => {
+                        const fallbackCover = selectedGroup?.avatarUrl
+                          ? resolvedUrls[selectedGroup.avatarUrl] || selectedGroup.avatarUrl
+                          : null;
+                        const sampleUrl = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
+                        const effectiveUrl = sampleUrl || fallbackCover;
+
                         const isCurrentId = Boolean(
-                          selectedGroup?.avatarUrl && sample.image_url && (
-                            selectedGroup.avatarUrl === sample.image_url ||
-                            toPersistentImageReference(selectedGroup.avatarUrl) === toPersistentImageReference(sample.image_url) ||
-                            (resolvedUrls[selectedGroup.avatarUrl] && resolvedUrls[selectedGroup.avatarUrl] === resolvedUrls[sample.image_url])
+                          selectedGroup?.avatarUrl && (
+                            (sample.image_url && (
+                              selectedGroup.avatarUrl === sample.image_url ||
+                              toPersistentImageReference(selectedGroup.avatarUrl) === toPersistentImageReference(sample.image_url) ||
+                              (resolvedUrls[selectedGroup.avatarUrl] && resolvedUrls[selectedGroup.avatarUrl] === resolvedUrls[sample.image_url])
+                            )) ||
+                            (!sample.image_url && Boolean(fallbackCover))
                           )
                         );
 
@@ -1920,7 +2004,8 @@ const StudentFaceSamplesManager: React.FC = () => {
                           <PhotoCard
                             key={sample.id}
                             sample={sample}
-                            imageUrl={sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null}
+                            imageUrl={sampleUrl}
+                            fallbackUrl={fallbackCover}
                             isSelected={selectedSampleIds.has(sample.id)}
                             isCurrentIdPhoto={isCurrentId}
                             onToggleSelect={() => {
@@ -1932,9 +2017,8 @@ const StudentFaceSamplesManager: React.FC = () => {
                               });
                             }}
                             onPreview={() => {
-                              const url = sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null;
-                              if (url) {
-                                setPreviewImageUrl(url);
+                              if (effectiveUrl) {
+                                setPreviewImageUrl(effectiveUrl);
                                 setPreviewTitle(`${selectedGroup.name} · Trained Model Slot`);
                               }
                             }}
@@ -1990,6 +2074,7 @@ const StudentFaceSamplesManager: React.FC = () => {
                             key={sample.id}
                             sample={sample}
                             imageUrl={sample.image_url ? resolvedUrls[sample.image_url] || sample.image_url : null}
+                            fallbackUrl={null}
                             isSelected={selectedSampleIds.has(sample.id)}
                             isCurrentIdPhoto={isCurrentId}
                             onToggleSelect={() => {
@@ -2343,6 +2428,7 @@ const StudentFaceSamplesManager: React.FC = () => {
 interface PhotoCardProps {
   sample: FaceSample;
   imageUrl: string | null;
+  fallbackUrl?: string | null;
   isSelected: boolean;
   isCurrentIdPhoto: boolean;
   onToggleSelect: () => void;
@@ -2356,6 +2442,7 @@ interface PhotoCardProps {
 const PhotoCard: React.FC<PhotoCardProps> = ({
   sample,
   imageUrl,
+  fallbackUrl,
   isSelected,
   isCurrentIdPhoto,
   onToggleSelect,
@@ -2367,6 +2454,8 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
 }) => {
   const [imgError, setImgError] = useState(false);
   const isSlot = sample.source_table === 'face_descriptors';
+  const displayUrl = (!imgError && imageUrl) ? imageUrl : (!imgError && fallbackUrl) ? fallbackUrl : null;
+  const isUsingFallback = !imageUrl && Boolean(displayUrl);
 
   return (
     <div
@@ -2391,20 +2480,30 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           <span className="text-[11px]">Select</span>
         </label>
 
-        <Badge
-          variant={isSlot ? 'default' : 'secondary'}
-          className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
-        >
-          {isSlot ? 'Model Slot' : sample.source === 'recognition_gate' ? 'Gate Camera' : 'Attendance'}
-        </Badge>
+        <div className="flex items-center gap-1">
+          {isUsingFallback && (
+            <Badge
+              variant="outline"
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded-md border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+            >
+              Model Slot
+            </Badge>
+          )}
+          <Badge
+            variant={isSlot ? 'default' : 'secondary'}
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
+          >
+            {isSlot ? 'Model Slot' : sample.source === 'recognition_gate' ? 'Gate Camera' : 'Attendance'}
+          </Badge>
+        </div>
       </div>
 
       {/* Image Display & Zoom Click */}
       <div
-        onClick={imageUrl ? onPreview : undefined}
+        onClick={displayUrl ? onPreview : undefined}
         className={cn(
           "relative aspect-square w-full rounded-xl overflow-hidden bg-muted/40 border border-border/40 flex items-center justify-center mb-3",
-          imageUrl && "cursor-pointer group/img"
+          displayUrl && "cursor-pointer group/img"
         )}
       >
         {isCurrentIdPhoto && (
@@ -2413,10 +2512,10 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           </div>
         )}
 
-        {imageUrl && !imgError ? (
+        {displayUrl ? (
           <>
             <img
-              src={imageUrl}
+              src={displayUrl}
               alt="Face sample"
               onError={() => setImgError(true)}
               className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
@@ -2429,9 +2528,10 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center p-3 text-muted-foreground text-center space-y-1">
-            <ImageIcon className="h-6 w-6 opacity-40" />
-            <span className="text-[10px] font-mono opacity-70">Photo Encrypted</span>
+          <div className="flex flex-col items-center justify-center p-3 text-muted-foreground text-center space-y-1.5">
+            <Cpu className="h-7 w-7 text-primary/60 animate-pulse" />
+            <span className="text-[11px] font-bold text-foreground">3D Biometric Vector</span>
+            <span className="text-[9px] text-muted-foreground">Neural model weights active</span>
           </div>
         )}
 
@@ -2455,7 +2555,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           size="sm"
           variant="outline"
           onClick={onCrop}
-          disabled={!imageUrl}
+          disabled={!displayUrl}
           className="rounded-xl h-8 text-[11px] font-bold px-2 gap-1"
         >
           <Scissors className="h-3 w-3 text-primary" /> Crop
@@ -2465,7 +2565,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           size="sm"
           variant={isCurrentIdPhoto ? "default" : "outline"}
           onClick={onSetIdPhoto}
-          disabled={!imageUrl}
+          disabled={!displayUrl}
           className={cn(
             "rounded-xl h-8 text-[11px] font-bold px-2 gap-1 transition-all",
             isCurrentIdPhoto
@@ -2488,7 +2588,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           size="sm"
           variant="outline"
           onClick={onTransfer}
-          disabled={!imageUrl}
+          disabled={!displayUrl}
           className="rounded-xl h-8 text-[11px] font-bold px-2 gap-1"
         >
           <ArrowRightLeft className="h-3 w-3 text-blue-500" /> Move
