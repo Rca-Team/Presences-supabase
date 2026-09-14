@@ -535,10 +535,11 @@ export async function recordAttendance(
     if (p) userName = p.display_name || p.full_name || p.username || null;
   }
 
-  // Upload captured image
+  // Fast non-blocking image upload: start concurrently so database insertion is instantaneous
   let uploadedImageUrl: string | null = null;
   let trainingAttendancePath: string | null = null;
-  if (capturedImageDataUrl) {
+  const imageUploadPromise = (async () => {
+    if (!capturedImageDataUrl) return;
     try {
       const blob = await dataUrlToBlob(capturedImageDataUrl);
       if (blob) {
@@ -563,7 +564,13 @@ export async function recordAttendance(
     } catch (uploadErr) {
       console.warn('Image upload error:', uploadErr);
     }
-  }
+  })();
+
+  // Race image upload for max 120ms; if storage is fast it attaches immediately, otherwise row is saved instantly
+  await Promise.race([
+    imageUploadPromise,
+    new Promise((resolve) => setTimeout(resolve, 120)),
+  ]);
 
   const resolvedSource: 'ai-scan' | 'qr-scan' | 'gate-mode' =
     captureMode === 'gate-mode' ? 'gate-mode' :
@@ -608,6 +615,20 @@ export async function recordAttendance(
     .single();
 
   if (error) throw new Error(`Failed to record attendance: ${error.message}`);
+
+  // If image upload completed after the initial record insert, update the image_url seamlessly in background
+  if (!uploadedImageUrl && capturedImageDataUrl && data?.id) {
+    void imageUploadPromise.then(async () => {
+      if (uploadedImageUrl && data?.id) {
+        try {
+          await supabase
+            .from('attendance_records')
+            .update({ image_url: uploadedImageUrl })
+            .eq('id', data.id);
+        } catch {}
+      }
+    });
+  }
 
   console.log('Attendance recorded:', data);
 

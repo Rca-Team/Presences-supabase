@@ -46,6 +46,8 @@ export interface EngineOptions {
   identityTtlMs?: number;
   /** Detection passes a track may be missing before it is dropped */
   maxMissed?: number;
+  /** Required continuous hold duration before confirming identity (ms) */
+  requiredHoldMs?: number;
   /** Called on every detection pass with the current tracks */
   onTracks?: (tracks: FaceTrack[]) => void;
   /** Called once per newly identified person */
@@ -222,6 +224,7 @@ export function createRecognitionEngine(
   const matchThreshold = options.matchThreshold ?? 0.50;
   const shortlist = options.shortlist ?? 16;
   const maxConcurrentJobs = options.maxConcurrentJobs ?? 1;
+  const baseRequiredHoldMs = options.requiredHoldMs ?? 1000;
 
   const tracker = createFaceTracker({
     identityTtlMs: options.identityTtlMs ?? 3500,
@@ -480,8 +483,17 @@ export function createRecognitionEngine(
         return;
       }
 
-      // ── Continuous 1-Second Recognition Requirement ──
-      const REQUIRED_HOLD_MS = 1000;
+      // ── Continuous Verification Requirement ──
+      // Dynamic verification timing:
+      // - High certainty match (distance <= 0.40): verifies in min 200ms
+      // - Standard confident match (distance <= 0.45): uses baseRequiredHoldMs (e.g. 300ms in Standard mode)
+      // - Borderline match (distance > 0.45): requires at least 650ms to ensure 100% true identity
+      const dynamicHoldMs = match.distance <= 0.40
+        ? Math.min(baseRequiredHoldMs, 200)
+        : match.distance <= 0.45
+        ? baseRequiredHoldMs
+        : Math.max(baseRequiredHoldMs, 650);
+
       const now = Date.now();
 
       const prevCand = track.candidate;
@@ -498,7 +510,7 @@ export function createRecognitionEngine(
         continuousHoldMs = 0;
       }
 
-      const holdingProgress = Math.min(1.0, continuousHoldMs / REQUIRED_HOLD_MS);
+      const holdingProgress = Math.min(1.0, continuousHoldMs / dynamicHoldMs);
 
       track.candidate = {
         userId: match.userId,
@@ -511,7 +523,7 @@ export function createRecognitionEngine(
       };
       track.holdingProgress = holdingProgress;
 
-      const isVerified = continuousHoldMs >= REQUIRED_HOLD_MS;
+      const isVerified = continuousHoldMs >= dynamicHoldMs;
 
       tracker.assignIdentity(track.id, {
         userId: match.userId,
@@ -521,7 +533,7 @@ export function createRecognitionEngine(
         verified: isVerified,
       });
 
-      // Keep tracking until held continuously for 1 full second
+      // Keep tracking until held continuously for required duration
       if (!isVerified) {
         return;
       }

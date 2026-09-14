@@ -182,16 +182,16 @@ const LiveAttendanceFeed: React.FC = () => {
             return (
               <motion.div
                 key={record.id}
-                initial={{ opacity: 0, y: -12, scale: 0.96 }}
+                initial={{ opacity: 0, y: -16, scale: 0.94 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.25, delay: index * 0.02 }}
-                className={`group relative overflow-hidden flex items-center justify-between p-2.5 rounded-2xl border transition-all duration-300 ${
+                exit={{ opacity: 0, scale: 0.94 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                className={`group relative overflow-hidden flex items-center justify-between p-2.5 rounded-2xl nano-glass border transition-all duration-300 shadow-sm ${
                   isPresent
-                    ? 'bg-gradient-to-r from-emerald-50/90 via-white to-white dark:from-emerald-950/20 dark:via-card/80 dark:to-card/60 border-emerald-300/80 dark:border-emerald-500/20 hover:border-emerald-500/50 hover:shadow-md dark:hover:shadow-emerald-950/20'
+                    ? 'border-emerald-500/30 hover:border-emerald-500/60 shadow-emerald-500/5'
                     : isLate
-                    ? 'bg-gradient-to-r from-amber-50/90 via-white to-white dark:from-amber-950/20 dark:via-card/80 dark:to-card/60 border-amber-300/80 dark:border-amber-500/20 hover:border-amber-500/50 hover:shadow-md dark:hover:shadow-amber-950/20'
-                    : 'bg-gradient-to-r from-rose-50/90 via-white to-white dark:from-rose-950/20 dark:via-card/80 dark:to-card/60 border-rose-300/80 dark:border-rose-500/20'
+                    ? 'border-amber-500/30 hover:border-amber-500/60 shadow-amber-500/5'
+                    : 'border-rose-500/30 hover:border-rose-500/60'
                 }`}
               >
                 {/* Student Info */}
