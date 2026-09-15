@@ -53,6 +53,7 @@ import {
   Video,
   Layers,
   Flame,
+  FlipHorizontal,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -167,6 +168,14 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     }
   });
   soundEnabledRef.current = soundEnabled;
+
+  const [invertFeed, setInvertFeed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('presence_camera_mirrored');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return true; // Default front/user camera to mirrored
+  });
   const [lastVerifiedStudent, setLastVerifiedStudent] = useState<{
     id: string;
     name: string;
@@ -236,6 +245,16 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       const next = !prev;
       try {
         localStorage.setItem('attendance_sound_enabled', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const toggleInvertFeed = useCallback(() => {
+    setInvertFeed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('presence_camera_mirrored', String(next));
       } catch {}
       return next;
     });
@@ -1169,7 +1188,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           audio={false}
           screenshotFormat="image/jpeg"
           className="absolute inset-0 w-full h-full object-cover"
-          mirrored={!selectedDeviceId.toLowerCase().includes('back') && !selectedDeviceId.toLowerCase().includes('rear')}
+          mirrored={invertFeed}
           videoConstraints={{
             deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
             facingMode: 'user',
@@ -1191,7 +1210,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           ref={canvasRef}
           className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10 will-change-transform"
           style={{
-            transform: !selectedDeviceId.toLowerCase().includes('back') && !selectedDeviceId.toLowerCase().includes('rear')
+            transform: invertFeed
               ? 'scaleX(-1) translateZ(0)'
               : 'translateZ(0)',
           }}
@@ -1266,6 +1285,24 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               title={soundEnabled ? 'Mute Chimes' : 'Unmute Chimes'}
             >
               {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            </Button>
+
+            {/* Invert / Mirror Live Feed Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleInvertFeed}
+              className={`h-8 w-8 sm:w-auto sm:px-2.5 p-0 sm:py-1 rounded-xl border backdrop-blur-xl flex items-center justify-center sm:gap-1.5 shadow-lg transition-all ${
+                invertFeed
+                  ? 'bg-slate-950/80 text-cyan-400 hover:text-cyan-300 border-white/10'
+                  : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border-white/10'
+              }`}
+              title={invertFeed ? 'Live feed is mirrored (Click to invert / normal)' : 'Live feed is normal (Click to invert / mirror)'}
+            >
+              <FlipHorizontal className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[11px] font-medium hidden sm:inline">
+                {invertFeed ? 'Inverted' : 'Normal'}
+              </span>
             </Button>
 
             {/* Camera Device Selector Dropdown */}
