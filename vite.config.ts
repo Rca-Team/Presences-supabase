@@ -109,6 +109,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
+        maxParallelFileOps: 16,
         output: {
           // Only bucket the libraries that are genuinely shared across many
           // routes. Everything else is left to Rollup so that heavy, lazily
@@ -131,7 +132,7 @@ export default defineConfig(({ mode }) => {
       exclude: ["face-api.js"],
     },
     css: {
-      devSourcemap: true,
+      devSourcemap: false,
     },
   };
 });

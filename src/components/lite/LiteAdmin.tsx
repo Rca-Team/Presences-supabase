@@ -191,6 +191,7 @@ interface Props {
 }
 
 export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
+  const { setPreference } = usePerformanceMode();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -288,60 +289,87 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-4">
+    <div className="min-h-screen bg-background pb-12">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4">
 
         {/* ========================================================================= */}
         {/* 1. TOP EXECUTIVE HEADER                                                   */}
         {/* ========================================================================= */}
-        <header className="rounded-2xl border border-border bg-card p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
+        <div className="text-center space-y-1 py-1">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-2">
+            Smart Administration <span className="text-amber-500 font-extrabold">(Lite)</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+            High efficiency institutional command & AI operations for low-latency devices
+          </p>
+          <button
+            type="button"
+            onClick={() => setPreference('standard')}
+            className="text-xs font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-colors cursor-pointer"
+          >
+            Switch to Full Experience
+          </button>
+        </div>
+
+        {/* Executive Terminal Banner */}
+        <header className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3.5 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
           <div className="flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
-              <Building2 className="h-6 w-6" />
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 border border-amber-500/25">
+              <Zap className="w-5 h-5 fill-current" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-lg sm:text-xl font-black text-foreground tracking-tight">
-                  Principal & Administration Suite
-                </h1>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
-                  <Zap className="w-3 h-3 fill-current" /> Lite Mode Active
+                <h2 className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">
+                  Lite Administration Terminal
+                </h2>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  LIVE SYNC
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                PM Shri KV NFC Vigyan Vihar · High-performance institutional command & controls
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                PM Shri KV NFC Vigyan Vihar · Fast institutional management suite
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 self-end md:self-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshStats}
+              className="h-8 px-3 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+              <span>Sync</span>
+            </Button>
             <LiteModeToggle variant="segmented" />
           </div>
         </header>
 
         {/* ========================================================================= */}
-        {/* 2. REAL-TIME OPERATIONAL METRICS RIBBON                                  */}
+        {/* 2. REAL-TIME OPERATIONAL METRICS RIBBON (4 Cards)                         */}
         {/* ========================================================================= */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div className="rounded-2xl border border-border bg-card p-3.5 shadow-2xs hover:border-purple-500/30 transition-colors">
-            <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase">
-              <span>Registered Students</span>
-              <Users className="w-4 h-4 text-purple-500" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3 sm:p-3.5 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
+              <span>REGISTERED</span>
+              <Users className="w-3.5 h-3.5 text-purple-500" />
             </div>
-            <div className="text-2xl font-black text-foreground mt-1 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono mt-1">
               {liveStats.totalRegistered}
             </div>
-            <div className="text-[11px] text-muted-foreground mt-0.5 font-medium">
+            <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium">
               Verified face profiles
             </div>
           </div>
 
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 shadow-2xs hover:border-emerald-500/50 transition-colors">
-            <div className="flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase">
-              <span>Present Today</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-3.5 shadow-xs">
+            <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider">
+              <span>PRESENT TODAY</span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
             </div>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
               {liveStats.presentToday}
             </div>
             <div className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5 font-medium">
@@ -349,12 +377,12 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3.5 shadow-2xs hover:border-amber-500/50 transition-colors">
-            <div className="flex items-center justify-between text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase">
-              <span>Late Today</span>
-              <Clock className="w-4 h-4 text-amber-500" />
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 sm:p-3.5 shadow-xs">
+            <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 text-xs font-bold uppercase tracking-wider">
+              <span>LATE TODAY</span>
+              <Clock className="w-3.5 h-3.5 text-amber-500" />
             </div>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
               {liveStats.lateToday}
             </div>
             <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5 font-medium">
@@ -362,183 +390,147 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-blue-500/30 bg-blue-500/5 p-3.5 shadow-2xs hover:border-blue-500/50 transition-colors">
-            <div className="flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">
-              <span>Daily Attendance</span>
-              <TrendingUp className="w-4 h-4 text-blue-500" />
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 sm:p-3.5 shadow-xs">
+            <div className="flex items-center justify-between text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
+              <span>RATE</span>
+              <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
             </div>
-            <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 tracking-tight">
+            <div className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 font-mono mt-1">
               {liveStats.attendanceRate}%
             </div>
             <div className="text-[11px] text-blue-700/80 dark:text-blue-400/80 mt-0.5 font-medium">
-              School-wide ratio
+              Daily ratio
             </div>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* 3. WORKSTATION LAYOUT: NAVIGATION HUB + MAIN CANVAS                     */}
+        {/* 3. DOCK OF TABS: CATEGORY SELECTOR + FLOATING SEGMENTED MODULE DOCK      */}
         {/* ========================================================================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3 sm:p-4 shadow-sm space-y-3">
           
-          {/* LEFT COLUMN: MODULE SELECTOR RAIL (4 Cols) */}
-          <div className="lg:col-span-4 rounded-3xl border border-border bg-card p-3.5 sm:p-4 space-y-3 shadow-xs lg:sticky lg:top-4">
-            
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          {/* Top Row: Category Pills & Search Filter */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar scrollbar-none pb-0.5">
+              {categories.map((c) => {
+                const isCatActive = selectedCategory === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setSelectedCategory(c)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      isCatActive
+                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Search */}
+            <div className="relative min-w-[200px] sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search 14 admin modules..."
-                className="w-full pl-8 pr-8 py-2 rounded-xl border border-border bg-muted/20 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                placeholder="Search admin modules..."
+                className="w-full pl-8 pr-8 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
                   ✕
                 </button>
               )}
             </div>
+          </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
-              {categories.map((c) => (
+          {/* Dock of Tabs: Horizontal Segmented Dock */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none py-1 px-0.5">
+            {filteredTabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
                 <button
-                  key={c}
-                  onClick={() => setSelectedCategory(c)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all ${
-                    selectedCategory === c
-                      ? 'bg-primary text-primary-foreground shadow-2xs'
-                      : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`group relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer border ${
+                    isActive
+                      ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md shadow-cyan-500/20'
+                      : 'bg-slate-100/80 dark:bg-slate-800/60 border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800'
                   }`}
+                  title={tab.desc}
                 >
-                  {c}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab Modules List */}
-            <div className="space-y-1 max-h-[580px] overflow-y-auto pr-1">
-              {filteredTabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`w-full group flex items-center justify-between p-2.5 rounded-xl text-left transition-all border ${
-                      isActive
-                        ? 'bg-primary text-primary-foreground border-primary shadow-xs font-semibold'
-                        : 'bg-card/40 border-border/50 text-foreground hover:bg-muted/30 hover:border-border'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                      <div
-                        className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                          isActive
-                            ? 'bg-primary-foreground/20 text-primary-foreground'
-                            : 'bg-muted text-muted-foreground group-hover:text-foreground'
-                        }`}
-                      >
-                        <tab.icon className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs truncate block font-medium">
-                            {tab.label}
-                          </span>
-                          {tab.badge && (
-                            <span
-                              className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded shrink-0 ${
-                                isActive
-                                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                                  : 'bg-muted text-muted-foreground'
-                              }`}
-                            >
-                              {tab.badge}
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className={`text-[10px] truncate block mt-0.5 line-clamp-1 ${
-                            isActive ? 'text-primary-foreground/80' : 'text-muted-foreground'
-                          }`}
-                        >
-                          {tab.desc}
-                        </span>
-                      </div>
-                    </div>
-
-                    <ChevronRight
-                      className={`w-4 h-4 shrink-0 transition-transform ${
+                  <tab.icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-slate-950' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span
+                      className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md shrink-0 ${
                         isActive
-                          ? 'text-primary-foreground translate-x-0.5'
-                          : 'text-muted-foreground/50 group-hover:text-foreground group-hover:translate-x-0.5'
+                          ? 'bg-slate-950/20 text-slate-950'
+                          : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
                       }`}
-                    />
-                  </button>
-                );
-              })}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
 
-              {filteredTabs.length === 0 && (
-                <div className="py-6 text-center text-xs text-muted-foreground">
-                  No modules match "{searchQuery}"
-                </div>
-              )}
-            </div>
-
-            {/* Quick Live Sync Button */}
-            <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground px-1">
-              <span>{filteredTabs.length} of 14 Modules</span>
-              <button
-                onClick={refreshStats}
-                className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-              >
-                <RefreshCw className="w-3 h-3" /> Sync Stats
-              </button>
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN: ACTIVE MODULE WORKSTATION CANVAS (8 Cols) */}
-          <div className="lg:col-span-8 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-xs space-y-4 min-h-[580px]">
-            {/* Header of Active Module */}
-            <div className="flex items-center justify-between border-b border-border/70 pb-3 gap-3">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <activeTabItem.icon className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-base sm:text-lg font-bold text-foreground">
-                    {activeTabItem.label}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {activeTabItem.desc}
-                  </p>
-                </div>
+            {filteredTabs.length === 0 && (
+              <div className="py-2 text-xs text-slate-400 italic">
+                No modules match "{searchQuery}"
               </div>
+            )}
+          </div>
+        </div>
 
-              <span className="hidden sm:inline-flex text-[10px] font-bold uppercase px-2.5 py-1 rounded-full bg-muted border border-border text-muted-foreground">
-                {activeTabItem.category}
-              </span>
+        {/* ========================================================================= */}
+        {/* 4. FULL-WIDTH ACTIVE MODULE WORKSTATION CANVAS                            */}
+        {/* ========================================================================= */}
+        <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 sm:p-6 shadow-sm space-y-4 min-h-[580px]">
+          {/* Active Module Header */}
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5 gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-500/20">
+                <activeTabItem.icon className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  {activeTabItem.label}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {activeTabItem.desc}
+                </p>
+              </div>
             </div>
 
-            {/* Lazy Component Renderer */}
-            <Suspense
-              fallback={
-                <div className="flex flex-col items-center justify-center py-24 text-sm text-muted-foreground space-y-2">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                  <p className="text-xs font-mono">Loading {activeTabItem.label}…</p>
-                </div>
-              }
-            >
-              {renderActiveSection()}
-            </Suspense>
+            <span className="hidden sm:inline-flex text-[10px] font-bold uppercase px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+              {activeTabItem.category}
+            </span>
           </div>
 
+          {/* Lazy Component Renderer */}
+          <Suspense
+            fallback={
+              <div className="flex flex-col items-center justify-center py-24 text-sm text-slate-400 space-y-2">
+                <Loader2 className="w-6 h-6 animate-spin text-cyan-500" />
+                <p className="text-xs font-mono">Loading {activeTabItem.label}…</p>
+              </div>
+            }
+          >
+            {renderActiveSection()}
+          </Suspense>
         </div>
 
       </div>
