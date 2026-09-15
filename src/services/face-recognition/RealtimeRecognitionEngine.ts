@@ -424,15 +424,8 @@ export function createRecognitionEngine(
           return;
         }
 
-        // Innovatrics Best-Shot Selection: accumulate the highest-quality template per track
-        const prevBest = bestShotByTrack.get(track.id);
-        let matchDescriptor = det.descriptor;
-        if (!prevBest || quality.score > prevBest.quality) {
-          bestShotByTrack.set(track.id, { descriptor: det.descriptor, quality: quality.score });
-          matchDescriptor = det.descriptor;
-        } else if (prevBest) {
-          matchDescriptor = prevBest.descriptor;
-        }
+        // Always match the freshly extracted descriptor of the face in this exact frame
+        const matchDescriptor = det.descriptor;
 
         const tMatch = performance.now();
         match = await matchDescriptorIndexed(matchDescriptor, matchThreshold, shortlist);
@@ -458,7 +451,7 @@ export function createRecognitionEngine(
 
         if (!match) {
           const now = Date.now();
-          if (track.candidate && now - track.candidate.lastMatchedAt < 450) {
+          if (track.candidate && now - track.candidate.lastMatchedAt < 350) {
             // Retain candidate & holding display across momentary flicker
             tracker.assignIdentity(track.id, {
               userId: track.candidate.userId,
@@ -486,13 +479,13 @@ export function createRecognitionEngine(
       // ── Continuous Verification Requirement ──
       // Dynamic verification timing:
       // - High certainty match (distance <= 0.44): instant verification in 80ms
-      // - Standard confident match (distance <= 0.48): instant verification in 150ms
-      // - Borderline match (distance > 0.48): verified in max 280ms
+      // - Standard confident match (distance <= 0.48): instant verification in 120ms
+      // - Borderline match (distance > 0.48): verified in max 240ms
       const dynamicHoldMs = match.distance <= 0.44
         ? 80
         : match.distance <= 0.48
-        ? 150
-        : Math.min(baseRequiredHoldMs, 280);
+        ? 120
+        : Math.min(baseRequiredHoldMs, 240);
 
       const now = Date.now();
 
@@ -508,6 +501,8 @@ export function createRecognitionEngine(
       } else {
         firstMatchedAt = now;
         continuousHoldMs = 0;
+        // Clean old track lock when a different person enters the track
+        markedByTrack.delete(track.id);
       }
 
       const holdingProgress = Math.min(1.0, continuousHoldMs / dynamicHoldMs);
@@ -538,12 +533,9 @@ export function createRecognitionEngine(
         return;
       }
 
-      // 1 SECOND CONSTANTLY HELD: Confirm identity and mark attendance
-      // Innovatrics Tracklet Lock: once a tracklet has marked attendance, it is locked.
-      // Furthermore, a student cannot be marked twice across tracks in the same session.
+      // Identity confirmed and verified for marking
       const normName = match.name.toLowerCase().trim();
       const isAlreadyMarkedInSession =
-        markedByTrack.has(track.id) ||
         markedIdentities.has(`uid:${match.userId}`) ||
         (normName !== 'unknown' && markedIdentities.has(`name:${normName}`));
 

@@ -69,9 +69,9 @@ export function iou(a: Box, b: Box): number {
 }
 
 export function createFaceTracker(options: TrackerOptions = {}) {
-  const iouThreshold = options.iouThreshold ?? 0.20;
-  const maxMissed = options.maxMissed ?? 15;
-  const identityTtlMs = options.identityTtlMs ?? 8000;
+  const iouThreshold = options.iouThreshold ?? 0.28;
+  const maxMissed = options.maxMissed ?? 3;
+  const identityTtlMs = options.identityTtlMs ?? 2000;
   const maxFailedAttempts = options.maxFailedAttempts ?? 3;
 
   let nextId = 1;
@@ -88,14 +88,14 @@ export function createFaceTracker(options: TrackerOptions = {}) {
         if (used.has(i)) return;
         const iouScore = iou(track.box, det);
 
-        // Center-distance fallback: handles fast head motion where boxes partially separate
+        // Center-distance fallback: only for tight continuous motion of the same face
         const trackCx = track.box.x + track.box.width / 2;
         const trackCy = track.box.y + track.box.height / 2;
         const detCx = det.x + det.width / 2;
         const detCy = det.y + det.height / 2;
         const centerDist = Math.hypot(detCx - trackCx, detCy - trackCy);
         const maxSpan = Math.max(track.box.width, track.box.height, det.width, det.height);
-        const proximityScore = centerDist < maxSpan * 0.75 ? Math.max(0, 1 - centerDist / maxSpan) * 0.5 : 0;
+        const proximityScore = centerDist < maxSpan * 0.45 ? Math.max(0, 1 - centerDist / maxSpan) * 0.4 : 0;
 
         const effectiveScore = Math.max(iouScore, proximityScore);
         if (effectiveScore > bestScore) {
@@ -119,8 +119,8 @@ export function createFaceTracker(options: TrackerOptions = {}) {
         track.missed = 0;
       } else {
         track.missed += 1;
-        // Tolerate up to 8 missed frames (~800ms) before resetting candidate hold
-        if (track.missed > 8) {
+        // If a face is missed for > 2 frames (~250ms), immediately clear candidate hold
+        if (track.missed > 2) {
           track.candidate = null;
           track.holdingProgress = 0;
         }
@@ -145,12 +145,8 @@ export function createFaceTracker(options: TrackerOptions = {}) {
     });
 
     for (const track of tracks) {
-      // Innovatrics Tracklet Identity Lock: verified tracks maintain their identity
-      // for their entire duration in view (extended 60s TTL).
-      // Only unverified/tentative identities expire quickly after identityTtlMs.
-      const isVerified = Boolean(track.identity?.verified);
-      const ttl = isVerified ? Math.max(identityTtlMs * 8, 60_000) : identityTtlMs;
-      if (track.identity && now - track.identity.recognizedAt > ttl) {
+      // Clean TTL: identities expire after 2.0s so subsequent students in line are recognized instantly
+      if (track.identity && now - track.identity.recognizedAt > identityTtlMs) {
         track.identity = null;
         track.candidate = null;
         track.holdingProgress = 0;
@@ -162,11 +158,12 @@ export function createFaceTracker(options: TrackerOptions = {}) {
     return tracks;
   }
 
-  /** Tracks that still need a recognition pass (recognise until verified) */
+  /** Tracks that still need a recognition pass */
   function pendingRecognition(minHits = 1): FaceTrack[] {
+    const now = Date.now();
     return tracks.filter(
       t =>
-        (!t.identity || !t.identity.verified) &&
+        (!t.identity || !t.identity.verified || (now - t.identity.recognizedAt > 1500)) &&
         !t.pending &&
         t.missed === 0 &&
         t.hits >= minHits &&

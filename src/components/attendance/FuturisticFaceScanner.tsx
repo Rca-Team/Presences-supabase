@@ -433,10 +433,10 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       detectFps: signals.lowCPU ? 6 : 8, // 8 FPS gives instant face detection while keeping CPU under 35%
       detectionWidth: 384, // 384px width with TinyFaceDetector 320 runs in ~25ms without thread lockup
       matchThreshold: liteMode ? 0.50 : 0.48, // Strict precision gate for 100% true attendance
-      requiredHoldMs: liteMode ? 500 : 150, // Instant zero-lag mark in ~0.15s!
+      requiredHoldMs: liteMode ? 350 : 120, // Snappy zero-lag mark in ~0.12s
       maxConcurrentJobs: 1, // Single job queue: guarantees zero main-thread freezing and butter-smooth 60 FPS
-      identityTtlMs: 3500,
-      maxMissed: 4,
+      identityTtlMs: 2000, // 2s TTL allows consecutive students to be recognized immediately
+      maxMissed: 2, // Drops track quickly when student steps away
       onTracks: (tracks) => {
         drawTracks(tracks);
         setFaceCount((prev) => (prev === tracks.length ? prev : tracks.length));
@@ -513,7 +513,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           });
           setTimeout(() => {
             setLastVerifiedStudent((prev) => (prev?.id === face.userId ? null : prev));
-          }, 4000);
+          }, 1600);
 
           setRecognizedFaces((prev) => [
             ...prev.filter((f) => f.id !== face.userId),
