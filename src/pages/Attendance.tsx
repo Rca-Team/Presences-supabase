@@ -31,8 +31,10 @@ import {
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
+import { useLiteFeedback } from '@/hooks/useLiteFeedback';
+import { LiteFlashOverlay } from '@/components/attendance/LiteFeedbackControls';
+import LiteModeToggle from '@/components/LiteModeToggle';
 import { useToast } from '@/hooks/use-toast';
-import LiteAttendanceMode from '@/components/attendance/LiteAttendanceMode';
 import { fetchUnifiedAttendanceStats, type UnifiedAttendanceStats } from '@/utils/attendanceStatsHelper';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -120,6 +122,7 @@ const Attendance: React.FC = () => {
   const isMobile = useIsMobile();
   const prefersReducedMotion = useReducedMotion();
   const { liteMode, preference, setPreference } = usePerformanceMode();
+  const { flashKind, signal } = useLiteFeedback();
   const minimizeMotion = isMobile || prefersReducedMotion || liteMode;
 
   const [activeTab, setActiveTab] = useState<'kiosk' | 'qr' | 'analytics' | 'help'>('kiosk');
@@ -193,36 +196,14 @@ const Attendance: React.FC = () => {
   ];
 
   // ---------------------------------------------------------------------------
-  // PRESERVED OLDER LITE MODE
-  // ---------------------------------------------------------------------------
-  if (liteMode) {
-    return (
-      <PageTransition>
-        <PageLayout className="min-h-screen bg-background">
-          <div className="px-3 sm:px-4 py-4 max-w-4xl mx-auto space-y-4">
-            <div className="text-center">
-              <h1 className="text-xl font-bold text-foreground">Smart Attendance (Lite)</h1>
-              <p className="text-xs text-muted-foreground">High efficiency mode for low-latency devices</p>
-              <button
-                onClick={() => setPreference('off')}
-                className="mt-2 text-xs text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
-              >
-                Switch to Full Experience
-              </button>
-            </div>
-            <LiteAttendanceMode />
-          </div>
-        </PageLayout>
-      </PageTransition>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // BRAND NEW NANO-TEXTURED GLASS & iOS MOTION INTERFACE (Zero elements of old)
+  // UNIFIED APPLE NANO-TEXTURED GLASS & iOS MOTION INTERFACE (Zero Lag in Lite Mode)
   // ---------------------------------------------------------------------------
   return (
     <PageTransition>
       <PageLayout className="min-h-screen bg-slate-50/60 dark:bg-slate-950 pb-16 selection:bg-blue-500/20">
+        {/* Visual Flash feedback overlay */}
+        <LiteFlashOverlay kind={flashKind} />
+
         {/* Optimized Multi-Chromic Ambient Light Backing (Single Composite Layer) */}
         <div 
           className="fixed inset-0 pointer-events-none -z-10 opacity-60 dark:opacity-25"
@@ -273,7 +254,7 @@ const Attendance: React.FC = () => {
                 </span>
               </div>
 
-              {/* Right: Scoped Badge, Kiosk Focus Toggle & Performance Switcher */}
+              {/* Right: Scoped Badge, Lite Mode Toggle & Kiosk Focus Toggle */}
               <div className="flex items-center gap-2 pr-1">
                 {scopedCategory && (
                   <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25 text-xs font-bold">
@@ -281,6 +262,9 @@ const Attendance: React.FC = () => {
                     Class {scopedCategory}
                   </span>
                 )}
+
+                {/* Segmented Lite Mode Toggle */}
+                <LiteModeToggle variant="segmented" />
 
                 {/* Kiosk Fullscreen Focus Button */}
                 <motion.button
@@ -497,7 +481,12 @@ const Attendance: React.FC = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
                     {/* Left 2/3: Nano-Glass Camera Stage Housing */}
                     <div className="lg:col-span-2 nano-glass rounded-[32px] p-3 sm:p-5 shadow-2xl border border-white/70 dark:border-white/10 overflow-hidden">
-                      <FuturisticFaceScanner />
+                      <FuturisticFaceScanner
+                        onAttendanceMarked={(rec) => {
+                          signal(rec.status === 'late' ? 'warn' : 'ok');
+                          debouncedRefreshStats();
+                        }}
+                      />
                     </div>
 
                     {/* Right 1/3: iOS 18 Dynamic Island Live Activity Feed */}

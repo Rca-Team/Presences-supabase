@@ -318,3 +318,52 @@
 .apple-faceid-locked {
   animation: apple-faceid-locked 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ==========================================================================
+   Zero-Lag Lite Mode Optimizations for Nano-Textured Design
+   ========================================================================== */
+.lite-mode .nano-glass,
+.lite-mode .nano-glass-hero,
+.lite-mode .nano-glass-dock,
+.lite-mode .nano-card,
+.lite-mode .nano-glass-bento,
+.lite-mode .dynamic-island {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.lite-mode .nano-glass {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+.dark.lite-mode .nano-glass,
+.lite-mode.dark .nano-glass,
+.lite-mode .dark .nano-glass {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+.lite-mode .nano-glass-dock {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+.dark.lite-mode .nano-glass-dock,
+.lite-mode.dark .nano-glass-dock,
+.lite-mode .dark .nano-glass-dock {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+.lite-mode .nano-card {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+.dark.lite-mode .nano-card,
+.lite-mode.dark .nano-card,
+.lite-mode .dark .nano-card {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(51, 65, 85, 0.8) !important;
+}
