@@ -68,13 +68,47 @@ def is_valid_uuid(val: Optional[str]) -> bool:
 class WebcamStream:
     """Reads frames continuously in a dedicated thread to eliminate buffer delay."""
     def __init__(self, src=config.CAMERA_INDEX, width=config.CAMERA_WIDTH, height=config.CAMERA_HEIGHT):
-        self.stream = cv2.VideoCapture(src)
-        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self.grabbed, self.frame = self.stream.read()
+        self.stream = None
+        self.grabbed = False
+        self.frame = None
         self.stopped = False
         self.lock = threading.Lock()
+
+        # Candidate camera indices to try
+        candidates = [src]
+        if src != 0:
+            candidates.append(0)
+        if src != 1:
+            candidates.append(1)
+
+        for idx in candidates:
+            try:
+                if sys.platform.startswith("linux"):
+                    cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+                    if not cap.isOpened():
+                        cap = cv2.VideoCapture(idx)
+                else:
+                    cap = cv2.VideoCapture(idx)
+
+                if cap.isOpened():
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    grabbed, frame = cap.read()
+                    if grabbed and frame is not None:
+                        self.stream = cap
+                        self.grabbed = grabbed
+                        self.frame = frame
+                        print(f"[Camera] Initialized video capture device {idx} ({width}x{height})")
+                        break
+                    else:
+                        cap.release()
+            except Exception as e:
+                print(f"[Camera] Device {idx} check note: {e}")
+
+        if self.stream is None:
+            print(f"[Camera Warning] No active video capture device found on indices {candidates}. Will keep checking.")
+            self.stream = cv2.VideoCapture(src)
 
     def start(self):
         t = threading.Thread(target=self.update, args=(), daemon=True)
@@ -712,37 +746,48 @@ class AttendanceEngine:
                         # Drop frame if worker is busy to keep latency at 0ms
                         pass
 
-                if config.SHOW_WINDOW:
-                    # Draw current active detections smoothly at 30+ FPS
-                    with self.detection_lock:
-                        active_detections = [d for d in self.latest_detections if d.get("expires_at", 0) > loop_now]
-                        hud_name = self.hud_student_name
-                        hud_status = self.hud_status_text
-                        hud_until = self.hud_display_until
+                can_display = config.SHOW_WINDOW
+                if can_display and sys.platform.startswith("linux"):
+                    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+                        can_display = False
 
-                    for d in active_detections:
-                        l, t, r, b = d["box"]
-                        color = d["color"]
-                        label = d["label"]
-                        cv2.rectangle(frame, (l, t), (r, b), color, 2)
-                        cv2.rectangle(frame, (l, b - 24), (r, b), color, cv2.FILLED)
-                        cv2.putText(frame, label, (l + 6, b - 6), cv2.FONT_HERSHEY_DUPLEX, 0.55, (255, 255, 255), 1)
+                if can_display:
+                    try:
+                        # Draw current active detections smoothly at 30+ FPS
+                        with self.detection_lock:
+                            active_detections = [d for d in self.latest_detections if d.get("expires_at", 0) > loop_now]
+                            hud_name = self.hud_student_name
+                            hud_status = self.hud_status_text
+                            hud_until = self.hud_display_until
 
-                    # Top HUD Banner
-                    cv2.rectangle(frame, (0, 0), (config.CAMERA_WIDTH, 36), (20, 20, 20), cv2.FILLED)
-                    banner_text = f"PRESENCES AI | 30 FPS Mode: {config.GATE_NAME}"
-                    cv2.putText(frame, banner_text, (12, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
+                        for d in active_detections:
+                            l, t, r, b = d["box"]
+                            color = d["color"]
+                            label = d["label"]
+                            cv2.rectangle(frame, (l, t), (r, b), color, 2)
+                            cv2.rectangle(frame, (l, b - 24), (r, b), color, cv2.FILLED)
+                            cv2.putText(frame, label, (l + 6, b - 6), cv2.FONT_HERSHEY_DUPLEX, 0.55, (255, 255, 255), 1)
 
-                    # Bottom Recognized Status Banner
-                    if loop_now < hud_until and hud_name:
-                        cv2.rectangle(frame, (0, config.CAMERA_HEIGHT - 42), (config.CAMERA_WIDTH, config.CAMERA_HEIGHT), (0, 160, 0), cv2.FILLED)
-                        cv2.putText(frame, f"{hud_status}: {hud_name}", (16, config.CAMERA_HEIGHT - 14),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
+                        # Top HUD Banner
+                        cv2.rectangle(frame, (0, 0), (config.CAMERA_WIDTH, 36), (20, 20, 20), cv2.FILLED)
+                        banner_text = f"PRESENCES AI | 30 FPS Mode: {config.GATE_NAME}"
+                        cv2.putText(frame, banner_text, (12, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
 
-                    cv2.imshow("Presences AI — School Terminal", frame)
-                    key = cv2.waitKey(1) & 0xFF
-                    if key in (ord('q'), 27):  # 'q' or ESC
-                        break
+                        # Bottom Recognized Status Banner
+                        if loop_now < hud_until and hud_name:
+                            cv2.rectangle(frame, (0, config.CAMERA_HEIGHT - 42), (config.CAMERA_WIDTH, config.CAMERA_HEIGHT), (0, 160, 0), cv2.FILLED)
+                            cv2.putText(frame, f"{hud_status}: {hud_name}", (16, config.CAMERA_HEIGHT - 14),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
+
+                        cv2.imshow("Presences AI — School Terminal", frame)
+                        key = cv2.waitKey(1) & 0xFF
+                        if key in (ord('q'), 27):  # 'q' or ESC
+                            break
+                    except Exception as e:
+                        # GUI window not supported in background daemon, switch to silent headless loop
+                        time.sleep(0.01)
+                else:
+                    time.sleep(0.01)
 
         except KeyboardInterrupt:
             print("\n[Engine] Stopping upon user request...")
@@ -753,8 +798,10 @@ class AttendanceEngine:
         self.running = False
         if self.camera:
             self.camera.stop()
-        if config.SHOW_WINDOW:
+        try:
             cv2.destroyAllWindows()
+        except Exception:
+            pass
         print("[Engine] Terminal closed cleanly.")
 
 
