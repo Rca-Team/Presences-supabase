@@ -431,15 +431,15 @@ const Index = () => {
                 className="lg:col-span-6 group relative overflow-hidden rounded-3xl border border-amber-300/30 bg-card/60 shadow-2xl backdrop-blur-2xl flex flex-col justify-between"
                 {...cardTilt}
               >
-                <div className="relative min-h-[360px] sm:min-h-[400px] h-full w-full overflow-hidden flex flex-col justify-between">
+                <div className="relative min-h-[480px] sm:min-h-[540px] md:min-h-[580px] h-full w-full overflow-hidden flex flex-col justify-between">
                   <img
                     src={(teamRcaPhoto as any)?.url || (typeof teamRcaPhoto === 'string' ? teamRcaPhoto : '/team-rca.jpg')}
                     alt="Team RCA — Jatin Dhama, Gaurav Raj, Swami Anant Vyas"
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                    className="absolute inset-0 h-full w-full object-cover object-top sm:object-center transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                     loading="lazy"
                   />
-                  <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.32),transparent_60%)]" />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-black/20" />
+                  <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.35),transparent_65%)]" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/40 via-55% to-transparent" />
 
                   {/* Top Bar with Team RCA Badge & Studio Navigation */}
                   <div className="relative z-20 p-5 sm:p-6 flex items-center justify-between pointer-events-auto">
@@ -460,7 +460,7 @@ const Index = () => {
                   </div>
 
                   {/* Interactive Hotspot Zones Across Photo */}
-                  <div className="absolute inset-0 z-10 grid grid-cols-3 pt-16 pb-32 pointer-events-auto">
+                  <div className="absolute inset-0 z-10 grid grid-cols-3 pt-16 pb-44 pointer-events-auto">
                     <button
                       type="button"
                       onClick={() => {
@@ -493,8 +493,8 @@ const Index = () => {
                     />
                   </div>
 
-                  {/* Bottom Title Lockup & 3 Individual Member Clickable Buttons */}
-                  <div className="relative z-20 p-5 sm:p-7 space-y-3 pointer-events-auto">
+                  {/* Bottom Title Lockup, Member Hotspots & Go to RCA Projects Button */}
+                  <div className="relative z-20 p-5 sm:p-7 space-y-3.5 pointer-events-auto">
                     <div>
                       <p className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-300/90">
                         Presences · AI Architecture
@@ -565,6 +565,27 @@ const Index = () => {
                           (RIGHT)
                         </span>
                       </button>
+                    </div>
+
+                    {/* Dedicated Button: Go to RCA Projects */}
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          haptic('selection');
+                          const projEl = document.getElementById('rca-projects');
+                          if (projEl) {
+                            projEl.scrollIntoView({ behavior: 'smooth' });
+                          } else {
+                            navigate('/portfolio');
+                          }
+                        }}
+                        className="w-full h-11 sm:h-12 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-amber-500/25 border border-amber-300/60 btn-spring flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                      >
+                        <Briefcase className="w-4 h-4 text-slate-950" />
+                        <span>Go to RCA Projects</span>
+                        <ArrowRight className="w-4 h-4 text-slate-950" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -677,7 +698,7 @@ const Index = () => {
         {/* PORTFOLIO FEATURED PROJECTS & ARCHITECTURE SHOWCASE                       */}
         {/* ========================================================================= */}
         {portfolio.projects.length > 0 && (
-          <section className="pb-14">
+          <section id="rca-projects" className="pb-14 scroll-mt-20">
             <RoyalReveal effect="fade-up">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
