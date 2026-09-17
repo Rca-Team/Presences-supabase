@@ -191,6 +191,42 @@ const Index = () => {
     [portfolio.members],
   );
 
+  const jatinMember = useMemo(
+    () =>
+      creatorMembers.find((m) => m.name.toLowerCase().includes('jatin')) || {
+        name: 'Jatin Dhama',
+        role: 'Team Member · QA & Execution',
+        image: jatinDhamaPhoto,
+        bio: 'Contributes to system testing, execution support, and project coordination across the Presences platform.',
+        details: 'Supports feature QA, user feedback loops, and collaborative delivery for KV NFC Vigyan Vihar.',
+      },
+    [creatorMembers],
+  );
+
+  const gauravMember = useMemo(
+    () =>
+      creatorMembers.find((m) => m.name.toLowerCase().includes('gaurav')) || {
+        name: 'Gaurav Raj',
+        role: 'Lead Architect & Full-Stack Developer',
+        image: gauravPhoto,
+        bio: 'Creator of Presences Smart School automation. Designs scalable attendance, security, and school workflow systems.',
+        details: 'Full-stack engineer focused on neural face-recognition pipelines, database architecture, and production-ready education tech.',
+      },
+    [creatorMembers],
+  );
+
+  const swamiMember = useMemo(
+    () =>
+      creatorMembers.find((m) => m.name.toLowerCase().includes('swami')) || {
+        name: 'Swami Anant Vyas',
+        role: 'Hardware Prototype & Core Contributor',
+        image: swamiAnantVyasPhoto,
+        bio: 'Helped build the hardware prototype and contributed key ideas for the software experience.',
+        details: 'Built and validated early hardware concepts for kiosk gate mode, physical enclosures, and camera triggers.',
+      },
+    [creatorMembers],
+  );
+
   const [teamMembersList, setTeamMembersList] = useState<any[]>([]);
   const [isSwapped, setIsSwapped] = useState(false);
 
@@ -395,43 +431,143 @@ const Index = () => {
                 className="lg:col-span-6 group relative overflow-hidden rounded-3xl border border-amber-300/30 bg-card/60 shadow-2xl backdrop-blur-2xl flex flex-col justify-between"
                 {...cardTilt}
               >
-                <button
-                  type="button"
-                  onClick={() => creatorMembers[0] && setActiveProfile(creatorMembers[0])}
-                  className="relative block w-full h-full text-left"
-                  aria-label="Open Team RCA portfolio"
-                >
-                  <div className="relative min-h-[300px] h-full w-full overflow-hidden">
-                    <img
-                      src={(teamRcaPhoto as any)?.url || (typeof teamRcaPhoto === 'string' ? teamRcaPhoto : '/team-rca.jpg')}
-                      alt="Team RCA — Presences AI creators"
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
-                      loading="lazy"
-                    />
-                    <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.28),transparent_55%)]" />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent" />
+                <div className="relative min-h-[360px] sm:min-h-[400px] h-full w-full overflow-hidden flex flex-col justify-between">
+                  <img
+                    src={(teamRcaPhoto as any)?.url || (typeof teamRcaPhoto === 'string' ? teamRcaPhoto : '/team-rca.jpg')}
+                    alt="Team RCA — Jatin Dhama, Gaurav Raj, Swami Anant Vyas"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                    loading="lazy"
+                  />
+                  <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.32),transparent_60%)]" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-black/20" />
 
-                    {/* Top badge */}
-                    <div className="absolute left-6 top-6 flex items-center gap-2 rounded-full border border-amber-300/40 bg-black/60 px-3.5 py-1.5 backdrop-blur-md">
-                      <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
+                  {/* Top Bar with Team RCA Badge & Studio Navigation */}
+                  <div className="relative z-20 p-5 sm:p-6 flex items-center justify-between pointer-events-auto">
+                    <div className="flex items-center gap-2 rounded-full border border-amber-300/40 bg-black/65 px-3.5 py-1.5 backdrop-blur-md shadow-md">
+                      <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)] animate-pulse" />
                       <span className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Team RCA</span>
                     </div>
 
-                    {/* Bottom title lockup */}
-                    <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
-                      <p className="text-xs font-black uppercase tracking-[0.32em] text-amber-200/90">Presences · AI Architecture</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/portfolio')}
+                      className="text-xs font-bold text-amber-200 bg-black/50 hover:bg-black/80 hover:text-amber-100 border border-amber-300/30 rounded-full px-3 py-1 backdrop-blur-md transition-all shadow-sm"
+                    >
+                      <span>Studio</span>
+                      <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {/* Interactive Hotspot Zones Across Photo */}
+                  <div className="absolute inset-0 z-10 grid grid-cols-3 pt-16 pb-32 pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic('selection');
+                        setActiveProfile(jatinMember);
+                      }}
+                      className="group/zone h-full w-full focus:outline-none"
+                      aria-label="Open Jatin Dhama profile"
+                      title="Jatin Dhama (Left)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic('selection');
+                        setActiveProfile(gauravMember);
+                      }}
+                      className="group/zone h-full w-full focus:outline-none"
+                      aria-label="Open Gaurav Raj profile"
+                      title="Gaurav Raj (Middle)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic('selection');
+                        setActiveProfile(swamiMember);
+                      }}
+                      className="group/zone h-full w-full focus:outline-none"
+                      aria-label="Open Swami Anant Vyas profile"
+                      title="Swami Anant Vyas (Right)"
+                    />
+                  </div>
+
+                  {/* Bottom Title Lockup & 3 Individual Member Clickable Buttons */}
+                  <div className="relative z-20 p-5 sm:p-7 space-y-3 pointer-events-auto">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-300/90">
+                        Presences · AI Architecture
+                      </p>
                       <h2
-                        className="mt-1.5 bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-3xl md:text-4xl font-black leading-tight text-transparent"
+                        className="mt-1 bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400 bg-clip-text text-2xl sm:text-3xl md:text-4xl font-black leading-tight text-transparent tracking-tight"
                         style={{ fontFamily: 'Sora, sans-serif' }}
                       >
                         Built by Team RCA
                       </h2>
-                      <p className="mt-2 text-xs md:text-sm font-semibold uppercase tracking-[0.18em] text-white/80">
+                      <p className="mt-1 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
                         Together in mind · United in purpose
                       </p>
                     </div>
+
+                    {/* 3 Interactive Member Hotspot Buttons */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-2.5 pt-1">
+                      {/* JATIN (LEFT) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          haptic('selection');
+                          setActiveProfile(jatinMember);
+                        }}
+                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-white/15 bg-black/60 hover:bg-black/85 hover:border-amber-400/70 p-2 sm:p-2.5 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
+                      >
+                        <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-100 group-hover/btn:text-amber-300 transition-colors">
+                          JATIN
+                        </span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-white/60 group-hover/btn:text-white/90 transition-colors">
+                          (LEFT)
+                        </span>
+                      </button>
+
+                      {/* GAURAV (MIDDLE) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          haptic('selection');
+                          setActiveProfile(gauravMember);
+                        }}
+                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 hover:border-amber-300 p-2 sm:p-2.5 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
+                      >
+                        <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-200 group-hover/btn:text-amber-100 transition-colors">
+                          GAURAV
+                        </span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-amber-300/80 group-hover/btn:text-amber-200 transition-colors">
+                          (MIDDLE)
+                        </span>
+                      </button>
+
+                      {/* SWAMI (RIGHT) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          haptic('selection');
+                          setActiveProfile(swamiMember);
+                        }}
+                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-white/15 bg-black/60 hover:bg-black/85 hover:border-amber-400/70 p-2 sm:p-2.5 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
+                      >
+                        <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-100 group-hover/btn:text-amber-300 transition-colors">
+                          SWAMI
+                        </span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-white/60 group-hover/btn:text-white/90 transition-colors">
+                          (RIGHT)
+                        </span>
+                      </button>
+                    </div>
                   </div>
-                </button>
+                </div>
               </motion.div>
 
               {/* Right: Team Leadership & Members Grid */}
@@ -454,20 +590,20 @@ const Index = () => {
                   {/* Lead Creator Spotlight Card */}
                   <button
                     type="button"
-                    onClick={() => creatorMembers[0] && setActiveProfile(creatorMembers[0])}
+                    onClick={() => setActiveProfile(gauravMember)}
                     className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/60 dark:border-amber-400/30 bg-amber-500/10 dark:bg-gradient-to-r dark:from-amber-500/15 dark:via-amber-500/5 dark:to-transparent p-4 text-left transition-all hover:border-amber-400 hover:shadow-md mb-3"
                   >
                     <div className="flex items-center gap-3.5">
                       <img
-                        src={portfolio.profileImage || creatorMembers[0]?.image || gauravPhoto}
-                        alt={creatorMembers[0]?.name || 'Gaurav'}
+                        src={portfolio.profileImage || gauravMember.image || gauravPhoto}
+                        alt={gauravMember.name}
                         className="h-12 w-12 rounded-2xl border-2 border-amber-400/60 object-cover shadow-md"
                         loading="lazy"
                       />
                       <div>
                         <span className="inline-block text-[9px] font-black uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">Lead · Architect</span>
-                        <p className="text-base font-extrabold text-slate-900 dark:text-foreground">{creatorMembers[0]?.name || 'Gaurav'}</p>
-                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 line-clamp-1">{creatorMembers[0]?.role || 'Developer & Team Leader'}</p>
+                        <p className="text-base font-extrabold text-slate-900 dark:text-foreground">{gauravMember.name}</p>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 line-clamp-1">{gauravMember.role}</p>
                       </div>
                     </div>
                     <ArrowRight className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -851,38 +987,81 @@ const Index = () => {
 
         {/* Member Detail Dialog */}
         <Dialog open={Boolean(activeProfile)} onOpenChange={(open) => !open && setActiveProfile(null)}>
-          <DialogContent className="max-w-md rounded-3xl border border-border/70 bg-card/95 p-0 backdrop-blur-xl">
+          <DialogContent className="max-w-md rounded-3xl border border-amber-300/30 bg-card/95 p-0 backdrop-blur-2xl shadow-2xl overflow-hidden">
             {activeProfile && (
-              <div className="p-6">
+              <div className="p-6 space-y-4">
+                {/* Header with Quick Member Switcher */}
+                <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/40">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                    Team RCA Member Profile
+                  </span>
+                  <div className="flex gap-1">
+                    {[
+                      { label: 'Jatin', member: jatinMember },
+                      { label: 'Gaurav', member: gauravMember },
+                      { label: 'Swami', member: swamiMember },
+                    ].map((item) => {
+                      const isCurrent = activeProfile.name === item.member.name;
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            haptic('selection');
+                            setActiveProfile(item.member);
+                          }}
+                          className={cn(
+                            "px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                            isCurrent
+                              ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-400/40 shadow-xs"
+                              : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <DialogHeader className="space-y-3 text-left">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3.5">
                     <MemberAvatar
                       name={activeProfile.name}
                       image={activeProfile.image}
-                      className="h-16 w-16 rounded-2xl border border-border/60"
-                      fallbackClassName="text-lg"
+                      className="h-16 w-16 rounded-2xl border-2 border-amber-400/40 shadow-md object-cover"
+                      fallbackClassName="text-lg font-bold"
                     />
 
                     <div>
-                      <DialogTitle className="text-xl font-bold">{activeProfile.name}</DialogTitle>
-                      <p className="text-sm text-muted-foreground">{activeProfile.role}</p>
+                      <DialogTitle className="text-xl font-extrabold text-slate-900 dark:text-white">
+                        {activeProfile.name}
+                      </DialogTitle>
+                      <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
+                        {activeProfile.role}
+                      </p>
                     </div>
                   </div>
-                  <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
+
+                  <DialogDescription className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
                     {activeProfile.bio}
                   </DialogDescription>
-                  {activeProfile.details ? (
-                    <p className="text-xs leading-relaxed text-muted-foreground">{activeProfile.details}</p>
-                  ) : null}
-                  {activeProfile.name === 'Gaurav' ? (
+
+                  {activeProfile.details && (
+                    <div className="rounded-xl border border-border/60 bg-slate-50/60 dark:bg-slate-800/40 p-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                      {activeProfile.details}
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex items-center justify-between">
                     <Link
                       to="/portfolio"
-                      className="inline-flex w-fit items-center gap-2 rounded-xl border border-border/60 bg-card/55 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-card"
+                      onClick={() => setActiveProfile(null)}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
                     >
-                      Open secure portfolio
+                      <span>Explore Team RCA Studio</span>
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
-                  ) : null}
+                  </div>
                 </DialogHeader>
               </div>
             )}
