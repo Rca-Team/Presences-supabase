@@ -120,18 +120,6 @@ const Index = () => {
     return () => { isMounted = false; };
   }, [navigate]);
 
-  // NEVER show the home page to teachers
-  if ((isTeacher && !isAdminOrPrincipal) || isTeacherConfirmed) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-          <p className="text-xs font-semibold text-muted-foreground">Opening Teacher Portal...</p>
-        </div>
-      </div>
-    );
-  }
-
   const modules = [
     { icon: Scan, label: 'Attendance', tone: 'bg-primary/20 text-primary', to: '/attendance' },
     { icon: BookOpen, label: 'Timetable', tone: 'bg-accent/30 text-accent-foreground', to: '/admin?tab=timetable' },
@@ -299,6 +287,18 @@ const Index = () => {
       return [...current].reverse();
     });
   };
+
+  // NEVER show the home page to teachers (placed after all hooks to follow React rules)
+  if ((isTeacher && !isAdminOrPrincipal) || isTeacherConfirmed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="text-xs font-semibold text-muted-foreground">Opening Teacher Portal...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (liteMode) return <LiteHome />;
 
