@@ -384,7 +384,9 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           .select('id, event_type, student_id, timestamp, metadata')
           .gte('timestamp', startOfToday.toISOString())
           .lte('timestamp', endOfToday.toISOString())
-          .order('timestamp', { ascending: false }),
+          .order('timestamp', { ascending: false })
+          .then((res: any) => res)
+          .catch(() => ({ data: [] })),
       ]);
 
       const norm = (v: any) => (v == null ? '' : String(v).trim().toLowerCase());
@@ -789,7 +791,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
   useEffect(() => {
     if (!activeClass) return;
 
-    const channelName = `teacher_workspace_live_sync_${activeClass.class}_${activeClass.section}`;
+    const channelName = `teacher_live_${activeClass.class}_${activeClass.section}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
       .channel(channelName)
       .on(
@@ -800,11 +802,6 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'gate_entries' },
-        () => loadClassStudents()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'gv_events' },
         () => loadClassStudents()
       )
       .on(
@@ -825,7 +822,9 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (_) {}
     };
   }, [activeClass, loadClassStudents, loadTeacherAssignments]);
 

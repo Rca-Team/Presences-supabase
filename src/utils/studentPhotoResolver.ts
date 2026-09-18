@@ -94,9 +94,24 @@ export const resolveStudentPhotoUrl = async (raw?: string | null): Promise<strin
     .replace(/^https?:\/\//, '')
     .split('/')[0];
 
-  // If already a valid signed URL on the CURRENT Supabase host with token, return directly
+  // If already a signed URL on the CURRENT Supabase host with a valid (unexpired) token, return directly
   if (/^https?:\/\//i.test(value) && value.includes(currentSupabaseHost) && value.includes('token=')) {
-    return value;
+    try {
+      const match = value.match(/[?&]token=([^&#]+)/);
+      if (match?.[1]) {
+        const parts = match[1].split('.');
+        if (parts.length >= 2) {
+          const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+          const payload = JSON.parse(payloadJson);
+          const nowSec = Math.floor(Date.now() / 1000);
+          if (payload.exp && payload.exp > nowSec + 60) {
+            return value;
+          }
+        }
+      }
+    } catch {
+      // Expired or invalid token signature -> fall through to extract bucket/path and re-sign freshly
+    }
   }
 
   // Non-supabase external URLs (e.g. Dicebear, Gravatar, Unsplash)

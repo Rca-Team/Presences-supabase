@@ -653,8 +653,9 @@ export function getGatePassWhatsAppUrl(pass: GatePass, recipientPhone?: string):
  * Subscribe to realtime gate pass updates
  */
 export function subscribeToGatePasses(onChange: () => void) {
+  const uniqueChannelName = `gate_passes_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const channel = supabase
-    .channel('realtime-gate-passes-channel')
+    .channel(uniqueChannelName)
     .on(
       'postgres_changes',
       {
@@ -670,6 +671,8 @@ export function subscribeToGatePasses(onChange: () => void) {
     .subscribe();
 
   return () => {
-    supabase.removeChannel(channel);
+    try {
+      supabase.removeChannel(channel);
+    } catch (_) {}
   };
 }
