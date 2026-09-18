@@ -451,7 +451,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     const engine = createRecognitionEngine(() => webcamRef.current?.video ?? null, {
       detectFps: signals.lowCPU ? 8 : 12, // High responsiveness for millisecond detection
       detectionWidth: 480, // Sharp 480px width
-      matchThreshold: 0.52, // Standard optimal Euclidean distance threshold
+      matchThreshold: 0.48, // Standard optimal Euclidean distance threshold
       requiredHoldMs: 0, // Instant 0ms verification on first match
       identityTtlMs: 2000, // 2s TTL allows consecutive students to be recognized immediately
       maxMissed: 3, // Smooth tracking

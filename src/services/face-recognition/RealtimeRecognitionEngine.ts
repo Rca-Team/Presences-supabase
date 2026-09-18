@@ -156,30 +156,58 @@ function distanceToConfidence(distance: number, threshold: number): number {
  * Match a descriptor using the vector index shortlist + exact re-scoring.
  * Falls back to a full scan when the gallery is small or the index is empty.
  *
- * Implements Innovatrics-style ambiguity filtering: if top-2 closest matches
- * from different people have a margin < 0.04 or ratio > 0.88, the match is
- * rejected to prevent confusing similar-looking individuals.
+ * Implements composite multi-sample aggregation (evaluating top-2 samples and centroid)
+ * plus strict ambiguity rejection to eliminate false positives and look-alike confusion.
  */
 export async function matchDescriptorIndexed(
   descriptor: Float32Array,
-  matchThreshold = 0.50,
+  matchThreshold = 0.48,
   shortlist = 64,
 ): Promise<{ userId: string; name: string; distance: number; confidence: number } | null> {
   await ensureGalleryIndex();
   if (gallery.size === 0) return null;
 
-  // Exact re-scoring over all registered students to guarantee no ambiguity blind spots
+  // Exact re-scoring over all registered students with multi-sample composite distance
   const ranked: Array<{ userId: string; name: string; distance: number }> = [];
   for (const [userId, entry] of gallery.entries()) {
     if (!entry) continue;
-    let best = euclidean(descriptor, entry.averagedDescriptor);
+
+    // Collect all valid distances matching descriptor length
+    const sampleDists: number[] = [];
     for (const d of entry.descriptors) {
       if (d.length !== descriptor.length) continue;
       const dist = euclidean(descriptor, d);
-      if (dist < best) best = dist;
+      if (Number.isFinite(dist)) sampleDists.push(dist);
     }
-    if (!Number.isFinite(best)) continue;
-    ranked.push({ userId, name: entry.userName, distance: best });
+
+    let centroidDist = Number.POSITIVE_INFINITY;
+    if (entry.averagedDescriptor && entry.averagedDescriptor.length === descriptor.length) {
+      centroidDist = euclidean(descriptor, entry.averagedDescriptor);
+    }
+
+    if (sampleDists.length === 0 && !Number.isFinite(centroidDist)) continue;
+
+    sampleDists.sort((a, b) => a - b);
+    const d1 = sampleDists[0] ?? centroidDist;
+    const d2 = sampleDists[1] ?? (Number.isFinite(centroidDist) ? centroidDist : d1);
+
+    // Compute composite distance
+    let effectiveDist = d1;
+    if (sampleDists.length >= 2) {
+      const top2Avg = (d1 + d2) / 2;
+      const validCentroid = Number.isFinite(centroidDist) ? centroidDist : top2Avg;
+      // Guard against a single drifted sample matching an unrelated face:
+      // Centroid must not be completely alienated (> 0.60) from query face
+      if (Number.isFinite(centroidDist) && centroidDist > 0.60 && d1 > 0.42) {
+        continue;
+      }
+      effectiveDist = Math.min(validCentroid, 0.65 * d1 + 0.35 * Math.min(d2, validCentroid));
+    } else if (Number.isFinite(centroidDist)) {
+      effectiveDist = (d1 * 0.65) + (centroidDist * 0.35);
+    }
+
+    if (!Number.isFinite(effectiveDist)) continue;
+    ranked.push({ userId, name: entry.userName, distance: effectiveDist });
   }
 
   ranked.sort((a, b) => a.distance - b.distance);
@@ -187,11 +215,13 @@ export async function matchDescriptorIndexed(
   const second = ranked[1];
   if (!best || best.distance > matchThreshold) return null;
 
-  // Ambiguity Filter: If TWO DIFFERENT registered students both match below the threshold,
-  // ensure the top match has a distinct margin (>= 0.03) to prevent look-alike confusion.
-  if (second && second.userId !== best.userId && second.distance <= matchThreshold) {
+  // Ambiguity Filter: If a runner-up candidate from a DIFFERENT registered student
+  // is close to the threshold and within a narrow margin of the best match,
+  // reject to prevent look-alike false-positive confusion.
+  if (second && second.userId !== best.userId && second.distance <= matchThreshold + 0.08) {
     const margin = second.distance - best.distance;
-    if (margin < 0.03) {
+    const ratio = second.distance > 0 ? best.distance / second.distance : 1;
+    if (margin < 0.035 || ratio > 0.90) {
       return null;
     }
   }
@@ -221,12 +251,12 @@ export function createRecognitionEngine(
 ): RecognitionEngine {
   const detectFps = options.detectFps ?? 9;
   const detectionWidth = options.detectionWidth ?? 640;
-  const matchThreshold = options.matchThreshold ?? 0.50;
+  const matchThreshold = options.matchThreshold ?? 0.48;
   const shortlist = options.shortlist ?? 16;
   const baseRequiredHoldMs = options.requiredHoldMs ?? 0;
 
   const tracker = createFaceTracker({
-    identityTtlMs: options.identityTtlMs ?? 3500,
+    identityTtlMs: options.identityTtlMs ?? 2000,
     maxMissed: options.maxMissed ?? 4,
   });
   const detectCanvas = document.createElement('canvas');
@@ -285,16 +315,24 @@ export function createRecognitionEngine(
 
     try {
       // 1-Pass Extraction: Detect all faces, landmarks, and 128-d embeddings simultaneously
-      const detections = await faceapi
+      // using inputSize 416 & scoreThreshold 0.35 for sharp facial biometrics without false artifacts
+      const rawDetections = await faceapi
         .detectAllFaces(
           detectCanvas,
-          new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }),
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.35 }),
         )
         .withFaceLandmarks()
         .withFaceDescriptors();
 
       const tDetect = performance.now();
       stats.detectMs = tDetect - t0;
+
+      // Filter out tiny or degenerate face detections (< 45px) that lack biometric detail
+      const detections = rawDetections.filter(d => {
+        const w = d.detection.box.width / scale;
+        const h = d.detection.box.height / scale;
+        return w >= 45 && h >= 45 && (d.detection.score ?? 1) >= 0.35;
+      });
 
       // Map small-frame boxes back to full-resolution coordinates
       const boxes: Box[] = detections.map(d => ({
@@ -317,15 +355,28 @@ export function createRecognitionEngine(
       // Process and recognize EVERY visible student face in parallel
       for (let i = 0; i < detections.length; i++) {
         const d = detections[i];
-        const t = tracks[i] || tracks.find(track => {
-          const cx1 = d.detection.box.x / scale + (d.detection.box.width / scale) / 2;
-          const cy1 = d.detection.box.y / scale + (d.detection.box.height / scale) / 2;
-          const cx2 = track.box.x + track.box.width / 2;
-          const cy2 = track.box.y + track.box.height / 2;
-          return Math.hypot(cx1 - cx2, cy1 - cy2) < (track.box.width * 0.75);
+        if (!d.descriptor) continue;
+
+        const detX = d.detection.box.x / scale;
+        const detY = d.detection.box.y / scale;
+        const detW = d.detection.box.width / scale;
+        const detH = d.detection.box.height / scale;
+        const detCx = detX + detW / 2;
+        const detCy = detY + detH / 2;
+
+        // Accurate spatial matching to the tracker's assigned tracklet (no naive index assumption)
+        let t = tracks.find(track => {
+          const trackCx = track.box.x + track.box.width / 2;
+          const trackCy = track.box.y + track.box.height / 2;
+          const dist = Math.hypot(detCx - trackCx, detCy - trackCy);
+          return dist < Math.max(track.box.width, track.box.height) * 0.75;
         });
 
-        if (!t || !d.descriptor) continue;
+        if (!t) {
+          t = tracks[i];
+        }
+
+        if (!t) continue;
 
         const match = await matchDescriptorIndexed(d.descriptor, matchThreshold, shortlist);
         const now = Date.now();

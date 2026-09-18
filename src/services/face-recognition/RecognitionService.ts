@@ -89,13 +89,10 @@ interface DeviceInfo {
  *
  * face-api.js FaceRecognitionNet typical distances (LFW benchmark):
  *   Same person   : 0.30 – 0.45
- *   Different     : 0.60 – 1.00
- *   Threshold     : 0.60 (100 % accuracy on LFW)
- *
- * For a school with 300–1000 students we use a stricter value so that
- * no two students are ever confused:
+ *   Different     : 0.55 – 1.00
+ *   Threshold     : 0.48 (tightened to eliminate cross-student confusion)
  */
-const MATCH_THRESHOLD = 0.52;
+const MATCH_THRESHOLD = 0.48;
 
 /**
  * If best and second-best distances are within this ratio the match is
@@ -103,7 +100,7 @@ const MATCH_THRESHOLD = 0.52;
  * ratio = bestDist / secondBestDist; reject when ratio > AMBIGUITY_RATIO
  */
 const AMBIGUITY_RATIO = 0.88;
-const MIN_MARGIN_GAP = 0.04;
+const MIN_MARGIN_GAP = 0.035;
 
 /**
  * Auto-mark without manual confirmation only when confidence is this high.
@@ -177,15 +174,9 @@ export function estimatePitchFromLandmarks(landmarks: { x: number; y: number }[]
 
 /**
  * Map Euclidean distance → confidence score [0, 1].
- *
- * Uses a sigmoid centred on MATCH_THRESHOLD:
- *   dist = 0.30 → confidence ≈ 0.92
- *   dist = 0.38 → confidence ≈ 0.80
- *   dist = 0.45 → confidence ≈ 0.50
- *   dist = 0.55 → confidence ≈ 0.18
  */
 function distanceToConfidence(dist: number): number {
-  if (!Number.isFinite(dist) || dist >= 0.60) return 0.20;
+  if (!Number.isFinite(dist) || dist >= 0.58) return 0.20;
   if (dist <= 0.20) return 0.99;
   return Math.max(0.50, Math.min(0.99, 1 - (dist * 0.70)));
 }
@@ -241,10 +232,6 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
     // ── Phase 1: match against progressively-trained descriptors ─────────────
     const trainedDescriptors = await getAllTrainedDescriptors();
 
-    // Vector-index shortlist (HNSW, FAISS-style): instead of scoring every
-    // person in the school we pull the nearest candidates from the index and
-    // re-score ONLY those exactly. Scoring maths and thresholds below are
-    // unchanged, so accuracy is identical while lookups stay sub-linear.
     let candidateIds: string[] = Array.from(trainedDescriptors.keys());
     if (trainedDescriptors.size > 25) {
       try {
@@ -269,56 +256,71 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
     }
 
     // Track top-2 matches for ambiguity detection.
-    // Collapse all entries with the same userName into one — a student may have
-    // descriptors stored under multiple user IDs (e.g. re-registration) and the
-    // ambiguity check must not penalise them for being their own second-best match.
     const perNameBest = new Map<string, { userId: string; userName: string; studentId: string | null; distance: number; sampleCount: number }>();
 
     const scoreCandidates = (ids: string[]) => {
       perNameBest.clear();
       for (const userId of ids) {
         const data = trainedDescriptors.get(userId);
-        // Best distance across all stored samples and averaged centroid for this user
-        let minDist = euclideanDistance(faceDescriptor, data.averagedDescriptor);
+        if (!data) continue;
+
+        // Collect all valid distances matching descriptor length
+        const sampleDists: number[] = [];
         for (const desc of data.descriptors) {
           if (desc.length !== faceDescriptor.length) continue;
           const d = euclideanDistance(faceDescriptor, desc);
-          if (d < minDist) minDist = d;
+          if (Number.isFinite(d)) sampleDists.push(d);
         }
 
-        // Guard: skip if distance is non-finite (indicates corrupt/mismatched descriptor data)
-        if (!Number.isFinite(minDist)) {
-          console.warn(`Skipping ${data.userName}: non-finite distance (descriptor data issue)`);
+        let centroidDist = Infinity;
+        if (data.averagedDescriptor && data.averagedDescriptor.length === faceDescriptor.length) {
+          centroidDist = euclideanDistance(faceDescriptor, data.averagedDescriptor);
+        }
+
+        if (sampleDists.length === 0 && !Number.isFinite(centroidDist)) continue;
+
+        sampleDists.sort((a, b) => a - b);
+        const d1 = sampleDists[0] ?? centroidDist;
+        const d2 = sampleDists[1] ?? (Number.isFinite(centroidDist) ? centroidDist : d1);
+
+        let effectiveDist = d1;
+        if (sampleDists.length >= 2) {
+          const top2Avg = (d1 + d2) / 2;
+          const validCentroid = Number.isFinite(centroidDist) ? centroidDist : top2Avg;
+          if (Number.isFinite(centroidDist) && centroidDist > 0.60 && d1 > 0.42) {
+            continue;
+          }
+          effectiveDist = Math.min(validCentroid, 0.65 * d1 + 0.35 * Math.min(d2, validCentroid));
+        } else if (Number.isFinite(centroidDist)) {
+          effectiveDist = (d1 * 0.65) + (centroidDist * 0.35);
+        }
+
+        // Guard: skip if distance is non-finite
+        if (!Number.isFinite(effectiveDist)) {
           continue;
         }
-
-        console.log(`  ${data.userName} (${data.sampleCount} samples): dist=${minDist.toFixed(4)}`);
 
         // Merge into per-name best (normalise name for comparison)
         const nameKey = data.userName.trim().toLowerCase();
         const existing = perNameBest.get(nameKey);
-        if (!existing || minDist < existing.distance) {
+        if (!existing || effectiveDist < existing.distance) {
           perNameBest.set(nameKey, {
             userId,
             userName:    data.userName,
             studentId:   (data as any).studentId ?? null,
-            distance:    minDist,
+            distance:    effectiveDist,
             sampleCount: data.sampleCount + (existing?.sampleCount ?? 0),
           });
         }
       }
-      // Sort merged results to find best + second-best across DIFFERENT people
       return Array.from(perNameBest.values()).sort((a, b) => a.distance - b.distance);
     };
 
     const usedShortlist = candidateIds.length < trainedDescriptors.size;
     let ranked = scoreCandidates(candidateIds);
 
-    // Safety net: an approximate index can miss the true nearest neighbour.
-    // If nothing passes the threshold on the shortlist, fall back to the exact
-    // full scan so accuracy is never worse than before.
+    // Safety net: if nothing passes threshold on shortlist, fall back to exact full scan
     if (usedShortlist && (!ranked[0] || ranked[0].distance > MATCH_THRESHOLD)) {
-      console.log('Shortlist produced no accepted match — running exact full scan');
       ranked = scoreCandidates(Array.from(trainedDescriptors.keys()));
     }
 
@@ -331,13 +333,13 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
       return { recognized: false };
     }
 
-    // Ambiguity rejection: if top two matches from different students BOTH match below threshold
-    // and are within 0.03 of each other, reject rather than risking a false-positive identity confusion.
-    if (second && second.userId !== best.userId && second.distance <= MATCH_THRESHOLD) {
+    // Ambiguity rejection: if runner-up candidate is close to threshold and within narrow margin
+    if (second && second.userId !== best.userId && second.distance <= MATCH_THRESHOLD + 0.08) {
       const margin = second.distance - best.distance;
-      if (margin < 0.03) {
+      const ratio = second.distance > 0 ? best.distance / second.distance : 1;
+      if (margin < MIN_MARGIN_GAP || ratio > AMBIGUITY_RATIO) {
         console.warn(
-          `[RecognitionService] Ambiguous match rejected: ${best.userName} (${best.distance.toFixed(3)}) vs ${second.userName} (${second.distance.toFixed(3)}), margin=${margin.toFixed(3)} < 0.03`
+          `[RecognitionService] Ambiguous match rejected: ${best.userName} (${best.distance.toFixed(3)}) vs ${second.userName} (${second.distance.toFixed(3)}), margin=${margin.toFixed(3)}`
         );
         return { recognized: false };
       }
