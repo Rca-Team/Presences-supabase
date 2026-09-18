@@ -1727,6 +1727,23 @@ body {
   }
 }
 
+/* Zero-blink tab content transition — starts at 88% opacity so there is never a blank shutter flash */
+@keyframes tab-content-in {
+  0% {
+    opacity: 0.88;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tab-content-in {
+  animation: tab-content-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+
 /* Global site-wide element pop-out & micro-spring utilities */
 .element-pop-in {
   animation: element-pop-in 320ms cubic-bezier(0.34, 1.4, 0.64, 1) both;

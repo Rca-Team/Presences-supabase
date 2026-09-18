@@ -252,15 +252,14 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
       </div>
 
       {/* ── 2. Mobile Main Tab Contents ── */}
-      <AnimatePresence mode="wait">
+      <div>
         {/* TAB 1: DASHBOARD */}
         {mobileTab === 'dashboard' && (
           <motion.div
             key="dashboard"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0.88, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             className="space-y-3.5"
           >
             {/* Real-Time Attendance Donut KPI Card */}
@@ -443,10 +442,9 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
         {mobileTab === 'rollcall' && (
           <motion.div
             key="rollcall"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0.88, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             className="space-y-3"
           >
             {/* Search & Filter Bar */}
@@ -628,10 +626,9 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
         {mobileTab === 'absentees' && (
           <motion.div
             key="absentees"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0.88, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             className="space-y-3"
           >
             <div className="p-4 rounded-3xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-between gap-3">
@@ -687,10 +684,9 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
         {mobileTab === 'gatepass' && (
           <motion.div
             key="gatepass"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0.88, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
           >
             <TeacherGatePassReview
               activeClass={activeClass}
@@ -705,10 +701,9 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
         {mobileTab === 'register' && (
           <motion.div
             key="register"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0.88, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
           >
             <TeacherMonthlyRegister
               activeClass={activeClass}
@@ -716,7 +711,7 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
             />
           </motion.div>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* ── 3. Bottom Teacher Mobile App Dock ── */}
       <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom pointer-events-none">
