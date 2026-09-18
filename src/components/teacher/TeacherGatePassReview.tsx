@@ -49,6 +49,7 @@ import {
   subscribeToGatePasses,
   getGatePassWhatsAppUrl,
   generateGatePassQrPayload,
+  isSameDay,
 } from '@/services/gatePassService';
 import { ClassStudent, ClassAssignment } from './TeacherAdminWorkspace';
 import { sanitizeStudentPhotoUrl } from '@/utils/studentPhotoResolver';
@@ -258,6 +259,22 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
       setPickupPhone(found.parent_phone || '');
     }
   };
+
+  // Check if chosen student already has a valid pass created today
+  const selectedStudentPassToday = useMemo(() => {
+    if (!selectedStudentId) return null;
+    const st = students.find((s) => s.admission_number === selectedStudentId || s.id === selectedStudentId);
+    const cleanId = String(st?.admission_number || st?.roll_number || st?.id || selectedStudentId).trim().toLowerCase();
+    const today = new Date();
+    return (
+      passes.find((p) => {
+        const pId = String(p.student_id || '').trim().toLowerCase();
+        if (pId !== cleanId && p.student_id !== selectedStudentId) return false;
+        if (!isSameDay(p.created_at, today)) return false;
+        return p.status !== 'rejected' && p.status !== 'expired';
+      }) || null
+    );
+  }, [selectedStudentId, passes, students]);
 
   // Teacher Directly Issues Emergency Pass
   const handleTeacherIssuePass = async (e: React.FormEvent) => {
@@ -929,6 +946,19 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
               />
             </div>
 
+            {/* Daily Pass Limit Notice if student already has a pass today */}
+            {selectedStudentPassToday && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1 text-amber-800 dark:text-amber-200">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                  Pass Already Requested/Active Today
+                </p>
+                <p className="text-[11px] text-amber-700/90 dark:text-amber-300/90">
+                  This student already has gate pass <strong className="font-mono">{selectedStudentPassToday.pass_code}</strong> ({selectedStudentPassToday.status.replace('_', ' ').toUpperCase()}) today. Only 1 gate pass is permitted per student per day.
+                </p>
+              </div>
+            )}
+
             <DialogFooter className="gap-2 sm:justify-between pt-2">
               <Button
                 type="button"
@@ -941,11 +971,22 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
               </Button>
               <Button
                 type="submit"
-                disabled={isProcessing}
-                className="rounded-xl text-xs font-bold bg-primary text-white shadow-md"
+                disabled={isProcessing || Boolean(selectedStudentPassToday)}
+                className="rounded-xl text-xs font-bold bg-primary text-white shadow-md disabled:opacity-60"
               >
-                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                Forward to Principal for Approval
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" /> Processing...
+                  </>
+                ) : selectedStudentPassToday ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-1 text-amber-400" /> Pass Already Created Today
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-1" /> Forward to Principal for Approval
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>

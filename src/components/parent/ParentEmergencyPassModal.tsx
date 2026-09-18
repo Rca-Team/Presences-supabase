@@ -47,6 +47,7 @@ import {
   subscribeToGatePasses,
   getGatePassWhatsAppUrl,
   generateGatePassQrPayload,
+  isSameDay,
 } from '@/services/gatePassService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -121,6 +122,18 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
     });
     return unsub;
   }, [isOpen, loadPasses]);
+
+  // Find if a valid pass has already been requested/issued today
+  const todayPass = useMemo(() => {
+    return (
+      passes.find(
+        (p) =>
+          isSameDay(p.created_at, new Date()) &&
+          p.status !== 'rejected' &&
+          p.status !== 'expired'
+      ) || null
+    );
+  }, [passes]);
 
   // Find the primary active pass (approved first, then pending_principal, then pending_teacher, or most recent)
   const activePass = useMemo(() => {
@@ -740,14 +753,40 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
                 </div>
               </div>
 
+              {/* Already Requested Pass Alert for Today */}
+              {todayPass && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
+                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-bold">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    Daily Limit Notice: Pass Already Created Today
+                  </div>
+                  <p className="text-[11px] text-amber-700/90 dark:text-amber-300/90">
+                    A gate pass (<strong className="font-mono">{todayPass.pass_code}</strong> - {todayPass.status.replace('_', ' ').toUpperCase()}) has already been issued/requested for <strong>{child.name}</strong> today. School safety protocol allows only <strong>1 gate pass per student per day</strong>.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab('view')}
+                    className="w-full mt-1 rounded-xl text-xs font-bold border-amber-500/40 text-amber-800 dark:text-amber-200 hover:bg-amber-500/10"
+                  >
+                    View Active Gate Pass (#{todayPass.pass_code})
+                  </Button>
+                </div>
+              )}
+
               <Button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full rounded-2xl h-11 text-xs font-bold bg-primary text-white shadow-lg"
+                disabled={isSubmitting || Boolean(todayPass)}
+                className="w-full rounded-2xl h-11 text-xs font-bold bg-primary text-white shadow-lg disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting Request...
+                  </>
+                ) : todayPass ? (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4 text-amber-400" /> Pass Already Active Today (Limit 1)
                   </>
                 ) : (
                   <>

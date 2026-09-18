@@ -209,16 +209,75 @@ export async function fetchClassGatePasses(classSection?: string): Promise<GateP
 }
 
 /**
+ * Helper to check if two timestamps or Date objects are the same calendar day (local time)
+ */
+export function isSameDay(date1: string | Date, date2: string | Date = new Date()): boolean {
+  try {
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return false;
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get any active/pending/approved/used gate pass for a student created today
+ */
+export async function getStudentTodayGatePass(studentId: string): Promise<GatePass | null> {
+  try {
+    const cleanId = String(studentId || '').trim().toLowerCase();
+    if (!cleanId) return null;
+    const passes = await fetchStudentGatePasses(cleanId);
+    const today = new Date();
+    const activePassToday = passes.find((p) => {
+      if (!isSameDay(p.created_at, today)) return false;
+      return p.status !== 'rejected' && p.status !== 'expired';
+    });
+    return activePassToday || null;
+  } catch (err) {
+    console.error('[GatePassService] getStudentTodayGatePass error:', err);
+    return null;
+  }
+}
+
+/**
  * Create and submit a new gate pass request
+ * - Checks daily limit: Only 1 gate pass is permitted per student per day (unless admin override)
  * - If requested by parent -> initial status is 'pending_teacher'
  * - If requested by teacher -> marked as verified by teacher -> 'pending_principal' (or approved if teacher has admin bypass)
  */
 export async function createGatePass(
   pass: Omit<GatePass, 'id' | 'pass_code' | 'created_at' | 'status'> & {
     status?: GatePassStatus;
+    bypass_daily_limit?: boolean;
   }
 ): Promise<GatePass | null> {
   try {
+    const currentList = await fetchAllGatePasses();
+    const cleanId = String(pass.student_id || '').trim().toLowerCase();
+    const today = new Date();
+
+    // Enforce 1 gate pass per student per day rule
+    const existingPassToday = currentList.find((p) => {
+      const pId = String(p.student_id || '').trim().toLowerCase();
+      if (pId !== cleanId && p.student_id !== pass.student_id) return false;
+      if (!isSameDay(p.created_at, today)) return false;
+      return p.status !== 'rejected' && p.status !== 'expired';
+    });
+
+    if (existingPassToday && pass.requested_by !== 'admin' && !pass.bypass_daily_limit) {
+      const statusLabel = (existingPassToday.status || 'pending').replace('_', ' ').toUpperCase();
+      const errorMsg = `A gate pass has already been requested for ${pass.student_name || 'this student'} today (${existingPassToday.pass_code} - ${statusLabel}). Only 1 gate pass is permitted per day.`;
+      console.warn('[GatePassService] Daily limit reached:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
     const randomCode = Math.floor(1000 + Math.random() * 9000);
     const passCode = `GP-${randomCode}`;
     const nowIso = new Date().toISOString();
@@ -251,14 +310,13 @@ export async function createGatePass(
       newPass.qr_payload = generateGatePassQrPayload(newPass);
     }
 
-    const currentList = await fetchAllGatePasses();
     const updatedList = [newPass, ...currentList.filter((p) => p.id !== newPass.id)];
 
     await persistGatePasses(updatedList);
     return newPass;
   } catch (err) {
     console.error('[GatePassService] createGatePass error:', err);
-    return null;
+    throw err;
   }
 }
 
