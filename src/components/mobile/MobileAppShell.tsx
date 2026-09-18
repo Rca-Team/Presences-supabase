@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Home, ScanLine, UserPlus, ShieldCheck, UserCircle, LayoutDashboard, GraduationCap } from "lucide-react";
+import { BookOpen, User, UserPlus, ScanLine, DoorOpen, Home, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -41,24 +41,52 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
   }, []);
 
   const tabs = useMemo(() => {
+    const isTeacherUser = isTeacher && !isAdminOrPrincipal;
     const canUseGate = isAdminOrPrincipal || isTeacher;
-    const canUseAdmin = canUseGate || (isSignedIn && isRoleLoading);
 
     return [
-      { key: "home", label: "Home", to: "/", icon: Home, show: true },
-      { key: "register", label: "Register", to: "/register", icon: UserPlus, show: isSignedIn },
-      { key: "attendance", label: "Attend", to: "/attendance", icon: ScanLine, show: isSignedIn },
-      { key: "gate", label: "Gate", to: "/gate", icon: ShieldCheck, show: canUseGate },
-      { key: "admin", label: isTeacher && !isAdminOrPrincipal ? "Class" : "Admin", to: isTeacher && !isAdminOrPrincipal ? "/teacher" : "/admin", icon: isTeacher && !isAdminOrPrincipal ? GraduationCap : LayoutDashboard, show: canUseAdmin },
-      { key: "profile", label: isSignedIn ? "Profile" : "Login", to: isSignedIn ? "/profile" : "/login", icon: UserCircle, show: true },
+      {
+        key: "primary",
+        label: isTeacherUser ? "Teacher Portal" : isAdminOrPrincipal ? "Admin Portal" : "Home",
+        to: isTeacherUser ? "/teacher" : isAdminOrPrincipal ? "/admin" : "/",
+        icon: isTeacherUser ? BookOpen : isAdminOrPrincipal ? LayoutDashboard : Home,
+        show: true,
+      },
+      {
+        key: "profile",
+        label: "Profile",
+        to: isSignedIn ? "/profile" : "/login",
+        icon: User,
+        show: true,
+      },
+      {
+        key: "register",
+        label: "Register",
+        to: "/register",
+        icon: UserPlus,
+        show: isSignedIn,
+      },
+      {
+        key: "attendance",
+        label: "Attendance",
+        to: "/attendance",
+        icon: ScanLine,
+        show: isSignedIn,
+      },
+      {
+        key: "gate",
+        label: "Gate Mode",
+        to: "/gate",
+        icon: DoorOpen,
+        show: canUseGate,
+      },
     ].filter((item) => item.show);
-  }, [isAdminOrPrincipal, isRoleLoading, isSignedIn, isTeacher]);
+  }, [isAdminOrPrincipal, isSignedIn, isTeacher]);
 
   if (!isMobile) return <>{children}</>;
 
-  const isTeacherRoute = location.pathname.startsWith('/teacher');
   const isGuardRoute = location.pathname.startsWith('/guard');
-  const hideGlobalBottomNav = isTeacherRoute || isGuardRoute;
+  const hideGlobalBottomNav = isGuardRoute;
 
   return (
     <div className="min-h-[100dvh] native-app-shell">
@@ -79,20 +107,28 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
           "px-3 pt-[calc(56px+env(safe-area-inset-top)+12px)]",
           hideGlobalBottomNav
             ? "pb-[calc(env(safe-area-inset-bottom)+16px)]"
-            : "pb-[calc(72px+env(safe-area-inset-bottom)+16px)]"
+            : "pb-[calc(76px+env(safe-area-inset-bottom)+16px)]"
         )}
       >
         {children}
       </div>
 
       {!hideGlobalBottomNav && (
-        <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom safe-area-left safe-area-right">
+        <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom pb-2.5 sm:pb-3.5 px-2.5 pointer-events-none flex justify-center">
           <div
-            className="macbook-dock mx-3 mb-2.5 grid gap-1.5 px-2 py-2"
-            style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+            className={cn(
+              "pointer-events-auto max-w-full overflow-x-auto no-scrollbar",
+              "rounded-full bg-[#0b0f19]/95 dark:bg-[#070a12]/95 backdrop-blur-2xl",
+              "border border-white/10 dark:border-white/15",
+              "shadow-[0_12px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.15)]",
+              "p-1.5 flex items-center gap-1"
+            )}
           >
             {tabs.map((tab) => {
-              const active = location.pathname === tab.to;
+              const active =
+                location.pathname === tab.to ||
+                (tab.to === "/teacher" && location.pathname.startsWith("/teacher")) ||
+                (tab.to === "/admin" && location.pathname.startsWith("/admin"));
 
               return (
                 <Link
@@ -101,21 +137,21 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
                   onTouchStart={() => preloadRoute(tab.to)}
                   onMouseEnter={() => preloadRoute(tab.to)}
                   className={cn(
-                    "macbook-dock-item dock-item-pop group flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-1 active:scale-90 transition-transform duration-200",
-                    active ? "macbook-dock-item-active text-foreground" : "text-muted-foreground",
+                    "relative flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold whitespace-nowrap transition-all duration-200 shrink-0 select-none",
+                    active
+                      ? "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 ring-1 ring-white/20"
+                      : "text-slate-300 hover:text-white hover:bg-white/5 active:scale-95"
                   )}
                   aria-current={active ? "page" : undefined}
                 >
                   <tab.icon
                     className={cn(
-                      "h-5 w-5 transition-all duration-300 ease-out",
-                      active ? "scale-110" : "scale-100 group-hover:scale-105",
+                      "h-4 w-4 shrink-0 transition-transform duration-200",
+                      active ? "text-white" : "text-slate-300"
                     )}
                     strokeWidth={active ? 2.3 : 1.9}
                   />
-                  <span className="mt-1 text-[10px] font-medium leading-none tracking-normal whitespace-nowrap transition-colors duration-300">
-                    {tab.label}
-                  </span>
+                  <span>{tab.label}</span>
                 </Link>
               );
             })}

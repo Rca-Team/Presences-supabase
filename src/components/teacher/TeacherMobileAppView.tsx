@@ -250,6 +250,44 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
             </div>
           </div>
         )}
+
+        {/* Horizontal Capsule Tabs (Matching User Design) */}
+        <div className="pt-2 border-t border-border/60">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar p-1 rounded-full bg-slate-950/85 dark:bg-black/90 backdrop-blur-xl border border-white/10 shadow-inner">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'rollcall', label: 'Roll Call', icon: CheckSquare, badge: stats.unmarked > 0 ? stats.unmarked : undefined },
+              { id: 'absentees', label: 'Absentees', icon: UserX, badge: absenteesList.length > 0 ? absenteesList.length : undefined },
+              { id: 'gatepass', label: 'Gate Pass', icon: QrCode, badge: pendingGatePassesCount > 0 ? pendingGatePassesCount : undefined },
+              { id: 'register', label: 'Register', icon: Calendar },
+            ].map((item) => {
+              const isActive = mobileTab === item.id;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    haptic('selection');
+                    setMobileTab(item.id as any);
+                  }}
+                  className={`relative flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all duration-200 shrink-0 select-none ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
+                      : 'text-slate-300 hover:text-white hover:bg-white/5 active:scale-95'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{item.label}</span>
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="h-4 min-w-[16px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* ── 2. Mobile Main Tab Contents ── */}
@@ -713,54 +751,6 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
           </motion.div>
         )}
       </div>
-
-      {/* ── 3. Bottom Teacher Mobile App Dock ── */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom pointer-events-none">
-        <div className="mx-3 mb-2.5 max-w-lg mx-auto p-1.5 rounded-3xl bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl border border-white/10 shadow-2xl flex items-center justify-around pointer-events-auto">
-          {[
-            { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-            { id: 'rollcall', label: 'Roll Call', icon: CheckSquare, badge: stats.unmarked > 0 ? stats.unmarked : undefined },
-            { id: 'absentees', label: 'Absentees', icon: UserX, badge: absenteesList.length > 0 ? absenteesList.length : undefined },
-            { id: 'gatepass', label: 'Gate Pass', icon: QrCode, badge: pendingGatePassesCount > 0 ? pendingGatePassesCount : undefined },
-            { id: 'register', label: 'Register', icon: Calendar },
-          ].map((item) => {
-            const isActive = mobileTab === item.id;
-            const Icon = item.icon;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  haptic('selection');
-                  setMobileTab(item.id as any);
-                }}
-                className={`relative py-1.5 px-3 rounded-2xl flex flex-col items-center gap-0.5 transition-all duration-200 flex-1 ${
-                  isActive
-                    ? 'text-blue-400 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="teacher-mobile-dock-pill"
-                    className="absolute inset-0 rounded-2xl bg-blue-500/20 border border-blue-500/40"
-                    transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-                  />
-                )}
-                <div className="relative z-10">
-                  <Icon className="h-5 w-5" />
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2 h-3.5 min-w-[14px] px-1 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] relative z-10 tracking-tight">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
     </div>
   );
 };
