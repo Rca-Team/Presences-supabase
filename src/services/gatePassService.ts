@@ -93,6 +93,63 @@ export function generateGatePassQrPayload(pass: GatePass): string {
   });
 }
 
+const REALTIME_TOPIC = 'presences_gate_passes_realtime_broadcast';
+
+// Global shared channel reference for real-time broadcasts across all devices
+let sharedBroadcastChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function getSharedBroadcastChannel() {
+  if (!sharedBroadcastChannel) {
+    sharedBroadcastChannel = supabase.channel(REALTIME_TOPIC, {
+      config: {
+        broadcast: { ack: false, self: true },
+      },
+    });
+    sharedBroadcastChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        // Connected to Realtime
+      }
+    });
+  }
+  return sharedBroadcastChannel;
+}
+
+/**
+ * Broadcast gate pass state mutation to all active clients (0ms local + cross-tab + supabase websocket)
+ */
+export function broadcastGatePassChange(meta?: { action?: string; passId?: string; studentId?: string }) {
+  const timestamp = Date.now();
+  const payload = { ...meta, timestamp };
+
+  // 1. In-browser local window sync (0ms)
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('presences_gate_pass_updated', { detail: payload }));
+    } catch {}
+  }
+
+  // 2. Cross-tab BroadcastChannel
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('presences_gate_passes_cross_tab');
+      bc.postMessage(payload);
+      bc.close();
+    }
+  } catch {}
+
+  // 3. Supabase Realtime Broadcast across all network devices & users
+  try {
+    const ch = getSharedBroadcastChannel();
+    ch.send({
+      type: 'broadcast',
+      event: 'gate_pass_event',
+      payload,
+    });
+  } catch (err) {
+    console.warn('[GatePassService] Broadcast error:', err);
+  }
+}
+
 /**
  * Safe database persistence for gate passes that avoids 400 Bad Request on upsert
  */
@@ -121,6 +178,9 @@ async function persistGatePasses(updatedList: GatePass[]): Promise<void> {
       });
     if (error) throw error;
   }
+
+  // Instantly notify all realtime subscribers across windows, tabs, and devices
+  broadcastGatePassChange({ action: 'persist' });
 }
 
 /**
@@ -671,12 +731,28 @@ export function getGatePassWhatsAppUrl(pass: GatePass, recipientPhone?: string):
 }
 
 /**
- * Subscribe to realtime gate pass updates
+ * Subscribe to realtime gate pass updates across all connected clients & devices
+ * - 1. Supabase Realtime Broadcast (sub-second network websocket delivery across all devices)
+ * - 2. Postgres CDC Database Changes (attendance_settings & gate_entries tables)
+ * - 3. In-browser local window sync (0ms instant response)
+ * - 4. Cross-tab BroadcastChannel (0ms multi-tab sync)
+ * - 5. Automatic window focus & tab visibility re-sync
+ * - 6. Smart background polling heartbeat (every 4s while tab is visible)
  */
-export function subscribeToGatePasses(onChange: () => void) {
-  const uniqueChannelName = `gate_passes_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const channel = supabase
-    .channel(uniqueChannelName)
+export function subscribeToGatePasses(onChange: (detail?: any) => void) {
+  let isSubscribed = true;
+
+  // 1. Supabase Realtime Broadcast Listener
+  const broadcastCh = getSharedBroadcastChannel();
+  const broadcastHandler = (resp: any) => {
+    if (isSubscribed) onChange(resp?.payload);
+  };
+  broadcastCh.on('broadcast', { event: 'gate_pass_event' }, broadcastHandler);
+
+  // 2. Supabase Postgres CDC Changes (attendance_settings & gate_entries)
+  const uniqueSubName = `sub_gp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const cdcChannel = supabase
+    .channel(uniqueSubName)
     .on(
       'postgres_changes',
       {
@@ -685,15 +761,79 @@ export function subscribeToGatePasses(onChange: () => void) {
         table: 'attendance_settings',
         filter: `key=eq.${STORAGE_KEY}`,
       },
-      () => {
-        onChange();
+      (payload) => {
+        if (isSubscribed) onChange({ source: 'cdc_attendance_settings', payload });
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'gate_entries',
+      },
+      (payload) => {
+        if (isSubscribed) onChange({ source: 'cdc_gate_entries', payload });
       }
     )
     .subscribe();
 
+  // 3. Local DOM CustomEvent (0ms in current window)
+  const handleLocalEvent = (e: Event) => {
+    if (isSubscribed) {
+      const custom = e as CustomEvent;
+      onChange(custom?.detail);
+    }
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('presences_gate_pass_updated', handleLocalEvent);
+  }
+
+  // 4. Cross-tab BroadcastChannel
+  let bc: BroadcastChannel | null = null;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      bc = new BroadcastChannel('presences_gate_passes_cross_tab');
+      bc.onmessage = (msg) => {
+        if (isSubscribed) onChange(msg.data);
+      };
+    }
+  } catch {}
+
+  // 5. Window Focus / Tab Visibility Switch (re-sync immediately upon refocus)
+  const handleFocus = () => {
+    if (isSubscribed) onChange({ reason: 'window-focus' });
+  };
+  const handleVisibility = () => {
+    if (isSubscribed && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      onChange({ reason: 'tab-visible' });
+    }
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+  }
+
+  // 6. Background Polling Heartbeat (every 4000ms while document is visible)
+  const intervalId = setInterval(() => {
+    if (isSubscribed && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      onChange({ reason: 'heartbeat' });
+    }
+  }, 4000);
+
   return () => {
+    isSubscribed = false;
     try {
-      supabase.removeChannel(channel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('presences_gate_pass_updated', handleLocalEvent);
+        window.removeEventListener('focus', handleFocus);
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
+      if (bc) {
+        bc.close();
+      }
+      clearInterval(intervalId);
+      supabase.removeChannel(cdcChannel);
     } catch (_) {}
   };
 }

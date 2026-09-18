@@ -97,23 +97,26 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
   const [pickupTime, setPickupTime] = useState(format(new Date(), 'hh:mm a'));
 
   // Load passes for active class
-  const loadPasses = useCallback(async () => {
-    if (!activeClass?.category) return;
-    setIsLoading(true);
-    try {
-      const data = await fetchClassGatePasses(activeClass.category);
-      setPasses(data);
-    } catch (e) {
-      console.warn('Could not load class gate passes:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeClass?.category]);
+  const loadPasses = useCallback(
+    async (isInitial = false) => {
+      if (!activeClass?.category) return;
+      if (isInitial) setIsLoading(true);
+      try {
+        const data = await fetchClassGatePasses(activeClass.category);
+        setPasses(data);
+      } catch (e) {
+        console.warn('Could not load class gate passes:', e);
+      } finally {
+        if (isInitial) setIsLoading(false);
+      }
+    },
+    [activeClass?.category]
+  );
 
   useEffect(() => {
-    loadPasses();
+    loadPasses(true);
     const unsub = subscribeToGatePasses(() => {
-      loadPasses();
+      loadPasses(false);
     });
     return unsub;
   }, [loadPasses]);

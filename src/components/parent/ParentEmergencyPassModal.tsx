@@ -78,39 +78,43 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
   const [pickupTime, setPickupTime] = useState(format(new Date(), 'hh:mm a'));
 
   // Load passes for active child
-  const loadPasses = useCallback(async () => {
-    if (!child?.employee_id) return;
-    setIsLoading(true);
-    try {
-      const studentPasses = await fetchStudentGatePasses(child.employee_id);
-      setPasses(studentPasses);
+  const loadPasses = useCallback(
+    async (isInitial = false) => {
+      if (!child?.employee_id) return;
+      if (isInitial) setIsLoading(true);
+      try {
+        const studentPasses = await fetchStudentGatePasses(child.employee_id);
+        setPasses(studentPasses);
 
-      // If there are no passes and currently on 'view', switch to 'apply'
-      if (studentPasses.length === 0) {
-        setActiveTab('apply');
-      } else {
-        // If there's an active or pending pass today, stay on 'view'
-        const hasActiveToday = studentPasses.some(
-          (p) =>
-            p.status === 'approved' ||
-            p.status === 'pending' ||
-            p.status === 'pending_teacher' ||
-            p.status === 'pending_principal'
-        );
-        if (hasActiveToday) {
-          setActiveTab('view');
+        // On initial open only: choose best initial tab
+        if (isInitial) {
+          if (studentPasses.length === 0) {
+            setActiveTab('apply');
+          } else {
+            const hasActiveToday = studentPasses.some(
+              (p) =>
+                p.status === 'approved' ||
+                p.status === 'pending' ||
+                p.status === 'pending_teacher' ||
+                p.status === 'pending_principal'
+            );
+            if (hasActiveToday) {
+              setActiveTab('view');
+            }
+          }
         }
+      } catch (e) {
+        console.warn('Could not load student gate passes:', e);
+      } finally {
+        if (isInitial) setIsLoading(false);
       }
-    } catch (e) {
-      console.warn('Could not load student gate passes:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [child?.employee_id]);
+    },
+    [child?.employee_id]
+  );
 
   useEffect(() => {
     if (isOpen) {
-      loadPasses();
+      loadPasses(true);
     }
   }, [isOpen, loadPasses]);
 
@@ -118,7 +122,7 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
   useEffect(() => {
     if (!isOpen) return;
     const unsub = subscribeToGatePasses(() => {
-      loadPasses();
+      loadPasses(false);
     });
     return unsub;
   }, [isOpen, loadPasses]);

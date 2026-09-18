@@ -20,6 +20,7 @@ import PageTransition from '@/components/PageTransition';
 import HomeInstallCard from '@/components/HomeInstallCard';
 import NeuralOrbPanel from '@/components/home/NeuralOrbPanel';
 import { RoyalReveal, RoyalStaggerGroup, RoyalStaggerItem } from '@/components/RoyalReveal';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { hasTeacherAccess } from '@/utils/teacherAccess';
