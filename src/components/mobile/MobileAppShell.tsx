@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { BookOpen, User, UserPlus, ScanLine, DoorOpen, Home, LayoutDashboard } from "lucide-react";
+import {
+  BookOpen,
+  User,
+  UserPlus,
+  ScanLine,
+  DoorOpen,
+  Home,
+  ShieldCheck,
+  UserCircle,
+  LayoutDashboard,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -40,16 +50,16 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  const tabs = useMemo(() => {
-    const isTeacherUser = isTeacher && !isAdminOrPrincipal;
-    const canUseGate = isAdminOrPrincipal || isTeacher;
+  const isTeacherUser = isTeacher && !isAdminOrPrincipal;
 
+  // 1. Teacher Capsule Tabs (Matching user reference design)
+  const teacherTabs = useMemo(() => {
     return [
       {
-        key: "primary",
-        label: isTeacherUser ? "Teacher Portal" : isAdminOrPrincipal ? "Admin Portal" : "Home",
-        to: isTeacherUser ? "/teacher" : isAdminOrPrincipal ? "/admin" : "/",
-        icon: isTeacherUser ? BookOpen : isAdminOrPrincipal ? LayoutDashboard : Home,
+        key: "teacher",
+        label: "Teacher Portal",
+        to: "/teacher",
+        icon: BookOpen,
         show: true,
       },
       {
@@ -64,24 +74,39 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
         label: "Register",
         to: "/register",
         icon: UserPlus,
-        show: isSignedIn,
+        show: true,
       },
       {
         key: "attendance",
         label: "Attendance",
         to: "/attendance",
         icon: ScanLine,
-        show: isSignedIn,
+        show: true,
       },
       {
         key: "gate",
         label: "Gate Mode",
         to: "/gate",
         icon: DoorOpen,
-        show: canUseGate,
+        show: true,
       },
     ].filter((item) => item.show);
-  }, [isAdminOrPrincipal, isSignedIn, isTeacher]);
+  }, [isSignedIn]);
+
+  // 2. Normal User MacBook Dock Tabs (Previous design preserved)
+  const normalTabs = useMemo(() => {
+    const canUseGate = isAdminOrPrincipal;
+    const canUseAdmin = isAdminOrPrincipal || (isSignedIn && isRoleLoading);
+
+    return [
+      { key: "home", label: "Home", to: "/", icon: Home, show: true },
+      { key: "register", label: "Register", to: "/register", icon: UserPlus, show: isSignedIn },
+      { key: "attendance", label: "Attend", to: "/attendance", icon: ScanLine, show: isSignedIn },
+      { key: "gate", label: "Gate", to: "/gate", icon: ShieldCheck, show: canUseGate },
+      { key: "admin", label: "Admin", to: "/admin", icon: LayoutDashboard, show: canUseAdmin },
+      { key: "profile", label: isSignedIn ? "Profile" : "Login", to: isSignedIn ? "/profile" : "/login", icon: UserCircle, show: true },
+    ].filter((item) => item.show);
+  }, [isAdminOrPrincipal, isRoleLoading, isSignedIn]);
 
   if (!isMobile) return <>{children}</>;
 
@@ -107,56 +132,99 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
           "px-3 pt-[calc(56px+env(safe-area-inset-top)+12px)]",
           hideGlobalBottomNav
             ? "pb-[calc(env(safe-area-inset-bottom)+16px)]"
-            : "pb-[calc(76px+env(safe-area-inset-bottom)+16px)]"
+            : isTeacherUser
+            ? "pb-[calc(76px+env(safe-area-inset-bottom)+16px)]"
+            : "pb-[calc(72px+env(safe-area-inset-bottom)+16px)]"
         )}
       >
         {children}
       </div>
 
       {!hideGlobalBottomNav && (
-        <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom pb-2.5 sm:pb-3.5 px-2.5 pointer-events-none flex justify-center">
-          <div
-            className={cn(
-              "pointer-events-auto max-w-full overflow-x-auto no-scrollbar",
-              "rounded-full bg-[#0b0f19]/95 dark:bg-[#070a12]/95 backdrop-blur-2xl",
-              "border border-white/10 dark:border-white/15",
-              "shadow-[0_12px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.15)]",
-              "p-1.5 flex items-center gap-1"
-            )}
-          >
-            {tabs.map((tab) => {
-              const active =
-                location.pathname === tab.to ||
-                (tab.to === "/teacher" && location.pathname.startsWith("/teacher")) ||
-                (tab.to === "/admin" && location.pathname.startsWith("/admin"));
+        <>
+          {isTeacherUser ? (
+            /* TEACHER CAPSULE TABS */
+            <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom pb-2.5 sm:pb-3.5 px-2.5 pointer-events-none flex justify-center">
+              <div
+                className={cn(
+                  "pointer-events-auto max-w-full overflow-x-auto no-scrollbar",
+                  "rounded-full bg-[#0b0f19]/95 dark:bg-[#070a12]/95 backdrop-blur-2xl",
+                  "border border-white/10 dark:border-white/15",
+                  "shadow-[0_12px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.15)]",
+                  "p-1.5 flex items-center gap-1"
+                )}
+              >
+                {teacherTabs.map((tab) => {
+                  const active =
+                    location.pathname === tab.to ||
+                    (tab.to === "/teacher" && location.pathname.startsWith("/teacher"));
 
-              return (
-                <Link
-                  key={tab.key}
-                  to={tab.to}
-                  onTouchStart={() => preloadRoute(tab.to)}
-                  onMouseEnter={() => preloadRoute(tab.to)}
-                  className={cn(
-                    "relative flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold whitespace-nowrap transition-all duration-200 shrink-0 select-none",
-                    active
-                      ? "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 ring-1 ring-white/20"
-                      : "text-slate-300 hover:text-white hover:bg-white/5 active:scale-95"
-                  )}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <tab.icon
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-transform duration-200",
-                      active ? "text-white" : "text-slate-300"
-                    )}
-                    strokeWidth={active ? 2.3 : 1.9}
-                  />
-                  <span>{tab.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
+                  return (
+                    <Link
+                      key={tab.key}
+                      to={tab.to}
+                      onTouchStart={() => preloadRoute(tab.to)}
+                      onMouseEnter={() => preloadRoute(tab.to)}
+                      className={cn(
+                        "relative flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold whitespace-nowrap transition-all duration-200 shrink-0 select-none",
+                        active
+                          ? "bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 ring-1 ring-white/20"
+                          : "text-slate-300 hover:text-white hover:bg-white/5 active:scale-95"
+                      )}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <tab.icon
+                        className={cn(
+                          "h-4 w-4 shrink-0 transition-transform duration-200",
+                          active ? "text-white" : "text-slate-300"
+                        )}
+                        strokeWidth={active ? 2.3 : 1.9}
+                      />
+                      <span>{tab.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </nav>
+          ) : (
+            /* NORMAL USER MACBOOK DOCK */
+            <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom safe-area-left safe-area-right">
+              <div
+                className="macbook-dock mx-3 mb-2.5 grid gap-1.5 px-2 py-2"
+                style={{ gridTemplateColumns: `repeat(${normalTabs.length}, minmax(0, 1fr))` }}
+              >
+                {normalTabs.map((tab) => {
+                  const active = location.pathname === tab.to;
+
+                  return (
+                    <Link
+                      key={tab.key}
+                      to={tab.to}
+                      onTouchStart={() => preloadRoute(tab.to)}
+                      onMouseEnter={() => preloadRoute(tab.to)}
+                      className={cn(
+                        "macbook-dock-item dock-item-pop group flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-1 active:scale-90 transition-transform duration-200",
+                        active ? "macbook-dock-item-active text-foreground" : "text-muted-foreground"
+                      )}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <tab.icon
+                        className={cn(
+                          "h-5 w-5 transition-all duration-300 ease-out",
+                          active ? "scale-110" : "scale-100 group-hover:scale-105"
+                        )}
+                        strokeWidth={active ? 2.3 : 1.9}
+                      />
+                      <span className="mt-1 text-[10px] font-medium leading-none tracking-normal whitespace-nowrap transition-colors duration-300">
+                        {tab.label}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );
