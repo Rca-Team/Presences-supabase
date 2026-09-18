@@ -111,6 +111,7 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
   if (!isMobile) return <>{children}</>;
 
   const isGuardRoute = location.pathname.startsWith('/guard');
+  const hideGlobalBottomNav = isGuardRoute;
   const tabs = isTeacherUser ? teacherTabs : normalTabs;
 
   return (
