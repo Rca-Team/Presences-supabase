@@ -83,6 +83,8 @@ import CaptureFaceDialog from '@/components/admin/CaptureFaceDialog';
 import { fetchClassGatePasses, subscribeToGatePasses } from '@/services/gatePassService';
 import { sanitizeStudentPhotoUrl } from '@/utils/studentPhotoResolver';
 import { AndroidWidgetBoard } from '@/components/widgets/android/AndroidWidgetBoard';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { TeacherMobileAppView } from './TeacherMobileAppView';
 import * as XLSX from 'xlsx';
 
 const ClassSectionReport = React.lazy(() => import('@/components/admin/ClassSectionReport'));
@@ -136,6 +138,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
   const { toast } = useToast();
   const navigate = useNavigate();
   const { userId, role, isAdminOrPrincipal } = useUserRole();
+  const isMobile = useIsMobile();
 
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState<ClassAssignment[]>([]);
@@ -1389,6 +1392,47 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           </Button>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        <TeacherMobileAppView
+          teacherName={teacherProfile.name}
+          teacherEmail={teacherProfile.email}
+          avatarUrl={teacherProfile.avatarUrl}
+          activeClass={activeClass}
+          assignments={assignments}
+          students={students}
+          stats={stats}
+          previousDayLabel={previousDayLabel}
+          pendingGatePassesCount={pendingGatePassesCount}
+          isMarkingAttendance={isMarkingAttendance}
+          onSelectClass={setActiveClass}
+          onQuickMarkAttendance={handleQuickMarkAttendance}
+          onAutoMarkAbsent={handleAutoMarkAbsent}
+          onMarkAllPresent={handleMarkAllUnmarkedPresent}
+          onOpenAddStudent={() => setIsAddStudentOpen(true)}
+          onOpenFaceCapture={(st) => setSelectedFaceStudent(st)}
+          onRefresh={loadClassStudents}
+          isRefreshing={isRefreshing}
+        />
+
+        {selectedFaceStudent && (
+          <CaptureFaceDialog
+            isOpen={Boolean(selectedFaceStudent)}
+            onClose={() => setSelectedFaceStudent(null)}
+            studentId={selectedFaceStudent.admission_number || selectedFaceStudent.id}
+            studentName={selectedFaceStudent.name}
+            classSection={activeClass?.category}
+            onSuccess={() => {
+              loadClassStudents();
+              setSelectedFaceStudent(null);
+            }}
+          />
+        )}
+      </div>
     );
   }
 
