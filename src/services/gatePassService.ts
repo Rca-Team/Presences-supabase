@@ -254,18 +254,7 @@ export async function createGatePass(
     const currentList = await fetchAllGatePasses();
     const updatedList = [newPass, ...currentList.filter((p) => p.id !== newPass.id)];
 
-    const { error } = await supabase
-      .from('attendance_settings')
-      .upsert(
-        {
-          key: STORAGE_KEY,
-          value: updatedList as any,
-          description: 'Official active and historical school early exit gate passes',
-        },
-        { onConflict: 'key' }
-      );
-
-    if (error) throw error;
+    await persistGatePasses(updatedList);
     return newPass;
   } catch (err) {
     console.error('[GatePassService] createGatePass error:', err);
@@ -301,17 +290,7 @@ export async function verifyPassByTeacher(
       return p;
     });
 
-    const { error } = await supabase
-      .from('attendance_settings')
-      .upsert(
-        {
-          key: STORAGE_KEY,
-          value: updated as any,
-        },
-        { onConflict: 'key' }
-      );
-
-    if (error) throw error;
+    await persistGatePasses(updated);
     return true;
   } catch (err) {
     console.error('[GatePassService] verifyPassByTeacher error:', err);
@@ -354,17 +333,7 @@ export async function approvePassByPrincipal(
       return p;
     });
 
-    const { error } = await supabase
-      .from('attendance_settings')
-      .upsert(
-        {
-          key: STORAGE_KEY,
-          value: updated as any,
-        },
-        { onConflict: 'key' }
-      );
-
-    if (error) throw error;
+    await persistGatePasses(updated);
     return updatedPass;
   } catch (err) {
     console.error('[GatePassService] approvePassByPrincipal error:', err);
@@ -400,17 +369,7 @@ export async function rejectGatePass(
       return p;
     });
 
-    const { error } = await supabase
-      .from('attendance_settings')
-      .upsert(
-        {
-          key: STORAGE_KEY,
-          value: updated as any,
-        },
-        { onConflict: 'key' }
-      );
-
-    if (error) throw error;
+    await persistGatePasses(updated);
     return true;
   } catch (err) {
     console.error('[GatePassService] rejectGatePass error:', err);
@@ -456,17 +415,7 @@ export async function updateGatePassStatus(
       return p;
     });
 
-    const { error } = await supabase
-      .from('attendance_settings')
-      .upsert(
-        {
-          key: STORAGE_KEY,
-          value: updated as any,
-        },
-        { onConflict: 'key' }
-      );
-
-    if (error) throw error;
+    await persistGatePasses(updated);
     return true;
   } catch (err) {
     console.error('[GatePassService] updateGatePassStatus error:', err);
@@ -589,15 +538,7 @@ export async function verifyAndExecuteExit(
 
     // 1. Update the pass record
     const updatedList = currentList.map((p) => (p.id === pass.id ? updatedPass : p));
-    await supabase
-      .from('attendance_settings')
-      .upsert(
-        {
-          key: STORAGE_KEY,
-          value: updatedList as any,
-        },
-        { onConflict: 'key' }
-      );
+    await persistGatePasses(updatedList);
 
     // 2. Insert record into gate_entries table
     const { class: classNum, section: sectionLetter } = parseClassSection(pass.class_section);

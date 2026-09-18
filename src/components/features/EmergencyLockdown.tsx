@@ -105,23 +105,29 @@ const EmergencyLockdown: React.FC = () => {
 
     setIsProcessing(true);
     try {
+      const setSetting = async (key: string, value: string) => {
+        const { data: existing } = await supabase
+          .from('attendance_settings')
+          .select('id')
+          .eq('key', key)
+          .maybeSingle();
+        if (existing?.id) {
+          await supabase
+            .from('attendance_settings')
+            .update({ value, updated_at: new Date().toISOString() })
+            .eq('id', existing.id);
+        } else {
+          await supabase
+            .from('attendance_settings')
+            .insert({ key, value });
+        }
+      };
+
       // Update lockdown status
-      await supabase
-        .from('attendance_settings')
-        .upsert({
-          key: 'lockdown_active',
-          value: 'true',
-          updated_at: new Date().toISOString(),
-        });
+      await setSetting('lockdown_active', 'true');
 
       // Store lockdown reason
-      await supabase
-        .from('attendance_settings')
-        .upsert({
-          key: 'lockdown_reason',
-          value: lockdownReason,
-          updated_at: new Date().toISOString(),
-        });
+      await setSetting('lockdown_reason', lockdownReason);
 
       // Create notification for all users
       const { data: { user } } = await supabase.auth.getUser();
@@ -160,13 +166,21 @@ const EmergencyLockdown: React.FC = () => {
   const deactivateLockdown = async () => {
     setIsProcessing(true);
     try {
-      await supabase
+      const { data: existing } = await supabase
         .from('attendance_settings')
-        .upsert({
-          key: 'lockdown_active',
-          value: 'false',
-          updated_at: new Date().toISOString(),
-        });
+        .select('id')
+        .eq('key', 'lockdown_active')
+        .maybeSingle();
+      if (existing?.id) {
+        await supabase
+          .from('attendance_settings')
+          .update({ value: 'false', updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('attendance_settings')
+          .insert({ key: 'lockdown_active', value: 'false' });
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
 

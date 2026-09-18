@@ -161,7 +161,7 @@ function distanceToConfidence(distance: number, threshold: number): number {
  */
 export async function matchDescriptorIndexed(
   descriptor: Float32Array,
-  matchThreshold = 0.48,
+  matchThreshold = 0.45,
   shortlist = 64,
 ): Promise<{ userId: string; name: string; distance: number; confidence: number } | null> {
   await ensureGalleryIndex();
@@ -197,8 +197,8 @@ export async function matchDescriptorIndexed(
       const top2Avg = (d1 + d2) / 2;
       const validCentroid = Number.isFinite(centroidDist) ? centroidDist : top2Avg;
       // Guard against a single drifted sample matching an unrelated face:
-      // Centroid must not be completely alienated (> 0.60) from query face
-      if (Number.isFinite(centroidDist) && centroidDist > 0.60 && d1 > 0.42) {
+      // Centroid must not be completely alienated (> 0.54) from query face
+      if (Number.isFinite(centroidDist) && centroidDist > 0.54 && d1 > 0.40) {
         continue;
       }
       effectiveDist = Math.min(validCentroid, 0.65 * d1 + 0.35 * Math.min(d2, validCentroid));
@@ -221,7 +221,7 @@ export async function matchDescriptorIndexed(
   if (second && second.userId !== best.userId && second.distance <= matchThreshold + 0.08) {
     const margin = second.distance - best.distance;
     const ratio = second.distance > 0 ? best.distance / second.distance : 1;
-    if (margin < 0.035 || ratio > 0.90) {
+    if (margin < 0.035 || ratio > 0.88) {
       return null;
     }
   }
@@ -251,7 +251,7 @@ export function createRecognitionEngine(
 ): RecognitionEngine {
   const detectFps = options.detectFps ?? 14;
   const detectionWidth = options.detectionWidth ?? 640;
-  const matchThreshold = options.matchThreshold ?? 0.48;
+  const matchThreshold = options.matchThreshold ?? 0.45;
   const shortlist = options.shortlist ?? 16;
   const baseRequiredHoldMs = options.requiredHoldMs ?? 0;
 
@@ -382,41 +382,59 @@ export function createRecognitionEngine(
         const now = Date.now();
 
         if (match) {
-          tracker.assignIdentity(t.id, {
-            userId: match.userId,
-            name: match.name,
-            confidence: match.confidence,
-            recognizedAt: now,
-            verified: true,
-          });
+          // Zero False Positive Guard:
+          // Strong match (dist <= 0.42) -> instant 0ms verification
+          // Borderline match (0.42 < dist <= 0.45) -> require 2-frame consistency (~60ms)
+          const isHighCertainty = match.distance <= 0.42;
+          const isConfirmedCandidate = t.candidate?.userId === match.userId;
 
-          const normName = match.name.toLowerCase().trim();
-          const isAlreadyMarkedInSession =
-            markedIdentities.has(`uid:${match.userId}`) ||
-            (normName !== 'unknown' && markedIdentities.has(`name:${normName}`));
-
-          if (!isAlreadyMarkedInSession) {
-            markedByTrack.set(t.id, match.userId);
-            markedIdentities.add(`uid:${match.userId}`);
-            if (normName !== 'unknown') {
-              markedIdentities.add(`name:${normName}`);
-            }
-
-            const identified: IdentifiedFace = {
-              trackId: t.id,
+          if (isHighCertainty || isConfirmedCandidate || t.identity?.verified) {
+            tracker.assignIdentity(t.id, {
               userId: match.userId,
               name: match.name,
               confidence: match.confidence,
-              distance: match.distance,
-              box: t.box,
-              descriptor: d.descriptor,
-            };
+              recognizedAt: now,
+              verified: true,
+            });
 
-            options.onIdentified?.(identified);
+            const normName = match.name.toLowerCase().trim();
+            const isAlreadyMarkedInSession =
+              markedIdentities.has(`uid:${match.userId}`) ||
+              (normName !== 'unknown' && markedIdentities.has(`name:${normName}`));
 
-            if (options.markAttendance) {
-              options.markAttendance(identified).catch(err => {
-                console.warn('markAttendance failed, queueing offline backup:', err);
+            if (!isAlreadyMarkedInSession) {
+              markedByTrack.set(t.id, match.userId);
+              markedIdentities.add(`uid:${match.userId}`);
+              if (normName !== 'unknown') {
+                markedIdentities.add(`name:${normName}`);
+              }
+
+              const identified: IdentifiedFace = {
+                trackId: t.id,
+                userId: match.userId,
+                name: match.name,
+                confidence: match.confidence,
+                distance: match.distance,
+                box: t.box,
+                descriptor: d.descriptor,
+              };
+
+              options.onIdentified?.(identified);
+
+              if (options.markAttendance) {
+                options.markAttendance(identified).catch(err => {
+                  console.warn('markAttendance failed, queueing offline backup:', err);
+                  enqueueWrite({
+                    userId: match.userId,
+                    studentName: match.name,
+                    status: 'present',
+                    confidence: match.confidence,
+                    timestamp: new Date().toISOString(),
+                    source: 'realtime-engine',
+                    metadata: { trackId: t.id, matchDistance: match.distance },
+                  });
+                });
+              } else {
                 enqueueWrite({
                   userId: match.userId,
                   studentName: match.name,
@@ -426,18 +444,19 @@ export function createRecognitionEngine(
                   source: 'realtime-engine',
                   metadata: { trackId: t.id, matchDistance: match.distance },
                 });
-              });
-            } else {
-              enqueueWrite({
-                userId: match.userId,
-                studentName: match.name,
-                status: 'present',
-                confidence: match.confidence,
-                timestamp: new Date().toISOString(),
-                source: 'realtime-engine',
-                metadata: { trackId: t.id, matchDistance: match.distance },
-              });
+              }
             }
+          } else {
+            // Register candidate on frame 1 to verify on next frame
+            t.candidate = {
+              userId: match.userId,
+              name: match.name,
+              confidence: match.confidence,
+              distance: match.distance,
+              firstMatchedAt: now,
+              lastMatchedAt: now,
+              continuousHoldMs: 0,
+            };
           }
         }
       }

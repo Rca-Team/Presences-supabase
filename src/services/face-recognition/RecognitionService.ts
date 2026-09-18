@@ -92,7 +92,7 @@ interface DeviceInfo {
  *   Different     : 0.55 – 1.00
  *   Threshold     : 0.48 (tightened to eliminate cross-student confusion)
  */
-const MATCH_THRESHOLD = 0.48;
+const MATCH_THRESHOLD = 0.45;
 
 /**
  * If best and second-best distances are within this ratio the match is
@@ -287,7 +287,7 @@ export async function recognizeFace(faceDescriptor: Float32Array): Promise<Recog
         if (sampleDists.length >= 2) {
           const top2Avg = (d1 + d2) / 2;
           const validCentroid = Number.isFinite(centroidDist) ? centroidDist : top2Avg;
-          if (Number.isFinite(centroidDist) && centroidDist > 0.60 && d1 > 0.42) {
+          if (Number.isFinite(centroidDist) && centroidDist > 0.54 && d1 > 0.40) {
             continue;
           }
           effectiveDist = Math.min(validCentroid, 0.65 * d1 + 0.35 * Math.min(d2, validCentroid));

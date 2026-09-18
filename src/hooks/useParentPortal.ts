@@ -348,15 +348,29 @@ export function useParentPortal() {
       setLeaves(updatedLeaves);
 
       // Save into settings table / leaves storage
-      await supabase
+      const storageKey = `leave_requests_${child.employee_id}`;
+      const { data: existing } = await supabase
         .from('attendance_settings')
-        .upsert(
-          {
-            key: `leave_requests_${child.employee_id}`,
+        .select('id')
+        .eq('key', storageKey)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabase
+          .from('attendance_settings')
+          .update({
             value: updatedLeaves as any,
-          },
-          { onConflict: 'key' }
-        );
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('attendance_settings')
+          .insert({
+            key: storageKey,
+            value: updatedLeaves as any,
+          });
+      }
 
       toast({
         title: '✅ Leave Application Submitted',

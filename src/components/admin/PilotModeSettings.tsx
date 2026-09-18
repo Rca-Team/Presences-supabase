@@ -49,10 +49,26 @@ const PilotModeSettings: React.FC = () => {
         { key: 'pilot_class', value: klass.trim() },
         { key: 'pilot_section', value: section.trim() },
       ];
-      const { error } = await supabase
-        .from('attendance_settings')
-        .upsert(rows, { onConflict: 'key' });
-      if (error) throw error;
+      for (const row of rows) {
+        const { data: existing } = await supabase
+          .from('attendance_settings')
+          .select('id')
+          .eq('key', row.key)
+          .maybeSingle();
+
+        if (existing?.id) {
+          const { error } = await supabase
+            .from('attendance_settings')
+            .update({ value: row.value, updated_at: new Date().toISOString() })
+            .eq('id', existing.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('attendance_settings')
+            .insert(row);
+          if (error) throw error;
+        }
+      }
       toast({ title: 'Pilot mode saved', description: enabled ? `Notifications limited to ${klass} ${section}` : 'Pilot mode disabled' });
     } catch (e: any) {
       toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
