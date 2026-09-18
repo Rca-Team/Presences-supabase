@@ -1,9 +1,10 @@
-android
-ios
-edge
-raspberry-pi-setup
+/android
+/ios
+/edge
+/raspberry-pi-setup
+/Presences-Spotlight-Engine
 *.py
 *.pyc
 __pycache__
 replit.nix
-scratch
+/scratch
