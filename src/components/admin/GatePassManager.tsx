@@ -67,22 +67,22 @@ export const GatePassManager: React.FC = () => {
   // Preview Pass State
   const [previewPass, setPreviewPass] = useState<GatePass | null>(null);
 
-  const loadPasses = useCallback(async () => {
-    setIsLoading(true);
+  const loadPasses = useCallback(async (isInitial = false) => {
+    if (isInitial) setIsLoading(true);
     try {
       const all = await fetchAllGatePasses();
       setPasses(all);
     } catch (e) {
       console.warn('Could not load all gate passes:', e);
     } finally {
-      setIsLoading(false);
+      if (isInitial) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadPasses();
+    loadPasses(true);
     const unsub = subscribeToGatePasses(() => {
-      loadPasses();
+      loadPasses(false);
     });
     return unsub;
   }, [loadPasses]);

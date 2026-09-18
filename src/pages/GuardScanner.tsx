@@ -159,27 +159,30 @@ export const GuardScanner: React.FC = () => {
   );
 
   // Load passes
-  const loadPasses = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const all = await fetchAllGatePasses();
-      setPasses(all);
+  const loadPasses = useCallback(
+    async (isInitial = false) => {
+      if (isInitial) setIsLoading(true);
+      try {
+        const all = await fetchAllGatePasses();
+        setPasses(all);
 
-      if (selectedPass) {
-        const updated = all.find((p) => p.id === selectedPass.id);
-        if (updated) setSelectedPass(updated);
+        if (selectedPass) {
+          const updated = all.find((p) => p.id === selectedPass.id);
+          if (updated) setSelectedPass(updated);
+        }
+      } catch (err) {
+        console.error('Error loading gate passes:', err);
+      } finally {
+        if (isInitial) setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Error loading gate passes:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedPass]);
+    },
+    [selectedPass]
+  );
 
   useEffect(() => {
-    loadPasses();
+    loadPasses(true);
     const unsub = subscribeToGatePasses(() => {
-      loadPasses();
+      loadPasses(false);
     });
     return unsub;
   }, [loadPasses]);

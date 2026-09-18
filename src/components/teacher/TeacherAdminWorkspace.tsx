@@ -300,9 +300,12 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
     let isMounted = true;
     const updatePendingCount = async () => {
       try {
-        const passes = await fetchClassGatePasses(activeClass.class, activeClass.section);
+        const classTarget = activeClass.category || `${activeClass.class}-${activeClass.section}`;
+        const passes = await fetchClassGatePasses(classTarget);
         if (isMounted) {
-          const pending = passes.filter(p => p.status === 'pending').length;
+          const pending = passes.filter(
+            (p) => p.status === 'pending' || p.status === 'pending_teacher'
+          ).length;
           setPendingGatePassesCount(pending);
         }
       } catch (err) {

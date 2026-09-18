@@ -88,31 +88,34 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
     }
   }, []);
 
-  const loadPasses = useCallback(async () => {
-    setLoading(true);
-    try {
-      const all = await fetchAllGatePasses();
-      // Sort newest first
-      all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setPasses(all);
+  const loadPasses = useCallback(
+    async (isInitial = false) => {
+      if (isInitial) setLoading(true);
+      try {
+        const all = await fetchAllGatePasses();
+        // Sort newest first
+        all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setPasses(all);
 
-      // Keep selectedPass synced if currently viewing
-      if (selectedPass) {
-        const updated = all.find(p => p.id === selectedPass.id);
-        if (updated) setSelectedPass(updated);
+        // Keep selectedPass synced if currently viewing
+        if (selectedPass) {
+          const updated = all.find((p) => p.id === selectedPass.id);
+          if (updated) setSelectedPass(updated);
+        }
+      } catch (err) {
+        console.error('Error loading gate passes:', err);
+      } finally {
+        if (isInitial) setLoading(false);
       }
-    } catch (err) {
-      console.error('Error loading gate passes:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedPass]);
+    },
+    [selectedPass]
+  );
 
   useEffect(() => {
     if (open) {
-      loadPasses();
+      loadPasses(true);
       const unsub = subscribeToGatePasses(() => {
-        loadPasses();
+        loadPasses(false);
       });
       return () => {
         unsub();
