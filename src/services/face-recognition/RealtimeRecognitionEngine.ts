@@ -249,14 +249,14 @@ export function createRecognitionEngine(
   getVideo: () => HTMLVideoElement | null,
   options: EngineOptions = {},
 ): RecognitionEngine {
-  const detectFps = options.detectFps ?? 9;
+  const detectFps = options.detectFps ?? 14;
   const detectionWidth = options.detectionWidth ?? 640;
   const matchThreshold = options.matchThreshold ?? 0.48;
   const shortlist = options.shortlist ?? 16;
   const baseRequiredHoldMs = options.requiredHoldMs ?? 0;
 
   const tracker = createFaceTracker({
-    identityTtlMs: options.identityTtlMs ?? 2000,
+    identityTtlMs: options.identityTtlMs ?? 2500,
     maxMissed: options.maxMissed ?? 4,
   });
   const detectCanvas = document.createElement('canvas');
@@ -439,8 +439,6 @@ export function createRecognitionEngine(
               });
             }
           }
-        } else {
-          tracker.assignIdentity(t.id, null);
         }
       }
 

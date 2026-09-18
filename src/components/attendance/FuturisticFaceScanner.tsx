@@ -445,16 +445,71 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
         ctx.arcTo(box.x, box.y + box.height, box.x, box.y + box.height - cornerSize, r);
         ctx.lineTo(box.x, box.y + box.height - cornerSize);
         ctx.stroke();
+
+        // ─── Render Student Nameplate / Status Badge Above Box ───────────
+        const hasIdentity = !!track.identity?.name;
+        const studentName = (track.identity?.name || '').trim();
+        const confPercent = Math.round((track.identity?.confidence ?? 0.9) * 100);
+        const badgeText = hasIdentity
+          ? `✓ ${studentName.toUpperCase()} · ${confPercent}%`
+          : '⚡ SCANNING';
+
+        ctx.save();
+        ctx.font = hasIdentity
+          ? 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          : 'bold 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+
+        const textMetrics = ctx.measureText(badgeText);
+        const badgeW = textMetrics.width + (hasIdentity ? 22 : 16);
+        const badgeH = hasIdentity ? 26 : 22;
+        const badgeCenterX = box.x + box.width / 2;
+        const badgeCenterY = Math.max(badgeH / 2 + 6, box.y - 16);
+        const badgeX = badgeCenterX - badgeW / 2;
+        const badgeY = badgeCenterY - badgeH / 2;
+        const badgeRadius = 6;
+
+        // Compensate for CSS scaleX(-1) mirror when invertFeed is active
+        if (invertFeed) {
+          ctx.translate(badgeCenterX, badgeCenterY);
+          ctx.scale(-1, 1);
+          ctx.translate(-badgeCenterX, -badgeCenterY);
+        }
+
+        // Drop shadow for badge
+        ctx.shadowColor = hasIdentity ? 'rgba(16, 185, 129, 0.45)' : 'rgba(56, 189, 248, 0.35)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 2;
+
+        // Badge pill background
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, badgeRadius);
+        ctx.fillStyle = hasIdentity ? 'rgba(6, 78, 59, 0.92)' : 'rgba(15, 23, 42, 0.88)';
+        ctx.fill();
+
+        // Badge border
+        ctx.strokeStyle = hasIdentity ? '#10b981' : '#38bdf8';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Badge Text
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = hasIdentity ? '#ffffff' : '#38bdf8';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, badgeCenterX, badgeCenterY + 0.5);
+
+        ctx.restore();
       });
     };
 
     const engine = createRecognitionEngine(() => webcamRef.current?.video ?? null, {
-      detectFps: signals.lowCPU ? 8 : 12, // High responsiveness for millisecond detection
+      detectFps: signals.lowCPU ? 12 : 16, // High responsiveness for millisecond detection
       detectionWidth: 480, // Sharp 480px width
       matchThreshold: 0.48, // Standard optimal Euclidean distance threshold
       requiredHoldMs: 0, // Instant 0ms verification on first match
-      identityTtlMs: 2000, // 2s TTL allows consecutive students to be recognized immediately
-      maxMissed: 3, // Smooth tracking
+      identityTtlMs: 2500, // 2.5s TTL keeps name tag smoothly locked above student's head
+      maxMissed: 4, // Smooth tracking
       onTracks: (tracks) => {
         drawTracks(tracks);
         setFaceCount((prev) => (prev === tracks.length ? prev : tracks.length));

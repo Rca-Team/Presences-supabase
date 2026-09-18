@@ -94,6 +94,36 @@ export function generateGatePassQrPayload(pass: GatePass): string {
 }
 
 /**
+ * Safe database persistence for gate passes that avoids 400 Bad Request on upsert
+ */
+async function persistGatePasses(updatedList: GatePass[]): Promise<void> {
+  const { data: existing } = await supabase
+    .from('attendance_settings')
+    .select('id')
+    .eq('key', STORAGE_KEY)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('attendance_settings')
+      .update({
+        value: updatedList as any,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('attendance_settings')
+      .insert({
+        key: STORAGE_KEY,
+        value: updatedList as any,
+      });
+    if (error) throw error;
+  }
+}
+
+/**
  * Auto-expire stale passes older than 20 hours that were never used
  */
 export async function autoExpireOldGatePasses(passes: GatePass[]): Promise<GatePass[]> {
@@ -120,15 +150,7 @@ export async function autoExpireOldGatePasses(passes: GatePass[]): Promise<GateP
 
   if (modified) {
     try {
-      await supabase
-        .from('attendance_settings')
-        .upsert(
-          {
-            key: STORAGE_KEY,
-            value: updated as any,
-          },
-          { onConflict: 'key' }
-        );
+      await persistGatePasses(updated);
     } catch (e) {
       console.warn('[GatePassService] Could not auto-expire passes:', e);
     }
