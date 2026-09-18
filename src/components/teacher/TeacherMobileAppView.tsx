@@ -21,6 +21,7 @@ import {
   Check,
   UserX,
   UserCheck,
+  CheckCheck,
   RefreshCw,
   QrCode,
   ScanFace,
