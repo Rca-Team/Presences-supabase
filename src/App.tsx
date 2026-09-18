@@ -9,6 +9,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import RouteFallback from "@/components/RouteFallback";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import { warmCommonRoutes } from "@/lib/preloadRoute";
+import { isRecoverableChunkOrNetworkError, performAppRecovery } from "@/utils/errorHandler";
 
 
 const Index = lazyWithRetry(() => import("./pages/Index"), "index");
@@ -344,33 +345,12 @@ function App() {
 
   useEffect(() => {
     const handleChunkError = (err: any) => {
-      const errorMsg = String(err?.message || err?.reason?.message || err || '').toLowerCase();
-      const isChunkError =
-        errorMsg.includes('dynamically imported module') ||
-        errorMsg.includes('loading chunk') ||
-        errorMsg.includes('mime type') ||
-        errorMsg.includes('failed to fetch') ||
-        errorMsg.includes('importing a module script failed') ||
-        errorMsg.includes('expected a javascript-or-wasm');
-
-      if (isChunkError) {
+      if (isRecoverableChunkOrNetworkError(err)) {
         const lastReload = Number(sessionStorage.getItem('presence:chunk_reload_ts') || '0');
         const now = Date.now();
         if (!lastReload || now - lastReload > 12000) {
           sessionStorage.setItem('presence:chunk_reload_ts', String(now));
-          void (async () => {
-            try {
-              if ('serviceWorker' in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                await Promise.all(regs.map((r) => r.unregister()));
-              }
-              if ('caches' in window) {
-                const keys = await caches.keys();
-                await Promise.all(keys.map((k) => caches.delete(k)));
-              }
-            } catch (_) {}
-            window.location.reload();
-          })();
+          void performAppRecovery(false);
         }
       }
     };

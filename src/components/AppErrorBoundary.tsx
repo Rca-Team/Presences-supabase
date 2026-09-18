@@ -1,39 +1,50 @@
 import React from 'react';
-import { RefreshCw, Home, AlertTriangle, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  RefreshCw,
+  Home,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Terminal,
+  RotateCcw,
+} from 'lucide-react';
+import {
+  formatErrorMessage,
+  isRecoverableChunkOrNetworkError,
+  performAppRecovery,
+  generateErrorDiagnostics,
+} from '@/utils/errorHandler';
 
 interface State {
   error: Error | null;
+  errorInfo: React.ErrorInfo | null;
   recovering: boolean;
-  errorInfo?: React.ErrorInfo | null;
+  showDetails: boolean;
+  copied: boolean;
+  retryCount: number;
 }
 
 const CHUNK_KEY = 'presence:chunk-recovery';
 
-function isChunkOrNetworkError(error: Error) {
-  const msg = `${error?.name ?? ''} ${error?.message ?? ''}`.toLowerCase();
-  return (
-    msg.includes('dynamically imported module') ||
-    msg.includes('failed to fetch') ||
-    msg.includes('loading chunk') ||
-    msg.includes('importing a module script failed') ||
-    msg.includes('csssyntaxerror') ||
-    msg.includes('networkerror') ||
-    msg.includes('is not defined') ||
-    msg.includes('referenceerror') ||
-    msg.includes('isorientation')
-  );
-}
-
 /**
- * Enterprise AppErrorBoundary with auto-healing and graceful fallback.
- * Automatically recovers from stale Vite chunks, WebGL context drops,
- * or corrupted service worker caches without trapping the user in a blank white screen.
+ * Enterprise AppErrorBoundary with auto-healing, diagnostics, and graceful fallback.
+ * Prevents full-screen crashes, automatically resolves stale build chunks,
+ * and provides 1-tap copy diagnostics for fast debugging.
  */
 export class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
   State
 > {
-  state: State = { error: null, recovering: false, errorInfo: null };
+  state: State = {
+    error: null,
+    errorInfo: null,
+    recovering: false,
+    showDetails: false,
+    copied: false,
+    retryCount: 0,
+  };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
@@ -42,8 +53,8 @@ export class AppErrorBoundary extends React.Component<
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo });
 
-    if (!isChunkOrNetworkError(error)) {
-      console.warn('App error boundary caught runtime exception:', error);
+    if (!isRecoverableChunkOrNetworkError(error)) {
+      console.warn('[AppErrorBoundary caught exception]:', error);
       return;
     }
 
@@ -63,60 +74,40 @@ export class AppErrorBoundary extends React.Component<
     }
 
     this.setState({ recovering: true });
-
-    void (async () => {
-      try {
-        if ('serviceWorker' in navigator) {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map((r) => r.unregister()));
-        }
-        if ('caches' in window) {
-          const keys = await caches.keys();
-          await Promise.all(keys.map((k) => caches.delete(k)));
-        }
-      } catch (err) {
-        console.warn('Chunk recovery cleanup failed', err);
-      } finally {
-        window.location.reload();
-      }
-    })();
+    void performAppRecovery(false);
   }
 
-  private reset = async () => {
-    this.setState({ recovering: true });
-    try {
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map((r) => r.unregister()));
-      }
-    } catch {}
-    window.location.reload();
+  private handleSoftRetry = () => {
+    this.setState((prev) => ({
+      error: null,
+      errorInfo: null,
+      retryCount: prev.retryCount + 1,
+    }));
   };
 
-  private handleHardReset = async () => {
+  private handleReload = () => {
+    this.setState({ recovering: true });
+    void performAppRecovery(false);
+  };
+
+  private handleHardReset = () => {
+    this.setState({ recovering: true });
+    void performAppRecovery(true);
+  };
+
+  private handleCopyDiagnostics = async () => {
     try {
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map((r) => r.unregister()));
-      }
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-      sessionStorage.clear();
-    } catch (e) {
-      console.warn('Hard reset cleanup error:', e);
-    } finally {
-      window.location.assign('/');
+      const payload = generateErrorDiagnostics(this.state.error, this.state.errorInfo);
+      await navigator.clipboard.writeText(payload);
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 2500);
+    } catch (err) {
+      console.error('Failed to copy diagnostics:', err);
     }
   };
 
   render() {
-    const { error, recovering } = this.state;
+    const { error, recovering, showDetails, copied, errorInfo } = this.state;
     if (!error) return this.props.children;
 
     if (recovering) {
@@ -125,17 +116,20 @@ export class AppErrorBoundary extends React.Component<
           <div className="flex items-center gap-3 p-4 rounded-2xl bg-card border border-border/80 shadow-xl">
             <RefreshCw className="h-5 w-5 text-primary animate-spin" />
             <p className="text-sm font-semibold text-foreground">
-              Syncing Presences with the latest updates…
+              Updating & synchronizing application assets…
             </p>
           </div>
         </div>
       );
     }
 
+    const friendlyMessage = formatErrorMessage(error);
+
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 bg-background/95">
-        <div className="max-w-md w-full rounded-3xl border border-border/80 bg-card p-6 sm:p-8 text-center shadow-2xl space-y-5">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+      <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 py-8 bg-background/95 safe-area-inset">
+        <div className="max-w-lg w-full rounded-3xl border border-border/80 bg-card p-6 sm:p-8 text-center shadow-2xl space-y-5">
+          {/* Status Badge */}
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-500 shadow-inner">
             <AlertTriangle className="h-7 w-7" />
           </div>
 
@@ -143,26 +137,90 @@ export class AppErrorBoundary extends React.Component<
             <h1 className="text-xl font-extrabold tracking-tight text-foreground">
               Application Recovered
             </h1>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {error.message || 'An unexpected rendering state was caught and safely contained.'}
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              {friendlyMessage}
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
+          {/* Primary Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
             <button
-              onClick={this.reset}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 transition-all hover:opacity-90 active:scale-[0.98]"
+              type="button"
+              onClick={this.handleSoftRetry}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-90 active:scale-[0.98]"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-3.5 w-3.5" />
               Try Again
             </button>
+
             <button
-              onClick={this.handleHardReset}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-border/80 bg-background/50 px-5 py-2.5 text-xs font-bold text-foreground transition-all hover:bg-muted active:scale-[0.98]"
+              type="button"
+              onClick={this.handleReload}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border/80 bg-background px-4 py-2.5 text-xs font-bold text-foreground transition hover:bg-muted active:scale-[0.98]"
             >
-              <Home className="h-3.5 w-3.5 text-muted-foreground" />
+              <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+              Reload App
+            </button>
+          </div>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={this.handleHardReset}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-muted/30 px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition active:scale-[0.98]"
+            >
+              <Home className="h-3.5 w-3.5" />
               Clear Cache & Return Home
             </button>
+          </div>
+
+          {/* Collapsible Technical Diagnostics Drawer */}
+          <div className="pt-2 border-t border-border/60 text-left">
+            <button
+              type="button"
+              onClick={() => this.setState((prev) => ({ showDetails: !prev.showDetails }))}
+              className="w-full flex items-center justify-between text-[11px] font-semibold text-muted-foreground hover:text-foreground py-1 transition"
+            >
+              <span className="flex items-center gap-1.5">
+                <Terminal className="h-3.5 w-3.5" />
+                Technical Diagnostics
+              </span>
+              {showDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+
+            {showDetails && (
+              <div className="mt-2.5 space-y-2.5 rounded-xl bg-muted/50 p-3 text-[11px] font-mono border border-border/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Error Details</span>
+                  <button
+                    type="button"
+                    onClick={this.handleCopyDiagnostics}
+                    className="inline-flex items-center gap-1 rounded-md bg-background px-2 py-1 text-[10px] font-sans font-semibold text-foreground border border-border shadow-xs hover:bg-muted transition active:scale-95"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-500" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3 text-muted-foreground" />
+                        Copy Diagnostics
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="max-h-40 overflow-y-auto space-y-1.5 text-foreground/90 whitespace-pre-wrap break-all pr-1 select-text">
+                  <div className="text-amber-500 font-semibold">{error.name}: {error.message}</div>
+                  {errorInfo?.componentStack && (
+                    <div className="text-muted-foreground text-[10px] opacity-80 mt-1">
+                      {errorInfo.componentStack.slice(0, 500)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
