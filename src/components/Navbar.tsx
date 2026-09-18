@@ -81,8 +81,8 @@ const Navbar = () => {
   const navLinks = [
     { text: 'Home', path: '/', icon: Home, show: !isAuthenticated || (!isTeacher || isAdminOrPrincipal) },
     { text: 'Parent Portal', path: '/parent', icon: GraduationCap, show: !isAuthenticated },
-    { text: 'Teacher Portal', path: '/teacher', icon: BookOpen, show: isAuthenticated && (isTeacher || isAdminOrPrincipal) },
-    { text: 'Guard Scanner', path: '/guard', icon: QrCode, show: isAuthenticated && (isGuard || isAdminOrPrincipal) },
+    { text: 'Teacher Portal', path: '/teacher', icon: BookOpen, show: isAuthenticated && isTeacher && !isAdminOrPrincipal },
+    { text: 'Guard Scanner', path: '/guard', icon: QrCode, show: isAuthenticated && isGuard && !isAdminOrPrincipal },
     { text: 'Profile', path: '/profile', icon: User, show: isAuthenticated },
     { text: 'Register', path: '/register', icon: UserPlus, show: isAuthenticated },
     { text: 'Attendance', path: '/attendance', icon: ScanLine, show: isAuthenticated },
