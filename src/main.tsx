@@ -134,12 +134,46 @@ resetLocalProjectDataOnce();
 sanitizeSupabaseAuthStorage();
 
 
-// Global error handler to prevent white screens
+// Global error handler to prevent white screens and recover from deployment chunk mismatches
 window.addEventListener('error', (event) => {
-  console.error('Global error caught:', event.error);
+  const errorMsg = String(event.error?.message || event.message || '');
+  const isChunkOrScriptError =
+    errorMsg.includes('Failed to load module script') ||
+    errorMsg.includes('Expected a JavaScript-or-Wasm module script') ||
+    errorMsg.includes('Loading chunk') ||
+    errorMsg.includes('dynamically imported module') ||
+    errorMsg.includes('Importing a module script failed');
+
+  if (isChunkOrScriptError) {
+    const lastReload = Number(sessionStorage.getItem('presence:stale_chunk_reload') || '0');
+    if (!lastReload || Date.now() - lastReload > 6000) {
+      sessionStorage.setItem('presence:stale_chunk_reload', String(Date.now()));
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          keys.forEach((k) => caches.delete(k));
+        });
+      }
+      window.location.reload();
+      return;
+    }
+  }
+  console.error('Global error caught:', event.error || event.message);
 });
 
 window.addEventListener('unhandledrejection', (event) => {
+  const reason = String(event.reason?.message || event.reason || '');
+  if (
+    reason.includes('dynamically imported module') ||
+    reason.includes('Loading chunk') ||
+    reason.includes('Failed to fetch dynamically imported module')
+  ) {
+    const lastReload = Number(sessionStorage.getItem('presence:stale_chunk_reload') || '0');
+    if (!lastReload || Date.now() - lastReload > 6000) {
+      sessionStorage.setItem('presence:stale_chunk_reload', String(Date.now()));
+      window.location.reload();
+      return;
+    }
+  }
   console.error('Unhandled promise rejection:', event.reason);
 });
 
