@@ -528,7 +528,7 @@ export async function saveTeacherCategories(
       },
     };
 
-    let { error: pError } = await db.from('teacher_permissions').insert(corePermPayload);
+    const { error: pError } = await db.from('teacher_permissions').insert(corePermPayload);
 
     if (pError) {
       await db.from('teacher_permissions').insert({
@@ -551,7 +551,7 @@ export async function saveTeacherCategories(
 
     if (teacherEmail) ctPayload.teacher_email = teacherEmail;
 
-    let { error: ctError } = await db.from('class_teachers').insert(ctPayload);
+    const { error: ctError } = await db.from('class_teachers').insert(ctPayload);
 
     if (ctError) {
       await db.from('class_teachers').insert({
