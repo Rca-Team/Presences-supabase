@@ -462,14 +462,8 @@ const Profile = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                <AnimatePresence mode="wait">
-                  <TabsContent value="details">
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                    >
-                      <Card className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-blue-100 dark:border-blue-900/50 shadow-xl">
+                <TabsContent value="details">
+                  <Card className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-blue-100 dark:border-blue-900/50 shadow-xl">
                         <CardHeader className="pb-4">
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -557,30 +551,18 @@ const Profile = () => {
                           </div>
                         </CardContent>
                       </Card>
-                    </motion.div>
                   </TabsContent>
 
                   <TabsContent value="face">
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                    >
                       {user && (
                         <FaceReRegistration 
                           userId={user.id} 
                           userName={profile?.display_name || user.email || 'User'} 
                         />
                       )}
-                    </motion.div>
                   </TabsContent>
 
                   <TabsContent value="insights">
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                    >
                       <Card className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-blue-100 dark:border-blue-900/50 shadow-xl">
                         <CardHeader className="pb-4">
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
@@ -606,11 +588,8 @@ const Profile = () => {
                         <CardContent className="space-y-3 sm:space-y-4">
                           {aiInsights && aiInsights.length > 0 ? (
                             aiInsights.map((insight: any, i: number) => (
-                              <motion.div
+                              <div
                                 key={insight.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.1 }}
                                 className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20"
                               >
                                 <div className="flex justify-between items-start mb-2">
@@ -631,7 +610,7 @@ const Profile = () => {
                                     ))}
                                   </ul>
                                 )}
-                              </motion.div>
+                              </div>
                             ))
                           ) : (
                             <div className="text-center py-8 sm:py-12">
@@ -642,16 +621,9 @@ const Profile = () => {
                           )}
                         </CardContent>
                       </Card>
-                    </motion.div>
                   </TabsContent>
 
-                  <TabsContent value="notifications">
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="space-y-4"
-                    >
+                  <TabsContent value="notifications" className="space-y-4">
                       {/* Push Notification Settings */}
                       <PushNotificationSettings className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-blue-100 dark:border-blue-900/50 shadow-xl" />
 
@@ -719,11 +691,8 @@ const Profile = () => {
                         <CardContent className="space-y-2 sm:space-y-3">
                           {notifications && notifications.length > 0 ? (
                             notifications.map((notif: any, i: number) => (
-                              <motion.div
+                              <div
                                 key={notif.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.05 }}
                                 className={`p-3 sm:p-4 rounded-xl border transition-all hover:shadow-md ${
                                   notif.is_read 
                                     ? 'bg-muted/30 border-muted' 
@@ -740,7 +709,7 @@ const Profile = () => {
                                 <span className="text-xs text-muted-foreground mt-2 block">
                                   {new Date(notif.created_at).toLocaleString()}
                                 </span>
-                              </motion.div>
+                              </div>
                             ))
                           ) : (
                             <div className="text-center py-8 sm:py-12">
@@ -750,9 +719,7 @@ const Profile = () => {
                           )}
                         </CardContent>
                       </Card>
-                    </motion.div>
                   </TabsContent>
-                </AnimatePresence>
               </Tabs>
 
               {/* Desktop Quick Actions */}

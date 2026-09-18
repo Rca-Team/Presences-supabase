@@ -641,15 +641,14 @@ const Attendance: React.FC = () => {
 
           {/* 4. Main Workstation Bento Stage */}
           <main className="relative">
-            <AnimatePresence mode="wait">
+            <div>
               {/* TAB 1: Hands-free Face Recognition Kiosk */}
               {activeTab === 'kiosk' && (
                 <motion.div
                   key="kiosk"
-                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: -10 }}
-                  transition={iosSpring}
+                  initial={{ opacity: 0.88, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
@@ -675,10 +674,9 @@ const Attendance: React.FC = () => {
               {activeTab === 'qr' && (
                 <motion.div
                   key="qr"
-                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: -10 }}
-                  transition={iosSpring}
+                  initial={{ opacity: 0.88, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
@@ -696,10 +694,9 @@ const Attendance: React.FC = () => {
               {activeTab === 'analytics' && (
                 <motion.div
                   key="analytics"
-                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: -10 }}
-                  transition={iosSpring}
+                  initial={{ opacity: 0.88, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
@@ -717,10 +714,9 @@ const Attendance: React.FC = () => {
               {activeTab === 'help' && (
                 <motion.div
                   key="help"
-                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: -10 }}
-                  transition={iosSpring}
+                  initial={{ opacity: 0.88, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="max-w-3xl mx-auto"
                 >
                   <div className="nano-glass rounded-[32px] p-6 sm:p-8 shadow-2xl border border-white/70 dark:border-white/10">
@@ -728,7 +724,7 @@ const Attendance: React.FC = () => {
                   </div>
                 </motion.div>
               )}
-            </AnimatePresence>
+            </div>
           </main>
         </div>
       </PageLayout>

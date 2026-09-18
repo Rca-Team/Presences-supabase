@@ -132,13 +132,12 @@ export default function ParentPortal() {
           />
         ) : (
           /* 2. Full Active Student Dashboard */
-          <AnimatePresence mode="wait">
+          <div>
             <motion.div
               key={child.employee_id}
-              initial={{ opacity: 0, y: 15 }}
+              initial={{ opacity: 0.88, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="space-y-6"
             >
               {/* Primary Live Presence Hero Card */}
@@ -239,7 +238,7 @@ export default function ParentPortal() {
                 </TabsContent>
               </Tabs>
             </motion.div>
-          </AnimatePresence>
+          </div>
         )}
       </main>
 
