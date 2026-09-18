@@ -46,7 +46,6 @@ import EmergencyAlertListener from './components/EmergencyAlertListener';
 import RealtimeNotificationListener from './components/RealtimeNotificationListener';
 import AppExperienceLayer from './components/AppExperienceLayer';
 import SplashAnimation from './components/SplashAnimation';
-import FloatingDeviceWidgets from './components/widgets/FloatingDeviceWidgets';
 // NOTE: ModelService is imported dynamically inside the prefetch effect below.
 // A static import would pull face-api.js + tfjs into the entry chunk.
 
@@ -435,7 +434,6 @@ function App() {
                         <>
                           <AppExperienceLayer />
                           <PWAInstallPrompt />
-                          <FloatingDeviceWidgets />
                         </>
                       )}
                       <EmergencyAlertListener />

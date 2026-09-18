@@ -18,7 +18,6 @@ const MobileNavBar: React.FC = () => {
     if (isTeacher || isAdminOrPrincipal) {
       return [
         { path: '/teacher', icon: GraduationCap, label: 'Teacher', color: 'ios-blue' },
-        { path: '/widgets', icon: LayoutGrid, label: 'Widgets', color: 'ios-orange' },
         { path: '/attendance', icon: Clock, label: 'Attend', color: 'ios-purple' },
         { path: '/register', icon: UserPlus, label: 'Register', color: 'ios-green' },
         { path: '/profile', icon: User, label: 'Profile', color: 'ios-pink' },
@@ -26,7 +25,6 @@ const MobileNavBar: React.FC = () => {
     }
     return [
       { path: '/', icon: Home, label: 'Home', color: 'ios-blue' },
-      { path: '/widgets', icon: LayoutGrid, label: 'Widgets', color: 'ios-orange' },
       { path: '/register', icon: UserPlus, label: 'Register', color: 'ios-green' },
       { path: '/attendance', icon: Clock, label: 'Attend', color: 'ios-purple' },
       { path: '/profile', icon: User, label: 'Profile', color: 'ios-pink' },

@@ -191,25 +191,31 @@ export const FloatingDeviceWidgets: React.FC = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const { data: records } = await supabase
-        .from('attendance_records')
-        .select('id, student_name, status, timestamp')
-        .gte('timestamp', today.toISOString());
+      const [recordsRes, registeredRes] = await Promise.all([
+        supabase
+          .from('attendance_records')
+          .select('id, student_name, status, timestamp')
+          .gte('timestamp', today.toISOString()),
+        supabase
+          .from('attendance_records')
+          .select('id, student_name')
+          .eq('status', 'registered'),
+      ]);
 
-      if (records && records.length > 0) {
-        const p = records.filter(r => r.status === 'present' || r.status === 'late').length;
-        const l = records.filter(r => r.status === 'late').length;
-        const total = Math.max(45, records.length);
-        const a = Math.max(0, total - p);
+      const records = recordsRes.data || [];
+      const registered = registeredRes.data || [];
+      const total = registered.length > 0 ? registered.length : records.length;
+      const p = records.filter((r) => r.status === 'present' || r.status === 'late').length;
+      const l = records.filter((r) => r.status === 'late').length;
+      const a = Math.max(0, total - p);
 
-        setTotalStudents(total);
-        setPresentStudents(p);
-        setAbsentStudents(a);
-        setLateStudents(l);
+      setTotalStudents(total);
+      setPresentStudents(p);
+      setAbsentStudents(a);
+      setLateStudents(l);
 
-        setIsLivePulse(true);
-        setTimeout(() => setIsLivePulse(false), 1500);
-      }
+      setIsLivePulse(true);
+      setTimeout(() => setIsLivePulse(false), 1500);
     } catch (err) {
       console.warn('Widget poll notice:', err);
     }

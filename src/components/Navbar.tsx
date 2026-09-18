@@ -83,7 +83,6 @@ const Navbar = () => {
     { text: 'Parent Portal', path: '/parent', icon: GraduationCap, show: !isAuthenticated },
     { text: 'Teacher Portal', path: '/teacher', icon: BookOpen, show: isAuthenticated && (isTeacher || isAdminOrPrincipal) },
     { text: 'Guard Scanner', path: '/guard', icon: QrCode, show: isAuthenticated && (isGuard || isAdminOrPrincipal) },
-    { text: 'Widgets', path: '/widgets', icon: LayoutGrid, show: true },
     { text: 'Profile', path: '/profile', icon: User, show: isAuthenticated },
     { text: 'Register', path: '/register', icon: UserPlus, show: isAuthenticated },
     { text: 'Attendance', path: '/attendance', icon: ScanLine, show: isAuthenticated },
