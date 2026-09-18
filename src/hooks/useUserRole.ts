@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { hasTeacherAccess } from '@/utils/teacherAccess';
 
-export type UserRole = 'admin' | 'principal' | 'teacher' | 'user' | null;
+export type UserRole = 'admin' | 'principal' | 'teacher' | 'guard' | 'security' | 'user' | null;
 
 interface UseUserRoleReturn {
   role: UserRole;
@@ -10,6 +10,7 @@ interface UseUserRoleReturn {
   isAdmin: boolean;
   isPrincipal: boolean;
   isTeacher: boolean;
+  isGuard: boolean;
   isAdminOrPrincipal: boolean;
   userId: string | null;
   refetch: () => Promise<void>;
@@ -54,6 +55,12 @@ export const useUserRole = (): UseUserRoleReturn => {
         return;
       }
 
+      if (rolesList.includes('guard') || rolesList.includes('security')) {
+        setRole('guard');
+        setIsLoading(false);
+        return;
+      }
+
       const teacherAccess = await hasTeacherAccess(user.id);
       if (teacherAccess) {
         setRole('teacher');
@@ -93,6 +100,7 @@ export const useUserRole = (): UseUserRoleReturn => {
     isAdmin: role === 'admin',
     isPrincipal: role === 'principal' || role === 'admin',
     isTeacher: role === 'teacher',
+    isGuard: role === 'guard' || role === 'security',
     isAdminOrPrincipal: role === 'admin' || role === 'principal',
     userId,
     refetch: fetchRole,

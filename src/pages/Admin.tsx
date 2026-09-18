@@ -33,6 +33,7 @@ const AdminInbox = lazyWithRetry(() => import('@/components/admin/AdminInbox'), 
 const StudentFaceSamplesManager = lazyWithRetry(() => import('@/components/admin/StudentFaceSamplesManager'), 'admin-samples');
 const FaceSamplesDiagnosticsPanel = lazyWithRetry(() => import('@/components/admin/FaceSamplesDiagnosticsPanel'), 'admin-samples-diag');
 const TimetableManager = lazyWithRetry(() => import('@/components/admin/TimetableManager'), 'admin-timetable');
+const GatePassManager = lazyWithRetry(() => import('@/components/admin/GatePassManager'), 'admin-gate-passes');
 const LiteAdmin = lazyWithRetry(() => import('@/components/lite/LiteAdmin'), 'admin-lite');
 
 // Sidebar utilities — small, but they drag in xlsx/notification helpers, so keep
@@ -54,7 +55,7 @@ import {
   User, Calendar, Clock, FolderKanban, School,
   LayoutDashboard, Settings, Bell, Users, BarChart3,
   Shield, Activity, TrendingUp, ChevronRight, Send, UserCog,
-  CreditCard, Image, Download, RefreshCw, MessageSquareText, Mail, Siren, CalendarDays, DatabaseBackup, ScanLine } from
+  CreditCard, Image, Download, RefreshCw, MessageSquareText, Mail, Siren, CalendarDays, DatabaseBackup, ScanLine, QrCode } from
 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -335,6 +336,7 @@ const Admin = () => {
   { id: 'notif-log', icon: MessageSquareText, label: 'Delivery Log', group: 'Management' },
   { id: 'inbox', icon: Mail, label: 'Inbox', group: 'Management' },
   { id: 'emergency', icon: Siren, label: 'Emergency', group: 'Management' },
+  { id: 'gatepass', icon: QrCode, label: 'Gate Passes', group: 'Management' },
   { id: 'timetable', icon: CalendarDays, label: 'Timetable', group: 'Management' },
   { id: 'settings', icon: Settings, label: 'Settings', group: 'Management' }];
 
@@ -430,6 +432,12 @@ const Admin = () => {
         return (
           <TabPanel>
             <EmergencyAlertPanel />
+          </TabPanel>
+        );
+      case 'gatepass':
+        return (
+          <TabPanel>
+            <GatePassManager />
           </TabPanel>
         );
       case 'timetable':

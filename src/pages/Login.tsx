@@ -24,6 +24,11 @@ const resolvePostLoginRoute = async (userId: string, defaultTarget: string) => {
 
     const rolesList: string[] = (userRolesRes.data || []).map((r: any) => r.role);
 
+    // If gate guard or security, redirect straight to specialized scanner
+    if (rolesList.includes('guard') || rolesList.includes('security')) {
+      return '/guard';
+    }
+
     // If teacher, prioritize direct opening of teacher portal
     if (rolesList.includes('teacher') || hasAccess) {
       if (defaultTarget && defaultTarget.startsWith('/teacher')) return defaultTarget;

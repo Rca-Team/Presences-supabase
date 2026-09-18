@@ -5,7 +5,7 @@ import NotificationPermissionGate from './NotificationPermissionGate';
 import { ShieldAlert } from 'lucide-react';
 import { hasTeacherAccess } from '@/utils/teacherAccess';
 
-type AppRole = 'admin' | 'principal' | 'teacher' | 'user';
+type AppRole = 'admin' | 'principal' | 'teacher' | 'guard' | 'security' | 'user';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -33,6 +33,7 @@ export function ProtectedRoute({ children, requireAdmin = false, requireRoles }:
 
     if (rolesList.includes('admin')) return 'admin';
     if (rolesList.includes('principal')) return 'principal';
+    if (rolesList.includes('guard') || rolesList.includes('security')) return 'guard';
 
     if (await hasTeacherAccess(userId)) return 'teacher';
 

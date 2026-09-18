@@ -31,6 +31,10 @@ import {
   Sparkles,
   Printer,
   Share2,
+  ArrowRight,
+  Building2,
+  Check,
+  FileCheck,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -38,10 +42,13 @@ import {
   GatePass,
   GatePassReason,
   fetchClassGatePasses,
-  updateGatePassStatus,
+  verifyPassByTeacher,
+  approvePassByPrincipal,
+  rejectGatePass,
   createGatePass,
   subscribeToGatePasses,
   getGatePassWhatsAppUrl,
+  generateGatePassQrPayload,
 } from '@/services/gatePassService';
 import { ClassStudent, ClassAssignment } from './TeacherAdminWorkspace';
 import { sanitizeStudentPhotoUrl } from '@/utils/studentPhotoResolver';
@@ -62,8 +69,12 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
   const { toast } = useToast();
   const [passes, setPasses] = useState<GatePass[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'used' | 'rejected'>('pending');
+  const [filter, setFilter] = useState<'all' | 'pending_teacher' | 'pending_principal' | 'approved' | 'used' | 'rejected'>('pending_teacher');
   const [search, setSearch] = useState('');
+
+  // Forward Modal State
+  const [verifyingPass, setVerifyingPass] = useState<GatePass | null>(null);
+  const [teacherNote, setTeacherNote] = useState('');
 
   // Rejection Dialog State
   const [rejectingPass, setRejectingPass] = useState<GatePass | null>(null);
@@ -79,6 +90,7 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
   const [pickupPerson, setPickupPerson] = useState('');
   const [pickupPhone, setPickupPhone] = useState('');
   const [pickupRelation, setPickupRelation] = useState('Parent');
+  const [pickupIdProof, setPickupIdProof] = useState('Parent ID / Aadhaar Card');
   const [reasonCategory, setReasonCategory] = useState<GatePassReason>('illness_at_school');
   const [reasonText, setReasonText] = useState('High fever / medical attention required at home');
   const [pickupTime, setPickupTime] = useState(format(new Date(), 'hh:mm a'));
@@ -108,9 +120,12 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
   // Filtered passes
   const filteredPasses = useMemo(() => {
     let list = passes;
-    if (filter !== 'all') {
+    if (filter === 'pending_teacher') {
+      list = list.filter((p) => p.status === 'pending_teacher' || p.status === 'pending');
+    } else if (filter !== 'all') {
       list = list.filter((p) => p.status === filter);
     }
+
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -127,29 +142,67 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
   const counts = useMemo(() => {
     return {
       all: passes.length,
-      pending: passes.filter((p) => p.status === 'pending').length,
+      pending_teacher: passes.filter((p) => p.status === 'pending_teacher' || p.status === 'pending').length,
+      pending_principal: passes.filter((p) => p.status === 'pending_principal').length,
       approved: passes.filter((p) => p.status === 'approved').length,
       used: passes.filter((p) => p.status === 'used').length,
       rejected: passes.filter((p) => p.status === 'rejected').length,
     };
   }, [passes]);
 
-  // Handle Approve
-  const handleApprove = async (pass: GatePass) => {
+  // Handle Step 1 Teacher Verification & Forward to Principal
+  const handleConfirmTeacherVerify = async () => {
+    if (!verifyingPass) return;
     setIsProcessing(true);
     try {
-      const ok = await updateGatePassStatus(pass.id, 'approved', {
-        approved_by: `${teacherName} (Class Teacher)`,
-      });
+      const ok = await verifyPassByTeacher(
+        verifyingPass.id,
+        `${teacherName} (Class Teacher)`,
+        teacherNote.trim() || 'Class teacher verified reason and identity'
+      );
 
       if (ok) {
         toast({
-          title: 'Gate Pass Approved ✅',
-          description: `Pass ${pass.pass_code} for ${pass.student_name} is now active at Gate Turnstiles.`,
+          title: 'Verified & Forwarded to Principal 🏛️',
+          description: `Pass ${verifyingPass.pass_code} for ${verifyingPass.student_name} forwarded to Principal for final sign-off.`,
+        });
+        setVerifyingPass(null);
+        setTeacherNote('');
+        await loadPasses();
+        setFilter('pending_principal');
+      } else {
+        throw new Error('Verification failed');
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err?.message || 'Could not verify gate pass.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Direct Teacher Emergency Approval (Bypassing Principal in urgent scenarios)
+  const handleDirectEmergencyApprove = async (pass: GatePass) => {
+    setIsProcessing(true);
+    try {
+      const ok = await approvePassByPrincipal(
+        pass.id,
+        `${teacherName} (Class Teacher - Emergency Authority)`,
+        'Direct emergency class teacher override'
+      );
+
+      if (ok) {
+        toast({
+          title: 'Gate Pass Approved & QR Active ✅',
+          description: `Pass ${pass.pass_code} for ${pass.student_name} is now immediately active at Gate Security.`,
         });
         await loadPasses();
+        setFilter('approved');
       } else {
-        throw new Error('Update failed');
+        throw new Error('Approval failed');
       }
     } catch (err: any) {
       toast({
@@ -167,9 +220,12 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
     if (!rejectingPass) return;
     setIsProcessing(true);
     try {
-      const ok = await updateGatePassStatus(rejectingPass.id, 'rejected', {
-        rejection_reason: rejectionReason.trim() || 'Disapproved by class teacher.',
-      });
+      const ok = await rejectGatePass(
+        rejectingPass.id,
+        `${teacherName} (Class Teacher)`,
+        rejectionReason.trim() || 'Disapproved during Class Teacher review.',
+        'teacher'
+      );
 
       if (ok) {
         toast({
@@ -223,22 +279,24 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
         pickup_person_name: pickupPerson.trim() || st.parent_name || 'Authorized Guardian',
         pickup_person_phone: pickupPhone.trim() || st.parent_phone || '',
         pickup_person_relation: pickupRelation,
+        pickup_person_id_proof: pickupIdProof.trim(),
         reason_category: reasonCategory,
         reason_text: reasonText.trim(),
         expected_pickup_time: pickupTime,
         valid_until: 'End of School Day',
-        approved_by: `${teacherName} (Class Teacher)`,
+        teacher_verified_by: `${teacherName} (Class Teacher)`,
+        teacher_verified_at: new Date().toISOString(),
+        status: 'pending_principal', // Forwards to Principal
       });
 
       if (created) {
         toast({
-          title: 'Emergency Gate Pass Issued 🎫',
-          description: `Pass ${created.pass_code} for ${st.name} is now immediately active at Gate Security.`,
+          title: 'Gate Pass Forwarded to Principal 🏛️',
+          description: `Pass ${created.pass_code} for ${st.name} submitted for final Principal sign-off.`,
         });
         setIsIssueModalOpen(false);
         await loadPasses();
-        setFilter('approved');
-        setPreviewPass(created);
+        setFilter('pending_principal');
       }
     } catch (err: any) {
       toast({ title: 'Issue Failed', description: err?.message || 'Could not issue pass.', variant: 'destructive' });
@@ -289,9 +347,11 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
               <div class="row"><strong>Admission / Student ID:</strong> <span>${pass.student_id}</span></div>
               <div class="row"><strong>Authorized Pickup:</strong> <span>${pass.pickup_person_name} (${pass.pickup_person_relation})</span></div>
               <div class="row"><strong>Guardian Phone:</strong> <span>${pass.pickup_person_phone}</span></div>
+              <div class="row"><strong>Guardian ID Proof:</strong> <span>${pass.pickup_person_id_proof || 'Verified'}</span></div>
               <div class="row"><strong>Pickup Reason:</strong> <span>${pass.reason_text}</span></div>
               <div class="row"><strong>Expected Time:</strong> <span>${pass.expected_pickup_time}</span></div>
-              <div class="row"><strong>Authorized By:</strong> <span>${pass.approved_by || 'Class Teacher In-Charge'}</span></div>
+              <div class="row"><strong>Teacher Verification:</strong> <span>${pass.teacher_verified_by || 'Verified'}</span></div>
+              <div class="row"><strong>Principal Approval:</strong> <span>${pass.principal_approved_by || pass.approved_by || 'Principal Office'}</span></div>
             </div>
 
             <div class="guard-box">
@@ -322,10 +382,10 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card border border-border/70 shadow-xs">
         <div>
           <h3 className="text-base font-black text-foreground flex items-center gap-2">
-            <QrCode className="h-5 w-5 text-primary" /> Class {activeClass?.category} Gate Pass Authorizations
+            <QrCode className="h-5 w-5 text-primary" /> Class {activeClass?.category} Gate Pass Verification (Tier 1)
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Review parent pickup requests, digitally authorize early student exits, or issue emergency medical passes.
+            Step 1: Review parent pickup requests, verify student safety reason, and forward to Principal for final QR pass authorization.
           </p>
         </div>
 
@@ -335,7 +395,7 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
             onClick={() => setIsIssueModalOpen(true)}
             className="rounded-xl text-xs font-bold bg-primary text-white shadow-xs gap-1.5"
           >
-            <PlusCircle className="h-4 w-4" /> Issue Emergency Pass
+            <PlusCircle className="h-4 w-4" /> Issue Medical / Early Pass
           </Button>
         </div>
       </div>
@@ -344,8 +404,9 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {[
-            { id: 'pending', label: 'Pending Review', count: counts.pending, color: 'bg-amber-500' },
-            { id: 'approved', label: 'Approved Today', count: counts.approved, color: 'bg-emerald-500' },
+            { id: 'pending_teacher', label: '1. Awaiting Teacher', count: counts.pending_teacher, color: 'bg-amber-500' },
+            { id: 'pending_principal', label: '2. Forwarded to Principal', count: counts.pending_principal, color: 'bg-blue-500' },
+            { id: 'approved', label: '3. Approved (QR Active)', count: counts.approved, color: 'bg-emerald-500' },
             { id: 'used', label: 'Exited Campus', count: counts.used, color: 'bg-indigo-500' },
             { id: 'rejected', label: 'Disapproved', count: counts.rejected, color: 'bg-rose-500' },
             { id: 'all', label: 'All Passes', count: counts.all, color: 'bg-muted-foreground' },
@@ -392,10 +453,10 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
         <Card className="border-dashed border-border/80 bg-background/40">
           <CardContent className="p-8 text-center">
             <QrCode className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-            <p className="text-xs font-bold text-foreground">No {filter} gate passes found</p>
+            <p className="text-xs font-bold text-foreground">No gate passes in this section</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {filter === 'pending'
-                ? 'All parent early pickup requests have been reviewed and cleared.'
+              {filter === 'pending_teacher'
+                ? 'All parent early pickup requests have been verified and forwarded.'
                 : 'No gate pass records match the selected category.'}
             </p>
           </CardContent>
@@ -403,17 +464,21 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredPasses.map((pass) => {
-            const isPending = pass.status === 'pending';
+            const isPendingTeacher = pass.status === 'pending_teacher' || pass.status === 'pending';
+            const isPendingPrincipal = pass.status === 'pending_principal';
             const isApproved = pass.status === 'approved';
             const isUsed = pass.status === 'used';
+            const isRejected = pass.status === 'rejected';
             const whatsAppUrl = getGatePassWhatsAppUrl(pass);
 
             return (
               <Card
                 key={pass.id}
                 className={`rounded-2xl border transition-all ${
-                  isPending
+                  isPendingTeacher
                     ? 'border-amber-500/40 bg-amber-500/5 shadow-xs'
+                    : isPendingPrincipal
+                    ? 'border-blue-500/30 bg-blue-500/5'
                     : isApproved
                     ? 'border-emerald-500/30 bg-card'
                     : isUsed
@@ -437,118 +502,158 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
                         className={`text-[10px] font-extrabold uppercase rounded-full ${
                           isApproved
                             ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
-                            : isPending
+                            : isPendingPrincipal
+                            ? 'bg-blue-500/10 text-blue-600 border-blue-500/30'
+                            : isPendingTeacher
                             ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 animate-pulse'
                             : isUsed
                             ? 'bg-indigo-500/10 text-indigo-600 border-indigo-500/30'
                             : 'bg-rose-500/10 text-rose-600 border-rose-500/30'
                         }`}
                       >
-                        {pass.status}
+                        {isPendingPrincipal
+                          ? '2. PENDING PRINCIPAL'
+                          : isPendingTeacher
+                          ? '1. AWAITING TEACHER'
+                          : isApproved
+                          ? 'QR READY AT GATE'
+                          : pass.status.toUpperCase()}
                       </Badge>
                     </div>
                   </div>
 
-                  {/* Student & Reason Info */}
+                  {/* Student & Guardian Info */}
                   <div className="flex items-start gap-3">
-                    <Avatar className="h-10 w-10 rounded-xl border border-border/80 shrink-0">
-                      {pass.student_image_url && <AvatarImage src={sanitizeStudentPhotoUrl(pass.student_image_url)} />}
-                      <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
+                    <Avatar className="h-11 w-11 rounded-xl border border-border shrink-0">
+                      <AvatarImage src={pass.student_image_url} alt={pass.student_name} />
+                      <AvatarFallback className="rounded-xl font-bold bg-primary/10 text-primary text-xs">
                         {pass.student_name.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-black text-foreground truncate">{pass.student_name}</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5 font-medium line-clamp-2">{pass.reason_text}</p>
-                    </div>
-                  </div>
 
-                  {/* Guardian & Timing Details */}
-                  <div className="p-2.5 rounded-xl bg-muted/40 border border-border/50 text-[11px] space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground flex items-center gap-1">
-                        <User className="h-3 w-3" /> Pickup Person:
-                      </span>
-                      <span className="font-bold text-foreground">
-                        {pass.pickup_person_name} ({pass.pickup_person_relation})
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" /> Contact Phone:
-                      </span>
-                      <span className="font-mono font-bold text-foreground">{pass.pickup_person_phone}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> Expected Departure:
-                      </span>
-                      <span className="font-bold text-primary">{pass.expected_pickup_time}</span>
-                    </div>
-
-                    {pass.approved_by && (
-                      <div className="flex items-center justify-between pt-1 border-t border-border/30">
-                        <span className="text-muted-foreground">Authorized By:</span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{pass.approved_by}</span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-baseline justify-between">
+                        <h4 className="text-sm font-black text-foreground truncate">{pass.student_name}</h4>
+                        <span className="text-[11px] font-bold text-primary shrink-0">
+                          {pass.expected_pickup_time}
+                        </span>
                       </div>
-                    )}
 
-                    {pass.exit_time && (
-                      <div className="flex items-center justify-between pt-1 border-t border-border/30 text-indigo-600 dark:text-indigo-400 font-bold">
-                        <span>Exited at Gate:</span>
-                        <span>{format(new Date(pass.exit_time), 'hh:mm a')} ({pass.exit_gate || 'Main Gate'})</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions Bar */}
-                  <div className="flex items-center gap-2 pt-1">
-                    {isPending ? (
-                      <>
-                        <Button
-                          size="sm"
-                          disabled={isProcessing}
-                          onClick={() => handleApprove(pass)}
-                          className="flex-1 h-8 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shadow-xs"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Approve Pass
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isProcessing}
-                          onClick={() => setRejectingPass(pass)}
-                          className="h-8 rounded-xl text-xs font-bold border-rose-500/30 text-rose-600 hover:bg-rose-500/10 gap-1"
-                        >
-                          <XCircle className="h-3.5 w-3.5" /> Disapprove
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPreviewPass(pass)}
-                          className="flex-1 h-8 rounded-xl text-xs font-bold border-border/70 hover:bg-muted/40 gap-1"
-                        >
-                          <QrCode className="h-3.5 w-3.5 text-primary" /> View Slip
-                        </Button>
-
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">{pass.pickup_person_name}</span> ({pass.pickup_person_relation})
                         {pass.pickup_person_phone && (
-                          <a
-                            href={whatsAppUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center h-8 px-3 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors gap-1"
-                          >
-                            <Share2 className="h-3.5 w-3.5" /> WhatsApp
-                          </a>
+                          <span className="font-mono text-[11px] ml-1">📱 {pass.pickup_person_phone}</span>
                         )}
-                      </>
+                      </div>
+
+                      <p className="text-xs text-foreground/90 bg-muted/30 p-2 rounded-xl border border-border/50">
+                        <span className="text-muted-foreground font-medium">Reason: </span>
+                        {pass.reason_text}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 2-Tier Pipeline Info Badges */}
+                  <div className="text-[11px] text-muted-foreground flex flex-wrap gap-2 pt-1 border-t border-border/50">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      <span>{format(new Date(pass.created_at), 'dd MMM, hh:mm a')}</span>
+                    </div>
+
+                    {pass.teacher_verified_by && (
+                      <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium">
+                        <Check className="h-3 w-3" />
+                        <span>Teacher Verified</span>
+                      </div>
+                    )}
+
+                    {(pass.principal_approved_by || (isApproved && pass.approved_by)) && (
+                      <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span>Principal Approved</span>
+                      </div>
+                    )}
+
+                    {isUsed && (
+                      <div className="flex items-center gap-1 text-indigo-600 font-bold">
+                        <ShieldCheck className="h-3 w-3" />
+                        <span>Exited {pass.exit_gate || 'Gate'} at {format(new Date(pass.exit_time || ''), 'hh:mm a')}</span>
+                      </div>
                     )}
                   </div>
+
+                  {/* Actions for Class Teacher */}
+                  {isPendingTeacher && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() => setVerifyingPass(pass)}
+                        disabled={isProcessing}
+                        className="flex-1 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary/90 shadow-sm"
+                      >
+                        <ArrowRight className="h-3.5 w-3.5 mr-1" /> Verify & Forward to Principal
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setRejectingPass(pass)}
+                        disabled={isProcessing}
+                        className="rounded-xl text-xs font-bold text-rose-600 border-rose-500/30 hover:bg-rose-500/10"
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Decline
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* If forward to principal, teacher can also direct approve in emergency */}
+                  {isPendingPrincipal && (
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <div className="text-[11px] text-blue-700 dark:text-blue-300 flex items-center gap-1.5 font-medium">
+                        <Building2 className="h-3.5 w-3.5 animate-pulse" />
+                        Awaiting Principal final approval
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDirectEmergencyApprove(pass)}
+                        disabled={isProcessing}
+                        className="text-[11px] font-bold text-emerald-600 hover:bg-emerald-500/10 h-7 px-2.5 rounded-lg"
+                      >
+                        Emergency Bypass
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Actions for Approved Passes */}
+                  {isApproved && (
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setPreviewPass(pass)}
+                        className="flex-1 rounded-xl text-xs font-bold gap-1"
+                      >
+                        <QrCode className="h-3.5 w-3.5" /> View QR
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(whatsAppUrl, '_blank')}
+                        className="rounded-xl text-xs font-bold gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                      >
+                        <Share2 className="h-3.5 w-3.5" /> WhatsApp
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePrintSlip(pass)}
+                        className="rounded-xl text-xs font-bold gap-1"
+                      >
+                        <Printer className="h-3.5 w-3.5" /> Print
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -556,215 +661,291 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
         </div>
       )}
 
-      {/* QR Pass Preview & Printable Slip Modal */}
-      <Dialog open={Boolean(previewPass)} onOpenChange={(open) => !open && setPreviewPass(null)}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-5">
-          {previewPass && (
-            <div className="space-y-4 text-center">
-              <DialogHeader>
-                <DialogTitle className="text-base font-black text-foreground">
-                  Official Campus Gate Pass Slip
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  Valid for turnstile exit clearance at school security gates
-                </DialogDescription>
-              </DialogHeader>
-
-              {/* QR Code */}
-              <div className="p-4 bg-muted/40 border border-border/70 rounded-2xl flex flex-col items-center">
-                <div className="p-3 bg-white rounded-xl shadow-xs border border-border/50">
-                  <QRCodeSVG
-                    value={JSON.stringify({
-                      passId: previewPass.id,
-                      passCode: previewPass.pass_code,
-                      studentId: previewPass.student_id,
-                      studentName: previewPass.student_name,
-                      classSection: previewPass.class_section,
-                      pickupPerson: previewPass.pickup_person_name,
-                      pickupPhone: previewPass.pickup_person_phone,
-                    })}
-                    size={140}
-                  />
-                </div>
-                <div className="mt-2.5 flex items-center gap-2">
-                  <Badge className="font-mono text-xs font-black bg-primary/10 text-primary border-primary/30">
-                    CODE: {previewPass.pass_code}
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px] font-bold">
-                    {previewPass.status.toUpperCase()}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Pass Summary Details */}
-              <div className="p-3 rounded-xl bg-background border border-border/60 text-xs text-left space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Student:</span>
-                  <span className="font-bold">{previewPass.student_name} ({previewPass.class_section})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Authorized Pickup:</span>
-                  <span className="font-bold">{previewPass.pickup_person_name} ({previewPass.pickup_person_relation})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Contact:</span>
-                  <span className="font-mono font-bold">{previewPass.pickup_person_phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Departure Time:</span>
-                  <span className="font-bold text-primary">{previewPass.expected_pickup_time}</span>
-                </div>
-                {previewPass.approved_by && (
-                  <div className="flex justify-between pt-1 border-t border-border/40">
-                    <span className="text-muted-foreground">Approved By:</span>
-                    <span className="font-bold text-emerald-600">{previewPass.approved_by}</span>
-                  </div>
-                )}
-              </div>
-
-              <DialogFooter className="gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => handlePrintSlip(previewPass)}
-                  className="rounded-xl text-xs font-bold flex-1 gap-1"
-                >
-                  <Printer className="h-3.5 w-3.5" /> Print Slip
-                </Button>
-                {previewPass.pickup_person_phone && (
-                  <a
-                    href={getGatePassWhatsAppUrl(previewPass)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 flex-1 h-9 gap-1"
-                  >
-                    <Share2 className="h-3.5 w-3.5" /> Send to Parent
-                  </a>
-                )}
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Confirmation Dialog */}
-      <Dialog open={Boolean(rejectingPass)} onOpenChange={(open) => !open && setRejectingPass(null)}>
-        <DialogContent className="sm:max-w-md rounded-3xl">
+      {/* Verify & Forward Modal */}
+      <Dialog open={Boolean(verifyingPass)} onOpenChange={(open) => !open && setVerifyingPass(null)}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6">
           <DialogHeader>
-            <DialogTitle className="text-base font-black text-foreground">
-              Disapprove Gate Pass Request
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-2">
+              <FileCheck className="h-5 w-5" />
+            </div>
+            <DialogTitle className="text-base font-black">
+              Verify Gate Pass & Forward to Principal
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              State the reason for not releasing <strong>{rejectingPass?.student_name}</strong>.
+            <DialogDescription className="text-xs text-muted-foreground">
+              Confirm early release authorization for <strong>{verifyingPass?.student_name}</strong> (Class {verifyingPass?.class_section}).
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 my-2">
-            <div className="space-y-1">
-              <Label className="text-xs font-bold">Reason for Disapproval</Label>
+          <div className="space-y-3 text-xs my-2">
+            <div className="p-3 rounded-2xl bg-muted/40 border border-border/70 space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Authorized Guardian:</span>
+                <span className="font-bold">{verifyingPass?.pickup_person_name} ({verifyingPass?.pickup_person_relation})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Expected Time:</span>
+                <span className="font-bold text-primary">{verifyingPass?.expected_pickup_time}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Reason:</span>
+                <span className="font-medium">{verifyingPass?.reason_text}</span>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Class Teacher Remarks (Optional)</Label>
               <Input
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="e.g. Exam ongoing until 11:30 AM / Parent not reachable"
-                className="h-9 text-xs rounded-xl"
+                value={teacherNote}
+                onChange={(e) => setTeacherNote(e.target.value)}
+                placeholder="e.g. Spoke to mother on phone; confirmed appointment."
+                className="mt-1 rounded-xl text-xs"
               />
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setRejectingPass(null)} className="rounded-xl text-xs flex-1">
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVerifyingPass(null)}
+              className="rounded-xl text-xs"
+            >
               Cancel
             </Button>
             <Button
+              size="sm"
+              onClick={handleConfirmTeacherVerify}
               disabled={isProcessing}
-              onClick={handleConfirmReject}
-              className="rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex-1"
+              className="rounded-xl text-xs font-bold bg-primary text-white gap-1.5"
             >
-              {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Confirm Disapproval'}
+              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              Forward to Principal
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Teacher Direct Issue Emergency Pass Dialog */}
-      <Dialog open={isIssueModalOpen} onOpenChange={setIsIssueModalOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl">
+      {/* Reject Reason Dialog */}
+      <Dialog open={Boolean(rejectingPass)} onOpenChange={(open) => !open && setRejectingPass(null)}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6">
           <DialogHeader>
-            <DialogTitle className="text-base font-black flex items-center gap-2">
-              <PlusCircle className="h-5 w-5 text-primary" /> Issue Immediate Gate Pass
+            <DialogTitle className="text-base font-black text-rose-600 flex items-center gap-2">
+              <XCircle className="h-5 w-5" /> Disapprove Gate Pass Request
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              Issue an official sick-bay / emergency gate pass directly from the teacher desk.
+            <DialogDescription className="text-xs text-muted-foreground">
+              Please specify the reason for declining gate pass for <strong>{rejectingPass?.student_name}</strong>.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleTeacherIssuePass} className="space-y-3.5 my-2">
-            <div className="space-y-1">
-              <Label className="text-xs font-bold">Select Student</Label>
+          <div className="space-y-3 text-xs my-2">
+            <div>
+              <Label className="text-xs font-bold">Decline Reason *</Label>
+              <Input
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="e.g. Critical test scheduled / Guardian phone could not be verified"
+                className="mt-1 rounded-xl text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRejectingPass(null)}
+              className="rounded-xl text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmReject}
+              disabled={isProcessing}
+              className="rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Disapproval'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Slip Preview Dialog */}
+      <Dialog open={Boolean(previewPass)} onOpenChange={(open) => !open && setPreviewPass(null)}>
+        <DialogContent className="sm:max-w-sm rounded-3xl p-6 text-center">
+          <DialogHeader>
+            <DialogTitle className="text-base font-black">Official QR Gate Pass</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Pass Code: <strong className="font-mono text-foreground">{previewPass?.pass_code}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewPass && (
+            <div className="space-y-4 my-2">
+              <div className="p-4 bg-white rounded-2xl border shadow-md inline-block">
+                <QRCodeSVG
+                  value={previewPass.qr_payload || generateGatePassQrPayload(previewPass)}
+                  size={180}
+                  level="H"
+                />
+              </div>
+
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-foreground text-sm">{previewPass.student_name}</p>
+                <p className="text-muted-foreground">Class {previewPass.class_section} • Pickup: {previewPass.pickup_person_name}</p>
+                <p className="text-emerald-600 font-bold text-[11px]">Ready for Gate Security Guard Scan</p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => handlePrintSlip(previewPass)}
+                  className="flex-1 rounded-xl text-xs font-bold bg-primary text-white"
+                >
+                  <Printer className="h-3.5 w-3.5 mr-1" /> Print Slip
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.open(getGatePassWhatsAppUrl(previewPass), '_blank')}
+                  className="flex-1 rounded-xl text-xs font-bold border-emerald-500/40 text-emerald-600"
+                >
+                  <Share2 className="h-3.5 w-3.5 mr-1" /> WhatsApp
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Issue Pass Modal */}
+      <Dialog open={isIssueModalOpen} onOpenChange={setIsIssueModalOpen}>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                <PlusCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black">
+                  Issue Class Gate Pass
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Create an authorized early release pass for Class {activeClass?.category}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form onSubmit={handleTeacherIssuePass} className="space-y-4 text-xs">
+            <div>
+              <Label className="text-xs font-bold">Select Student *</Label>
               <select
                 value={selectedStudentId}
                 onChange={(e) => handleSelectStudentForPass(e.target.value)}
-                className="h-9 w-full text-xs rounded-xl bg-background border border-input px-3 font-semibold"
                 required
+                className="mt-1 w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-medium focus:ring-2 focus:ring-primary/20"
               >
                 <option value="">-- Choose Student from Class {activeClass?.category} --</option>
-                {(students || []).map((st) => (
-                  <option key={st.id} value={st.admission_number || st.id}>
-                    Roll #{st.roll_number || '-'} • {st.name} (ID: {st.admission_number || st.id})
+                {students.map((s) => (
+                  <option key={s.id} value={s.admission_number || s.id}>
+                    {s.roll_number ? `#${s.roll_number} - ` : ''}{s.name} ({s.admission_number || s.employee_id || 'ID'})
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-bold">Pickup Person</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold">Authorized Pickup Person *</Label>
                 <Input
                   value={pickupPerson}
                   onChange={(e) => setPickupPerson(e.target.value)}
-                  placeholder="e.g. Parent Name"
-                  className="h-9 text-xs rounded-xl"
+                  placeholder="Guardian full name"
                   required
+                  className="mt-1 rounded-xl text-xs"
                 />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-bold">Phone Number</Label>
+              <div>
+                <Label className="text-xs font-bold">Relation *</Label>
+                <select
+                  value={pickupRelation}
+                  onChange={(e) => setPickupRelation(e.target.value)}
+                  className="mt-1 w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-medium focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="Father">Father</option>
+                  <option value="Mother">Mother</option>
+                  <option value="Guardian">Guardian</option>
+                  <option value="Self">Self / Senior Student</option>
+                  <option value="Other">Other Relative</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold">Guardian Contact Phone *</Label>
                 <Input
                   value={pickupPhone}
                   onChange={(e) => setPickupPhone(e.target.value)}
-                  placeholder="+91..."
-                  className="h-9 text-xs rounded-xl font-mono"
+                  placeholder="10-digit number"
                   required
+                  className="mt-1 rounded-xl text-xs font-mono"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-bold">Departure Time *</Label>
+                <Input
+                  value={pickupTime}
+                  onChange={(e) => setPickupTime(e.target.value)}
+                  required
+                  className="mt-1 rounded-xl text-xs"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-bold">Reason / Infirmary Diagnosis</Label>
+            <div>
+              <Label className="text-xs font-bold">Reason Category *</Label>
+              <select
+                value={reasonCategory}
+                onChange={(e) => setReasonCategory(e.target.value as any)}
+                className="mt-1 w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-medium focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="illness_at_school">Illness at School / Sick Bay</option>
+                <option value="medical">Medical Checkup / Hospital</option>
+                <option value="family_emergency">Family Emergency</option>
+                <option value="appointment">Official / Competitive Exam</option>
+                <option value="other">Other School Authorization</option>
+              </select>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Detailed Reason *</Label>
               <Input
                 value={reasonText}
                 onChange={(e) => setReasonText(e.target.value)}
-                placeholder="e.g. Severe headache / vomiting / sent from school medical room"
-                className="h-9 text-xs rounded-xl"
                 required
+                className="mt-1 rounded-xl text-xs"
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-bold">Departure Time</Label>
-              <Input
-                value={pickupTime}
-                onChange={(e) => setPickupTime(e.target.value)}
-                className="h-9 text-xs rounded-xl"
-                required
-              />
-            </div>
-
-            <DialogFooter className="gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsIssueModalOpen(false)} className="rounded-xl text-xs flex-1">
+            <DialogFooter className="gap-2 sm:justify-between pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsIssueModalOpen(false)}
+                className="rounded-xl text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isProcessing} className="rounded-xl text-xs font-bold bg-primary text-white flex-1">
-                {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Issue Active Pass'}
+              <Button
+                type="submit"
+                disabled={isProcessing}
+                className="rounded-xl text-xs font-bold bg-primary text-white shadow-md"
+              >
+                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                Forward to Principal for Approval
               </Button>
             </DialogFooter>
           </form>
@@ -773,4 +954,3 @@ export const TeacherGatePassReview: React.FC<TeacherGatePassReviewProps> = ({
     </div>
   );
 };
-

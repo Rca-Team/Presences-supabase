@@ -32,6 +32,7 @@ const TeacherPortal = lazyWithRetry(() => import('./pages/TeacherPortal'), 'teac
 const Portfolio = lazyWithRetry(() => import('./pages/Portfolio'), 'portfolio');
 const Jarvis = lazyWithRetry(() => import("./pages/Jarvis"), "jarvis");
 const Widgets = lazyWithRetry(() => import("./pages/Widgets"), "widgets");
+const GuardScanner = lazyWithRetry(() => import("./pages/GuardScanner"), "guard-scanner");
 
 import { AttendanceProvider } from './contexts/AttendanceContext';
 import { ThemeProvider } from './hooks/use-theme';
@@ -97,6 +98,11 @@ const ROUTE_SEO: Record<string, { title: string; description: string }> = {
     title: "Parent Portal | Presences",
     description:
       "Track student attendance, receive notifications, and stay connected with school updates in the Presences Parent Portal.",
+  },
+  "/guard": {
+    title: "Gate Guard Scanner | Presences",
+    description:
+      "Specialized Gate Pass QR and Early Exit verification console for campus security personnel.",
   },
   "/widgets": {
     title: "Android Widgets Hub | Presences Smart School",
@@ -246,6 +252,16 @@ function AnimatedRoutes() {
         <Route path="/gate/vision" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
             <GateVisionMode />
+          </ProtectedRoute>
+        } />
+        <Route path="/guard" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher", "guard", "security"]}>
+            <GuardScanner />
+          </ProtectedRoute>
+        } />
+        <Route path="/gate/scanner" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher", "guard", "security"]}>
+            <GuardScanner />
           </ProtectedRoute>
         } />
         <Route path="/parent" element={<ParentPortal />} />

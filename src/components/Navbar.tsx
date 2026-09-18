@@ -16,7 +16,8 @@ import {
   LayoutDashboard, 
   GraduationCap, 
   BookOpen,
-  LayoutGrid
+  LayoutGrid,
+  QrCode
 } from 'lucide-react';
 import { Toggle } from '@/components/ui/toggle';
 import { useTheme } from '@/hooks/use-theme';
@@ -33,7 +34,7 @@ const Navbar = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { theme, setTheme } = useTheme();
-  const { isAdminOrPrincipal, isTeacher } = useUserRole();
+  const { isAdminOrPrincipal, isTeacher, isGuard } = useUserRole();
   const { trigger: haptic } = useHapticFeedback();
   
   useEffect(() => {
@@ -81,6 +82,7 @@ const Navbar = () => {
     { text: 'Home', path: '/', icon: Home, show: !isAuthenticated || (!isTeacher || isAdminOrPrincipal) },
     { text: 'Parent Portal', path: '/parent', icon: GraduationCap, show: !isAuthenticated },
     { text: 'Teacher Portal', path: '/teacher', icon: BookOpen, show: isAuthenticated && (isTeacher || isAdminOrPrincipal) },
+    { text: 'Guard Scanner', path: '/guard', icon: QrCode, show: isAuthenticated && (isGuard || isAdminOrPrincipal) },
     { text: 'Widgets', path: '/widgets', icon: LayoutGrid, show: true },
     { text: 'Profile', path: '/profile', icon: User, show: isAuthenticated },
     { text: 'Register', path: '/register', icon: UserPlus, show: isAuthenticated },

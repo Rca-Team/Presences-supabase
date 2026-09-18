@@ -18,6 +18,7 @@ const importers: Record<string, Importer> = {
   '/profile': () => import('@/pages/Profile'),
   '/features': () => import('@/pages/Features'),
   '/gate': () => import('@/pages/GateMode'),
+  '/guard': () => import('@/pages/GuardScanner'),
   '/parent': () => import('@/pages/ParentPortal'),
   '/unsubscribe': () => import('@/pages/Unsubscribe'),
   '/data': () => import('@/pages/DataBackup'),
