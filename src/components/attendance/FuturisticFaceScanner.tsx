@@ -54,7 +54,15 @@ import {
   Layers,
   Flame,
   FlipHorizontal,
+  SwitchCamera,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -233,12 +241,108 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     void enumerateCameras();
   }, [enumerateCameras]);
 
+  const [isCameraListOpen, setIsCameraListOpen] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressActiveRef = useRef(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  // Click / Tap to switch to next available camera or flip front/back
+  const handleNextCamera = useCallback(() => {
+    if (videoDevices.length > 1) {
+      const currentIndex = videoDevices.findIndex((d) => d.deviceId === selectedDeviceId);
+      const nextIndex = (currentIndex + 1) % videoDevices.length;
+      const nextDevice = videoDevices[nextIndex];
+      setSelectedDeviceId(nextDevice.deviceId);
+      try {
+        localStorage.setItem('presence_camera_device_id', nextDevice.deviceId);
+      } catch {}
+
+      const isBack = /back|rear|environment|world|0/i.test(nextDevice.label);
+      setInvertFeed(!isBack);
+
+      toast({
+        title: '📷 Camera Switched',
+        description: nextDevice.label || `Camera ${nextIndex + 1}`,
+      });
+    } else {
+      const nextFacing = facingMode === 'user' ? 'environment' : 'user';
+      setFacingMode(nextFacing);
+      setInvertFeed(nextFacing === 'user');
+      toast({
+        title: '📷 Camera Switched',
+        description: nextFacing === 'user' ? 'Front Camera Active' : 'Back Camera Active',
+      });
+    }
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(30);
+      }
+    } catch {}
+  }, [videoDevices, selectedDeviceId, facingMode, toast]);
+
+  const startCameraLongPress = useCallback(() => {
+    isLongPressActiveRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressActiveRef.current = true;
+      setIsCameraListOpen(true);
+      try {
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          navigator.vibrate([40, 30, 40]);
+        }
+      } catch {}
+    }, 450);
+  }, []);
+
+  const cancelCameraLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleCameraClickOrTap = useCallback(() => {
+    if (isLongPressActiveRef.current) {
+      isLongPressActiveRef.current = false;
+      return;
+    }
+    handleNextCamera();
+  }, [handleNextCamera]);
+
+  // Touch Swipe Gesture Handlers for viewfinder
+  const handleViewfinderTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 0) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleViewfinderTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    if (e.changedTouches.length > 0) {
+      const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+      const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+      // Horizontal swipe detected (greater than 50px & horizontal dominant)
+      if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.35) {
+        handleNextCamera();
+      }
+    }
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
+
   const handleSelectCamera = useCallback((deviceId: string) => {
     setSelectedDeviceId(deviceId);
+    const dev = videoDevices.find((d) => d.deviceId === deviceId);
+    if (dev) {
+      const isBack = /back|rear|environment|world|0/i.test(dev.label);
+      setInvertFeed(!isBack);
+    }
     try {
       localStorage.setItem('presence_camera_device_id', deviceId);
     } catch {}
-  }, []);
+    setIsCameraListOpen(false);
+  }, [videoDevices]);
 
   const toggleSound = useCallback(() => {
     setSoundEnabled((prev) => {
@@ -1219,7 +1323,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       {/* Scanner Container with Cyber Frame and Glassmorphism Inset HUD */}
       <div
         ref={containerRef}
-        className="relative aspect-[4/5] sm:aspect-video rounded-3xl overflow-hidden bg-slate-950 border border-slate-700/60 dark:border-white/10 shadow-2xl shadow-blue-500/10"
+        onTouchStart={handleViewfinderTouchStart}
+        onTouchEnd={handleViewfinderTouchEnd}
+        className="relative aspect-[4/5] sm:aspect-video rounded-3xl overflow-hidden bg-slate-950 border border-slate-700/60 dark:border-white/10 shadow-2xl shadow-blue-500/10 touch-pan-y"
       >
         {/* Tech Grid Background (standard mode only) */}
         {!liteMode && (
@@ -1246,7 +1352,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           mirrored={invertFeed}
           videoConstraints={{
             deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-            facingMode: 'user',
+            facingMode: selectedDeviceId ? undefined : facingMode,
             width: { ideal: 960, max: 1280 },
             height: { ideal: 540, max: 720 },
             frameRate: { ideal: 30, max: 60 },
@@ -1360,60 +1466,94 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               </span>
             </Button>
 
-            {/* Camera Device Selector Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 sm:w-auto sm:px-2.5 p-0 sm:py-1 rounded-xl bg-slate-950/80 hover:bg-slate-900 text-slate-200 border border-white/10 text-xs backdrop-blur-xl flex items-center justify-center sm:gap-1.5 shadow-lg"
-                  title="Select Camera Input"
-                >
-                  <Video className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span className="max-w-[85px] sm:max-w-[130px] truncate hidden md:inline">
-                    {videoDevices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Camera'}
-                  </span>
-                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0 hidden sm:inline" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-64 bg-slate-950/95 border border-white/15 text-white backdrop-blur-2xl rounded-2xl p-1.5 shadow-2xl z-50"
-              >
-                <DropdownMenuLabel className="text-[11px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider flex items-center justify-between">
-                  <span>Camera Inputs</span>
-                  <span className="text-cyan-400 font-bold">{videoDevices.length}</span>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-white/10 my-1" />
-                {videoDevices.length === 0 ? (
-                  <div className="px-2.5 py-2 text-xs text-slate-400">Default Camera Active</div>
-                ) : (
-                  videoDevices.map((device, idx) => {
-                    const isSelected = selectedDeviceId === device.deviceId;
-                    const label = device.label || `Camera ${idx + 1}`;
-                    return (
-                      <DropdownMenuItem
-                        key={device.deviceId || idx}
-                        onClick={() => handleSelectCamera(device.deviceId)}
-                        className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs cursor-pointer ${
-                          isSelected
-                            ? 'bg-cyan-500/20 text-cyan-300 font-semibold'
-                            : 'text-slate-300 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <Camera className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{label}</span>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0 ml-2" />}
-                      </DropdownMenuItem>
-                    );
-                  })
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Switch Camera Button: Tap to cycle/switch, Hold for full list */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onPointerDown={startCameraLongPress}
+              onPointerUp={cancelCameraLongPress}
+              onPointerLeave={cancelCameraLongPress}
+              onClick={handleCameraClickOrTap}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setIsCameraListOpen(true);
+              }}
+              className="h-8 w-8 sm:w-auto sm:px-2.5 p-0 sm:py-1 rounded-xl bg-slate-950/80 hover:bg-slate-900 active:scale-95 text-slate-200 border border-white/10 text-xs backdrop-blur-xl flex items-center justify-center sm:gap-1.5 shadow-lg select-none touch-manipulation transition-transform"
+              title="Tap to switch camera • Hold for all cameras list"
+            >
+              <SwitchCamera className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span className="max-w-[85px] sm:max-w-[130px] truncate hidden md:inline">
+                {videoDevices.find((d) => d.deviceId === selectedDeviceId)?.label || (facingMode === 'user' ? 'Front' : 'Back')}
+              </span>
+              <ChevronDown className="w-3 h-3 text-slate-400 shrink-0 hidden sm:inline" />
+            </Button>
           </div>
         </div>
+
+        {/* Full Camera Selection Modal (Triggered on Long-Press) */}
+        <Dialog open={isCameraListOpen} onOpenChange={setIsCameraListOpen}>
+          <DialogContent className="sm:max-w-md bg-slate-950/95 border border-white/15 text-white backdrop-blur-2xl rounded-3xl p-5 shadow-2xl z-50">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
+                <SwitchCamera className="w-5 h-5 text-cyan-400" />
+                Select Camera Input
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-400">
+                Choose any front, rear, or USB connected video capture device
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2 mt-3">
+              {videoDevices.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs text-slate-400">
+                  Default camera stream active
+                </div>
+              ) : (
+                videoDevices.map((device, idx) => {
+                  const isSelected = selectedDeviceId === device.deviceId;
+                  const label = device.label || `Camera ${idx + 1}`;
+                  const isRear = /back|rear|environment|world/i.test(label);
+                  const isFront = /front|user|selfie/i.test(label);
+
+                  return (
+                    <button
+                      key={device.deviceId || idx}
+                      onClick={() => handleSelectCamera(device.deviceId)}
+                      className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left ${
+                        isSelected
+                          ? 'bg-cyan-500/20 border-cyan-400/50 text-white shadow-lg shadow-cyan-500/15'
+                          : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-cyan-500/30 text-cyan-300' : 'bg-white/10 text-slate-400'
+                          }`}
+                        >
+                          <Camera className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate text-white">{label}</p>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            {isRear ? 'Rear / World Camera' : isFront ? 'Front / Selfie Camera' : 'Video Input'}
+                          </p>
+                        </div>
+                      </div>
+                      {isSelected ? (
+                        <div className="h-6 w-6 rounded-full bg-cyan-500 flex items-center justify-center shrink-0">
+                          <Check className="w-3.5 h-3.5 text-black stroke-[3]" />
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold">Select</span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Dynamic Center Guidance & Face Status Pill (Floats cleanly below controls on mobile, centered on desktop) */}
         <div className="absolute top-13 sm:top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none max-w-[90%]">
