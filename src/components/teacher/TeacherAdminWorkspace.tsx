@@ -1496,11 +1496,16 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
             </div>
 
             <div className="nano-card p-3.5 flex items-center justify-between col-span-2 sm:col-span-1 border-primary/20 bg-primary/5">
-              <div>
-                <p className="text-xs text-primary font-medium">Attendance Rate</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-xs text-primary font-semibold">Attendance Rate</p>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full font-mono shrink-0 ${stats.attendancePct >= 75 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'}`}>
+                    {stats.attendancePct >= 75 ? 'CBSE Ok' : 'Defaulter'}
+                  </span>
+                </div>
                 <p className="text-2xl font-black text-primary mt-0.5 font-mono">{stats.attendancePct}%</p>
               </div>
-              <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 ml-2">
                 <Zap className="h-4 w-4" />
               </div>
             </div>

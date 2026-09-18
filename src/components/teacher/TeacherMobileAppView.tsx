@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -33,6 +34,8 @@ import {
   Share2,
   Smartphone,
   ExternalLink,
+  User,
+  Home,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -159,12 +162,12 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
   const strokeDashoffset = circumference - (stats.attendancePct / 100) * circumference;
 
   return (
-    <div className="space-y-4 pb-24 font-sans select-none max-w-lg mx-auto">
+    <div className="space-y-4 pb-28 font-sans select-none max-w-lg mx-auto">
       {/* ── 1. Mobile Header & Teacher Profile Bar ── */}
       <div className="p-4 rounded-3xl bg-card border border-border/80 shadow-md space-y-3 relative overflow-hidden">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12 rounded-2xl border-2 border-primary/20 shadow-sm shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <Link to="/profile" className="flex items-center gap-3 min-w-0 group">
+            <Avatar className="h-12 w-12 rounded-2xl border-2 border-primary/20 shadow-sm shrink-0 group-hover:scale-105 transition-transform">
               <AvatarImage src={avatarUrl} alt={teacherName} />
               <AvatarFallback className="rounded-2xl font-black bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm">
                 {teacherName.slice(0, 2).toUpperCase()}
@@ -175,16 +178,16 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
               <span className="text-[11px] font-bold text-muted-foreground block">
                 {greeting},
               </span>
-              <h2 className="text-base font-black text-foreground truncate leading-tight">
+              <h2 className="text-base font-black text-foreground truncate leading-tight group-hover:text-primary transition-colors">
                 {teacherName}
               </h2>
               <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
                 PM Shri KV NFC • Class In-Charge
               </span>
             </div>
-          </div>
+          </Link>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 shrink-0">
             {onRefresh && (
               <Button
                 variant="ghost"
@@ -199,6 +202,14 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
                 <RefreshCw className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin text-primary' : ''}`} />
               </Button>
             )}
+
+            <Link
+              to="/"
+              className="h-9 w-9 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors"
+              title="Return to Main Portal"
+            >
+              <Home className="h-4 w-4" />
+            </Link>
           </div>
         </div>
 
@@ -708,8 +719,8 @@ export const TeacherMobileAppView: React.FC<TeacherMobileAppViewProps> = ({
       </AnimatePresence>
 
       {/* ── 3. Bottom Teacher Mobile App Dock ── */}
-      <nav className="fixed bottom-3 left-4 right-4 z-40 max-w-lg mx-auto">
-        <div className="p-1.5 rounded-3xl bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-2xl border border-white/10 shadow-2xl flex items-center justify-around">
+      <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom pointer-events-none">
+        <div className="mx-3 mb-2.5 max-w-lg mx-auto p-1.5 rounded-3xl bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl border border-white/10 shadow-2xl flex items-center justify-around pointer-events-auto">
           {[
             { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
             { id: 'rollcall', label: 'Roll Call', icon: CheckSquare, badge: stats.unmarked > 0 ? stats.unmarked : undefined },

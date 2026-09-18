@@ -32,6 +32,7 @@ const MobileNavBar: React.FC = () => {
   }, [isTeacher, isAdminOrPrincipal]);
 
   if (!isMobile) return null;
+  if (location.pathname.startsWith('/teacher') || location.pathname.startsWith('/guard')) return null;
 
   const isActive = (path: string) => location.pathname === path || (path === '/teacher' && location.pathname.startsWith('/teacher'));
   const activeItem = navItems.find((i) => isActive(i.path)) ?? navItems[0];

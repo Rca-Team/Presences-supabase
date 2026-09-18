@@ -56,6 +56,10 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
 
   if (!isMobile) return <>{children}</>;
 
+  const isTeacherRoute = location.pathname.startsWith('/teacher');
+  const isGuardRoute = location.pathname.startsWith('/guard');
+  const hideGlobalBottomNav = isTeacherRoute || isGuardRoute;
+
   return (
     <div className="min-h-[100dvh] native-app-shell">
       <header className="fixed inset-x-0 top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-2xl safe-area-top native-app-chrome">
@@ -70,45 +74,54 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
         </div>
       </header>
 
-      <div className="px-3 pt-[calc(56px+env(safe-area-inset-top)+12px)] pb-[calc(72px+env(safe-area-inset-bottom)+16px)]">
+      <div
+        className={cn(
+          "px-3 pt-[calc(56px+env(safe-area-inset-top)+12px)]",
+          hideGlobalBottomNav
+            ? "pb-[calc(env(safe-area-inset-bottom)+16px)]"
+            : "pb-[calc(72px+env(safe-area-inset-bottom)+16px)]"
+        )}
+      >
         {children}
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom safe-area-left safe-area-right">
-        <div
-          className="macbook-dock mx-3 mb-2.5 grid gap-1.5 px-2 py-2"
-          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-        >
-          {tabs.map((tab) => {
-            const active = location.pathname === tab.to;
+      {!hideGlobalBottomNav && (
+        <nav className="fixed inset-x-0 bottom-0 z-50 safe-area-bottom safe-area-left safe-area-right">
+          <div
+            className="macbook-dock mx-3 mb-2.5 grid gap-1.5 px-2 py-2"
+            style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+          >
+            {tabs.map((tab) => {
+              const active = location.pathname === tab.to;
 
-            return (
-              <Link
-                key={tab.key}
-                to={tab.to}
-                onTouchStart={() => preloadRoute(tab.to)}
-                onMouseEnter={() => preloadRoute(tab.to)}
-                className={cn(
-                  "macbook-dock-item dock-item-pop group flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-1 active:scale-90 transition-transform duration-200",
-                  active ? "macbook-dock-item-active text-foreground" : "text-muted-foreground",
-                )}
-                aria-current={active ? "page" : undefined}
-              >
-                <tab.icon
+              return (
+                <Link
+                  key={tab.key}
+                  to={tab.to}
+                  onTouchStart={() => preloadRoute(tab.to)}
+                  onMouseEnter={() => preloadRoute(tab.to)}
                   className={cn(
-                    "h-5 w-5 transition-all duration-300 ease-out",
-                    active ? "scale-110" : "scale-100 group-hover:scale-105",
+                    "macbook-dock-item dock-item-pop group flex min-h-[56px] flex-col items-center justify-center rounded-2xl px-1 active:scale-90 transition-transform duration-200",
+                    active ? "macbook-dock-item-active text-foreground" : "text-muted-foreground",
                   )}
-                  strokeWidth={active ? 2.3 : 1.9}
-                />
-                <span className="mt-1 text-[10px] font-medium leading-none tracking-normal whitespace-nowrap transition-colors duration-300">
-                  {tab.label}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+                  aria-current={active ? "page" : undefined}
+                >
+                  <tab.icon
+                    className={cn(
+                      "h-5 w-5 transition-all duration-300 ease-out",
+                      active ? "scale-110" : "scale-100 group-hover:scale-105",
+                    )}
+                    strokeWidth={active ? 2.3 : 1.9}
+                  />
+                  <span className="mt-1 text-[10px] font-medium leading-none tracking-normal whitespace-nowrap transition-colors duration-300">
+                    {tab.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 };
