@@ -366,6 +366,28 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
 
     fetchRecords();
 
+    const handleLocalMarked = (e: Event) => {
+      const customEv = e as CustomEvent<AttendanceRecord>;
+      const newRecord = customEv.detail;
+      if (!newRecord) return;
+
+      if (scopedCategory && newRecord.category && newRecord.category !== scopedCategory) {
+        return;
+      }
+
+      if (soundEnabled && newRecord.status) {
+        playArrivalChime(newRecord.status);
+      }
+
+      setRecords(prev => {
+        if (isStreamPaused) return prev;
+        const filtered = prev.filter(r => r.id !== newRecord.id && (r.user_id !== newRecord.user_id || !newRecord.user_id));
+        return [newRecord, ...filtered].slice(0, 40);
+      });
+    };
+
+    window.addEventListener('presence:attendance-marked', handleLocalMarked);
+
     const channel = supabase
       .channel(`attendance-live-feed-v3-${scopedCategory || 'global'}`)
       .on(
@@ -403,6 +425,7 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
       .subscribe();
 
     return () => {
+      window.removeEventListener('presence:attendance-marked', handleLocalMarked);
       supabase.removeChannel(channel);
     };
   }, [scopedCategory, maxInitialCount, soundEnabled, isStreamPaused]);

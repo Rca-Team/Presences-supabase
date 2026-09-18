@@ -661,6 +661,8 @@ export async function recordAttendance(
     captureMode === 'gate-mode' ? 'gate-mode' :
     captureMode === 'qr-scan'  ? 'qr-scan'  : 'ai-scan';
 
+  const effectiveName = userName || deviceInfo?.metadata?.name || (deviceInfo as any)?.name || (deviceInfo as any)?.student_name || null;
+
   const fullDeviceInfo = {
     type: 'webcam',
     timestamp,
@@ -669,7 +671,7 @@ export async function recordAttendance(
     gate: captureMode === 'gate-mode' || Boolean((deviceInfo as any)?.gate),
     metadata: {
       ...deviceInfo?.metadata,
-      name:                     userName || deviceInfo?.metadata?.name || 'Unknown',
+      name:                     effectiveName || 'Unknown',
       capture_mode:             sanitizeSegment(captureMode),
       training_attendance_path: trainingAttendancePath,
     },
@@ -686,7 +688,7 @@ export async function recordAttendance(
       capture_mode:     captureMode,
       class:            fullDeviceInfo?.metadata?.class   ?? null,
       section:          fullDeviceInfo?.metadata?.section ?? null,
-      student_name:     userName,
+      student_name:     effectiveName,
       device_info:      fullDeviceInfo,
       confidence_score: confidence,
       image_url:        uploadedImageUrl,
@@ -701,8 +703,14 @@ export async function recordAttendance(
     for (const k of keys) {
       markedTodayCache.set(k, data);
     }
-    if (userName) {
-      markedTodayCache.set(userName.toLowerCase().trim(), data);
+    if (effectiveName) {
+      markedTodayCache.set(effectiveName.toLowerCase().trim(), data);
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('presence:attendance-marked', { detail: data }));
+      } catch {}
     }
   }
 
