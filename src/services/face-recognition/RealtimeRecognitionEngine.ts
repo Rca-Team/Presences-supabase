@@ -265,7 +265,7 @@ export function createRecognitionEngine(
     options.onStats?.({ ...stats });
   }
 
-  /** Thread 2: detection on a downscaled frame, throttled to detectFps */
+  /** Thread 2: instant single-pass detection, landmarking, embedding & matching for all visible faces */
   async function detectPass(video: HTMLVideoElement) {
     const t0 = performance.now();
     const vw = video.videoWidth;
@@ -283,301 +283,121 @@ export function createRecognitionEngine(
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, targetW, targetH);
 
-    const detections = await faceapi.detectAllFaces(
-      detectCanvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.28 }),
-    );
-
-    // Map small-frame boxes back to full-resolution coordinates
-    const boxes: Box[] = detections.map(d => ({
-      x: d.box.x / scale,
-      y: d.box.y / scale,
-      width: d.box.width / scale,
-      height: d.box.height / scale,
-    }));
-
-    const tracks = tracker.update(boxes);
-    stats.detectMs = performance.now() - t0;
-    stats.tracked = tracks.length;
-    stats.identified = markedByTrack.size;
-
-    // Prune bookkeeping for tracks that no longer exist
-    if (markedByTrack.size > 0 || bestShotByTrack.size > 0) {
-      const live = new Set(tracks.map(t => t.id));
-      for (const id of markedByTrack.keys()) if (!live.has(id)) markedByTrack.delete(id);
-      for (const id of bestShotByTrack.keys()) if (!live.has(id)) bestShotByTrack.delete(id);
-    }
-
-    // Only surface freshly-seen tracks so overlay boxes never linger
-    options.onTracks?.(tracks.filter(t => t.missed === 0));
-
-
-    // Queue only NEW faces for recognition (immediate on hit 1)
-    for (const t of tracker.pendingRecognition(1)) {
-      if (!queue.includes(t.id)) queue.push(t.id);
-    }
-    void pumpQueue(video);
-    publishStats();
-  }
-
-  /** Thread 3: embedding + indexed matching, bounded concurrency */
-  async function pumpQueue(video: HTMLVideoElement) {
-    while (activeJobs < maxConcurrentJobs && queue.length > 0) {
-      const trackId = queue.shift()!;
-      const track = tracker.getTracks().find(t => t.id === trackId);
-      if (!track || track.identity?.verified) continue;
-      activeJobs++;
-      tracker.markPending(trackId, true);
-      void recognizeTrack(video, track).finally(() => {
-        activeJobs--;
-        tracker.markPending(trackId, false);
-        // Keep draining immediately when a recognition slot becomes free.
-        // Waiting for the next detection pass can strand queued students when
-        // the camera frame is briefly static or throttled by the browser.
-        if (running && queue.length > 0) void pumpQueue(video);
-      });
-    }
-  }
-
-  async function recognizeTrack(video: HTMLVideoElement, track: FaceTrack) {
     try {
-      // Crop at FULL resolution around the tracked box (best quality for the embedder)
-      const pad = 0.28;
-      const sx = Math.max(0, track.box.x - track.box.width * pad);
-      const sy = Math.max(0, track.box.y - track.box.height * pad);
-      const sw = Math.min(video.videoWidth - sx, track.box.width * (1 + pad * 2));
-      const sh = Math.min(video.videoHeight - sy, track.box.height * (1 + pad * 2));
-      if (sw < 40 || sh < 40) {
-        tracker.assignIdentity(track.id, null);
-        return;
+      // 1-Pass Extraction: Detect all faces, landmarks, and 128-d embeddings simultaneously
+      const detections = await faceapi
+        .detectAllFaces(
+          detectCanvas,
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }),
+        )
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      const tDetect = performance.now();
+      stats.detectMs = tDetect - t0;
+
+      // Map small-frame boxes back to full-resolution coordinates
+      const boxes: Box[] = detections.map(d => ({
+        x: d.detection.box.x / scale,
+        y: d.detection.box.y / scale,
+        width: d.detection.box.width / scale,
+        height: d.detection.box.height / scale,
+      }));
+
+      const tracks = tracker.update(boxes);
+      stats.tracked = tracks.length;
+
+      // Prune bookkeeping for tracks that no longer exist
+      if (markedByTrack.size > 0 || bestShotByTrack.size > 0) {
+        const live = new Set(tracks.map(t => t.id));
+        for (const id of markedByTrack.keys()) if (!live.has(id)) markedByTrack.delete(id);
+        for (const id of bestShotByTrack.keys()) if (!live.has(id)) bestShotByTrack.delete(id);
       }
 
-      const cropCanvas = acquireCropCanvas();
-      const cctx = cropCanvas.getContext('2d', { willReadFrequently: true });
-      if (!cctx) {
-        releaseCropCanvas(cropCanvas);
-        return;
-      }
-      cctx.drawImage(video, sx, sy, sw, sh, 0, 0, 224, 224);
-
-      let det: { descriptor: Float32Array } | null = null;
-      let match: { userId: string; name: string; distance: number; confidence: number } | null = null;
-
-      try {
-        const tEmbed = performance.now();
-
-        // 1. Primary path: face-api.js embedder (prioritized)
-        try {
-          det = await faceapi
-            .detectSingleFace(cropCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.18 }))
-            .withFaceLandmarks()
-            .withFaceDescriptor();
-        } catch (faceApiErr) {
-          console.warn('Primary face-api.js embedder failed, trying ArcFace ONNX fallback:', faceApiErr);
-          det = null;
-        }
-
-        // 2. Fallback path: ArcFace ONNX (used only if face-api.js failed or returned null)
-        if (!det && isOnnxEmbedderReady()) {
-          try {
-            const onnxEmbedding = await embedFaceOnnx(cropCanvas);
-            if (onnxEmbedding) {
-              det = { descriptor: onnxEmbedding };
-            }
-          } catch (onnxErr) {
-            console.warn('ArcFace ONNX fallback also failed:', onnxErr);
-          }
-        }
-
-        stats.embedMs = performance.now() - tEmbed;
-
-        if (!det) {
-          tracker.assignIdentity(track.id, null);
-          return;
-        }
-
-        // Innovatrics Face Quality Gate: assess pose, sharpness, and texture
-        const quality = assessFaceQuality({
-          canvas: cropCanvas,
-          landmarks: (det as any).landmarks?.positions,
-          box: track.box,
+      // Process and recognize EVERY visible student face in parallel
+      for (let i = 0; i < detections.length; i++) {
+        const d = detections[i];
+        const t = tracks[i] || tracks.find(track => {
+          const cx1 = d.detection.box.x / scale + (d.detection.box.width / scale) / 2;
+          const cy1 = d.detection.box.y / scale + (d.detection.box.height / scale) / 2;
+          const cx2 = track.box.x + track.box.width / 2;
+          const cy2 = track.box.y + track.box.height / 2;
+          return Math.hypot(cx1 - cx2, cy1 - cy2) < (track.box.width * 0.75);
         });
 
-        if (!quality.passed) {
-          const now = Date.now();
-          if (track.candidate && now - track.candidate.lastMatchedAt < 450) {
-            // Retain candidate display across momentary glance or lighting flicker
-            tracker.assignIdentity(track.id, {
-              userId: track.candidate.userId,
-              name: track.candidate.name,
-              confidence: track.candidate.confidence,
-              recognizedAt: track.candidate.lastMatchedAt,
-              verified: false,
-            });
-          } else {
-            track.candidate = null;
-            track.holdingProgress = 0;
-            tracker.assignIdentity(track.id, null);
-          }
-          publishStats();
-          return;
-        }
+        if (!t || !d.descriptor) continue;
 
-        // Always match the freshly extracted descriptor of the face in this exact frame
-        const matchDescriptor = det.descriptor;
+        const match = await matchDescriptorIndexed(d.descriptor, matchThreshold, shortlist);
+        const now = Date.now();
 
-        const tMatch = performance.now();
-        match = await matchDescriptorIndexed(matchDescriptor, matchThreshold, shortlist);
-
-        // Offload a parallel verification to the worker pool when available
-        if (!match && isPoolInitialized()) {
-          const registered = Array.from(gallery.entries()).map(([id, e]) => ({
-            id,
-            name: e.userName,
-            descriptor: Array.from(e.averagedDescriptor),
-          }));
-          const parallel = await matchDescriptorParallel(matchDescriptor, registered, matchThreshold);
-          if (parallel?.match) {
-            match = {
-              userId: parallel.match.id,
-              name: parallel.match.name,
-              distance: parallel.distance,
-              confidence: parallel.confidence,
-            };
-          }
-        }
-        stats.matchMs = performance.now() - tMatch;
-
-        if (!match) {
-          const now = Date.now();
-          if (track.candidate && now - track.candidate.lastMatchedAt < 350) {
-            // Retain candidate & holding display across momentary flicker
-            tracker.assignIdentity(track.id, {
-              userId: track.candidate.userId,
-              name: track.candidate.name,
-              confidence: track.candidate.confidence,
-              recognizedAt: track.candidate.lastMatchedAt,
-              verified: false,
-            });
-          } else {
-            track.candidate = null;
-            track.holdingProgress = 0;
-            tracker.assignIdentity(track.id, null);
-          }
-          publishStats();
-          return;
-        }
-      } finally {
-        releaseCropCanvas(cropCanvas);
-      }
-
-      if (!match) {
-        return;
-      }
-
-      // ── Instant Verification on Confident Face Match ──
-      // Dynamic verification timing: when requiredHoldMs is 0 (default), attendance
-      // is marked instantly (0ms hold) on the first confident frame match.
-      const dynamicHoldMs = baseRequiredHoldMs;
-      const now = Date.now();
-
-      const prevCand = track.candidate;
-      const isSamePerson = prevCand && prevCand.userId === match.userId;
-
-      let firstMatchedAt = now;
-      let continuousHoldMs = 0;
-
-      if (isSamePerson) {
-        firstMatchedAt = prevCand.firstMatchedAt;
-        continuousHoldMs = now - firstMatchedAt;
-      } else {
-        firstMatchedAt = now;
-        continuousHoldMs = 0;
-        // Clean old track lock when a different person enters the track
-        markedByTrack.delete(track.id);
-      }
-
-      const isVerified = dynamicHoldMs <= 0 || continuousHoldMs >= dynamicHoldMs;
-      const holdingProgress = isVerified ? 1.0 : Math.min(1.0, continuousHoldMs / dynamicHoldMs);
-
-      track.candidate = {
-        userId: match.userId,
-        name: match.name,
-        confidence: match.confidence,
-        distance: match.distance,
-        firstMatchedAt,
-        lastMatchedAt: now,
-        continuousHoldMs,
-      };
-      track.holdingProgress = holdingProgress;
-
-      tracker.assignIdentity(track.id, {
-        userId: match.userId,
-        name: match.name,
-        confidence: match.confidence,
-        recognizedAt: now,
-        verified: isVerified,
-      });
-
-      // Keep tracking until held continuously if hold is configured
-      if (!isVerified) {
-        return;
-      }
-
-      // Identity confirmed and verified for marking
-      const normName = match.name.toLowerCase().trim();
-      const isAlreadyMarkedInSession =
-        markedIdentities.has(`uid:${match.userId}`) ||
-        (normName !== 'unknown' && markedIdentities.has(`name:${normName}`));
-
-      if (!isAlreadyMarkedInSession) {
-        markedByTrack.set(track.id, match.userId);
-        markedIdentities.add(`uid:${match.userId}`);
-        if (normName !== 'unknown') {
-          markedIdentities.add(`name:${normName}`);
-        }
-        const identified: IdentifiedFace = {
-          trackId: track.id,
-          userId: match.userId,
-          name: match.name,
-          confidence: match.confidence,
-          distance: match.distance,
-          box: track.box,
-          descriptor: det.descriptor,
-        };
-        options.onIdentified?.(identified);
-
-        // Thread 4: database updates run off the recognition path.
-        if (options.markAttendance) {
-          options.markAttendance(identified).catch(err => {
-            console.warn('markAttendance failed, queueing offline backup:', err);
-            enqueueWrite({
-              userId: match.userId,
-              studentName: match.name,
-              status: 'present',
-              confidence: match.confidence,
-              timestamp: new Date().toISOString(),
-              source: 'realtime-engine',
-              metadata: { trackId: track.id, matchDistance: match.distance },
-            });
-          });
-        } else {
-          enqueueWrite({
+        if (match) {
+          tracker.assignIdentity(t.id, {
             userId: match.userId,
-            studentName: match.name,
-            status: 'present',
+            name: match.name,
             confidence: match.confidence,
-            timestamp: new Date().toISOString(),
-            source: 'realtime-engine',
-            metadata: { trackId: track.id, matchDistance: match.distance },
+            recognizedAt: now,
+            verified: true,
           });
-        }
 
+          const normName = match.name.toLowerCase().trim();
+          const isAlreadyMarkedInSession =
+            markedIdentities.has(`uid:${match.userId}`) ||
+            (normName !== 'unknown' && markedIdentities.has(`name:${normName}`));
+
+          if (!isAlreadyMarkedInSession) {
+            markedByTrack.set(t.id, match.userId);
+            markedIdentities.add(`uid:${match.userId}`);
+            if (normName !== 'unknown') {
+              markedIdentities.add(`name:${normName}`);
+            }
+
+            const identified: IdentifiedFace = {
+              trackId: t.id,
+              userId: match.userId,
+              name: match.name,
+              confidence: match.confidence,
+              distance: match.distance,
+              box: t.box,
+              descriptor: d.descriptor,
+            };
+
+            options.onIdentified?.(identified);
+
+            if (options.markAttendance) {
+              options.markAttendance(identified).catch(err => {
+                console.warn('markAttendance failed, queueing offline backup:', err);
+                enqueueWrite({
+                  userId: match.userId,
+                  studentName: match.name,
+                  status: 'present',
+                  confidence: match.confidence,
+                  timestamp: new Date().toISOString(),
+                  source: 'realtime-engine',
+                  metadata: { trackId: t.id, matchDistance: match.distance },
+                });
+              });
+            } else {
+              enqueueWrite({
+                userId: match.userId,
+                studentName: match.name,
+                status: 'present',
+                confidence: match.confidence,
+                timestamp: new Date().toISOString(),
+                source: 'realtime-engine',
+                metadata: { trackId: t.id, matchDistance: match.distance },
+              });
+            }
+          }
+        } else {
+          tracker.assignIdentity(t.id, null);
+        }
       }
+
+      stats.identified = markedByTrack.size;
+      options.onTracks?.(tracks.filter(t => t.missed === 0));
       publishStats();
     } catch (err) {
-      console.warn('recognizeTrack failed:', err);
-      tracker.assignIdentity(track.id, null);
+      console.warn('detectPass error:', err);
     }
   }
 

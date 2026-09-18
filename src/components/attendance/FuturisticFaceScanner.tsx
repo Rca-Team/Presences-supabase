@@ -449,12 +449,12 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     };
 
     const engine = createRecognitionEngine(() => webcamRef.current?.video ?? null, {
-      detectFps: signals.lowCPU ? 6 : 8, // 8 FPS gives instant face detection while keeping CPU under 35%
-      detectionWidth: 384, // 384px width with TinyFaceDetector 320 runs in ~25ms without thread lockup
-      matchThreshold: liteMode ? 0.50 : 0.48, // Strict precision gate for 100% true attendance
+      detectFps: signals.lowCPU ? 8 : 12, // High responsiveness for millisecond detection
+      detectionWidth: 480, // Sharp 480px width
+      matchThreshold: 0.52, // Standard optimal Euclidean distance threshold
       requiredHoldMs: 0, // Instant 0ms verification on first match
       identityTtlMs: 2000, // 2s TTL allows consecutive students to be recognized immediately
-      maxMissed: 2, // Drops track quickly when student steps away
+      maxMissed: 3, // Smooth tracking
       onTracks: (tracks) => {
         drawTracks(tracks);
         setFaceCount((prev) => (prev === tracks.length ? prev : tracks.length));
