@@ -32,10 +32,25 @@ if (
   );
 }
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+const client = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: typeof window !== 'undefined' ? localStorage : undefined,
     persistSession: true,
     autoRefreshToken: true,
   },
 });
+
+// Resilient Channel Wrapper: Automatically removes duplicate channels to prevent
+// "cannot add postgres_changes callbacks after subscribe()" errors on re-renders/hot-reloads
+const rawChannel = client.channel.bind(client);
+client.channel = function (name: string, opts?: any) {
+  try {
+    const existing = client.getChannels().find((c) => c.topic === `realtime:${name}` || c.topic === name);
+    if (existing) {
+      client.removeChannel(existing);
+    }
+  } catch (_) {}
+  return rawChannel(name, opts);
+};
+
+export const supabase = client;

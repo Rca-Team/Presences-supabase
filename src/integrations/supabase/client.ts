@@ -19,13 +19,26 @@ function createSupabaseClient() {
     throw new Error(message);
   }
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  const client = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
       storage: brokeredPreviewStorage(),
       persistSession: true,
       autoRefreshToken: true,
     }
   });
+
+  const rawChannel = client.channel.bind(client);
+  client.channel = function (name: string, opts?: any) {
+    try {
+      const existing = client.getChannels().find((c) => c.topic === `realtime:${name}` || c.topic === name);
+      if (existing) {
+        client.removeChannel(existing);
+      }
+    } catch (_) {}
+    return rawChannel(name, opts);
+  };
+
+  return client;
 }
 
 let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
