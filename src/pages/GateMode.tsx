@@ -454,6 +454,21 @@ const GateMode = () => {
     fetchGateStats();
   }, [playSound, fetchGateStats, persistGateEntry]);
 
+  const endSession = useCallback(async () => {
+    if (sessionIdRef.current) {
+      try {
+        await supabase
+          .from('gate_sessions')
+          .update({ ended_at: new Date().toISOString() })
+          .eq('id', sessionIdRef.current);
+      } catch (e) {
+        console.warn('Error ending gate session:', e);
+      }
+    }
+    setConfirmEnd(false);
+    navigate('/admin');
+  }, [navigate]);
+
   // ── Derived stats ──────────────────────────────────────────────────────────
   const { autoMarkedCount, unknownCount, uniqueStudents } = useMemo(() => {
     const recognized = sessionEntries.filter(e => e.isRecognized);

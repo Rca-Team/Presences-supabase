@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
 import LiteHome from '@/components/lite/LiteHome';
@@ -20,6 +20,9 @@ import PageTransition from '@/components/PageTransition';
 import HomeInstallCard from '@/components/HomeInstallCard';
 import NeuralOrbPanel from '@/components/home/NeuralOrbPanel';
 import { RoyalReveal, RoyalStaggerGroup, RoyalStaggerItem } from '@/components/RoyalReveal';
+import { supabase } from '@/integrations/supabase/client';
+import { useUserRole } from '@/hooks/useUserRole';
+import { hasTeacherAccess } from '@/utils/teacherAccess';
 import {
   ArrowRight,
   ArrowLeftRight,
@@ -69,6 +72,8 @@ const cardTilt = {
 
 const Index = () => {
   const { liteMode } = usePerformanceMode();
+  const { isTeacher, isAdminOrPrincipal, isLoading: isRoleLoading } = useUserRole();
+  const [isTeacherConfirmed, setIsTeacherConfirmed] = useState(false);
   const [activeProfile, setActiveProfile] = useState<null | {
     name: string;
     role: string;
@@ -78,6 +83,54 @@ const Index = () => {
   }>(null);
 
   const navigate = useNavigate();
+
+  // Redirect teachers immediately away from home page
+  useEffect(() => {
+    if (!isRoleLoading && isTeacher && !isAdminOrPrincipal) {
+      navigate('/teacher', { replace: true });
+    }
+  }, [isTeacher, isAdminOrPrincipal, isRoleLoading, navigate]);
+
+  // If a logged-in teacher opens the app root /, directly route them to the Teacher Portal
+  useEffect(() => {
+    let isMounted = true;
+    const checkActiveTeacher = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !isMounted) return;
+
+        const [userRolesRes, hasAccess] = await Promise.all([
+          (supabase as any).from('user_roles').select('role').eq('user_id', user.id),
+          hasTeacherAccess(user.id),
+        ]);
+
+        const roles: string[] = (userRolesRes.data || []).map((r: any) => r.role);
+
+        if (roles.includes('teacher') || hasAccess) {
+          if (isMounted) {
+            setIsTeacherConfirmed(true);
+            navigate('/teacher', { replace: true });
+          }
+        }
+      } catch (e) {
+        // silent fallback
+      }
+    };
+    checkActiveTeacher();
+    return () => { isMounted = false; };
+  }, [navigate]);
+
+  // NEVER show the home page to teachers
+  if ((isTeacher && !isAdminOrPrincipal) || isTeacherConfirmed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="text-xs font-semibold text-muted-foreground">Opening Teacher Portal...</p>
+        </div>
+      </div>
+    );
+  }
 
   const modules = [
     { icon: Scan, label: 'Attendance', tone: 'bg-primary/20 text-primary', to: '/attendance' },

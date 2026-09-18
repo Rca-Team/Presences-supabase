@@ -39,6 +39,16 @@ import {
   CheckCheck,
   Filter,
   QrCode,
+  ScanFace,
+  BookOpen,
+  Grid,
+  List,
+  Eye,
+  Camera,
+  ExternalLink,
+  ShieldCheck,
+  LayoutDashboard,
+  Smartphone,
 } from 'lucide-react';
 import {
   Dialog,
@@ -56,13 +66,23 @@ import {
   fetchTeacherPermissions,
   parseClassSection,
   matchesClassAndSection,
+  assignClassTeacher,
   DEFAULT_TEACHER_PERMISSIONS,
   type TeacherPermissions,
 } from '@/utils/teacherAccess';
 import { TeacherHeroDeck } from './TeacherHeroDeck';
+import { TeacherDashboardOverview } from './TeacherDashboardOverview';
 import { TeacherMonthlyRegister } from './TeacherMonthlyRegister';
 import { TeacherGatePassReview } from './TeacherGatePassReview';
+import { TeacherAttendanceExporter } from './TeacherAttendanceExporter';
+import { TeacherAbsenteeManager } from './TeacherAbsenteeManager';
+import TeacherAssignmentManager from './TeacherAssignmentManager';
+import TeacherTimetableEditor from './TeacherTimetableEditor';
+import TeacherNotificationHub from './TeacherNotificationHub';
+import CaptureFaceDialog from '@/components/admin/CaptureFaceDialog';
 import { fetchClassGatePasses, subscribeToGatePasses } from '@/services/gatePassService';
+import { sanitizeStudentPhotoUrl } from '@/utils/studentPhotoResolver';
+import { AndroidWidgetBoard } from '@/components/widgets/android/AndroidWidgetBoard';
 import * as XLSX from 'xlsx';
 
 const ClassSectionReport = React.lazy(() => import('@/components/admin/ClassSectionReport'));
@@ -123,16 +143,39 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
   const [students, setStudents] = useState<ClassStudent[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('daily');
+  const [activeTab, setActiveTab] = useState('overview');
   const [dailyFilter, setDailyFilter] = useState<'all' | 'unmarked' | 'present_yesterday' | 'absent' | 'present' | 'late'>('all');
+  const [rollCallViewMode, setRollCallViewMode] = useState<'cards' | 'table'>('cards');
   const [previousDayLabel, setPreviousDayLabel] = useState<string>('Previous Working Day');
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [pendingGatePassesCount, setPendingGatePassesCount] = useState(0);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Student Edit Dialog
   const [editStudent, setEditStudent] = useState<ClassStudent | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSavingStudent, setIsSavingStudent] = useState(false);
+
+  // Biometric Face Capture Dialog
+  const [selectedFaceStudent, setSelectedFaceStudent] = useState<ClassStudent | null>(null);
+
+  // Interactive Student Profile & Image Inspector Modal
+  const [inspectStudent, setInspectStudent] = useState<ClassStudent | null>(null);
+  const [directoryViewMode, setDirectoryViewMode] = useState<'table' | 'grid'>('table');
+
+  const getStudentPhotoUrl = useCallback((student: ClassStudent) => {
+    if (student.photo_url) {
+      const sanitized = sanitizeStudentPhotoUrl(student.photo_url);
+      if (sanitized) return sanitized;
+    }
+    return `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(student.name || 'Student')}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+  }, []);
+
+  // Quick Class Claiming State for newly registered teachers
+  const [isClaimingClass, setIsClaimingClass] = useState(false);
+  const [claimGrade, setClaimGrade] = useState('10');
+  const [claimSection, setClaimSection] = useState('A');
+  const [claimRole, setClaimRole] = useState<'class_teacher' | 'co_teacher'>('class_teacher');
 
   // Add Student Dialog
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -168,7 +211,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
       const [categories, perms, profileRes, authRes] = await Promise.all([
         fetchTeacherCategories(userId),
         fetchTeacherPermissions(userId),
-        supabase.from('profiles').select('display_name, username, avatar_url, parent_email').eq('user_id', userId).maybeSingle(),
+        supabase.from('profiles').select('display_name, username, avatar_url, parent_email, department').eq('user_id', userId).maybeSingle(),
         supabase.auth.getUser(),
       ]);
 
@@ -182,27 +225,57 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
         avatarUrl: userProfile?.avatar_url || '',
       });
 
-      let list: ClassAssignment[] = categories
+      let list: ClassAssignment[] = (categories || [])
         .map(c => {
           const parsed = parseClassSection(c);
           return parsed ? { class: parsed.className, section: parsed.section, category: c } : null;
         })
         .filter((c): c is ClassAssignment => Boolean(c));
 
-      // Admin or Principal fallback: show classes if no specific assignments
-      if (list.length === 0 && (isAdminOrPrincipal || role === 'admin' || role === 'principal')) {
+      // If user registered with assigned_class in metadata or profile department
+      const metaClass = authUser?.user_metadata?.assigned_class || (userProfile as any)?.department;
+      if (metaClass) {
+        const parsedMeta = parseClassSection(metaClass);
+        if (parsedMeta && !list.some(a => a.category === metaClass)) {
+          list.unshift({ class: parsedMeta.className, section: parsedMeta.section, category: metaClass });
+        }
+      }
+
+      // Default fallback roster classes so the portal always opens directly to the class page
+      if (list.length === 0) {
         list = [
-          { class: '6', section: 'A', category: '6-A' },
-          { class: '6', section: 'B', category: '6-B' },
           { class: '10', section: 'A', category: '10-A' },
           { class: '10', section: 'B', category: '10-B' },
           { class: '9', section: 'A', category: '9-A' },
+          { class: '8', section: 'A', category: '8-A' },
+          { class: '6', section: 'A', category: '6-A' },
           { class: '11', section: 'A', category: '11-A' },
+          { class: '12', section: 'A', category: '12-A' },
         ];
       }
 
       setAssignments(list);
-      if (list.length > 0) {
+
+      // Check URL query param e.g. /teacher?class=10-A
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlClass = urlParams.get('class');
+
+      if (urlClass) {
+        const found = list.find(a => a.category.toLowerCase() === urlClass.toLowerCase());
+        if (found) {
+          setActiveClass(found);
+        } else {
+          const parsed = parseClassSection(urlClass);
+          if (parsed) {
+            const customAssignment = { class: parsed.className, section: parsed.section, category: urlClass.toUpperCase() };
+            list.unshift(customAssignment);
+            setAssignments([...list]);
+            setActiveClass(customAssignment);
+          } else {
+            setActiveClass(list[0]);
+          }
+        }
+      } else {
         setActiveClass(prev => {
           if (prev && list.some(a => a.category === prev.category)) return prev;
           return list[0];
@@ -253,12 +326,23 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
       const { class: cls, section: sec, category } = activeClass;
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
 
       const prevWorkingDay = getPreviousWorkingDay();
       setPreviousDayLabel(prevWorkingDay.label);
 
-      // Fetch from profiles, registered attendance records, face descriptors, today's attendance logs, and previous working day's logs
-      const [profilesRes, registeredAttRes, descriptorsRes, todayAttRes, prevDayAttRes] = await Promise.all([
+      // Fetch from profiles, registered attendance records, face descriptors, today's attendance logs, gate entries, vision events, and previous day logs
+      const [
+        profilesRes,
+        registeredAttRes,
+        descriptorsRes,
+        todayAttRes,
+        prevDayAttRes,
+        todayGateRes,
+        prevDayGateRes,
+        todayGvEventsRes,
+      ] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase
           .from('attendance_records')
@@ -272,6 +356,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           .from('attendance_records')
           .select('id, user_id, student_id, student_name, class, section, category, status, timestamp, device_info, capture_mode, source')
           .gte('timestamp', startOfToday.toISOString())
+          .lte('timestamp', endOfToday.toISOString())
           .order('timestamp', { ascending: false }),
         supabase
           .from('attendance_records')
@@ -279,32 +364,70 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           .gte('timestamp', prevWorkingDay.start.toISOString())
           .lte('timestamp', prevWorkingDay.end.toISOString())
           .order('timestamp', { ascending: false }),
+        (supabase as any)
+          .from('gate_entries')
+          .select('id, student_id, student_name, entry_time, is_recognized, class, section, metadata')
+          .gte('entry_time', startOfToday.toISOString())
+          .lte('entry_time', endOfToday.toISOString())
+          .order('entry_time', { ascending: false }),
+        (supabase as any)
+          .from('gate_entries')
+          .select('id, student_id, student_name, entry_time, is_recognized, class, section, metadata')
+          .gte('entry_time', prevWorkingDay.start.toISOString())
+          .lte('entry_time', prevWorkingDay.end.toISOString())
+          .order('entry_time', { ascending: false }),
+        (supabase as any)
+          .from('gv_events')
+          .select('id, event_type, student_id, timestamp, metadata')
+          .gte('timestamp', startOfToday.toISOString())
+          .lte('timestamp', endOfToday.toISOString())
+          .order('timestamp', { ascending: false }),
       ]);
 
-      // Enrolled face descriptor IDs
-      const enrolledFaceIds = new Set<string>();
-      (descriptorsRes.data || []).forEach((f: any) => {
-        if (f.user_id) enrolledFaceIds.add(String(f.user_id).trim().toLowerCase());
-        if (f.student_id) enrolledFaceIds.add(String(f.student_id).trim().toLowerCase());
-      });
+      const norm = (v: any) => (v == null ? '' : String(v).trim().toLowerCase());
 
-      // Previous working day present IDs set
-      const prevDayPresentSet = new Set<string>();
-      (prevDayAttRes.data || []).forEach((att: any) => {
-        if (att.status === 'registered') return;
-        if (!matchesClassAndSection(att, cls, sec)) return;
-        const rawStatus = (att.status || '').toLowerCase();
-        if (rawStatus.includes('present') || rawStatus.includes('late')) {
-          if (att.user_id) prevDayPresentSet.add(String(att.user_id).trim().toLowerCase());
-          if (att.student_id) prevDayPresentSet.add(String(att.student_id).trim().toLowerCase());
-          if (att.student_name) prevDayPresentSet.add(String(att.student_name).trim().toLowerCase());
-          const dInfo = (att.device_info as any) || {};
-          if (dInfo.metadata?.employee_id) prevDayPresentSet.add(String(dInfo.metadata.employee_id).trim().toLowerCase());
-          if (dInfo.metadata?.name) prevDayPresentSet.add(String(dInfo.metadata.name).trim().toLowerCase());
+      // Enrolled face descriptor IDs and Photos Map
+      const enrolledFaceIds = new Set<string>();
+      const facePhotoMap = new Map<string, string>();
+      (descriptorsRes.data || []).forEach((f: any) => {
+        const uId = norm(f.user_id);
+        const sId = norm(f.student_id);
+        if (uId) enrolledFaceIds.add(uId);
+        if (sId) enrolledFaceIds.add(sId);
+        if (f.image_url) {
+          if (uId) facePhotoMap.set(uId, f.image_url);
+          if (sId) facePhotoMap.set(sId, f.image_url);
         }
       });
 
-      // Today's attendance status map
+      // Previous working day present IDs set across attendance_records and gate_entries
+      const prevDayPresentSet = new Set<string>();
+      (prevDayAttRes.data || []).forEach((att: any) => {
+        if (att.status === 'registered') return;
+        const rawStatus = (att.status || '').toLowerCase();
+        if (rawStatus.includes('present') || rawStatus.includes('late') || rawStatus.includes('verified') || rawStatus.includes('unauthorized')) {
+          if (att.user_id) prevDayPresentSet.add(norm(att.user_id));
+          if (att.student_id) prevDayPresentSet.add(norm(att.student_id));
+          if (att.student_name) prevDayPresentSet.add(norm(att.student_name));
+          const dInfo = (att.device_info as any) || {};
+          const meta = dInfo.metadata || {};
+          if (meta.employee_id) prevDayPresentSet.add(norm(meta.employee_id));
+          if (dInfo.employee_id) prevDayPresentSet.add(norm(dInfo.employee_id));
+          if (meta.roll_number) prevDayPresentSet.add(norm(meta.roll_number));
+          if (dInfo.roll_number) prevDayPresentSet.add(norm(dInfo.roll_number));
+          if (meta.name) prevDayPresentSet.add(norm(meta.name));
+        }
+      });
+
+      (prevDayGateRes.data || []).forEach((gate: any) => {
+        if (gate.student_id) prevDayPresentSet.add(norm(gate.student_id));
+        if (gate.student_name) prevDayPresentSet.add(norm(gate.student_name));
+        const meta = gate.metadata || {};
+        if (meta.employee_id) prevDayPresentSet.add(norm(meta.employee_id));
+        if (meta.roll_number) prevDayPresentSet.add(norm(meta.roll_number));
+      });
+
+      // Today's attendance status map (Unifying Spotlight Engine, Gate Entries, Kiosks, Overrides, Smartboard)
       const todayAttMap = new Map<string, {
         status: 'present' | 'late' | 'absent';
         time: string;
@@ -312,34 +435,112 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
         captureMode?: string;
         isManual?: boolean;
       }>();
-      const matchingTodayAtt = (todayAttRes.data || []).filter((r: any) => matchesClassAndSection(r, cls, sec));
 
-      matchingTodayAtt.forEach((att: any) => {
+      // Helper to register attendance record into todayAttMap across all its identifiers
+      const registerTodayRecord = (key: string, info: { status: 'present' | 'late' | 'absent'; time: string; source?: string; captureMode?: string; isManual?: boolean }) => {
+        if (!key) return;
+        const cleanKey = norm(key);
+        if (!cleanKey) return;
+        const existing = todayAttMap.get(cleanKey);
+        // Prioritize present/late over absent or manual override over passive
+        if (!existing || (existing.status === 'absent' && info.status !== 'absent') || info.isManual) {
+          todayAttMap.set(cleanKey, info);
+        }
+      };
+
+      // 1. Process attendance_records for today
+      (todayAttRes.data || []).forEach((att: any) => {
         if (att.status === 'registered') return;
-        const sName = (att.student_name || '').toLowerCase().trim();
-        const uId = att.user_id ? String(att.user_id).trim().toLowerCase() : '';
-        const sId = att.student_id ? String(att.student_id).trim().toLowerCase() : '';
-        const normalizedStatus = (att.status?.toLowerCase().includes('late') ? 'late' : att.status?.toLowerCase().includes('absent') ? 'absent' : 'present') as 'present' | 'late' | 'absent';
+        const sName = att.student_name || '';
+        const uId = att.user_id ? String(att.user_id) : '';
+        const sId = att.student_id ? String(att.student_id) : '';
+        const dInfo = (att.device_info as any) || {};
+        const meta = dInfo.metadata || {};
+        const empId = meta.employee_id || dInfo.employee_id || '';
+        const rollNum = meta.roll_number || dInfo.roll_number || '';
+        const metaName = meta.name || dInfo.name || '';
+
+        const rawStatus = (att.status || '').toLowerCase().trim();
+        let normalizedStatus: 'present' | 'late' | 'absent' = 'present';
+        if (rawStatus.includes('late')) {
+          normalizedStatus = 'late';
+        } else if (rawStatus.includes('absent')) {
+          normalizedStatus = 'absent';
+        } else {
+          // 'present', 'marked', 'verified', 'unauthorized', 'on-time', 'ontime', etc.
+          normalizedStatus = 'present';
+        }
+
         const timeFormatted = att.timestamp ? new Date(att.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
-        const devInfo = (att.device_info as any) || {};
         const isManual = Boolean(
           att.capture_mode === 'manual' ||
           att.source === 'teacher-portal' ||
-          devInfo.mark === 'manual_attendance' ||
-          devInfo.manual ||
+          dInfo.mark === 'manual_attendance' ||
+          dInfo.manual ||
           att.source === 'manual'
         );
+
         const info = {
           status: normalizedStatus,
           time: timeFormatted,
-          source: att.source || devInfo.source || (isManual ? 'teacher-portal' : 'biometric'),
-          captureMode: att.capture_mode || devInfo.capture_mode || (isManual ? 'manual' : 'ai-scan'),
+          source: att.source || dInfo.source || (isManual ? 'teacher-portal' : 'biometric-kiosk'),
+          captureMode: att.capture_mode || dInfo.capture_mode || (isManual ? 'manual' : 'spotlight-engine'),
           isManual,
         };
 
-        if (uId && !todayAttMap.has(uId)) todayAttMap.set(uId, info);
-        if (sId && !todayAttMap.has(sId)) todayAttMap.set(sId, info);
-        if (sName && !todayAttMap.has(sName)) todayAttMap.set(sName, info);
+        if (uId) registerTodayRecord(uId, info);
+        if (sId) registerTodayRecord(sId, info);
+        if (empId) registerTodayRecord(empId, info);
+        if (rollNum) registerTodayRecord(rollNum, info);
+        if (sName) registerTodayRecord(sName, info);
+        if (metaName) registerTodayRecord(metaName, info);
+        if (att.id) registerTodayRecord(att.id, info);
+      });
+
+      // 2. Process gate_entries for today (Security Gate, Turnstiles, RFID)
+      (todayGateRes.data || []).forEach((g: any) => {
+        const sId = g.student_id ? String(g.student_id) : '';
+        const sName = g.student_name || '';
+        const meta = g.metadata || {};
+        const empId = meta.employee_id || meta.admission_number || '';
+        const rollNum = meta.roll_number || '';
+        const timeFormatted = g.entry_time ? new Date(g.entry_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+        const gateInfo = {
+          status: 'present' as const,
+          time: timeFormatted,
+          source: 'gate-security',
+          captureMode: 'rfid-gate',
+          isManual: false,
+        };
+
+        if (sId) registerTodayRecord(sId, gateInfo);
+        if (empId) registerTodayRecord(empId, gateInfo);
+        if (rollNum) registerTodayRecord(rollNum, gateInfo);
+        if (sName) registerTodayRecord(sName, gateInfo);
+        if (g.id) registerTodayRecord(g.id, gateInfo);
+      });
+
+      // 3. Process gv_events for today (Spotlight Engine & Gate Vision live streams)
+      (todayGvEventsRes.data || []).forEach((ev: any) => {
+        const sId = ev.student_id ? String(ev.student_id) : '';
+        const meta = ev.metadata || {};
+        const sName = meta.student_name || meta.name || '';
+        const empId = meta.employee_id || meta.admission_number || '';
+        const rollNum = meta.roll_number || '';
+        const timeFormatted = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+        const gvInfo = {
+          status: 'present' as const,
+          time: timeFormatted,
+          source: 'spotlight-engine',
+          captureMode: 'ai-vision',
+          isManual: false,
+        };
+
+        if (sId) registerTodayRecord(sId, gvInfo);
+        if (empId) registerTodayRecord(empId, gvInfo);
+        if (rollNum) registerTodayRecord(rollNum, gvInfo);
+        if (sName) registerTodayRecord(sName, gvInfo);
+        if (ev.id) registerTodayRecord(ev.id, gvInfo);
       });
 
       // Master student unification map
@@ -347,8 +548,6 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
       const byUserId = new Map<string, string>();
       const byName = new Map<string, string>();
       const byEmployeeId = new Map<string, string>();
-
-      const norm = (v: any) => (v == null ? '' : String(v).trim().toLowerCase());
 
       const upsertStudent = (candidate: ClassStudent) => {
         const uid = norm(candidate.user_id);
@@ -409,11 +608,14 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
         const pPhone = meta.parent_phone || deviceInfo.parent_phone || meta.phone || '';
         const pEmail = meta.parent_email || deviceInfo.parent_email || (meta.email?.includes('@') ? meta.email : '');
         const pName = meta.parent_name || deviceInfo.parent_name || '';
-        const photo = r.image_url || meta.firebase_image_url || meta.image_url || '';
 
         const uidKey = norm(r.user_id);
         const nameK = norm(name);
         const empK = norm(empId);
+        const rollK = norm(roll);
+
+        const rawPhoto = r.image_url || meta.firebase_image_url || meta.image_url || (uidKey && facePhotoMap.get(uidKey)) || (empK && facePhotoMap.get(empK)) || '';
+        const photo = sanitizeStudentPhotoUrl(rawPhoto);
 
         const hasFace =
           (uidKey && enrolledFaceIds.has(uidKey)) ||
@@ -423,12 +625,16 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
         const attInfo =
           (uidKey && todayAttMap.get(uidKey)) ||
           (empK && todayAttMap.get(empK)) ||
-          (nameK && todayAttMap.get(nameK));
+          (rollK && todayAttMap.get(rollK)) ||
+          (nameK && todayAttMap.get(nameK)) ||
+          (r.id && todayAttMap.get(norm(r.id)));
 
         const wasPresentPrev = Boolean(
           (uidKey && prevDayPresentSet.has(uidKey)) ||
           (empK && prevDayPresentSet.has(empK)) ||
-          (nameK && prevDayPresentSet.has(nameK))
+          (rollK && prevDayPresentSet.has(rollK)) ||
+          (nameK && prevDayPresentSet.has(nameK)) ||
+          (r.id && prevDayPresentSet.has(norm(r.id)))
         );
 
         upsertStudent({
@@ -459,21 +665,29 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
         const uidKey = norm(p.user_id || p.id);
         const nameK = norm(name);
         const empK = norm(p.admission_number || p.roll_number);
+        const rollK = norm(p.roll_number);
+
+        const rawPhoto = p.photo_url || p.avatar_url || (uidKey && facePhotoMap.get(uidKey)) || (empK && facePhotoMap.get(empK)) || '';
+        const photo = sanitizeStudentPhotoUrl(rawPhoto);
 
         const hasFace =
           (uidKey && enrolledFaceIds.has(uidKey)) ||
           (empK && enrolledFaceIds.has(empK)) ||
-          Boolean(p.photo_url || p.avatar_url);
+          Boolean(photo);
 
         const attInfo =
           (uidKey && todayAttMap.get(uidKey)) ||
           (empK && todayAttMap.get(empK)) ||
-          (nameK && todayAttMap.get(nameK));
+          (rollK && todayAttMap.get(rollK)) ||
+          (nameK && todayAttMap.get(nameK)) ||
+          (p.id && todayAttMap.get(norm(p.id)));
 
         const wasPresentPrev = Boolean(
           (uidKey && prevDayPresentSet.has(uidKey)) ||
           (empK && prevDayPresentSet.has(empK)) ||
-          (nameK && prevDayPresentSet.has(nameK))
+          (rollK && prevDayPresentSet.has(rollK)) ||
+          (nameK && prevDayPresentSet.has(nameK)) ||
+          (p.id && prevDayPresentSet.has(norm(p.id)))
         );
 
         upsertStudent({
@@ -485,7 +699,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           parent_name: p.parent_name || '',
           parent_email: p.parent_email || (p.email?.includes('@') ? p.email : ''),
           parent_phone: p.parent_phone || p.phone_number || '',
-          photo_url: p.photo_url || p.avatar_url || '',
+          photo_url: photo,
           has_face_descriptor: hasFace,
           today_status: attInfo?.status || 'unmarked',
           today_time: attInfo?.time || '',
@@ -494,6 +708,58 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           attendance_source: attInfo?.source,
           is_manual: attInfo?.isManual,
         });
+      });
+
+      // 3. Process any attendance_records tagged directly with class/section
+      (todayAttRes.data || []).forEach((r: any) => {
+        if (r.status === 'registered') return;
+        const dInfo = (r.device_info as any) || {};
+        const meta = dInfo.metadata || {};
+        const categoryVal = r.category || meta.category || meta.department;
+        const classVal = r.class || meta.class;
+        const sectionVal = r.section || meta.section;
+
+        if (matchesClassAndSection({ category: categoryVal, class: classVal, section: sectionVal, department: meta.department }, cls, sec)) {
+          const name = meta.name || r.student_name || dInfo.name || 'Student';
+          const empId = meta.employee_id || dInfo.employee_id || r.student_id || '';
+          const roll = meta.roll_number || dInfo.roll_number || '';
+          const uidKey = norm(r.user_id);
+          const nameK = norm(name);
+          const empK = norm(empId);
+          const rollK = norm(roll);
+
+          const attInfo =
+            (uidKey && todayAttMap.get(uidKey)) ||
+            (empK && todayAttMap.get(empK)) ||
+            (rollK && todayAttMap.get(rollK)) ||
+            (nameK && todayAttMap.get(nameK));
+
+          const wasPresentPrev = Boolean(
+            (uidKey && prevDayPresentSet.has(uidKey)) ||
+            (empK && prevDayPresentSet.has(empK)) ||
+            (rollK && prevDayPresentSet.has(rollK)) ||
+            (nameK && prevDayPresentSet.has(nameK))
+          );
+
+          upsertStudent({
+            id: r.id || r.user_id || `direct-att-${nameK}`,
+            user_id: r.user_id,
+            name,
+            roll_number: roll,
+            admission_number: empId,
+            parent_name: meta.parent_name || dInfo.parent_name || '',
+            parent_email: meta.parent_email || dInfo.parent_email || '',
+            parent_phone: meta.parent_phone || dInfo.parent_phone || '',
+            photo_url: sanitizeStudentPhotoUrl(r.image_url || meta.image_url || ''),
+            has_face_descriptor: Boolean(uidKey && enrolledFaceIds.has(uidKey)),
+            today_status: attInfo?.status || (r.status === 'late' ? 'late' : r.status === 'absent' ? 'absent' : 'present'),
+            today_time: attInfo?.time || (r.timestamp ? new Date(r.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''),
+            was_present_yesterday: wasPresentPrev,
+            capture_mode: attInfo?.captureMode || r.capture_mode,
+            attendance_source: attInfo?.source || r.source,
+            is_manual: attInfo?.isManual ?? (r.capture_mode === 'manual' || r.source === 'teacher-portal'),
+          });
+        }
       });
 
       const finalStudents = Array.from(studentMap.values()).sort((a, b) => {
@@ -516,30 +782,49 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
     loadClassStudents();
   }, [loadClassStudents]);
 
-  // Real-time Supabase subscription for instant live attendance sync
+  // Real-time Supabase subscription for instant live attendance sync across ALL school sources
   useEffect(() => {
     if (!activeClass) return;
 
-    const channelName = `teacher_workspace_att_${activeClass.class}_${activeClass.section}`;
+    const channelName = `teacher_workspace_live_sync_${activeClass.class}_${activeClass.section}`;
     const channel = supabase
       .channel(channelName)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'attendance_records',
-        },
-        () => {
-          loadClassStudents();
-        }
+        { event: '*', schema: 'public', table: 'attendance_records' },
+        () => loadClassStudents()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gate_entries' },
+        () => loadClassStudents()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gv_events' },
+        () => loadClassStudents()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'face_descriptors' },
+        () => loadClassStudents()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => loadClassStudents()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'class_teachers' },
+        () => loadTeacherAssignments()
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeClass, loadClassStudents]);
+  }, [activeClass, loadClassStudents, loadTeacherAssignments]);
 
   // Quick mark a single student (Present, Late, Absent)
   const handleQuickMarkAttendance = async (student: ClassStudent, status: 'present' | 'late' | 'absent') => {
@@ -996,6 +1281,25 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
     toast({ title: 'Report Downloaded', description: `Excel sheet for Class ${activeClass.category} ready.` });
   };
 
+  const handleClaimClass = async (categoryToClaim?: string) => {
+    if (!userId) return;
+    const cat = categoryToClaim || `${claimGrade.trim().toUpperCase()}-${claimSection.trim().toUpperCase()}`;
+    if (!cat || cat === '-') {
+      toast({ title: 'Invalid Class', description: 'Please provide both Grade and Section', variant: 'destructive' });
+      return;
+    }
+    setIsClaimingClass(true);
+    try {
+      await assignClassTeacher(cat, userId, teacherProfile.name, teacherProfile.email, claimRole);
+      toast({ title: 'Class Assigned!', description: `You are now assigned as ${claimRole === 'class_teacher' ? 'Class Teacher' : 'Co-Teacher'} for Class ${cat}.` });
+      await loadTeacherAssignments();
+    } catch (err: any) {
+      toast({ title: 'Failed to assign class', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsClaimingClass(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center p-12 space-y-3">
@@ -1007,17 +1311,83 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
 
   if (assignments.length === 0) {
     return (
-      <Card className="max-w-xl mx-auto my-8 border-dashed">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 mb-2">
-            <GraduationCap className="h-6 w-6" />
+      <Card className="max-w-2xl mx-auto my-8 border-slate-200 dark:border-white/10 shadow-xl rounded-3xl overflow-hidden liquid-glass-surface">
+        <CardHeader className="text-center pb-2 bg-gradient-to-b from-blue-500/10 to-transparent">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white mb-3 shadow-lg shadow-blue-500/20">
+            <GraduationCap className="h-7 w-7" />
           </div>
-          <CardTitle>No Class Assigned Yet</CardTitle>
-          <CardDescription>
-            You have the Teacher role, but no classes have been assigned to your profile yet.
-            Please ask your School Administrator to assign your classes in <strong>Admin → Access Management</strong>.
+          <CardTitle className="text-xl font-black">Welcome to Teacher Portal, {teacherProfile.name}!</CardTitle>
+          <CardDescription className="text-xs max-w-md mx-auto mt-1">
+            To start managing students, attendance, timetables, and assignments, choose or claim your primary class below.
           </CardDescription>
         </CardHeader>
+        <CardContent className="space-y-6 pt-4">
+          <div className="space-y-2">
+            <Label className="text-xs font-bold text-foreground">1-Tap Quick Claim (Popular Grades):</Label>
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+              {['6-A', '7-A', '8-A', '9-A', '10-A', '10-B', '11-A', '12-A'].map((cat) => (
+                <Button
+                  key={cat}
+                  variant="outline"
+                  size="sm"
+                  disabled={isClaimingClass}
+                  onClick={() => handleClaimClass(cat)}
+                  className="text-xs font-bold h-9 rounded-xl hover:bg-primary hover:text-white border-slate-200 dark:border-white/10 transition-all active:scale-95"
+                >
+                  {cat}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-white/10" /></div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-3 bg-card text-muted-foreground font-medium">or specify custom class</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Grade / Standard</Label>
+              <Input
+                placeholder="e.g. 10"
+                value={claimGrade}
+                onChange={(e) => setClaimGrade(e.target.value)}
+                className="h-9 text-xs rounded-xl"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Section</Label>
+              <Input
+                placeholder="e.g. A"
+                value={claimSection}
+                onChange={(e) => setClaimSection(e.target.value)}
+                className="h-9 text-xs rounded-xl"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Faculty Role</Label>
+              <select
+                value={claimRole}
+                onChange={(e) => setClaimRole(e.target.value as any)}
+                className="h-9 w-full text-xs rounded-xl border bg-background px-3"
+              >
+                <option value="class_teacher">Class Teacher</option>
+                <option value="co_teacher">Co-Teacher</option>
+              </select>
+            </div>
+          </div>
+
+          <Button
+            onClick={() => handleClaimClass()}
+            disabled={isClaimingClass || !claimGrade || !claimSection}
+            className="w-full h-10 text-sm font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl shadow-lg shadow-blue-500/20 gap-2"
+          >
+            {isClaimingClass ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Claim Class & Launch Portal
+          </Button>
+        </CardContent>
       </Card>
     );
   }
@@ -1096,11 +1466,22 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
             <div className="overflow-x-auto pb-1 no-scrollbar">
               <TabsList className="nano-glass-dock p-1.5 rounded-2xl inline-flex w-full sm:w-auto border border-slate-200/70 dark:border-white/10 shadow-xs">
+                <TabsTrigger value="overview" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                  <LayoutDashboard className="h-4 w-4" /> Overview Dashboard
+                </TabsTrigger>
                 <TabsTrigger value="daily" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <CheckSquare className="h-4 w-4" /> Daily Attendance
                   {stats.unmarked > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-rose-500 text-white rounded-full font-extrabold leading-none">
+                    <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-amber-500 text-white rounded-full font-extrabold leading-none">
                       {stats.unmarked}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="absentees" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-rose-600 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                  <UserX className="h-4 w-4" /> Absentee Radar
+                  {stats.absent + stats.unmarked > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-rose-500 text-white rounded-full font-extrabold leading-none animate-pulse">
+                      {stats.absent + stats.unmarked}
                     </span>
                   )}
                 </TabsTrigger>
@@ -1108,7 +1489,10 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                   <Calendar className="h-4 w-4" /> Monthly Register
                 </TabsTrigger>
                 <TabsTrigger value="students" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
-                  <Users className="h-4 w-4" /> Student Management ({students.length})
+                  <Users className="h-4 w-4" /> Student Directory ({students.length})
+                </TabsTrigger>
+                <TabsTrigger value="assignments" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                  <BookOpen className="h-4 w-4" /> Assignments & Tests
                 </TabsTrigger>
                 <TabsTrigger value="notifications" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md">
                   <Send className="h-4 w-4" /> Parent Notices
@@ -1127,8 +1511,32 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                     </span>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="widgets" className="gap-1.5 rounded-xl text-xs sm:text-sm py-2 px-3.5 font-bold data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md">
+                  <Smartphone className="h-4 w-4 text-amber-500 data-[state=active]:text-white" /> Android Widgets
+                </TabsTrigger>
               </TabsList>
             </div>
+
+            {/* TAB: OVERVIEW DASHBOARD */}
+            <TabsContent value="overview" className="space-y-4 m-0">
+              <TeacherDashboardOverview
+                teacherName={teacherProfile.name}
+                teacherEmail={teacherProfile.email}
+                avatarUrl={teacherProfile.avatarUrl}
+                activeClass={activeClass}
+                assignments={assignments}
+                students={students}
+                previousDayLabel={previousDayLabel}
+                pendingGatePassesCount={pendingGatePassesCount}
+                onSelectTab={setActiveTab}
+                onSelectClass={setActiveClass}
+                onQuickMarkAttendance={handleQuickMarkAttendance}
+                onAutoMarkAbsent={handleAutoMarkAbsent}
+                onMarkAllPresent={handleMarkAllUnmarkedPresent}
+                onOpenExportModal={() => setIsExportModalOpen(true)}
+                isMarkingAttendance={isMarkingAttendance}
+              />
+            </TabsContent>
 
             {/* TAB: DAILY ROLL CALL / ATTENDANCE */}
             <TabsContent value="daily" className="space-y-4 m-0">
@@ -1218,32 +1626,72 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                       )}
                       <Button
                         size="sm"
+                        onClick={() => setIsExportModalOpen(true)}
+                        className="text-xs h-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl gap-1.5 shadow-sm"
+                        title="Export attendance in PA Register Matrix or Standard Audit Log format for any duration"
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5" /> Export Attendance
+                      </Button>
+                      <Button
+                        size="sm"
                         variant="outline"
                         onClick={handleExportRosterExcel}
                         className="text-xs h-8 rounded-xl gap-1.5"
-                        title="Download Excel sheet of today's attendance"
+                        title="Quick download Excel sheet of today's attendance"
                       >
-                        <Download className="h-3.5 w-3.5" /> Export Excel
+                        <Download className="h-3.5 w-3.5" /> Quick Excel
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-3">
-                  {/* Filter and Search Bar */}
+                  {/* Filter, Search, and View Mode Bar */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
-                    <div className="relative w-full sm:w-64">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input
-                        placeholder="Search student or roll no..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="h-8 pl-8 text-xs rounded-xl"
-                      />
+                    <div className="flex items-center gap-2 flex-1">
+                      <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          placeholder="Search student or roll no..."
+                          value={searchQuery}
+                          onChange={e => setSearchQuery(e.target.value)}
+                          className="h-8 pl-8 text-xs rounded-xl"
+                        />
+                      </div>
+
+                      {/* View Mode Switcher */}
+                      <div className="flex items-center bg-muted/60 p-0.5 rounded-xl border shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setRollCallViewMode('cards')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                            rollCallViewMode === 'cards'
+                              ? 'bg-background text-foreground shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          title="Mobile Touch Cards Mode"
+                        >
+                          <Smartphone className="h-3.5 w-3.5 text-primary" />
+                          <span>Cards</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRollCallViewMode('table')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                            rollCallViewMode === 'table'
+                              ? 'bg-background text-foreground shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          title="Detailed Table Mode"
+                        >
+                          <List className="h-3.5 w-3.5" />
+                          <span>Table</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Filter Buttons */}
-                    <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
                       <Button
                         variant={dailyFilter === 'all' ? 'default' : 'ghost'}
                         size="sm"
@@ -1295,182 +1743,346 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                     </div>
                   </div>
 
-                  {/* Roll Call Table */}
-                  <div className="overflow-x-auto rounded-2xl border">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-muted/50 border-b">
-                          <th className="p-2.5 text-left font-bold w-12">Roll</th>
-                          <th className="p-2.5 text-left font-bold">Student Name</th>
-                          <th className="p-2.5 text-left font-bold">Previous Day ({previousDayLabel})</th>
-                          <th className="p-2.5 text-left font-bold">Today's Status</th>
-                          <th className="p-2.5 text-center font-bold">Quick Mark</th>
-                          <th className="p-2.5 text-center font-bold w-16">Contact</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {filteredStudents.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                              No students found matching this filter.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredStudents.map(student => (
-                            <tr
-                              key={student.id}
-                              className={`hover:bg-muted/30 transition-colors ${
-                                student.today_status === 'absent'
-                                  ? 'bg-rose-500/5'
-                                  : student.today_status === 'present'
-                                  ? 'bg-emerald-500/5'
-                                  : student.today_status === 'late'
-                                  ? 'bg-amber-500/5'
-                                  : student.was_present_yesterday
-                                  ? 'bg-amber-500/5 border-l-2 border-l-amber-500'
-                                  : ''
-                              }`}
-                            >
-                              <td className="p-2.5 font-bold font-mono text-muted-foreground">
-                                {student.roll_number || '—'}
-                              </td>
-                              <td className="p-2.5">
-                                <div className="flex items-center gap-2.5">
-                                  <Avatar className="h-8 w-8 rounded-xl border">
-                                    {student.photo_url && <AvatarImage src={student.photo_url} alt={student.name} />}
-                                    <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                  {/* 1. MOBILE TOUCH CARDS MODE */}
+                  {rollCallViewMode === 'cards' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {filteredStudents.length === 0 ? (
+                        <div className="col-span-full p-8 text-center text-muted-foreground text-xs">
+                          No students found matching this filter.
+                        </div>
+                      ) : (
+                        filteredStudents.map(student => (
+                          <div
+                            key={student.id}
+                            className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 shadow-xs ${
+                              student.today_status === 'present'
+                                ? 'bg-emerald-500/5 border-emerald-500/30'
+                                : student.today_status === 'late'
+                                ? 'bg-amber-500/5 border-amber-500/30'
+                                : student.today_status === 'absent'
+                                ? 'bg-rose-500/5 border-rose-500/30'
+                                : student.was_present_yesterday
+                                ? 'bg-card border-amber-500/40 shadow-amber-500/5'
+                                : 'bg-card border-border/80'
+                            }`}
+                          >
+                            {/* Top Card Info */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="relative shrink-0">
+                                  <Avatar className="h-11 w-11 rounded-2xl border-2 border-primary/20 shadow-xs">
+                                    <AvatarImage src={getStudentPhotoUrl(student)} alt={student.name} />
+                                    <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
                                       {student.name.slice(0, 2).toUpperCase()}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <div>
-                                    <span className="font-extrabold text-foreground block">{student.name}</span>
-                                    <span className="text-[10px] font-mono text-muted-foreground">
-                                      {student.admission_number || 'STU'}
-                                    </span>
-                                  </div>
+                                  <span
+                                    className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${
+                                      student.today_status === 'present'
+                                        ? 'bg-emerald-500'
+                                        : student.today_status === 'late'
+                                        ? 'bg-amber-500'
+                                        : student.today_status === 'absent'
+                                        ? 'bg-rose-500'
+                                        : 'bg-slate-400'
+                                    }`}
+                                  />
                                 </div>
-                              </td>
-                              <td className="p-2.5">
+
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-4">
+                                      #{student.roll_number || '—'}
+                                    </Badge>
+                                    <span className="font-extrabold text-sm text-foreground truncate">{student.name}</span>
+                                  </div>
+                                  <p className="text-[10px] font-mono text-muted-foreground truncate mt-0.5">
+                                    ID: {student.admission_number || '—'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {student.parent_phone && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openWhatsAppParent(student)}
+                                  className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-500/10 rounded-xl shrink-0"
+                                  title="WhatsApp Parent"
+                                >
+                                  <MessageSquare className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Middle Status Pill & Yesterday Context */}
+                            <div className="flex items-center justify-between text-[11px] px-1">
+                              <div>
                                 {student.was_present_yesterday ? (
-                                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] gap-1 font-semibold">
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 text-[10px]">
                                     <CheckCircle2 className="h-3 w-3" /> Present Yesterday
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground text-[10px]">No prev day entry</span>
+                                )}
+                              </div>
+
+                              <div>
+                                {student.today_status === 'present' ? (
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold">
+                                    ✓ Present {student.today_time ? `(${student.today_time})` : ''}
+                                  </Badge>
+                                ) : student.today_status === 'late' ? (
+                                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold">
+                                    ◷ Late {student.today_time ? `(${student.today_time})` : ''}
+                                  </Badge>
+                                ) : student.today_status === 'absent' ? (
+                                  <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[10px] font-bold">
+                                    ✕ Absent
                                   </Badge>
                                 ) : (
                                   <Badge variant="outline" className="text-muted-foreground text-[10px]">
-                                    No Entry
+                                    Pending Mark
                                   </Badge>
                                 )}
-                              </td>
-                              <td className="p-2.5">
-                                {student.today_status === 'present' ? (
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[11px] font-bold gap-1">
-                                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                                      Present {student.is_manual ? '(Manual)' : '(Biometric)'}
-                                    </Badge>
-                                    {student.today_time && (
-                                      <span className="text-[10px] text-muted-foreground font-mono">
-                                        {student.today_time}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : student.today_status === 'late' ? (
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[11px] font-bold gap-1">
-                                      <Clock className="h-3.5 w-3.5 text-amber-500" />
-                                      Late {student.is_manual ? '(Manual)' : ''}
-                                    </Badge>
-                                    {student.today_time && (
-                                      <span className="text-[10px] text-muted-foreground font-mono">
-                                        {student.today_time}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : student.today_status === 'absent' ? (
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[11px] font-bold gap-1">
-                                      <XCircle className="h-3.5 w-3.5 text-rose-500" />
-                                      Absent (Manual)
-                                    </Badge>
-                                    {student.today_time && (
-                                      <span className="text-[10px] text-muted-foreground font-mono">
-                                        {student.today_time}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <Badge variant="outline" className="bg-muted text-muted-foreground text-[11px] gap-1 font-medium">
-                                    <AlertCircle className="h-3 w-3 text-amber-500" />
-                                    Unmarked / Pending
-                                  </Badge>
-                                )}
-                              </td>
-                              <td className="p-2.5 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant={student.today_status === 'present' ? 'default' : 'outline'}
-                                    onClick={() => handleQuickMarkAttendance(student, 'present')}
-                                    className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
-                                      student.today_status === 'present'
-                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
-                                        : 'text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/30'
-                                    }`}
-                                    title="Mark Present (Manual Attendance)"
-                                  >
-                                    <Check className="h-3 w-3 mr-1" /> P
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant={student.today_status === 'late' ? 'default' : 'outline'}
-                                    onClick={() => handleQuickMarkAttendance(student, 'late')}
-                                    className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
-                                      student.today_status === 'late'
-                                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
-                                        : 'text-amber-600 hover:bg-amber-500/10 border-amber-500/30'
-                                    }`}
-                                    title="Mark Late (Manual Attendance)"
-                                  >
-                                    <Clock className="h-3 w-3 mr-1" /> L
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant={student.today_status === 'absent' ? 'default' : 'outline'}
-                                    onClick={() => handleQuickMarkAttendance(student, 'absent')}
-                                    className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
-                                      student.today_status === 'absent'
-                                        ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
-                                        : 'text-rose-600 hover:bg-rose-500/10 border-rose-500/30'
-                                    }`}
-                                    title="Mark Absent (Manual Attendance)"
-                                  >
-                                    <XCircle className="h-3 w-3 mr-1" /> A
-                                  </Button>
-                                </div>
-                              </td>
-                              <td className="p-2.5 text-center">
-                                {student.parent_phone ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => openWhatsAppParent(student)}
-                                    className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg"
-                                    title="WhatsApp Parent"
-                                  >
-                                    <MessageSquare className="h-3.5 w-3.5" />
-                                  </Button>
-                                ) : (
-                                  <span className="text-muted-foreground text-[10px]">—</span>
-                                )}
+                              </div>
+                            </div>
+
+                            {/* Bottom 1-Tap Thumb Action Grid */}
+                            <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-border/50">
+                              <Button
+                                size="sm"
+                                variant={student.today_status === 'present' ? 'default' : 'outline'}
+                                onClick={() => handleQuickMarkAttendance(student, 'present')}
+                                className={`h-8 text-xs font-bold rounded-xl transition-all ${
+                                  student.today_status === 'present'
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                    : 'text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/30'
+                                }`}
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" /> Present
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant={student.today_status === 'late' ? 'default' : 'outline'}
+                                onClick={() => handleQuickMarkAttendance(student, 'late')}
+                                className={`h-8 text-xs font-bold rounded-xl transition-all ${
+                                  student.today_status === 'late'
+                                    ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+                                    : 'text-amber-600 hover:bg-amber-500/10 border-amber-500/30'
+                                }`}
+                              >
+                                <Clock className="h-3.5 w-3.5 mr-1" /> Late
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant={student.today_status === 'absent' ? 'default' : 'outline'}
+                                onClick={() => handleQuickMarkAttendance(student, 'absent')}
+                                className={`h-8 text-xs font-bold rounded-xl transition-all ${
+                                  student.today_status === 'absent'
+                                    ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
+                                    : 'text-rose-600 hover:bg-rose-500/10 border-rose-500/30'
+                                }`}
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" /> Absent
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    /* 2. DETAILED TABLE MODE */
+                    <div className="overflow-x-auto rounded-2xl border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-muted/50 border-b">
+                            <th className="p-2.5 text-left font-bold w-12">Roll</th>
+                            <th className="p-2.5 text-left font-bold">Student Name</th>
+                            <th className="p-2.5 text-left font-bold">Previous Day ({previousDayLabel})</th>
+                            <th className="p-2.5 text-left font-bold">Today's Status</th>
+                            <th className="p-2.5 text-center font-bold">Quick Mark</th>
+                            <th className="p-2.5 text-center font-bold w-16">Contact</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {filteredStudents.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                                No students found matching this filter.
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                          ) : (
+                            filteredStudents.map(student => (
+                              <tr
+                                key={student.id}
+                                className={`hover:bg-muted/30 transition-colors ${
+                                  student.today_status === 'absent'
+                                    ? 'bg-rose-500/5'
+                                    : student.today_status === 'present'
+                                    ? 'bg-emerald-500/5'
+                                    : student.today_status === 'late'
+                                    ? 'bg-amber-500/5'
+                                    : student.was_present_yesterday
+                                    ? 'bg-amber-500/5 border-l-2 border-l-amber-500'
+                                    : ''
+                                }`}
+                              >
+                                <td className="p-2.5 font-bold font-mono text-muted-foreground">
+                                  {student.roll_number || '—'}
+                                </td>
+                                <td className="p-2.5">
+                                  <div className="flex items-center gap-2.5">
+                                    <Avatar className="h-8 w-8 rounded-xl border">
+                                      <AvatarImage src={getStudentPhotoUrl(student)} alt={student.name} />
+                                      <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                        {student.name.slice(0, 2).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                      <span className="font-extrabold text-foreground block">{student.name}</span>
+                                      <span className="text-[10px] font-mono text-muted-foreground">
+                                        {student.admission_number || 'STU'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-2.5">
+                                  {student.was_present_yesterday ? (
+                                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] gap-1 font-semibold">
+                                      <CheckCircle2 className="h-3 w-3" /> Present Yesterday
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                                      No Entry
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-2.5">
+                                  {student.today_status === 'present' ? (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[11px] font-bold gap-1">
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                        Present {student.is_manual ? '(Manual)' : '(Biometric)'}
+                                      </Badge>
+                                      {student.today_time && (
+                                        <span className="text-[10px] text-muted-foreground font-mono">
+                                          {student.today_time}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : student.today_status === 'late' ? (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[11px] font-bold gap-1">
+                                        <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                        Late {student.is_manual ? '(Manual)' : ''}
+                                      </Badge>
+                                      {student.today_time && (
+                                        <span className="text-[10px] text-muted-foreground font-mono">
+                                          {student.today_time}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : student.today_status === 'absent' ? (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[11px] font-bold gap-1">
+                                        <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                                        Absent (Manual)
+                                      </Badge>
+                                      {student.today_time && (
+                                        <span className="text-[10px] text-muted-foreground font-mono">
+                                          {student.today_time}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <Badge variant="outline" className="bg-muted text-muted-foreground text-[11px] gap-1 font-medium">
+                                      <AlertCircle className="h-3 w-3 text-amber-500" />
+                                      Unmarked / Pending
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant={student.today_status === 'present' ? 'default' : 'outline'}
+                                      onClick={() => handleQuickMarkAttendance(student, 'present')}
+                                      className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                                        student.today_status === 'present'
+                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                          : 'text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/30'
+                                      }`}
+                                      title="Mark Present (Manual Attendance)"
+                                    >
+                                      <Check className="h-3 w-3 mr-1" /> P
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={student.today_status === 'late' ? 'default' : 'outline'}
+                                      onClick={() => handleQuickMarkAttendance(student, 'late')}
+                                      className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                                        student.today_status === 'late'
+                                          ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+                                          : 'text-amber-600 hover:bg-amber-500/10 border-amber-500/30'
+                                      }`}
+                                      title="Mark Late (Manual Attendance)"
+                                    >
+                                      <Clock className="h-3 w-3 mr-1" /> L
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={student.today_status === 'absent' ? 'default' : 'outline'}
+                                      onClick={() => handleQuickMarkAttendance(student, 'absent')}
+                                      className={`h-7 px-2.5 text-xs font-bold rounded-lg transition-all ${
+                                        student.today_status === 'absent'
+                                          ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
+                                          : 'text-rose-600 hover:bg-rose-500/10 border-rose-500/30'
+                                      }`}
+                                      title="Mark Absent (Manual Attendance)"
+                                    >
+                                      <XCircle className="h-3 w-3 mr-1" /> A
+                                    </Button>
+                                  </div>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  {student.parent_phone ? (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => openWhatsAppParent(student)}
+                                      className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg"
+                                      title="WhatsApp Parent"
+                                    >
+                                      <MessageSquare className="h-3.5 w-3.5" />
+                                    </Button>
+                                  ) : (
+                                    <span className="text-muted-foreground text-[10px]">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* TAB: DAILY ABSENTEE RADAR & RAPID OVERRIDE */}
+            <TabsContent value="absentees" className="space-y-4 m-0">
+              <TeacherAbsenteeManager
+                activeClass={activeClass}
+                students={students}
+                teacherName={teacherProfile.name}
+                teacherEmail={teacherProfile.email}
+                previousDayLabel={previousDayLabel}
+                onRefresh={loadClassStudents}
+              />
             </TabsContent>
 
             {/* TAB: MONTHLY ATTENDANCE REGISTER */}
@@ -1508,227 +2120,344 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                         <Download className="h-3.5 w-3.5" /> Export Roster
                       </Button>
                       {permissions.can_manage_students && (
-                        <Button
-                          size="sm"
-                          onClick={() => setIsAddStudentOpen(true)}
-                          className="text-xs h-8 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-primary/20"
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Add Student
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              navigate(`/register?department=${encodeURIComponent(activeClass.category)}&returnUrl=${encodeURIComponent(`/teacher/${activeClass.category}`)}`);
+                            }}
+                            className="text-xs h-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-extrabold rounded-xl gap-1.5 shadow-md shadow-blue-600/20"
+                            title="Register new student with 3D Face Biometrics & ID Card Scanner"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> + Register New Student
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setIsAddStudentOpen(true)}
+                            className="text-xs h-8 rounded-xl font-bold gap-1 text-muted-foreground hover:text-foreground"
+                            title="Quick Manual Entry directly into class roster"
+                          >
+                            Quick Entry
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-3">
-                  <div className="relative max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Search student by name, roll no, phone..."
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      className="h-8 pl-8 text-xs rounded-xl"
-                    />
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="relative max-w-sm flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search student by name, roll no, phone..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="h-8 pl-8 text-xs rounded-xl"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto bg-muted/60 p-1 rounded-xl border">
+                      <button
+                        type="button"
+                        onClick={() => setDirectoryViewMode('table')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                          directoryViewMode === 'table'
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <List className="h-3.5 w-3.5" /> Table
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDirectoryViewMode('grid')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                          directoryViewMode === 'grid'
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <Grid className="h-3.5 w-3.5 text-primary" /> Photo ID Gallery
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="overflow-x-auto rounded-2xl border">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-muted/50 border-b">
-                          <th className="p-2.5 text-left font-bold">Roll</th>
-                          <th className="p-2.5 text-left font-bold">Student Name</th>
-                          <th className="p-2.5 text-left font-bold">Admission No</th>
-                          <th className="p-2.5 text-left font-bold">Face Model</th>
-                          <th className="p-2.5 text-left font-bold">Parent Contact</th>
-                          <th className="p-2.5 text-center font-bold">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {filteredStudents.map(student => (
-                          <tr key={student.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="p-2.5 font-bold font-mono text-muted-foreground">
-                              {student.roll_number || '—'}
-                            </td>
-                            <td className="p-2.5">
-                              <div className="flex items-center gap-2.5">
-                                <Avatar className="h-7 w-7 rounded-xl border">
-                                  {student.photo_url && <AvatarImage src={student.photo_url} alt={student.name} />}
-                                  <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
-                                    {student.name.slice(0, 2).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="font-extrabold text-foreground">{student.name}</span>
-                              </div>
-                            </td>
-                            <td className="p-2.5 font-mono text-muted-foreground">
-                              {student.admission_number || '—'}
-                            </td>
-                            <td className="p-2.5">
-                              {student.has_face_descriptor ? (
-                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]">
-                                  ✓ Enrolled
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px]">
-                                  Pending
-                                </Badge>
-                              )}
-                            </td>
-                            <td className="p-2.5 text-muted-foreground">
-                              <div>{student.parent_name || '—'}</div>
-                              {student.parent_phone && (
-                                <div className="text-[11px] font-mono text-primary flex items-center gap-1 mt-0.5">
-                                  <Phone className="h-3 w-3" /> {student.parent_phone}
+                  {filteredStudents.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground text-xs">
+                      No students found matching "{searchQuery}".
+                    </div>
+                  ) : directoryViewMode === 'table' ? (
+                    /* 1. INTERACTIVE TABLE VIEW */
+                    <div className="overflow-x-auto rounded-2xl border bg-background/50 shadow-inner">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-muted/60 border-b">
+                            <th className="p-2.5 text-left font-bold w-12">Roll</th>
+                            <th className="p-2.5 text-left font-bold">Student Photo & Name</th>
+                            <th className="p-2.5 text-left font-bold">Admission ID</th>
+                            <th className="p-2.5 text-left font-bold">Biometric Face Model</th>
+                            <th className="p-2.5 text-left font-bold">Parent Contact</th>
+                            <th className="p-2.5 text-center font-bold">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {filteredStudents.map(student => (
+                            <tr
+                              key={student.id}
+                              className="hover:bg-primary/5 transition-colors group cursor-pointer"
+                              onClick={() => setInspectStudent(student)}
+                            >
+                              <td className="p-2.5 font-bold font-mono text-muted-foreground">
+                                {student.roll_number || '—'}
+                              </td>
+                              <td className="p-2.5">
+                                <div className="flex items-center gap-3">
+                                  <div className="relative group/avatar">
+                                    <Avatar className="h-9 w-9 rounded-2xl border-2 border-primary/20 shadow-xs group-hover:scale-105 transition-transform overflow-hidden bg-background">
+                                      <AvatarImage
+                                        src={getStudentPhotoUrl(student)}
+                                        alt={student.name}
+                                        className="object-cover"
+                                      />
+                                      <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                        {student.name.slice(0, 2).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span
+                                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${
+                                        student.today_status === 'present'
+                                          ? 'bg-emerald-500'
+                                          : student.today_status === 'late'
+                                          ? 'bg-amber-500'
+                                          : student.today_status === 'absent'
+                                          ? 'bg-rose-500'
+                                          : 'bg-slate-400'
+                                      }`}
+                                      title={`Today: ${student.today_status || 'Unmarked'}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="font-extrabold text-foreground block group-hover:text-primary transition-colors">
+                                      {student.name}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                      {student.today_time ? `Checked in: ${student.today_time}` : 'Click to inspect profile'}
+                                    </span>
+                                  </div>
                                 </div>
-                              )}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                {student.parent_phone && (
+                              </td>
+                              <td className="p-2.5 font-mono text-muted-foreground">
+                                {student.admission_number || '—'}
+                              </td>
+                              <td className="p-2.5">
+                                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                                  {student.has_face_descriptor ? (
+                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold gap-1">
+                                      <CheckCircle2 className="h-3 w-3" /> 3D Enrolled
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px] font-bold gap-1">
+                                      <AlertCircle className="h-3 w-3" /> Pending
+                                    </Badge>
+                                  )}
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => openWhatsAppParent(student)}
-                                    className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg"
-                                    title="WhatsApp Parent"
+                                    onClick={() => setSelectedFaceStudent(student)}
+                                    className="h-6 px-1.5 text-[10px] rounded-lg gap-1 border border-border/80 hover:bg-primary/10 hover:text-primary transition-colors"
+                                    title={student.has_face_descriptor ? "Re-scan 3D Face Biometrics" : "Enroll 3D Face Model"}
                                   >
-                                    <MessageSquare className="h-3.5 w-3.5" />
+                                    <ScanFace className="h-3 w-3 text-primary" />
+                                    <span>{student.has_face_descriptor ? 'Re-scan' : 'Enroll'}</span>
                                   </Button>
+                                </div>
+                              </td>
+                              <td className="p-2.5 text-muted-foreground">
+                                <div>{student.parent_name || '—'}</div>
+                                {student.parent_phone && (
+                                  <div className="text-[11px] font-mono text-primary flex items-center gap-1 mt-0.5">
+                                    <Phone className="h-3 w-3" /> {student.parent_phone}
+                                  </div>
                                 )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleOpenEditStudent(student)}
-                                  className="h-7 w-7 p-0 rounded-lg"
-                                  title="Edit Student Info"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </Button>
+                              </td>
+                              <td className="p-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setInspectStudent(student)}
+                                    className="h-7 w-7 p-0 text-primary hover:bg-primary/10 rounded-lg"
+                                    title="View Full Profile & Photos"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </Button>
+                                  {student.parent_phone && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => openWhatsAppParent(student)}
+                                      className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg"
+                                      title="WhatsApp Parent"
+                                    >
+                                      <MessageSquare className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleOpenEditStudent(student)}
+                                    className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+                                    title="Edit Student Info"
+                                  >
+                                    <Edit2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    /* 2. PHOTO ID CARD GALLERY VIEW */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                      {filteredStudents.map(student => (
+                        <div
+                          key={student.id}
+                          onClick={() => setInspectStudent(student)}
+                          className="group relative p-3.5 rounded-3xl border border-border/80 hover:border-primary/50 bg-card/80 hover:bg-card shadow-sm hover:shadow-xl transition-all cursor-pointer space-y-3 flex flex-col justify-between overflow-hidden"
+                        >
+                          {/* Top Card Strip */}
+                          <div className="flex items-start gap-3">
+                            <div className="relative shrink-0">
+                              <Avatar className="h-16 w-16 rounded-2xl border-2 border-primary/25 shadow-md group-hover:scale-105 transition-transform overflow-hidden bg-background">
+                                <AvatarImage
+                                  src={getStudentPhotoUrl(student)}
+                                  alt={student.name}
+                                  className="object-cover"
+                                />
+                                <AvatarFallback className="text-base font-extrabold bg-primary/10 text-primary">
+                                  {student.name.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span
+                                className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-card ${
+                                  student.today_status === 'present'
+                                    ? 'bg-emerald-500 ring-2 ring-emerald-500/30 animate-pulse'
+                                    : student.today_status === 'late'
+                                    ? 'bg-amber-500'
+                                    : student.today_status === 'absent'
+                                    ? 'bg-rose-500'
+                                    : 'bg-slate-400'
+                                }`}
+                                title={`Today: ${student.today_status || 'Unmarked'}`}
+                              />
+                            </div>
+
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <Badge variant="secondary" className="text-[10px] font-mono font-bold px-1.5 py-0 h-4">
+                                  Roll {student.roll_number || '—'}
+                                </Badge>
+                                {student.has_face_descriptor ? (
+                                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[9px] font-bold">
+                                    ✓ 3D Face
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[9px] font-bold">
+                                    No Face
+                                  </Badge>
+                                )}
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                              <h4 className="font-extrabold text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                                {student.name}
+                              </h4>
+                              <p className="text-[10px] font-mono text-muted-foreground truncate">
+                                ID: {student.admission_number || '—'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Middle Info Details */}
+                          <div className="p-2 rounded-2xl bg-muted/30 border border-border/50 text-[11px] space-y-1">
+                            <div className="flex items-center justify-between text-muted-foreground">
+                              <span>Parent:</span>
+                              <span className="font-semibold text-foreground truncate max-w-[120px]">
+                                {student.parent_name || 'Not recorded'}
+                              </span>
+                            </div>
+                            {student.parent_phone && (
+                              <div className="flex items-center justify-between text-muted-foreground">
+                                <span>Phone:</span>
+                                <span className="font-mono font-semibold text-primary">
+                                  {student.parent_phone}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Quick Actions Footer */}
+                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-border/50" onClick={e => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedFaceStudent(student)}
+                              className="h-7 px-2 text-[10px] font-bold rounded-xl gap-1 text-primary border-primary/30 hover:bg-primary/10 flex-1"
+                              title={student.has_face_descriptor ? "Re-scan 3D Face Biometrics" : "Enroll 3D Face Model"}
+                            >
+                              <ScanFace className="h-3 w-3" />
+                              {student.has_face_descriptor ? 'Re-scan' : 'Scan Face'}
+                            </Button>
+
+                            {student.parent_phone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openWhatsAppParent(student)}
+                                className="h-7 w-7 p-0 rounded-xl text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                                title="WhatsApp Parent"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleOpenEditStudent(student)}
+                              className="h-7 w-7 p-0 rounded-xl text-muted-foreground hover:text-foreground"
+                              title="Edit Student Info"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
 
+            {/* TAB: HOMEWORK, UNIT TESTS & ASSIGNMENTS */}
+            <TabsContent value="assignments" className="space-y-4 m-0">
+              <TeacherAssignmentManager
+                activeClass={activeClass}
+                students={students}
+                teacherName={teacherProfile.name}
+              />
+            </TabsContent>
+
             {/* TAB: PARENT NOTIFICATIONS & CLASS NOTICES */}
             <TabsContent value="notifications" className="space-y-4 m-0">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Send className="h-4 w-4 text-primary" />
-                    Compose & Dispatch Class Notices
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Send targeted SMS, WhatsApp alerts, and app notifications directly to parents of Class {activeClass.category}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Recipient Target Group:</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={notifTarget === 'all' ? 'default' : 'outline'}
-                        onClick={() => setNotifTarget('all')}
-                        className={`text-xs h-8 rounded-xl ${notifTarget === 'all' ? 'bg-primary text-white' : ''}`}
-                      >
-                        All Students ({students.length})
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={notifTarget === 'absent' ? 'default' : 'outline'}
-                        onClick={() => setNotifTarget('absent')}
-                        className={`text-xs h-8 rounded-xl ${notifTarget === 'absent' ? 'bg-rose-600 text-white' : ''}`}
-                      >
-                        Absent Today ({stats.absent})
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={notifTarget === 'late' ? 'default' : 'outline'}
-                        onClick={() => setNotifTarget('late')}
-                        className={`text-xs h-8 rounded-xl ${notifTarget === 'late' ? 'bg-amber-600 text-white' : ''}`}
-                      >
-                        Late Arrivals ({stats.late})
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={notifTarget === 'selected' ? 'default' : 'outline'}
-                        onClick={() => setNotifTarget('selected')}
-                        className={`text-xs h-8 rounded-xl ${notifTarget === 'selected' ? 'bg-blue-600 text-white' : ''}`}
-                      >
-                        Custom Selected ({selectedStudentIds.length})
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div>
-                      <Label className="text-xs font-semibold">Notice Title / Subject:</Label>
-                      <Input
-                        placeholder="e.g. Unit Test Schedule / Homework Update"
-                        value={notifSubject}
-                        onChange={e => setNotifSubject(e.target.value)}
-                        className="h-9 text-xs rounded-xl mt-1"
-                      />
-                    </div>
-
-                    <div>
-                      <Label className="text-xs font-semibold">Notice Message:</Label>
-                      <Textarea
-                        placeholder="Write your official class notice for parents here..."
-                        value={notifMessage}
-                        onChange={e => setNotifMessage(e.target.value)}
-                        rows={4}
-                        className="text-xs rounded-xl mt-1"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        if (!notifSubject.trim() || !notifMessage.trim()) {
-                          toast({ title: 'Missing Content', description: 'Please enter title and message.', variant: 'destructive' });
-                          return;
-                        }
-                        setIsSendingNotif(true);
-                        try {
-                          await supabase.from('notifications').insert({
-                            title: `[Class ${activeClass.category}] ${notifSubject.trim()}`,
-                            message: notifMessage.trim(),
-                            type: 'class_notice',
-                            target_role: 'parent',
-                            category: activeClass.category,
-                          });
-                          toast({ title: 'Notice Dispatched', description: `Broadcasted to parents of Class ${activeClass.category}.` });
-                          setNotifSubject('');
-                          setNotifMessage('');
-                        } catch (err: any) {
-                          toast({ title: 'Dispatch Failed', description: err.message, variant: 'destructive' });
-                        } finally {
-                          setIsSendingNotif(false);
-                        }
-                      }}
-                      disabled={isSendingNotif}
-                      className="h-8 text-xs bg-primary hover:bg-primary/90 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-primary/20"
-                    >
-                      {isSendingNotif ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      Broadcast Notice to Parents
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <TeacherNotificationHub
+                activeClass={activeClass}
+                students={students}
+                teacherName={teacherProfile.name}
+                teacherEmail={teacherProfile.email}
+              />
             </TabsContent>
 
             {/* TAB: CLASS REPORTS & ANALYTICS */}
@@ -1740,9 +2469,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
 
             {/* TAB: CLASS TIMETABLE & PLAN */}
             <TabsContent value="timetable" className="space-y-4 m-0">
-              <Suspense fallback={<div className="h-[360px] rounded-2xl bg-muted/40 animate-pulse" />}>
-                <TimetableManager allowedCategories={[activeClass.category]} />
-              </Suspense>
+              <TeacherTimetableEditor activeClass={activeClass} />
             </TabsContent>
 
             {/* TAB: GATE PASSES & LEAVE VERIFICATION */}
@@ -1750,6 +2477,21 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
               <TeacherGatePassReview
                 activeClass={activeClass}
                 teacherName={teacherProfile.name}
+                teacherEmail={teacherProfile.email}
+                students={students}
+              />
+            </TabsContent>
+
+            {/* TAB: ANDROID WIDGETS BOARD */}
+            <TabsContent value="widgets" className="space-y-4 m-0">
+              <AndroidWidgetBoard
+                students={students}
+                activeClass={activeClass}
+                onRefresh={loadClassStudents}
+                isRefreshing={isRefreshing}
+                onOpenAbsenteeManager={() => setActiveTab('absentees')}
+                onOpenIssuePass={() => setActiveTab('gate_passes')}
+                onOpenScanPass={() => setActiveTab('gate_passes')}
               />
             </TabsContent>
           </Tabs>
@@ -1849,6 +2591,29 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           </DialogHeader>
 
           <div className="space-y-3 py-2">
+            {/* Quick Redirect to Full Biometric Registration Studio */}
+            <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <ScanFace className="h-4 w-4 text-blue-600" />
+                <div className="text-[11px]">
+                  <p className="font-bold text-foreground">Need 3D Face Scan or ID Card OCR?</p>
+                  <p className="text-muted-foreground">Use full biometric registration workstation</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  setIsAddStudentOpen(false);
+                  navigate(`/register?department=${encodeURIComponent(activeClass?.category || '')}&returnUrl=${encodeURIComponent(`/teacher/${activeClass?.category || ''}`)}`);
+                }}
+                className="h-7 px-2.5 text-[11px] font-bold text-blue-600 hover:bg-blue-500/10 rounded-xl shrink-0"
+              >
+                Open Studio →
+              </Button>
+            </div>
+
             <div>
               <Label className="text-xs">Student Full Name *:</Label>
               <Input
@@ -1923,6 +2688,272 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dual Format Attendance Exporter Modal for Any Time Duration */}
+      {activeClass && (
+        <TeacherAttendanceExporter
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          activeClass={activeClass}
+          students={students}
+        />
+      )}
+
+      {/* 3D Face Biometric Enrollment Dialog */}
+      <CaptureFaceDialog
+        open={Boolean(selectedFaceStudent)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedFaceStudent(null);
+        }}
+        student={
+          selectedFaceStudent && activeClass
+            ? {
+                id: selectedFaceStudent.id,
+                user_id: selectedFaceStudent.user_id,
+                name: selectedFaceStudent.name,
+                employee_id: selectedFaceStudent.admission_number || selectedFaceStudent.id,
+                roll_number: selectedFaceStudent.roll_number,
+                category: activeClass.category,
+                parent_name: selectedFaceStudent.parent_name,
+                parent_phone: selectedFaceStudent.parent_phone,
+                parent_email: selectedFaceStudent.parent_email,
+              }
+            : null
+        }
+        onSuccess={() => {
+          loadClassStudents();
+          setSelectedFaceStudent(null);
+        }}
+      />
+
+      {/* Interactive Student Identity & Biometric Modal */}
+      <Dialog open={Boolean(inspectStudent)} onOpenChange={(open) => { if (!open) setInspectStudent(null); }}>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-0 overflow-hidden border bg-card shadow-2xl">
+          {inspectStudent && (
+            <div>
+              {/* Header Gradient Cover */}
+              <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 text-white relative">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Avatar className="h-20 w-20 rounded-3xl border-4 border-white/20 shadow-2xl overflow-hidden bg-background">
+                      <AvatarImage
+                        src={getStudentPhotoUrl(inspectStudent)}
+                        alt={inspectStudent.name}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="text-xl font-black bg-primary/20 text-white">
+                        {inspectStudent.name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span
+                      className={`absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center ${
+                        inspectStudent.today_status === 'present'
+                          ? 'bg-emerald-500'
+                          : inspectStudent.today_status === 'late'
+                          ? 'bg-amber-500'
+                          : inspectStudent.today_status === 'absent'
+                          ? 'bg-rose-500'
+                          : 'bg-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-white">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-black tracking-tight">{inspectStudent.name}</h3>
+                      <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs font-mono font-bold">
+                        Roll #{inspectStudent.roll_number || '—'}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-white/80 font-medium">
+                      Class {activeClass?.category} • Admission ID: <span className="font-mono">{inspectStudent.admission_number || '—'}</span>
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      {inspectStudent.has_face_descriptor ? (
+                        <Badge className="bg-emerald-500 text-white border-0 text-[10px] font-bold gap-1 shadow-sm">
+                          <CheckCircle2 className="h-3 w-3" /> 3D Face Model Enrolled
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-amber-500 text-white border-0 text-[10px] font-bold gap-1 shadow-sm">
+                          <AlertCircle className="h-3 w-3" /> Face Scan Pending
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body Content */}
+              <div className="p-5 space-y-4">
+                {/* 1. Today's Attendance Realtime Card */}
+                <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-primary" /> Today's Live Attendance Status:
+                    </span>
+                    <Badge
+                      variant={
+                        inspectStudent.today_status === 'present'
+                          ? 'outline'
+                          : inspectStudent.today_status === 'absent'
+                          ? 'destructive'
+                          : 'secondary'
+                      }
+                      className={`text-xs font-bold capitalize ${
+                        inspectStudent.today_status === 'present' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' : ''
+                      }`}
+                    >
+                      {inspectStudent.today_status || 'Unmarked'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground grid grid-cols-2 gap-2 pt-1 border-t">
+                    <div>
+                      <span className="block text-[10px] text-muted-foreground/80">Check-in Time:</span>
+                      <span className="font-bold text-foreground">{inspectStudent.today_time || 'No check-in recorded yet'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-muted-foreground/80">Capture Mode:</span>
+                      <span className="font-bold text-foreground capitalize">{inspectStudent.capture_mode || inspectStudent.attendance_source || 'Spotlight Engine'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Parent & Emergency Contact */}
+                <div className="p-3.5 rounded-2xl bg-muted/20 border space-y-2.5">
+                  <span className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-blue-500" /> Parent & Emergency Contact:
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="block text-[10px] text-muted-foreground">Guardian Name:</span>
+                      <span className="font-bold text-foreground">{inspectStudent.parent_name || 'Not specified'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-muted-foreground">Phone Number:</span>
+                      <span className="font-mono font-bold text-primary">{inspectStudent.parent_phone || 'No phone recorded'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Interactive Quick Actions Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const studentToScan = inspectStudent;
+                      setInspectStudent(null);
+                      setSelectedFaceStudent(studentToScan);
+                    }}
+                    className="h-9 text-xs bg-primary hover:bg-primary/90 text-white font-bold rounded-xl gap-1.5 shadow-md shadow-primary/20"
+                  >
+                    <ScanFace className="h-3.5 w-3.5" />
+                    {inspectStudent.has_face_descriptor ? 'Re-scan 3D Face' : 'Enroll 3D Face'}
+                  </Button>
+
+                  {inspectStudent.parent_phone ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openWhatsAppParent(inspectStudent)}
+                      className="h-9 text-xs rounded-xl gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 font-bold"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Parent
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      className="h-9 text-xs rounded-xl text-muted-foreground"
+                    >
+                      No Phone
+                    </Button>
+                  )}
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const studentToEdit = inspectStudent;
+                      setInspectStudent(null);
+                      handleOpenEditStudent(studentToEdit);
+                    }}
+                    className="h-9 text-xs rounded-xl gap-1.5 font-bold col-span-2 sm:col-span-1"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" /> Edit Details
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── STICKY MOBILE BOTTOM ACTION DOCK (PHONE SCREENS) ───────────────── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-card/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-white/10 px-2 py-1.5 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] safe-area-bottom">
+        <div className="flex items-center justify-around max-w-md mx-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+              activeTab === 'overview' ? 'text-primary font-black bg-primary/10' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            <span className="text-[10px] mt-0.5 tracking-tight">Dashboard</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('daily')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all relative ${
+              activeTab === 'daily' ? 'text-primary font-black bg-primary/10' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <CheckSquare className="h-4 w-4" />
+            <span className="text-[10px] mt-0.5 tracking-tight">Roll Call</span>
+            {stats.unmarked > 0 && (
+              <span className="absolute top-1 right-3 h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('absentees')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all relative ${
+              activeTab === 'absentees' ? 'text-rose-600 font-black bg-rose-500/10' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <UserX className="h-4 w-4" />
+            <span className="text-[10px] mt-0.5 tracking-tight">Absentees</span>
+            {stats.absent + stats.unmarked > 0 && (
+              <span className="absolute top-1 right-3 h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('notifications')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+              activeTab === 'notifications' ? 'text-indigo-600 font-black bg-indigo-500/10' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Send className="h-4 w-4" />
+            <span className="text-[10px] mt-0.5 tracking-tight">Notices</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('register')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+              activeTab === 'register' ? 'text-blue-600 font-black bg-blue-500/10' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Calendar className="h-4 w-4" />
+            <span className="text-[10px] mt-0.5 tracking-tight">Register</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

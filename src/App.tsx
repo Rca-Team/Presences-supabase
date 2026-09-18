@@ -30,7 +30,8 @@ const Backup = lazyWithRetry(() => import('./pages/Backup'), 'backup');
 const FaceModelValidator = lazyWithRetry(() => import('./pages/FaceModelValidator'), 'face-model-validator');
 const TeacherPortal = lazyWithRetry(() => import('./pages/TeacherPortal'), 'teacher-portal');
 const Portfolio = lazyWithRetry(() => import('./pages/Portfolio'), 'portfolio');
-const Jarvis = lazyWithRetry(() => import('./pages/Jarvis'), 'jarvis');
+const Jarvis = lazyWithRetry(() => import("./pages/Jarvis"), "jarvis");
+const Widgets = lazyWithRetry(() => import("./pages/Widgets"), "widgets");
 
 import { AttendanceProvider } from './contexts/AttendanceContext';
 import { ThemeProvider } from './hooks/use-theme';
@@ -44,6 +45,7 @@ import EmergencyAlertListener from './components/EmergencyAlertListener';
 import RealtimeNotificationListener from './components/RealtimeNotificationListener';
 import AppExperienceLayer from './components/AppExperienceLayer';
 import SplashAnimation from './components/SplashAnimation';
+import FloatingDeviceWidgets from './components/widgets/FloatingDeviceWidgets';
 // NOTE: ModelService is imported dynamically inside the prefetch effect below.
 // A static import would pull face-api.js + tfjs into the entry chunk.
 
@@ -95,6 +97,11 @@ const ROUTE_SEO: Record<string, { title: string; description: string }> = {
     title: "Parent Portal | Presences",
     description:
       "Track student attendance, receive notifications, and stay connected with school updates in the Presences Parent Portal.",
+  },
+  "/widgets": {
+    title: "Android Widgets Hub | Presences Smart School",
+    description:
+      "Material You interactive school widgets with live attendance donut, period countdown, decibel meter, stopwatch, and quick actions.",
   },
   "/register": {
     title: "Student Registration | Presences",
@@ -247,6 +254,21 @@ function AnimatedRoutes() {
             <TeacherPortal />
           </ProtectedRoute>
         } />
+        <Route path="/teacher/:classId" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+            <TeacherPortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/class" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+            <TeacherPortal />
+          </ProtectedRoute>
+        } />
+        <Route path="/class/:classId" element={
+          <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
+            <TeacherPortal />
+          </ProtectedRoute>
+        } />
         <Route path="/admin" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
             <Admin />
@@ -279,6 +301,7 @@ function AnimatedRoutes() {
             <Jarvis />
           </ProtectedRoute>
         } />
+        <Route path="/widgets" element={<Widgets />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
@@ -396,6 +419,7 @@ function App() {
                         <>
                           <AppExperienceLayer />
                           <PWAInstallPrompt />
+                          <FloatingDeviceWidgets />
                         </>
                       )}
                       <EmergencyAlertListener />

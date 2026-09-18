@@ -16,20 +16,26 @@ import { motion } from 'framer-motion';
 import { hasTeacherAccess } from '@/utils/teacherAccess';
 
 const resolvePostLoginRoute = async (userId: string, defaultTarget: string) => {
-  if (defaultTarget && defaultTarget !== '/attendance') return defaultTarget;
   try {
-    const { data: adminRole } = await (supabase as any)
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const [userRolesRes, hasAccess] = await Promise.all([
+      (supabase as any).from('user_roles').select('role').eq('user_id', userId),
+      hasTeacherAccess(userId),
+    ]);
 
-    if (adminRole?.role === 'admin' || adminRole?.role === 'principal') {
-      return '/admin';
-    }
-    if (adminRole?.role === 'teacher' || (await hasTeacherAccess(userId))) {
+    const rolesList: string[] = (userRolesRes.data || []).map((r: any) => r.role);
+
+    // If teacher, prioritize direct opening of teacher portal
+    if (rolesList.includes('teacher') || hasAccess) {
+      if (defaultTarget && defaultTarget.startsWith('/teacher')) return defaultTarget;
       return '/teacher';
     }
+
+    if (rolesList.includes('admin') || rolesList.includes('principal')) {
+      if (defaultTarget && defaultTarget !== '/attendance' && defaultTarget !== '/') return defaultTarget;
+      return '/admin';
+    }
+
+    if (defaultTarget && defaultTarget !== '/attendance' && defaultTarget !== '/') return defaultTarget;
   } catch {
     // fallback
   }

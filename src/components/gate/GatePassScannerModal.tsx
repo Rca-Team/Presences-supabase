@@ -190,13 +190,15 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
   }, [open, activeTab]);
 
   const handleScanSuccess = (scannedValue: string) => {
-    // Try to match either pass.id or pass.pass_code
+    // Try to match either pass.id or pass.pass_code or student_id
+    const val = scannedValue.trim().toLowerCase();
     const matched = passes.find(
       p =>
-        p.id.toLowerCase() === scannedValue.toLowerCase() ||
-        p.pass_code?.toLowerCase() === scannedValue.toLowerCase() ||
-        scannedValue.toLowerCase().includes(p.id.toLowerCase()) ||
-        (p.pass_code && scannedValue.toLowerCase().includes(p.pass_code.toLowerCase()))
+        p.id.toLowerCase() === val ||
+        p.pass_code?.toLowerCase() === val ||
+        p.student_id?.toLowerCase() === val ||
+        val.includes(p.id.toLowerCase()) ||
+        (p.pass_code && val.includes(p.pass_code.toLowerCase()))
     );
 
     if (matched) {
@@ -204,7 +206,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
       setSelectedPass(matched);
       setActiveTab('queue');
     } else {
-      toast.error(`No matching pass found for code: "${scannedValue}".`);
+      toast.error(`No matching pass found for scanned code: "${scannedValue}".`);
     }
   };
 
@@ -217,8 +219,8 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
       p =>
         p.pass_code?.toUpperCase() === q ||
         p.id.toUpperCase() === q ||
-        p.student_name.toUpperCase().includes(q) ||
-        p.roll_number?.toUpperCase() === q
+        p.student_id?.toUpperCase() === q ||
+        p.student_name.toUpperCase().includes(q)
     );
 
     if (matched) {
@@ -247,7 +249,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
         }
         await loadPasses();
       } else {
-        toast.error(result.error || 'Failed to authorize exit.');
+        toast.error(result.error || result.message || 'Failed to authorize exit.');
       }
     } catch (err: any) {
       toast.error(err.message || 'Error processing exit verification.');
@@ -263,8 +265,9 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
     return (
       p.student_name.toLowerCase().includes(q) ||
       (p.pass_code && p.pass_code.toLowerCase().includes(q)) ||
-      (p.class && p.class.toLowerCase().includes(q)) ||
-      (p.guardian_name && p.guardian_name.toLowerCase().includes(q))
+      (p.student_id && p.student_id.toLowerCase().includes(q)) ||
+      (p.class_section && p.class_section.toLowerCase().includes(q)) ||
+      (p.pickup_person_name && p.pickup_person_name.toLowerCase().includes(q))
     );
   });
 
@@ -388,6 +391,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <Avatar className="h-8 w-8 rounded-xl">
+                                {pass.student_image_url && <AvatarImage src={pass.student_image_url} />}
                                 <AvatarFallback className="text-[10px] font-bold bg-muted">
                                   {pass.student_name.slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
@@ -397,7 +401,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                                   {pass.student_name}
                                 </h4>
                                 <p className="text-[10px] text-muted-foreground">
-                                  Class {pass.class}-{pass.section} {pass.roll_number ? `• Roll ${pass.roll_number}` : ''}
+                                  Class {pass.class_section} • ID: {pass.student_id}
                                 </p>
                               </div>
                             </div>
@@ -420,7 +424,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
 
                           <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
                             <span className="font-mono font-bold text-foreground/80">{pass.pass_code}</span>
-                            <span>Pickup: {pass.guardian_name}</span>
+                            <span>Pickup: {pass.pickup_person_name}</span>
                           </div>
                         </div>
                       );
@@ -459,7 +463,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                           {selectedPass.status === 'approved'
                             ? 'Approved for Turnstile Clearance'
                             : selectedPass.status === 'used'
-                            ? `Exited at ${new Date(selectedPass.exit_verified_at || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            ? `Exited at ${selectedPass.exit_time ? new Date(selectedPass.exit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Gate'}`
                             : selectedPass.status === 'rejected'
                             ? 'Exit Denied / Rejected'
                             : 'Pending Teacher Sign-off'}
@@ -472,6 +476,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                       {/* Student Card */}
                       <div className="flex items-center gap-3">
                         <Avatar className="h-12 w-12 rounded-2xl border-2 border-border/80 shadow-sm">
+                          {selectedPass.student_image_url && <AvatarImage src={selectedPass.student_image_url} />}
                           <AvatarFallback className="text-sm font-black bg-primary/10 text-primary">
                             {selectedPass.student_name.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -479,10 +484,10 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                         <div>
                           <h3 className="text-sm font-black text-foreground">{selectedPass.student_name}</h3>
                           <p className="text-xs text-muted-foreground font-medium">
-                            Class {selectedPass.class}-{selectedPass.section} • Roll #{selectedPass.roll_number || 'N/A'}
+                            Class {selectedPass.class_section} • Student ID: {selectedPass.student_id}
                           </p>
                           <p className="text-[11px] text-primary font-mono mt-0.5">
-                            Pass ID: {selectedPass.id.slice(0, 13)}...
+                            Pass Code: {selectedPass.pass_code}
                           </p>
                         </div>
                       </div>
@@ -493,13 +498,15 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                           Authorized Guardian for Pickup
                         </p>
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-foreground">{selectedPass.guardian_name} ({selectedPass.relationship})</span>
+                          <span className="font-bold text-foreground">
+                            {selectedPass.pickup_person_name} ({selectedPass.pickup_person_relation})
+                          </span>
                           <a
-                            href={`tel:${selectedPass.guardian_phone}`}
+                            href={`tel:${selectedPass.pickup_person_phone}`}
                             className="inline-flex items-center gap-1 text-[11px] text-primary font-bold hover:underline"
                           >
                             <Phone className="h-3 w-3" />
-                            {selectedPass.guardian_phone}
+                            {selectedPass.pickup_person_phone}
                           </a>
                         </div>
                       </div>
@@ -511,9 +518,9 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                         </span>
                         <div className="p-2.5 rounded-xl border bg-background/50">
                           <Badge variant="secondary" className="text-[10px] font-bold mb-1">
-                            {selectedPass.reason}
+                            {selectedPass.reason_category}
                           </Badge>
-                          <p className="text-xs text-foreground/90">{selectedPass.reason_detail}</p>
+                          <p className="text-xs text-foreground/90">{selectedPass.reason_text}</p>
                         </div>
                       </div>
 
@@ -523,7 +530,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                           <span>
                             Approved by <strong className="text-foreground">{selectedPass.approved_by}</strong> on{' '}
-                            {new Date(selectedPass.approved_at || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {selectedPass.approved_at ? new Date(selectedPass.approved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today'}
                           </span>
                         </div>
                       )}
@@ -547,7 +554,7 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
                         ) : selectedPass.status === 'used' ? (
                           <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center text-xs font-bold text-purple-700 dark:text-purple-300">
                             Student departed through {selectedPass.exit_gate || gateName} at{' '}
-                            {new Date(selectedPass.exit_verified_at || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {selectedPass.exit_time ? new Date(selectedPass.exit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Gate'}
                           </div>
                         ) : (
                           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center text-xs text-amber-700 dark:text-amber-300">

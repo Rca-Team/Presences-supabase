@@ -81,18 +81,23 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
 
   (todayRes.data || []).forEach(r => {
     const m = (r.device_info as any)?.metadata || {};
-    const empId = m.employee_id || (r.device_info as any)?.employee_id || r.user_id;
+    const empId = m.employee_id || (r.device_info as any)?.employee_id;
+    const roll = m.roll_number || (r.device_info as any)?.roll_number;
+    const name = m.name || (r.device_info as any)?.name || (r as any).student_name;
     const normalized = normalizeStatus(r.status || '');
-    if (empId) {
-      if (normalized === 'present') { presentMap.add(empId); lateMap.delete(empId); }
-      else if (normalized === 'late' && !presentMap.has(empId)) lateMap.add(empId);
-    }
+    const keys = [r.user_id, (r as any).student_id, empId, roll, name, r.id].filter(Boolean).map(k => String(k).trim().toLowerCase());
+    
+    keys.forEach(k => {
+      if (normalized === 'present') { presentMap.add(k); lateMap.delete(k); }
+      else if (normalized === 'late' && !presentMap.has(k)) lateMap.add(k);
+    });
   });
 
   // Merge gate entries
   (gateRes.data || []).forEach(g => {
-    if (g.student_id && !presentMap.has(g.student_id) && !lateMap.has(g.student_id)) {
-      presentMap.add(g.student_id);
+    const sId = g.student_id ? String(g.student_id).trim().toLowerCase() : '';
+    if (sId && !presentMap.has(sId) && !lateMap.has(sId)) {
+      presentMap.add(sId);
     }
   });
 
@@ -100,7 +105,7 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
   let totalPresent = 0;
   let totalLate = 0;
   uniqueUsers.forEach(u => {
-    const identifiers = [u.employee_id, u.user_id, u.id].filter(Boolean);
+    const identifiers = [u.employee_id, u.user_id, u.id, u.name].filter(Boolean).map(k => String(k).trim().toLowerCase());
     for (const id of identifiers) {
       if (!id) continue;
       if (presentMap.has(id)) { totalPresent++; return; }

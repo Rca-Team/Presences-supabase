@@ -83,27 +83,36 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  // Fetch all attendance records for selected month
-  const fetchMonthlyData = useCallback(async () => {
-    if (students.length === 0) return;
-    setLoading(true);
+  // Fetch all attendance records for selected month (Supports silent background updates)
+  const fetchMonthlyData = useCallback(async (isSilent = false) => {
+    if ((students || []).length === 0) return;
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const startDate = new Date(selectedYear, selectedMonth, 1, 0, 0, 0).toISOString();
       const endDate = new Date(selectedYear, selectedMonth, daysInMonth, 23, 59, 59).toISOString();
 
-      // Query attendance records for the month
-      const { data: records, error } = await supabase
-        .from('attendance_records')
-        .select('id, user_id, student_id, student_name, class, section, category, status, timestamp, device_info')
-        .gte('timestamp', startDate)
-        .lte('timestamp', endDate)
-        .order('timestamp', { ascending: true });
+      // Query attendance records and gate entries for the month
+      const [recordsRes, gateEntriesRes] = await Promise.all([
+        supabase
+          .from('attendance_records')
+          .select('id, user_id, student_id, student_name, class, section, category, status, timestamp, device_info')
+          .gte('timestamp', startDate)
+          .lte('timestamp', endDate)
+          .order('timestamp', { ascending: true }),
+        (supabase as any)
+          .from('gate_entries')
+          .select('id, student_id, student_name, entry_time, class, section, metadata')
+          .gte('entry_time', startDate)
+          .lte('entry_time', endDate)
+          .order('entry_time', { ascending: true }),
+      ]);
 
-      if (error) throw error;
+      if (recordsRes.error) throw recordsRes.error;
 
       // Map helper
       const grid: Record<string, Record<number, AttendanceStatus>> = {};
-
       const norm = (v: any) => (v == null ? '' : String(v).trim().toLowerCase());
 
       // Index students by id, userId, admission_number, and name
@@ -116,8 +125,8 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         if (s.name) studentLookup.set(norm(s.name), s.id);
       });
 
-      (records || []).forEach((r: any) => {
-        // Skip registration rows, only process actual attendance marks
+      // 1. Process attendance_records
+      (recordsRes.data || []).forEach((r: any) => {
         if (r.status === 'registered') return;
 
         const dateObj = new Date(r.timestamp);
@@ -128,7 +137,6 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         const sId = norm(r.student_id || r.device_info?.metadata?.employee_id || r.device_info?.employee_id);
         const roll = norm(r.device_info?.metadata?.roll_number);
 
-        // Find matching student
         const targetStudentId =
           studentLookup.get(uId) ||
           studentLookup.get(sId) ||
@@ -148,26 +156,57 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         }
       });
 
+      // 2. Process gate_entries (Security Gate, Turnstiles)
+      (gateEntriesRes.data || []).forEach((g: any) => {
+        if (!g.entry_time) return;
+        const day = new Date(g.entry_time).getDate();
+        const sId = norm(g.student_id);
+        const sName = norm(g.student_name);
+        const meta = g.metadata || {};
+        const empId = norm(meta.employee_id || meta.admission_number);
+        const roll = norm(meta.roll_number);
+
+        const targetStudentId = studentLookup.get(sId) || studentLookup.get(empId) || studentLookup.get(roll) || studentLookup.get(sName);
+        if (targetStudentId) {
+          if (!grid[targetStudentId]) grid[targetStudentId] = {};
+          if (!grid[targetStudentId][day]) {
+            grid[targetStudentId][day] = 'P';
+          }
+        }
+      });
+
       setAttendanceData(grid);
     } catch (err: any) {
       console.error('Failed to load monthly attendance:', err);
-      toast({ title: 'Failed to load attendance', description: err.message, variant: 'destructive' });
+      if (!isSilent) {
+        toast({ title: 'Failed to load attendance', description: err.message, variant: 'destructive' });
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   }, [selectedMonth, selectedYear, daysInMonth, students, toast]);
 
   useEffect(() => {
-    fetchMonthlyData();
+    fetchMonthlyData(false);
 
-    // Supabase Realtime subscription for instant live attendance sync
+    // Supabase Realtime subscription for silent instant live attendance sync
+    const channelName = `attendance_records_monthly_sync_${classNameNumber}_${section}_${Date.now()}`;
     const channel = supabase
-      .channel('attendance_records_monthly_sync')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'attendance_records' },
         () => {
-          fetchMonthlyData();
+          fetchMonthlyData(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gate_entries' },
+        () => {
+          fetchMonthlyData(true);
         }
       )
       .subscribe();
@@ -175,7 +214,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchMonthlyData]);
+  }, [fetchMonthlyData, classNameNumber, section]);
 
   // Per-student monthly calculation
   const calculateStudentStats = useCallback((studentId: string) => {
@@ -260,7 +299,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
     return map;
   }, [daysArray, students, attendanceData]);
 
-  // Interactive 1-Tap Cell Toggle Handler (— -> P -> L -> A -> —)
+  // Interactive 1-Tap Cell Toggle Handler (— -> P -> L -> A -> —) with ZERO calendar reloading
   const handleToggleCell = async (student: ClassStudentProp, day: number) => {
     if (isSunday(day)) {
       toast({ title: 'Sunday', description: 'Sundays are official school holidays.', variant: 'default' });
@@ -274,7 +313,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
     else if (current === 'A') nextStatus = null;
     else nextStatus = 'P';
 
-    // Optimistically update local grid
+    // 1. Optimistically update local grid INSTANTLY
     setAttendanceData(prev => ({
       ...prev,
       [student.id]: {
@@ -283,7 +322,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
       },
     }));
 
-    // Persist to Supabase
+    // 2. Persist to Supabase in background
     try {
       const targetDate = new Date(selectedYear, selectedMonth, day, 9, 0, 0);
       const startOfDay = new Date(selectedYear, selectedMonth, day, 0, 0, 0).toISOString();
@@ -334,28 +373,35 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
     } catch (err: any) {
       console.error('Error saving attendance mark:', err);
       toast({ title: 'Sync error', description: err.message, variant: 'destructive' });
-      fetchMonthlyData();
+      fetchMonthlyData(true);
     }
   };
 
-  // 1-Click Fast Action: Mark All Present For Today
+  // 1-Click Fast Action: Mark All Present For Today (Zero Flicker Optimistic Update)
   const handleMarkAllPresentToday = async () => {
     const today = new Date();
-    if (today.getMonth() !== selectedMonth || today.getFullYear() !== selectedYear) {
-      setSelectedMonth(today.getMonth());
-      setSelectedYear(today.getFullYear());
-    }
+    const isCurrentMonth = today.getMonth() === selectedMonth && today.getFullYear() === selectedYear;
+    const targetDay = isCurrentMonth ? today.getDate() : 1;
 
-    const todayDay = today.getDate();
-    if (isSunday(todayDay)) {
+    if (isSunday(targetDay)) {
       toast({ title: 'Sunday', description: 'Cannot mark attendance on Sunday.', variant: 'destructive' });
       return;
     }
 
+    // 1. Optimistically update local grid immediately
+    setAttendanceData(prev => {
+      const copy = { ...prev };
+      students.forEach(s => {
+        copy[s.id] = { ...(copy[s.id] || {}), [targetDay]: 'P' };
+      });
+      return copy;
+    });
+
     setIsUpdatingCell(true);
     try {
-      const startOfDay = new Date(selectedYear, selectedMonth, todayDay, 0, 0, 0).toISOString();
-      const endOfDay = new Date(selectedYear, selectedMonth, todayDay, 23, 59, 59).toISOString();
+      const startOfDay = new Date(selectedYear, selectedMonth, targetDay, 0, 0, 0).toISOString();
+      const endOfDay = new Date(selectedYear, selectedMonth, targetDay, 23, 59, 59).toISOString();
+      const markTimestamp = new Date(selectedYear, selectedMonth, targetDay, 9, 0, 0).toISOString();
 
       // Clear today's old marks for this class
       await supabase
@@ -366,7 +412,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         .lte('timestamp', endOfDay);
 
       // Insert present rows for all students
-      const newRows = students.map(s => ({
+      const newRows = (students || []).map(s => ({
         user_id: s.user_id || null,
         student_id: s.admission_number || s.roll_number || null,
         student_name: s.name,
@@ -376,7 +422,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         status: 'present',
         source: 'teacher-portal',
         capture_mode: 'manual',
-        timestamp: today.toISOString(),
+        timestamp: markTimestamp,
         device_info: {
           source: 'teacher-portal',
           capture_mode: 'manual',
@@ -388,7 +434,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
             section: section,
             department: category,
             manual: true,
-            marked_at: today.toISOString(),
+            marked_at: markTimestamp,
           },
         },
         metadata: {
@@ -403,42 +449,123 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
 
       toast({
         title: '✅ Marked All Present for Today',
-        description: `Successfully logged present status for all ${students.length} students on Day ${todayDay}.`,
+        description: `Successfully logged present status for all ${students.length} students on Day ${targetDay}.`,
       });
-
-      fetchMonthlyData();
     } catch (err: any) {
       toast({ title: 'Action failed', description: err.message, variant: 'destructive' });
+      fetchMonthlyData(true);
     } finally {
       setIsUpdatingCell(false);
     }
   };
 
-  // 1-Click Fast Action: Auto-Mark Remaining (Unmarked) as Absent for Today
+  // 1-Click Fast Action: Auto-Mark Remaining (Unmarked) as Absent (Instant Optimistic Update)
   const handleAutoMarkAbsentToday = async () => {
     const today = new Date();
-    if (today.getMonth() !== selectedMonth || today.getFullYear() !== selectedYear) {
-      setSelectedMonth(today.getMonth());
-      setSelectedYear(today.getFullYear());
-    }
+    const isCurrentMonth = today.getMonth() === selectedMonth && today.getFullYear() === selectedYear;
+    const targetDay = isCurrentMonth ? today.getDate() : 1;
 
-    const todayDay = today.getDate();
-    if (isSunday(todayDay)) {
+    if (isSunday(targetDay)) {
       toast({ title: 'Sunday', description: 'Cannot mark attendance on Sunday.', variant: 'destructive' });
       return;
     }
 
-    // Find students who have NO mark for todayDay in attendanceData
-    const unmarkedStudents = students.filter(s => !attendanceData[s.id]?.[todayDay]);
+    // Find students who have NO mark for targetDay in attendanceData
+    const unmarkedStudents = students.filter(s => !attendanceData[s.id]?.[targetDay]);
 
     if (unmarkedStudents.length === 0) {
-      toast({ title: 'All Marked', description: `All ${students.length} students already have attendance marked for today.` });
+      // Check if there are unmarked students on any earlier working days in this month
+      let earlierUnmarkedCount = 0;
+      const daysToCheck = daysArray.filter(d => d <= targetDay && !isSunday(d));
+      
+      const batchUpdates: { student: ClassStudentProp; day: number }[] = [];
+      daysToCheck.forEach(d => {
+        students.forEach(s => {
+          if (!attendanceData[s.id]?.[d]) {
+            batchUpdates.push({ student: s, day: d });
+            earlierUnmarkedCount++;
+          }
+        });
+      });
+
+      if (batchUpdates.length === 0) {
+        toast({ title: 'All Marked', description: `All ${students.length} students already have attendance recorded for this period.` });
+        return;
+      }
+
+      // Optimistically mark earlier missing days as Absent
+      setAttendanceData(prev => {
+        const copy = { ...prev };
+        batchUpdates.forEach(({ student, day }) => {
+          copy[student.id] = { ...(copy[student.id] || {}), [day]: 'A' };
+        });
+        return copy;
+      });
+
+      setIsUpdatingCell(true);
+      try {
+        const newRows = batchUpdates.map(({ student: s, day }) => {
+          const timestamp = new Date(selectedYear, selectedMonth, day, 9, 0, 0).toISOString();
+          return {
+            user_id: s.user_id || null,
+            student_id: s.admission_number || s.roll_number || null,
+            student_name: s.name,
+            class: classNameNumber,
+            section: section,
+            category: category,
+            status: 'absent',
+            source: 'teacher-portal',
+            capture_mode: 'manual',
+            timestamp,
+            device_info: {
+              source: 'teacher-portal',
+              capture_mode: 'manual',
+              mark: 'manual_attendance',
+              metadata: {
+                name: s.name,
+                roll_number: s.roll_number,
+                class: classNameNumber,
+                section: section,
+                department: category,
+                manual: true,
+                marked_at: timestamp,
+              },
+            },
+            metadata: {
+              source: 'teacher-portal',
+              capture_mode: 'manual',
+              mark: 'manual_attendance',
+              manual: true,
+            },
+          };
+        });
+
+        await supabase.from('attendance_records').insert(newRows);
+        toast({
+          title: '✅ Auto-Marked Absentees',
+          description: `Successfully filled ${batchUpdates.length} unmarked record(s) as Absent across previous days.`,
+        });
+      } catch (err: any) {
+        toast({ title: 'Action failed', description: err.message, variant: 'destructive' });
+        fetchMonthlyData(true);
+      } finally {
+        setIsUpdatingCell(false);
+      }
       return;
     }
 
+    // 1. Instantly update local state optimistically for targetDay
+    setAttendanceData(prev => {
+      const copy = { ...prev };
+      unmarkedStudents.forEach(s => {
+        copy[s.id] = { ...(copy[s.id] || {}), [targetDay]: 'A' };
+      });
+      return copy;
+    });
+
     setIsUpdatingCell(true);
     try {
-      const nowIso = today.toISOString();
+      const markTimestamp = new Date(selectedYear, selectedMonth, targetDay, 9, 0, 0).toISOString();
       const newRows = unmarkedStudents.map(s => ({
         user_id: s.user_id || null,
         student_id: s.admission_number || s.roll_number || null,
@@ -449,7 +576,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         status: 'absent',
         source: 'teacher-portal',
         capture_mode: 'manual',
-        timestamp: nowIso,
+        timestamp: markTimestamp,
         device_info: {
           source: 'teacher-portal',
           capture_mode: 'manual',
@@ -461,7 +588,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
             section: section,
             department: category,
             manual: true,
-            marked_at: nowIso,
+            marked_at: markTimestamp,
           },
         },
         metadata: {
@@ -477,12 +604,11 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
 
       toast({
         title: '✅ Auto-Marked Absent',
-        description: `Successfully marked ${unmarkedStudents.length} unmarked student${unmarkedStudents.length > 1 ? 's' : ''} as Absent (Manual).`,
+        description: `Successfully marked ${unmarkedStudents.length} unmarked student${unmarkedStudents.length > 1 ? 's' : ''} as Absent on Day ${targetDay}.`,
       });
-
-      fetchMonthlyData();
     } catch (err: any) {
       toast({ title: 'Action failed', description: err.message, variant: 'destructive' });
+      fetchMonthlyData(true);
     } finally {
       setIsUpdatingCell(false);
     }
@@ -503,7 +629,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         'CBSE Status',
       ];
 
-      const rows = students.map((s, idx) => {
+      const rows = (students || []).map((s, idx) => {
         const stats = calculateStudentStats(s.id);
         const dayValues = daysArray.map((d) => {
           if (isSunday(d)) return 'SUN';
@@ -638,6 +764,12 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
             <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs font-bold">
               {students.length} Enrolled Students
             </Badge>
+            {(loading || isUpdatingCell) && (
+              <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[11px] font-semibold flex items-center gap-1 animate-pulse">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {isUpdatingCell ? 'Saving…' : 'Syncing…'}
+              </Badge>
+            )}
           </div>
           <CardDescription className="text-xs mt-0.5">
             Official CBSE day-by-day attendance matrix with real-time statistics & 1-tap fast mark
@@ -763,7 +895,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
         </div>
 
         {/* Matrix Table */}
-        {loading ? (
+        {loading && Object.keys(attendanceData).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 space-y-2">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-xs text-muted-foreground">Loading realtime monthly attendance records…</p>
@@ -813,7 +945,7 @@ export const TeacherMonthlyRegister: React.FC<Props> = ({
               </thead>
 
               <tbody className="divide-y divide-border/60">
-                {students.map((student, sIdx) => {
+                {(students || []).map((student, sIdx) => {
                   const stats = calculateStudentStats(student.id);
 
                   return (

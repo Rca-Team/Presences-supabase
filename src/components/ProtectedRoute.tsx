@@ -24,23 +24,15 @@ export function ProtectedRoute({ children, requireAdmin = false, requireRoles }:
   const resolveUserRole = async (userId: string): Promise<AppRole> => {
     const db = supabase as any;
 
-    const { data: adminRole } = await db
+    const { data: userRoles } = await db
       .from('user_roles')
       .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .single();
+      .eq('user_id', userId);
 
-    if (adminRole) return 'admin';
+    const rolesList: string[] = (userRoles || []).map((r: any) => r.role);
 
-    const { data: principalRole } = await db
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'principal')
-      .single();
-
-    if (principalRole) return 'principal';
+    if (rolesList.includes('admin')) return 'admin';
+    if (rolesList.includes('principal')) return 'principal';
 
     if (await hasTeacherAccess(userId)) return 'teacher';
 

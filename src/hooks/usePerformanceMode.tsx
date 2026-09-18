@@ -89,6 +89,11 @@ export const PerformanceModeProvider: React.FC<{ children: React.ReactNode }> = 
       }
       const stored = localStorage.getItem(STORAGE_KEY) as LitePref | null;
       if (stored === 'on' || stored === 'off' || stored === 'auto') return stored;
+
+      // Default to Lite Mode for teachers / teacher portal
+      if (window.location.pathname.startsWith('/teacher')) {
+        return 'on';
+      }
     } catch {}
     return 'auto';
   });

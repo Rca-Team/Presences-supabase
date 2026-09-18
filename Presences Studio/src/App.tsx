@@ -36,6 +36,14 @@ import {
 import { PersistenceService } from './services/persistenceService';
 import { audioService } from './services/audioService';
 import { VideoCuratorService } from './services/videoCuratorService';
+import { LiveTPAWidget } from './components/widgets/LiveTPAWidget';
+import { LivePeriodTimerWidget } from './components/widgets/LivePeriodTimerWidget';
+import { QuickNotesWidget } from './components/widgets/QuickNotesWidget';
+import { QuickDecibelWidget } from './components/widgets/QuickDecibelWidget';
+import { RandomStudentWheelWidget } from './components/widgets/RandomStudentWheelWidget';
+import { QuickStopwatchWidget } from './components/widgets/QuickStopwatchWidget';
+import { DailyQuoteWidget } from './components/widgets/DailyQuoteWidget';
+import { WidgetWizardModal, WidgetConfig, DEFAULT_WIDGET_CONFIG } from './components/widgets/WidgetWizardModal';
 
 export function App() {
   // 1. Curriculum & Active Lesson State
@@ -94,6 +102,24 @@ export function App() {
   // Active student & split-slide question
   const [activeBoardStudent, setActiveBoardStudent] = useState<string>('Student');
   const [activeSplitQuestion, setActiveSplitQuestion] = useState<TopicQuestion | null>(null);
+
+  // 7. Smart Device Widget Suite State
+  const [isWidgetWizardOpen, setIsWidgetWizardOpen] = useState(false);
+  const [widgetConfig, setWidgetConfig] = useState<WidgetConfig>(() => {
+    try {
+      const saved = localStorage.getItem('smartboard_widget_config');
+      return saved ? { ...DEFAULT_WIDGET_CONFIG, ...JSON.parse(saved) } : DEFAULT_WIDGET_CONFIG;
+    } catch {
+      return DEFAULT_WIDGET_CONFIG;
+    }
+  });
+
+  const handleUpdateWidgetConfig = (newCfg: WidgetConfig) => {
+    setWidgetConfig(newCfg);
+    try {
+      localStorage.setItem('smartboard_widget_config', JSON.stringify(newCfg));
+    } catch {}
+  };
 
   // Restore prior session on launch if available
   useEffect(() => {
@@ -323,6 +349,7 @@ export function App() {
         onOpenGraphModal={() => setIsGraphModalOpen(true)}
         onOpenCalculator={() => setIsAutoCalculatorOpen(true)}
         onOpenChallengeMode={() => setIsChallengeModeOpen(true)}
+        onOpenWidgetWizard={() => setIsWidgetWizardOpen(true)}
       />
 
       {/* Main Interactive Stage */}
@@ -331,8 +358,59 @@ export function App() {
         {/* Left / Center: Full 4K Interactive Whiteboard Canvas */}
         <div className="flex-1 relative h-full overflow-hidden">
           
+          {/* 🌟 Top-Right Interactive Widget Dock */}
+          <div className="absolute top-3 right-4 z-30 flex flex-col items-end gap-2 pointer-events-auto">
+            {/* 1. Signature Live T/P/A Attendance Box (Recolor-able) */}
+            {widgetConfig.showTPA && (
+              <LiveTPAWidget
+                grade={activeGrade.label}
+                section="A"
+                defaultTheme={widgetConfig.tpaTheme}
+                onOpenFullAttendance={() => setIsAttendanceModalOpen(true)}
+              />
+            )}
+
+            {/* 2. Secondary Mini Widgets Row */}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {widgetConfig.showPeriodTimer && (
+                <LivePeriodTimerWidget
+                  subjectName={activeSubject.name}
+                  currentPeriod={3}
+                />
+              )}
+
+              {widgetConfig.showDecibelMeter && (
+                <QuickDecibelWidget
+                  isMonitoring={isNoiseMonitoring}
+                  noiseLevel={noiseLevel}
+                  noiseStatus={noiseStatus}
+                  onToggle={handleToggleNoiseMonitor}
+                />
+              )}
+
+              {widgetConfig.showStudentPicker && (
+                <RandomStudentWheelWidget />
+              )}
+
+              {widgetConfig.showStopwatch && (
+                <QuickStopwatchWidget />
+              )}
+
+              {widgetConfig.showDailyQuote && (
+                <DailyQuoteWidget />
+              )}
+            </div>
+          </div>
+
+          {/* 🌟 Top-Left Floating Goals & Sticky Notes Widget */}
+          {widgetConfig.showQuickNotes && (
+            <div className="absolute top-14 left-4 z-20 pointer-events-auto">
+              <QuickNotesWidget />
+            </div>
+          )}
+
           {/* Quick Floating Top Video Trigger */}
-          <div className="absolute top-14 left-4 z-20">
+          <div className="absolute top-14 left-72 z-10">
             <button
               onClick={handleLaunchTopVideo}
               className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-full text-xs font-bold shadow-lg transition animate-pulse"
@@ -490,6 +568,14 @@ export function App() {
           slidesCount: slides.length,
           durationMins: 45
         }}
+      />
+
+      {/* 🌟 Master Widget Wizard & Device Customizer Modal */}
+      <WidgetWizardModal
+        isOpen={isWidgetWizardOpen}
+        onClose={() => setIsWidgetWizardOpen(false)}
+        config={widgetConfig}
+        onUpdateConfig={handleUpdateWidgetConfig}
       />
 
     </div>

@@ -13,7 +13,7 @@ import { loadRegistrationModels } from '@/services/face-recognition/OptimizedReg
 import { uploadImage } from '@/services/face-recognition/StorageService';
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Logo from '@/components/Logo';
 import PageTransition from '@/components/PageTransition';
 import Scan3DCapture from '@/components/register/Scan3DCapture';
@@ -101,7 +101,18 @@ const dedupeDrafts = (input: RegistrationDraft[]) => {
 
 const Register = () => {
   const { toast } = useToast();
-  const [formData, setFormData] = useState<RegisterFormData>(EMPTY_FORM_DATA);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const returnUrl = searchParams.get('returnUrl') || searchParams.get('redirect');
+  const classParam = searchParams.get('class');
+  const sectionParam = searchParams.get('section');
+  const departmentParam = searchParams.get('department') || (classParam && sectionParam ? `${classParam}-${sectionParam}` : classParam || '');
+
+  const [formData, setFormData] = useState<RegisterFormData>(() => ({
+    ...EMPTY_FORM_DATA,
+    department: departmentParam || '',
+  }));
   const [faceImage, setFaceImage] = useState<string | null>(null);
   const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
   const [allDescriptors, setAllDescriptors] = useState<Float32Array[]>([]);
@@ -389,7 +400,9 @@ const Register = () => {
         
         toast({
           title: "Registration Successful! 🎉",
-          description: `3D face model saved with ${allDescriptors.length} training samples for best accuracy.`,
+          description: returnUrl 
+            ? `3D face model enrolled for ${validData.name}. Returning to Class Portal...`
+            : `3D face model saved with ${allDescriptors.length} training samples for best accuracy.`,
         });
          const completedDraftId = draftIdFromData();
          clearDraftById(completedDraftId);
@@ -402,6 +415,12 @@ const Register = () => {
          setRegistrationStep(1);
         activeDraftIdRef.current = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
         lastPersistedFingerprintRef.current = '';
+
+        if (returnUrl) {
+          setTimeout(() => {
+            navigate(returnUrl);
+          }, 1200);
+        }
       } else throw new Error("Registration failed");
     } catch (error) {
       console.error('Error registering:', error);
@@ -491,6 +510,32 @@ const Register = () => {
           </div>
           <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-12 xl:px-16 py-8">
             <div className="w-full max-w-lg mx-auto">
+              {returnUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-between gap-3 shadow-xs"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                      <GraduationCap className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Teacher Portal Enrollment</p>
+                      <p className="text-[11px] text-muted-foreground">Enrolling new student to Class <strong className="text-primary">{departmentParam || formData.department}</strong></p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate(returnUrl)}
+                    className="text-xs h-7 rounded-xl font-bold border-blue-500/30 text-blue-600 hover:bg-blue-500/10 gap-1 shrink-0"
+                  >
+                    <ArrowLeft className="h-3 w-3" /> Return to Class
+                  </Button>
+                </motion.div>
+              )}
+
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className="mb-8">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full nano-glass mb-4 border border-primary/20 hardware-layer shadow-xs">
                   <Scan className="w-4 h-4 text-primary" />

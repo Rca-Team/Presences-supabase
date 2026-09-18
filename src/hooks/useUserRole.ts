@@ -34,29 +34,21 @@ export const useUserRole = (): UseUserRoleReturn => {
 
       setUserId(user.id);
 
-      // Check for admin role first
-      const { data: adminRole } = await db
+      // Fetch user roles safely without .single() to avoid 406 when no role exists
+      const { data: userRoles } = await db
         .from('user_roles')
         .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
-        .single();
+        .eq('user_id', user.id);
 
-      if (adminRole) {
+      const rolesList: string[] = (userRoles || []).map((r: any) => r.role);
+
+      if (rolesList.includes('admin')) {
         setRole('admin');
         setIsLoading(false);
         return;
       }
 
-      // Check for moderator (principal) role
-      const { data: modRole } = await db
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'principal')
-        .single();
-
-      if (modRole) {
+      if (rolesList.includes('principal')) {
         setRole('principal');
         setIsLoading(false);
         return;

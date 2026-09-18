@@ -1,27 +1,41 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, LayoutGroup } from 'framer-motion';
-import { Home, UserPlus, Clock, User } from 'lucide-react';
+import { Home, UserPlus, Clock, User, GraduationCap, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { preloadRoute } from '@/lib/preloadRoute';
-
-const navItems = [
-  { path: '/', icon: Home, label: 'Home', color: 'ios-blue' },
-  { path: '/register', icon: UserPlus, label: 'Register', color: 'ios-green' },
-  { path: '/attendance', icon: Clock, label: 'Attend', color: 'ios-purple' },
-  { path: '/profile', icon: User, label: 'Profile', color: 'ios-pink' },
-];
+import { useUserRole } from '@/hooks/useUserRole';
 
 const MobileNavBar: React.FC = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { trigger } = useHapticFeedback();
+  const { isTeacher, isAdminOrPrincipal } = useUserRole();
+
+  const navItems = useMemo(() => {
+    if (isTeacher || isAdminOrPrincipal) {
+      return [
+        { path: '/teacher', icon: GraduationCap, label: 'Teacher', color: 'ios-blue' },
+        { path: '/widgets', icon: LayoutGrid, label: 'Widgets', color: 'ios-orange' },
+        { path: '/attendance', icon: Clock, label: 'Attend', color: 'ios-purple' },
+        { path: '/register', icon: UserPlus, label: 'Register', color: 'ios-green' },
+        { path: '/profile', icon: User, label: 'Profile', color: 'ios-pink' },
+      ];
+    }
+    return [
+      { path: '/', icon: Home, label: 'Home', color: 'ios-blue' },
+      { path: '/widgets', icon: LayoutGrid, label: 'Widgets', color: 'ios-orange' },
+      { path: '/register', icon: UserPlus, label: 'Register', color: 'ios-green' },
+      { path: '/attendance', icon: Clock, label: 'Attend', color: 'ios-purple' },
+      { path: '/profile', icon: User, label: 'Profile', color: 'ios-pink' },
+    ];
+  }, [isTeacher, isAdminOrPrincipal]);
 
   if (!isMobile) return null;
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === path || (path === '/teacher' && location.pathname.startsWith('/teacher'));
   const activeItem = navItems.find((i) => isActive(i.path)) ?? navItems[0];
 
   return (

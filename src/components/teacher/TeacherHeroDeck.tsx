@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,6 +13,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import LiteModeToggle from '@/components/LiteModeToggle';
 
 interface TeacherHeroDeckProps {
   teacherName: string;
@@ -152,11 +153,13 @@ export const TeacherHeroDeck: React.FC<TeacherHeroDeckProps> = ({
                 </span>
               ) : (
                 <span className="text-[9px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                  School Shift Active
+                  {currentTime.getHours() < 8 ? 'Before School Hours' : currentTime.getHours() >= 14 || (currentTime.getHours() === 13 && currentTime.getMinutes() >= 30) ? 'School Day Completed' : 'Recess / Shift Active'}
                 </span>
               )}
             </div>
           </div>
+
+          <LiteModeToggle variant="badge" />
 
           <Button
             size="icon"
@@ -171,11 +174,11 @@ export const TeacherHeroDeck: React.FC<TeacherHeroDeckProps> = ({
         </div>
       </div>
 
-      {assignments.length > 1 && (
+      {(assignments || []).length > 1 && (
         <div className="mt-4 pt-3.5 border-t border-border/40 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-bold text-muted-foreground mr-1">Assigned Classes:</span>
-            {assignments.map((a) => {
+            {(assignments || []).map((a) => {
               const isSelected = activeClass?.category === a.category;
               return (
                 <motion.button

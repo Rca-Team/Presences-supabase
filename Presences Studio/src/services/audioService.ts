@@ -69,6 +69,28 @@ class AudioService {
     }
   }
 
+  public playCorrectChime() {
+    this.playSuccessChime();
+  }
+
+  public playClickSound() {
+    try {
+      const ctx = this.getAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.08);
+    } catch (e) {
+      console.warn('Audio click notice:', e);
+    }
+  }
+
   /**
    * Start listening to classroom noise level via smartboard mic
    */

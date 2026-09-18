@@ -41,7 +41,46 @@ export interface GatePass {
 const STORAGE_KEY = 'school_gate_passes';
 
 /**
- * Fetch all gate passes from the system
+ * Auto-expire stale passes older than 24 hours that were never used
+ */
+export async function autoExpireOldGatePasses(passes: GatePass[]): Promise<GatePass[]> {
+  const now = new Date();
+  let modified = false;
+
+  const updated = passes.map((p) => {
+    if (p.status === 'approved' || p.status === 'pending') {
+      const createdDate = new Date(p.created_at);
+      const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+      // If pass is older than 20 hours and not used, mark expired
+      if (diffHours > 20) {
+        modified = true;
+        return { ...p, status: 'expired' as GatePassStatus };
+      }
+    }
+    return p;
+  });
+
+  if (modified) {
+    try {
+      await supabase
+        .from('attendance_settings')
+        .upsert(
+          {
+            key: STORAGE_KEY,
+            value: updated as any,
+          },
+          { onConflict: 'key' }
+        );
+    } catch (e) {
+      console.warn('[GatePassService] Could not auto-expire passes:', e);
+    }
+  }
+
+  return updated;
+}
+
+/**
+ * Fetch all gate passes from the system (with auto-expiry check)
  */
 export async function fetchAllGatePasses(): Promise<GatePass[]> {
   try {
@@ -55,9 +94,11 @@ export async function fetchAllGatePasses(): Promise<GatePass[]> {
       return [];
     }
 
-    return (data.value as GatePass[]).sort(
+    const rawList = (data.value as GatePass[]).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
+
+    return await autoExpireOldGatePasses(rawList);
   } catch (err) {
     console.error('[GatePassService] fetchAllGatePasses error:', err);
     return [];
@@ -181,11 +222,11 @@ export async function updateGatePassStatus(
  */
 export async function verifyAndExecuteExit(
   passIdentifier: string, // passId or pass_code
-  guardName = 'Duty Security Officer',
   gateName = 'Main Gate 1',
+  guardName = 'Duty Security Officer',
   snapshotUrl?: string,
   guardNotes?: string
-): Promise<{ success: boolean; pass?: GatePass; message: string }> {
+): Promise<{ success: boolean; pass?: GatePass; message: string; error?: string }> {
   try {
     const currentList = await fetchAllGatePasses();
     const cleanId = passIdentifier.trim().toLowerCase();
@@ -197,30 +238,47 @@ export async function verifyAndExecuteExit(
     );
 
     if (!pass) {
-      return { success: false, message: 'Invalid Pass: No matching gate pass record found.' };
+      const msg = 'Invalid Pass: No matching gate pass record found.';
+      return { success: false, message: msg, error: msg };
     }
 
     if (pass.status === 'used') {
+      const msg = `Pass Already Used: Student already exited on ${new Date(pass.exit_time || '').toLocaleTimeString()} at ${pass.exit_gate || 'Gate'}.`;
       return {
         success: false,
         pass,
-        message: `Pass Already Used: Student already exited on ${new Date(pass.exit_time || '').toLocaleTimeString()} at ${pass.exit_gate || 'Gate'}.`,
+        message: msg,
+        error: msg,
       };
     }
 
     if (pass.status === 'rejected') {
+      const msg = `Pass Rejected: Reason: ${pass.rejection_reason || 'Disapproved by school authority'}.`;
       return {
         success: false,
         pass,
-        message: `Pass Rejected: Reason: ${pass.rejection_reason || 'Disapproved by school authority'}.`,
+        message: msg,
+        error: msg,
+      };
+    }
+
+    if (pass.status === 'expired') {
+      const msg = 'Pass Expired: This pass has exceeded its validity window.';
+      return {
+        success: false,
+        pass,
+        message: msg,
+        error: msg,
       };
     }
 
     if (pass.status === 'pending') {
+      const msg = 'Pass Pending: Class teacher has not approved this gate pass yet.';
       return {
         success: false,
         pass,
-        message: 'Pass Pending: Class teacher has not approved this gate pass yet.',
+        message: msg,
+        error: msg,
       };
     }
 
@@ -278,8 +336,32 @@ export async function verifyAndExecuteExit(
     };
   } catch (err: any) {
     console.error('[GatePassService] verifyAndExecuteExit error:', err);
-    return { success: false, message: err?.message || 'Error processing exit verification.' };
+    return { success: false, message: err?.message || 'Error processing exit verification.', error: err?.message };
   }
+}
+
+/**
+ * Generate formatted WhatsApp message URL for sharing Gate Pass
+ */
+export function getGatePassWhatsAppUrl(pass: GatePass, recipientPhone?: string): string {
+  const phone = (recipientPhone || pass.pickup_person_phone || '').replace(/[^0-9]/g, '');
+  const statusEmoji = pass.status === 'approved' ? '✅' : pass.status === 'used' ? '🚪' : pass.status === 'pending' ? '⏳' : '❌';
+  
+  const text = encodeURIComponent(
+    `*🏛️ PM SHRI KV NFC VIGYAN VIHAR - OFFICIAL GATE PASS*\n\n` +
+    `*Status:* ${statusEmoji} ${pass.status.toUpperCase()}\n` +
+    `*Pass Code:* \`${pass.pass_code}\`\n\n` +
+    `*Student:* ${pass.student_name} (Class ${pass.class_section})\n` +
+    `*Student ID:* ${pass.student_id}\n` +
+    `*Authorized Pickup:* ${pass.pickup_person_name} (${pass.pickup_person_relation})\n` +
+    `*Contact Phone:* ${pass.pickup_person_phone}\n` +
+    `*Departure Time:* ${pass.expected_pickup_time}\n` +
+    `*Reason:* ${pass.reason_text}\n` +
+    `*Authorized By:* ${pass.approved_by || 'Class Teacher'}\n\n` +
+    `_Please present Code *${pass.pass_code}* at Main Gate Security Guard Turnstile for physical exit clearance._`
+  );
+
+  return phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
 }
 
 /**

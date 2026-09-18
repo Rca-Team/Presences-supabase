@@ -55,11 +55,29 @@ const extractStorageRef = (raw: string): { bucket: string; path: string } | null
   };
 };
 
+export const sanitizeStudentPhotoUrl = (raw?: string | null): string => {
+  const value = raw?.toString().trim();
+  if (!value) return '';
+  if (value.startsWith('data:') || value.startsWith('blob:')) return value;
+
+  const currentOrigin = import.meta.env.VITE_SUPABASE_URL || 'https://cvdcbcsonlianbfeessy.supabase.co';
+
+  // Clean legacy project IDs from URLs
+  if (value.includes('eiahucigcvsnuvviajqt.supabase.co')) {
+    return value
+      .replace('https://eiahucigcvsnuvviajqt.supabase.co', currentOrigin)
+      .replace('http://eiahucigcvsnuvviajqt.supabase.co', currentOrigin)
+      .replace(/eiahucigcvsnuvviajqt/g, 'cvdcbcsonlianbfeessy');
+  }
+
+  return value;
+};
+
 export const pickPreferredPhotoCandidate = (
   ...candidates: Array<string | null | undefined>
 ): string => {
   for (const candidate of candidates) {
-    const value = candidate?.toString().trim();
+    const value = sanitizeStudentPhotoUrl(candidate);
     if (value) return value;
   }
   return '';
@@ -68,12 +86,21 @@ export const pickPreferredPhotoCandidate = (
 const STORAGE_BUCKETS = ['face-images', 'student-registration-faces', 'attendance-training-faces', 'public'] as const;
 
 export const resolveStudentPhotoUrl = async (raw?: string | null): Promise<string> => {
-  const value = raw?.toString().trim();
+  const value = sanitizeStudentPhotoUrl(raw);
   if (!value) return '';
   if (value.startsWith('data:') || value.startsWith('blob:')) return value;
 
-  // If already a valid signed URL with token, return directly
-  if (/^https?:\/\//i.test(value) && value.includes('token=')) {
+  const currentSupabaseHost = (import.meta.env.VITE_SUPABASE_URL || 'https://cvdcbcsonlianbfeessy.supabase.co')
+    .replace(/^https?:\/\//, '')
+    .split('/')[0];
+
+  // If already a valid signed URL on the CURRENT Supabase host with token, return directly
+  if (/^https?:\/\//i.test(value) && value.includes(currentSupabaseHost) && value.includes('token=')) {
+    return value;
+  }
+
+  // Non-supabase external URLs (e.g. Dicebear, Gravatar, Unsplash)
+  if (/^https?:\/\//i.test(value) && !value.includes('.supabase.co/storage/v1/object/')) {
     return value;
   }
 
@@ -119,7 +146,11 @@ export const resolveStudentPhotoUrl = async (raw?: string | null): Promise<strin
     }
   }
 
-  return value;
+  // Final fallback: return cleaned current public storage path if bucketPath exists
+  const currentOrigin = import.meta.env.VITE_SUPABASE_URL || 'https://cvdcbcsonlianbfeessy.supabase.co';
+  const fallbackUrl = `${currentOrigin}/storage/v1/object/public/${primaryBucket}/${bucketPath}`;
+  signedUrlCache.set(cacheKey, fallbackUrl);
+  return fallbackUrl;
 };
 
 const coverPhotoCache = new Map<string, string>();

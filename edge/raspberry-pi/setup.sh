@@ -23,7 +23,6 @@ sudo apt-get install -y \
     python3-numpy \
     build-essential \
     cmake \
-    libatlas-base-dev \
     libopenblas-dev \
     liblapack-dev \
     libjpeg-dev \

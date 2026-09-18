@@ -32,6 +32,7 @@ interface NavbarProps {
   onOpenGraphModal?: () => void;
   onOpenCalculator?: () => void;
   onOpenChallengeMode?: () => void;
+  onOpenWidgetWizard?: () => void;
 }
 
 const DEFAULT_TIMETABLE = [
@@ -57,6 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenGraphModal,
   onOpenCalculator,
   onOpenChallengeMode,
+  onOpenWidgetWizard,
 }) => {
   // 45-minute Period countdown
   const [periodSecondsLeft, setPeriodSecondsLeft] = useState(45 * 60);
@@ -212,6 +214,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Widgets Wizard & Suite Trigger */}
+          {onOpenWidgetWizard && (
+            <button
+              onClick={onOpenWidgetWizard}
+              title="Add, Customize & Organize Screen Widgets"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-indigo-900/30"
+            >
+              <Sliders className="w-3.5 h-3.5 text-yellow-300" />
+              <span className="hidden sm:inline">Widgets</span>
+            </button>
+          )}
 
           {/* Copilot Dock Toggle */}
           <button

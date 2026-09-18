@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { PasswordInput } from '@/components/ui/password-input';
 
 import Logo from '@/components/Logo';
-import { Lock, Mail, User, ShieldCheck, ArrowLeft, Scan, BookOpen, Shield, Bell } from 'lucide-react';
+import { Lock, Mail, User, ShieldCheck, ArrowLeft, Scan, BookOpen, Shield, Bell, GraduationCap, School } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { motion } from 'framer-motion';
@@ -18,10 +18,13 @@ const Signup = () => {
   const location = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [accountType, setAccountType] = useState<'teacher' | 'student'>('teacher');
+  const [selectedClass, setSelectedClass] = useState('10-A');
   const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const queryRedirect = new URLSearchParams(location.search).get('redirectTo');
   const storedRedirect = sessionStorage.getItem('auth_redirect_to');
-  const from = queryRedirect || (location.state as { from?: string } | null)?.from || storedRedirect || '/attendance';
+  const defaultTarget = accountType === 'teacher' ? '/teacher' : '/attendance';
+  const from = queryRedirect || (location.state as { from?: string } | null)?.from || storedRedirect || defaultTarget;
 
   useEffect(() => {
     if (!queryRedirect) return;
@@ -31,7 +34,7 @@ const Signup = () => {
   }, [queryRedirect]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         sessionStorage.removeItem('auth_redirect_to');
         navigate(from, { replace: true });
@@ -63,17 +66,45 @@ const Signup = () => {
     }
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const targetRoute = accountType === 'teacher' ? '/teacher' : from;
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/login?redirectTo=${encodeURIComponent(from)}`,
-          data: { name: formData.name }
+          emailRedirectTo: `${window.location.origin}/login?redirectTo=${encodeURIComponent(targetRoute)}`,
+          data: {
+            name: formData.name,
+            role: accountType,
+            assigned_class: accountType === 'teacher' ? selectedClass : undefined,
+          }
         }
       });
       if (error) throw error;
-      toast({ title: "Account created!", description: "Check your email to verify your account" });
-      navigate(`/login?redirectTo=${encodeURIComponent(from)}`, { replace: true });
+      
+      // If user session created immediately (auto-confirm on local/staging)
+      if (data.user && accountType === 'teacher') {
+        try {
+          await (supabase as any).from('user_roles').insert({
+            user_id: data.user.id,
+            role: 'teacher',
+          });
+          const [cls, sec] = selectedClass.split('-');
+          await (supabase as any).from('class_teachers').insert({
+            category: selectedClass,
+            class_name: cls || selectedClass,
+            section: sec || 'A',
+            teacher_id: data.user.id,
+            teacher_name: formData.name,
+            teacher_email: formData.email,
+            role: 'class_teacher',
+          });
+        } catch (e) {
+          console.warn('Teacher role auto-provision deferred:', e);
+        }
+      }
+
+      toast({ title: "Account created!", description: accountType === 'teacher' ? "Welcome Teacher! You can now access your class portal." : "Check your email to verify your account" });
+      navigate(`/login?redirectTo=${encodeURIComponent(targetRoute)}`, { replace: true });
     } catch (error: any) {
       toast({ title: "Signup failed", description: error.message || "Failed to create account", variant: "destructive" });
     } finally {
@@ -83,9 +114,10 @@ const Signup = () => {
 
   const handleGoogleSignUp = async () => {
     try {
-      sessionStorage.setItem('auth_redirect_to', from);
+      const targetRoute = accountType === 'teacher' ? '/teacher' : from;
+      sessionStorage.setItem('auth_redirect_to', targetRoute);
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: `${window.location.origin}/login?redirectTo=${encodeURIComponent(from)}`,
+        redirect_uri: `${window.location.origin}/login?redirectTo=${encodeURIComponent(targetRoute)}`,
       });
       if (result?.error) throw result.error;
     } catch (error: any) {
@@ -156,15 +188,68 @@ const Signup = () => {
           </div>
 
           <Card className="p-5 sm:p-7 space-y-4 liquid-glass-surface liquid-glass-highlight border-border/70 shadow-xl rounded-2xl">
+            {/* Account Type Selector */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 dark:bg-black/30 rounded-xl border border-border/50">
+              <button
+                type="button"
+                onClick={() => setAccountType('teacher')}
+                className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg transition-all ${
+                  accountType === 'teacher'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <GraduationCap className="w-4 h-4" />
+                Teacher / Faculty
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountType('student')}
+                className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg transition-all ${
+                  accountType === 'student'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                Student / Parent
+              </button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-3.5">
               <div className="space-y-1.5">
                 <Label htmlFor="name" className="text-sm flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5 text-primary" />
                   Full Name
                 </Label>
-                <Input id="name" name="name" type="text" placeholder="Your name" value={formData.name}
+                <Input id="name" name="name" type="text" placeholder={accountType === 'teacher' ? "Prof. / Mr. / Ms. Name" : "Your name"} value={formData.name}
                   onChange={handleInputChange} className="h-12 text-base rounded-xl" required autoComplete="name" />
               </div>
+
+              {accountType === 'teacher' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="assignedClass" className="text-xs flex items-center gap-1.5 text-muted-foreground">
+                    <School className="h-3.5 w-3.5 text-primary" />
+                    Assigned Primary Class
+                  </Label>
+                  <select
+                    id="assignedClass"
+                    value={selectedClass}
+                    onChange={e => setSelectedClass(e.target.value)}
+                    className="h-10 w-full text-xs font-semibold rounded-xl border border-input bg-background px-3"
+                  >
+                    <option value="6-A">Class 6 - Section A</option>
+                    <option value="6-B">Class 6 - Section B</option>
+                    <option value="7-A">Class 7 - Section A</option>
+                    <option value="8-A">Class 8 - Section A</option>
+                    <option value="9-A">Class 9 - Section A</option>
+                    <option value="10-A">Class 10 - Section A</option>
+                    <option value="10-B">Class 10 - Section B</option>
+                    <option value="11-A">Class 11 - Section A</option>
+                    <option value="12-A">Class 12 - Section A</option>
+                  </select>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-sm flex items-center gap-1.5">
