@@ -166,6 +166,11 @@ const Attendance: React.FC = () => {
     refreshStats();
     const timer = window.setTimeout(() => setIsInitialLoading(false), 200);
 
+    const handleLocalMarked = () => {
+      refreshStats();
+    };
+    window.addEventListener('presence:attendance-marked', handleLocalMarked);
+
     const channel = supabase
       .channel('attendance-page-live-metrics')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
@@ -178,6 +183,7 @@ const Attendance: React.FC = () => {
 
     return () => {
       window.clearTimeout(timer);
+      window.removeEventListener('presence:attendance-marked', handleLocalMarked);
       if (refreshTimerRef.current) {
         window.clearTimeout(refreshTimerRef.current);
       }

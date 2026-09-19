@@ -540,13 +540,27 @@ export async function recordAttendance(
 
   const validUserId = isUuid(userId) ? userId : null;
 
+  // Resolve user profile and effective name early to avoid TDZ ReferenceError
+  let userName: string | null = null;
+  if (userId && userId !== 'unknown') {
+    try {
+      const p = await getCachedProfile(userId);
+      if (p) userName = p.display_name || p.full_name || p.username || null;
+    } catch {
+      // ignore profile fetch error
+    }
+  }
+
+  const effectiveName = userName || deviceInfo?.metadata?.name || (deviceInfo as any)?.name || (deviceInfo as any)?.student_name || null;
+  const effectiveNameCheck = (effectiveName || '').trim().toLowerCase();
+
   // Deduplication check: if student is already marked present/late today, prevent duplicate record
   if (!isExplicitManual && (status === 'present' || status === 'late')) {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const startOfTodayMs = startOfToday.getTime();
 
-    const candidateKeys = Array.from(new Set([userId, resolvedStudentId].filter(Boolean) as string[]));
+    const candidateKeys = Array.from(new Set([userId, resolvedStudentId, effectiveName].filter(Boolean) as string[]));
 
     // 1. Check in-memory cache first
     for (const key of candidateKeys) {
@@ -571,7 +585,7 @@ export async function recordAttendance(
     }
 
     // 3. Eager placeholder
-    const earlyPlaceholder = { id: '__pending__', status, timestamp: new Date().toISOString(), student_name: null };
+    const earlyPlaceholder = { id: '__pending__', status, timestamp: new Date().toISOString(), student_name: effectiveName };
     for (const k of candidateKeys) {
       markedTodayCache.set(k, earlyPlaceholder);
     }
@@ -597,7 +611,6 @@ export async function recordAttendance(
       }
 
       const { data: existingRows } = await query;
-      const effectiveNameCheck = (userName || deviceInfo?.metadata?.name || (deviceInfo as any)?.name || '').trim().toLowerCase();
 
       const existing = existingRows?.find(r => {
         if (validUserId && r.user_id === validUserId) return true;
@@ -636,12 +649,6 @@ export async function recordAttendance(
 
   const timestamp = new Date().toISOString();
   const dateStr = timestamp.split('T')[0];
-
-  let userName: string | null = null;
-  if (userId && userId !== 'unknown') {
-    const p = await getCachedProfile(userId);
-    if (p) userName = p.display_name || p.full_name || p.username || null;
-  }
 
   // Fast non-blocking image upload
   let uploadedImageUrl: string | null = null;
@@ -683,8 +690,6 @@ export async function recordAttendance(
     captureMode === 'gate-mode' ? 'gate-mode' :
     captureMode === 'qr-scan'  ? 'qr-scan'  : 'ai-scan';
 
-  const effectiveName = userName || deviceInfo?.metadata?.name || (deviceInfo as any)?.name || (deviceInfo as any)?.student_name || null;
-
   const fullDeviceInfo = {
     type: 'webcam',
     timestamp,
@@ -694,9 +699,11 @@ export async function recordAttendance(
     metadata: {
       ...deviceInfo?.metadata,
       name:                     effectiveName || 'Unknown',
+      student_name:             effectiveName || 'Unknown',
       employee_id:              resolvedStudentId,
       student_id:               resolvedStudentId,
       capture_mode:             sanitizeSegment(captureMode),
+      source:                   resolvedSource,
       training_attendance_path: trainingAttendancePath,
     },
   };
@@ -705,24 +712,21 @@ export async function recordAttendance(
   let data: any = null;
   let insertError: any = null;
 
+  // Schema-compliant primary payload for public.attendance_records
   const primaryPayload: any = {
     user_id:          validUserId,
-    student_id:       resolvedStudentId,
-    student_name:     effectiveName,
     timestamp,
     date:             dateStr,
     status:           adjustedStatus,
-    source:           resolvedSource,
-    capture_mode:     captureMode,
     class:            fullDeviceInfo?.metadata?.class   ?? null,
     section:          fullDeviceInfo?.metadata?.section ?? null,
     category:         fullDeviceInfo?.metadata?.category ?? null,
     method:           captureMode === 'qr-scan' ? 'qr' : 'face',
-    device_info:      fullDeviceInfo,
-    metadata:         fullDeviceInfo.metadata,
     confidence:       confidence ?? 0.95,
     confidence_score: confidence ?? 0.95,
     image_url:        uploadedImageUrl,
+    device_info:      fullDeviceInfo,
+    metadata:         fullDeviceInfo.metadata,
   };
 
   try {
@@ -733,12 +737,18 @@ export async function recordAttendance(
       .maybeSingle();
 
     if (res.error) {
-      throw res.error;
+      console.warn('[AttendanceService] Primary insert with select returned error, trying standard insert:', res.error);
+      const resDirect = await supabase.from('attendance_records').insert(primaryPayload);
+      if (resDirect.error) {
+        throw resDirect.error;
+      }
+      data = { id: `rec-${Date.now()}`, ...primaryPayload };
+    } else {
+      data = res.data || { id: `rec-${Date.now()}`, ...primaryPayload };
     }
-    data = res.data;
   } catch (err: any) {
     console.warn('[AttendanceService] Primary insert fallback triggered:', err?.message || err);
-    // Fallback: strip potential extra schema columns to ensure clean insert
+    // Fallback: minimal fields in case of custom table column variance
     const fallbackPayload: any = {
       user_id:          validUserId,
       timestamp,
@@ -748,7 +758,6 @@ export async function recordAttendance(
       confidence_score: confidence ?? 0.95,
       image_url:        uploadedImageUrl,
       device_info:      fullDeviceInfo,
-      metadata:         fullDeviceInfo.metadata,
     };
 
     const res2 = await supabase
@@ -764,7 +773,7 @@ export async function recordAttendance(
         insertError = res3.error;
         console.error('[AttendanceService] Emergency insert failed:', res3.error);
       } else {
-        data = { id: `local-${Date.now()}`, ...fallbackPayload };
+        data = { id: `rec-${Date.now()}`, ...fallbackPayload };
       }
     } else {
       data = res2.data || { id: `rec-${Date.now()}`, ...fallbackPayload };
@@ -772,7 +781,7 @@ export async function recordAttendance(
   }
 
   if (insertError && !data) {
-    const candidateKeys = Array.from(new Set([userId, resolvedStudentId].filter(Boolean) as string[]));
+    const candidateKeys = Array.from(new Set([userId, resolvedStudentId, effectiveName].filter(Boolean) as string[]));
     for (const k of candidateKeys) {
       if (markedTodayCache.get(k)?.id === '__pending__') {
         markedTodayCache.delete(k);
@@ -782,12 +791,12 @@ export async function recordAttendance(
   }
 
   if (data && (adjustedStatus === 'present' || adjustedStatus === 'late')) {
-    const keys = Array.from(new Set([userId, resolvedStudentId].filter(Boolean) as string[]));
+    const keys = Array.from(new Set([userId, resolvedStudentId, effectiveName].filter(Boolean) as string[]));
     for (const k of keys) {
       markedTodayCache.set(k, data);
     }
-    if (effectiveName) {
-      markedTodayCache.set(effectiveName.toLowerCase().trim(), data);
+    if (effectiveNameCheck) {
+      markedTodayCache.set(effectiveNameCheck, data);
     }
 
     if (typeof window !== 'undefined') {
