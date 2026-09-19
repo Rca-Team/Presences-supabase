@@ -467,7 +467,7 @@ const Attendance: React.FC = () => {
                     transition={iosSpring}
                     className="overflow-hidden"
                   >
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {/* Card 1: Attendance Rate Ring Module */}
                       <motion.div
                         whileHover={{ y: -3 }}
@@ -560,31 +560,6 @@ const Attendance: React.FC = () => {
                         <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                           <Sparkles className="w-3 h-3 text-amber-500" />
                           <span>100% True Identity Verified</span>
-                        </div>
-                      </motion.div>
-
-                      {/* Card 4: Terminal Encryption & Health */}
-                      <motion.div
-                        whileHover={{ y: -3 }}
-                        transition={iosSnappySpring}
-                        className="nano-glass rounded-[26px] p-4 flex flex-col justify-between"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Security & Edge
-                          </span>
-                          <div className="h-7 w-7 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-purple-500/20">
-                            <ShieldCheck className="h-3.5 w-3.5" />
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-baseline gap-1.5">
-                          <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
-                            AES-256
-                          </span>
-                        </div>
-                        <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          <span>Hardware Accelerated Sync</span>
                         </div>
                       </motion.div>
                     </div>
