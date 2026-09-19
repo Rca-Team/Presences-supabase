@@ -27,8 +27,10 @@ const playWindows11Chime = () => {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
+    // If browser autoplay policy suspended the AudioContext, close and exit silently without spamming warnings
     if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
+      try { ctx.close().catch(() => {}); } catch {}
+      return;
     }
 
     const chordFrequencies = [369.99, 415.30, 554.37, 622.25, 830.61];

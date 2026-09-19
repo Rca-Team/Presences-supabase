@@ -8,6 +8,20 @@
 
 let sharedAudioCtx: AudioContext | null = null;
 
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+  };
+  window.addEventListener('click', unlockAudio, { passive: true, once: true });
+  window.addEventListener('keydown', unlockAudio, { passive: true, once: true });
+  window.addEventListener('touchstart', unlockAudio, { passive: true, once: true });
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -18,7 +32,7 @@ function getAudioContext(): AudioContext | null {
       }
     }
     if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
-      void sharedAudioCtx.resume();
+      void sharedAudioCtx.resume().catch(() => {});
     }
     return sharedAudioCtx;
   } catch {
