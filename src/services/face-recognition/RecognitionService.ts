@@ -717,18 +717,21 @@ export async function recordAttendance(
   // Schema-compliant primary payload for public.attendance_records
   const primaryPayload: any = {
     user_id:          validUserId,
+    student_id:       resolvedStudentId || null,
+    student_name:     effectiveName || 'Student',
     timestamp,
     date:             dateStr,
     status:           adjustedStatus,
     class:            fullDeviceInfo?.metadata?.class   ?? null,
     section:          fullDeviceInfo?.metadata?.section ?? null,
     category:         fullDeviceInfo?.metadata?.category ?? null,
+    source:           resolvedSource,
+    capture_mode:     resolvedSource,
     method:           captureMode === 'qr-scan' ? 'qr' : 'face',
     confidence:       confidence ?? 0.95,
     confidence_score: confidence ?? 0.95,
     image_url:        uploadedImageUrl,
     device_info:      fullDeviceInfo,
-    metadata:         fullDeviceInfo.metadata,
   };
 
   try {
@@ -750,12 +753,15 @@ export async function recordAttendance(
     }
   } catch (err: any) {
     console.warn('[AttendanceService] Primary insert fallback triggered:', err?.message || err);
-    // Fallback: minimal fields in case of custom table column variance
-    const fallbackPayload: any = {
+    // Tier 2 Fallback: standard core columns
+    const tier2Payload: any = {
       user_id:          validUserId,
+      student_id:       resolvedStudentId || null,
+      student_name:     effectiveName || 'Student',
       timestamp,
       date:             dateStr,
       status:           adjustedStatus,
+      source:           resolvedSource,
       confidence:       confidence ?? 0.95,
       confidence_score: confidence ?? 0.95,
       image_url:        uploadedImageUrl,
@@ -764,22 +770,48 @@ export async function recordAttendance(
 
     const res2 = await supabase
       .from('attendance_records')
-      .insert(fallbackPayload)
+      .insert(tier2Payload)
       .select()
       .maybeSingle();
 
     if (res2.error) {
-      // Emergency: clean insert without .select()
-      const res3 = await supabase.from('attendance_records').insert(fallbackPayload);
+      // Tier 3 Emergency minimal insert
+      const tier3Payload: any = {
+        user_id:          validUserId,
+        timestamp,
+        date:             dateStr,
+        status:           adjustedStatus,
+        confidence:       confidence ?? 0.95,
+        confidence_score: confidence ?? 0.95,
+        image_url:        uploadedImageUrl,
+        device_info:      fullDeviceInfo,
+      };
+      const res3 = await supabase.from('attendance_records').insert(tier3Payload);
       if (res3.error) {
         insertError = res3.error;
         console.error('[AttendanceService] Emergency insert failed:', res3.error);
       } else {
-        data = { id: `rec-${Date.now()}`, ...fallbackPayload };
+        data = { id: `rec-${Date.now()}`, ...tier2Payload };
       }
     } else {
-      data = res2.data || { id: `rec-${Date.now()}`, ...fallbackPayload };
+      data = res2.data || { id: `rec-${Date.now()}`, ...tier2Payload };
     }
+  }
+
+  // Ensure returned data always contains student metadata for UI feeds
+  if (data) {
+    data = {
+      ...data,
+      student_name: data.student_name || effectiveName || 'Student',
+      student_id: data.student_id || resolvedStudentId || null,
+      user_id: data.user_id || validUserId || userId,
+      status: adjustedStatus,
+      timestamp: data.timestamp || timestamp,
+      source: data.source || resolvedSource,
+      category: data.category || fullDeviceInfo?.metadata?.category || null,
+      image_url: data.image_url || uploadedImageUrl || null,
+      device_info: fullDeviceInfo,
+    };
   }
 
   if (insertError && !data) {

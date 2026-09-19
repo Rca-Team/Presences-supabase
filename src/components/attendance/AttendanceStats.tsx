@@ -18,6 +18,9 @@ const AttendanceStats = () => {
 
   useEffect(() => {
     refresh();
+
+    const handleLocal = () => refresh();
+    window.addEventListener('presence:attendance-marked', handleLocal);
     
     const channel = supabase
       .channel('attendance_stats_changes')
@@ -30,6 +33,7 @@ const AttendanceStats = () => {
       .subscribe();
     
     return () => { 
+      window.removeEventListener('presence:attendance-marked', handleLocal);
       supabase.removeChannel(channel);
       supabase.removeChannel(gateChannel);
     };

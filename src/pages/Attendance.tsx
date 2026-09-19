@@ -159,7 +159,7 @@ const Attendance: React.FC = () => {
     refreshTimerRef.current = window.setTimeout(() => {
       refreshTimerRef.current = null;
       refreshStats();
-    }, 2500);
+    }, 300);
   }, []);
 
   useEffect(() => {

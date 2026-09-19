@@ -16,12 +16,20 @@ const QuickStatsPanel: React.FC = () => {
 
   useEffect(() => {
     refresh();
+
+    const handleLocal = () => refresh();
+    window.addEventListener('presence:attendance-marked', handleLocal);
+
     const channel = supabase
       .channel('quick-stats-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => refresh())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, () => refresh())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      window.removeEventListener('presence:attendance-marked', handleLocal);
+      supabase.removeChannel(channel);
+    };
   }, [refresh]);
 
   const statItems = [

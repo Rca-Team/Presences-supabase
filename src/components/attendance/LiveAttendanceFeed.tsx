@@ -345,14 +345,17 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
   // Initial Fetch & Realtime Subscription
   useEffect(() => {
     const fetchRecords = async () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const startIso = start.toISOString();
+      const localDateStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+      const utcDateStr = startIso.split('T')[0];
 
       let query = supabase
         .from('attendance_records')
         .select('*')
-        .gte('timestamp', today.toISOString())
         .in('status', ['present', 'late', 'absent'])
+        .or(`timestamp.gte.${startIso},date.eq.${localDateStr},date.eq.${utcDateStr}`)
         .order('timestamp', { ascending: false })
         .limit(maxInitialCount);
 
@@ -381,7 +384,14 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
 
       setRecords(prev => {
         if (isStreamPaused) return prev;
-        const filtered = prev.filter(r => r.id !== newRecord.id && (r.user_id !== newRecord.user_id || !newRecord.user_id));
+        const normName = (newRecord.student_name || '').trim().toLowerCase();
+        const filtered = prev.filter(r => {
+          if (r.id === newRecord.id) return false;
+          if (newRecord.user_id && r.user_id === newRecord.user_id) return false;
+          if (newRecord.student_id && r.student_id === newRecord.student_id) return false;
+          if (normName && (r.student_name || '').trim().toLowerCase() === normName) return false;
+          return true;
+        });
         return [newRecord, ...filtered].slice(0, 40);
       });
     };
@@ -406,7 +416,14 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
 
             setRecords(prev => {
               if (isStreamPaused) return prev;
-              const filtered = prev.filter(r => r.id !== newRecord.id);
+              const normName = (newRecord.student_name || '').trim().toLowerCase();
+              const filtered = prev.filter(r => {
+                if (r.id === newRecord.id) return false;
+                if (newRecord.user_id && r.user_id === newRecord.user_id) return false;
+                if (newRecord.student_id && r.student_id === newRecord.student_id) return false;
+                if (normName && (r.student_name || '').trim().toLowerCase() === normName) return false;
+                return true;
+              });
               return [newRecord, ...filtered].slice(0, 40);
             });
           }
