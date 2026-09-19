@@ -535,6 +535,11 @@ export async function recordAttendance(
     (deviceInfo as any)?.student_id ||
     userId;
 
+  const isUuid = (val?: string | null): val is string =>
+    typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+  const validUserId = isUuid(userId) ? userId : null;
+
   // Deduplication check: if student is already marked present/late today, prevent duplicate record
   if (!isExplicitManual && (status === 'present' || status === 'late')) {
     const startOfToday = new Date();
@@ -546,7 +551,7 @@ export async function recordAttendance(
     // 1. Check in-memory cache first
     for (const key of candidateKeys) {
       const cached = markedTodayCache.get(key);
-      if (cached && new Date(cached.timestamp).getTime() >= startOfTodayMs) {
+      if (cached && cached.id !== '__pending__' && new Date(cached.timestamp).getTime() >= startOfTodayMs) {
         console.log(`[Deduplication] Student ${key} already marked attendance today (${cached.status} at ${cached.timestamp}). Skipping duplicate.`);
         return {
           ...cached,
@@ -558,40 +563,57 @@ export async function recordAttendance(
       }
     }
 
-    // 2. In-flight mutex: if another call for the same student is already executing,
-    //    wait for its result instead of racing through to a second insert.
+    // 2. In-flight mutex
     const inFlightKey = candidateKeys.slice().sort().join(':');
     if (inFlightAttendance.has(inFlightKey)) {
       console.log(`[Deduplication] Awaiting in-flight attendance promise for ${inFlightKey}`);
       return await inFlightAttendance.get(inFlightKey)!;
     }
 
-    // 3. Eagerly reserve the cache slot BEFORE any async work (image upload, DB query)
-    //    so that concurrent calls hitting step 1 above will see the reservation immediately.
+    // 3. Eager placeholder
     const earlyPlaceholder = { id: '__pending__', status, timestamp: new Date().toISOString(), student_name: null };
     for (const k of candidateKeys) {
       markedTodayCache.set(k, earlyPlaceholder);
     }
 
-    // 4. Check Database for today's existing present/late record
+    // 4. Safe check Database for today's existing present/late record
     try {
-      const orFilter = candidateKeys.map(k => `user_id.eq.${k},student_id.eq.${k}`).join(',');
-      const { data: existingRows } = await supabase
+      const uuidFilters: string[] = [];
+      if (validUserId) uuidFilters.push(`user_id.eq.${validUserId}`);
+      if (isUuid(resolvedStudentId) && resolvedStudentId !== validUserId) {
+        uuidFilters.push(`user_id.eq.${resolvedStudentId}`);
+      }
+
+      let query = supabase
         .from('attendance_records')
-        .select('id, status, timestamp, student_id, user_id, student_name')
+        .select('id, status, timestamp, user_id, image_url, device_info')
         .in('status', ['present', 'late'])
         .gte('timestamp', startOfToday.toISOString())
-        .or(orFilter)
         .order('timestamp', { ascending: false })
-        .limit(1);
+        .limit(25);
 
-      if (existingRows && existingRows.length > 0) {
-        const existing = existingRows[0];
+      if (uuidFilters.length > 0) {
+        query = query.or(uuidFilters.join(','));
+      }
+
+      const { data: existingRows } = await query;
+      const effectiveNameCheck = (userName || deviceInfo?.metadata?.name || (deviceInfo as any)?.name || '').trim().toLowerCase();
+
+      const existing = existingRows?.find(r => {
+        if (validUserId && r.user_id === validUserId) return true;
+        const devName = ((r.device_info as any)?.metadata?.name || (r.device_info as any)?.name || (r as any).student_name || '').trim().toLowerCase();
+        if (effectiveNameCheck && devName && devName === effectiveNameCheck) return true;
+        const devEmpId = (r.device_info as any)?.metadata?.employee_id || (r.device_info as any)?.employee_id || (r as any).student_id;
+        if (resolvedStudentId && devEmpId && String(devEmpId).trim() === String(resolvedStudentId).trim()) return true;
+        return false;
+      });
+
+      if (existing) {
         for (const k of candidateKeys) {
           markedTodayCache.set(k, existing);
         }
-        if (existing.student_name) {
-          markedTodayCache.set(existing.student_name.toLowerCase().trim(), existing);
+        if (effectiveNameCheck) {
+          markedTodayCache.set(effectiveNameCheck, existing);
         }
         console.log(`[Deduplication] DB record found for ${candidateKeys.join('/')}: already marked ${existing.status}. Skipping duplicate.`);
         return {
@@ -613,6 +635,7 @@ export async function recordAttendance(
   }
 
   const timestamp = new Date().toISOString();
+  const dateStr = timestamp.split('T')[0];
 
   let userName: string | null = null;
   if (userId && userId !== 'unknown') {
@@ -620,7 +643,7 @@ export async function recordAttendance(
     if (p) userName = p.display_name || p.full_name || p.username || null;
   }
 
-  // Fast non-blocking image upload: start concurrently so database insertion is instantaneous
+  // Fast non-blocking image upload
   let uploadedImageUrl: string | null = null;
   let trainingAttendancePath: string | null = null;
   const imageUploadPromise = (async () => {
@@ -628,7 +651,7 @@ export async function recordAttendance(
     try {
       const blob = await dataUrlToBlob(capturedImageDataUrl);
       if (blob) {
-        const fileName = `attendance/${userId}/${Date.now()}.jpg`;
+        const fileName = `attendance/${validUserId || 'anon'}/${Date.now()}.jpg`;
         const { data: up, error: upErr } = await supabase.storage
           .from('face-images')
           .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
@@ -651,7 +674,6 @@ export async function recordAttendance(
     }
   })();
 
-  // Race image upload for max 120ms; if storage is fast it attaches immediately, otherwise row is saved instantly
   await Promise.race([
     imageUploadPromise,
     new Promise((resolve) => setTimeout(resolve, 120)),
@@ -672,31 +694,92 @@ export async function recordAttendance(
     metadata: {
       ...deviceInfo?.metadata,
       name:                     effectiveName || 'Unknown',
+      employee_id:              resolvedStudentId,
+      student_id:               resolvedStudentId,
       capture_mode:             sanitizeSegment(captureMode),
       training_attendance_path: trainingAttendancePath,
     },
   };
 
-  const { data, error } = await supabase
-    .from('attendance_records')
-    .insert({
-      user_id:          userId,
-      student_id:       resolvedStudentId,
-      timestamp,
-      status:           adjustedStatus,
-      source:           resolvedSource,
-      capture_mode:     captureMode,
-      class:            fullDeviceInfo?.metadata?.class   ?? null,
-      section:          fullDeviceInfo?.metadata?.section ?? null,
-      student_name:     effectiveName,
-      device_info:      fullDeviceInfo,
-      confidence_score: confidence,
-      image_url:        uploadedImageUrl,
-    })
-    .select()
-    .single();
+  // ── Multi-Stage Resilient Database Insert ────────────────────────────────────
+  let data: any = null;
+  let insertError: any = null;
 
-  if (error) throw new Error(`Failed to record attendance: ${error.message}`);
+  const primaryPayload: any = {
+    user_id:          validUserId,
+    student_id:       resolvedStudentId,
+    student_name:     effectiveName,
+    timestamp,
+    date:             dateStr,
+    status:           adjustedStatus,
+    source:           resolvedSource,
+    capture_mode:     captureMode,
+    class:            fullDeviceInfo?.metadata?.class   ?? null,
+    section:          fullDeviceInfo?.metadata?.section ?? null,
+    category:         fullDeviceInfo?.metadata?.category ?? null,
+    method:           captureMode === 'qr-scan' ? 'qr' : 'face',
+    device_info:      fullDeviceInfo,
+    metadata:         fullDeviceInfo.metadata,
+    confidence:       confidence ?? 0.95,
+    confidence_score: confidence ?? 0.95,
+    image_url:        uploadedImageUrl,
+  };
+
+  try {
+    const res = await supabase
+      .from('attendance_records')
+      .insert(primaryPayload)
+      .select()
+      .maybeSingle();
+
+    if (res.error) {
+      throw res.error;
+    }
+    data = res.data;
+  } catch (err: any) {
+    console.warn('[AttendanceService] Primary insert fallback triggered:', err?.message || err);
+    // Fallback: strip potential extra schema columns to ensure clean insert
+    const fallbackPayload: any = {
+      user_id:          validUserId,
+      timestamp,
+      date:             dateStr,
+      status:           adjustedStatus,
+      confidence:       confidence ?? 0.95,
+      confidence_score: confidence ?? 0.95,
+      image_url:        uploadedImageUrl,
+      device_info:      fullDeviceInfo,
+      metadata:         fullDeviceInfo.metadata,
+    };
+
+    const res2 = await supabase
+      .from('attendance_records')
+      .insert(fallbackPayload)
+      .select()
+      .maybeSingle();
+
+    if (res2.error) {
+      // Emergency: clean insert without .select()
+      const res3 = await supabase.from('attendance_records').insert(fallbackPayload);
+      if (res3.error) {
+        insertError = res3.error;
+        console.error('[AttendanceService] Emergency insert failed:', res3.error);
+      } else {
+        data = { id: `local-${Date.now()}`, ...fallbackPayload };
+      }
+    } else {
+      data = res2.data || { id: `rec-${Date.now()}`, ...fallbackPayload };
+    }
+  }
+
+  if (insertError && !data) {
+    const candidateKeys = Array.from(new Set([userId, resolvedStudentId].filter(Boolean) as string[]));
+    for (const k of candidateKeys) {
+      if (markedTodayCache.get(k)?.id === '__pending__') {
+        markedTodayCache.delete(k);
+      }
+    }
+    throw new Error(`Failed to record attendance: ${insertError.message}`);
+  }
 
   if (data && (adjustedStatus === 'present' || adjustedStatus === 'late')) {
     const keys = Array.from(new Set([userId, resolvedStudentId].filter(Boolean) as string[]));
@@ -714,8 +797,8 @@ export async function recordAttendance(
     }
   }
 
-  // If image upload completed after the initial record insert, update the image_url seamlessly in background
-  if (!uploadedImageUrl && capturedImageDataUrl && data?.id) {
+  // If image upload completed after the initial record insert, update image_url in background
+  if (!uploadedImageUrl && capturedImageDataUrl && data?.id && !String(data.id).startsWith('local-')) {
     void imageUploadPromise.then(async () => {
       if (uploadedImageUrl && data?.id) {
         try {
@@ -728,7 +811,7 @@ export async function recordAttendance(
     });
   }
 
-  console.log('Attendance recorded:', data);
+  console.log('Attendance successfully recorded in database:', data);
 
   // Class-session event
   const meta      = (fullDeviceInfo?.metadata ?? {}) as Record<string, unknown>;

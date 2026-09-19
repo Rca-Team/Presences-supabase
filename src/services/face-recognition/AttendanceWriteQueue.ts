@@ -215,13 +215,22 @@ async function drainQueue(): Promise<{ synced: number; failed: number }> {
           }
         }
 
-        const { error } = await supabase.from('attendance_records').insert({
-          user_id: entry.userId,
+        const isUuid = (val?: string | null): val is string =>
+          typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+        const validUserId = isUuid(entry.userId) ? entry.userId : null;
+        const dateStr = (entry.timestamp || new Date().toISOString()).split('T')[0];
+
+        const primaryPayload: any = {
+          user_id: validUserId,
+          student_id: entry.userId,
           student_name: entry.studentName,
           timestamp: entry.timestamp,
+          date: dateStr,
           status: entry.status,
           source: entry.source,
           capture_mode: 'gate-mode',
+          confidence: entry.confidence,
           confidence_score: entry.confidence,
           image_url: imageUrl,
           device_info: {
@@ -230,7 +239,26 @@ async function drainQueue(): Promise<{ synced: number; failed: number }> {
             offline_created_at: new Date(entry.createdAt).toISOString(),
             offline_synced_at: new Date().toISOString(),
           },
-        });
+        };
+
+        let { error } = await supabase.from('attendance_records').insert(primaryPayload);
+
+        if (error) {
+          // Schema fallback
+          const fallbackPayload: any = {
+            user_id: validUserId,
+            timestamp: entry.timestamp,
+            date: dateStr,
+            status: entry.status,
+            confidence: entry.confidence,
+            confidence_score: entry.confidence,
+            image_url: imageUrl,
+            device_info: primaryPayload.device_info,
+            metadata: primaryPayload.device_info,
+          };
+          const fallbackRes = await supabase.from('attendance_records').insert(fallbackPayload);
+          error = fallbackRes.error;
+        }
 
         if (error) {
           console.warn(`[OfflineQueue] Sync failed for ${entry.studentName}:`, error.message);
