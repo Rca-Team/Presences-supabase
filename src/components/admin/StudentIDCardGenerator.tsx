@@ -52,7 +52,7 @@ interface StudentIDCardGeneratorProps {
 
 const SCHOOL_NAME = 'PM SHRI Kendriya Vidyalaya';
 const SCHOOL_SUBNAME = 'NFC Vigyan Vihar, Delhi';
-const SCHOOL_TAGLINE = 'तत् त्वम् पूषन् अपावृणु';
+const SCHOOL_TAGLINE = 'Kendriya Vidyalaya Sangathan';
 const SCHOOL_ADDRESS = 'Vigyan Vihar, New Delhi – 110092 | Affiliated to CBSE';
 const SCHOOL_AFFILIATION = 'Under Kendriya Vidyalaya Sangathan, Min. of Education, Govt. of India';
 const ACADEMIC_YEAR = '2025–2026';

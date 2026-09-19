@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom';
 import Logo from './Logo';
 import { 
   SCHOOL_NAME, 
-  SCHOOL_NAME_HINDI, 
-  SCHOOL_MOTTO, 
   SCHOOL_AFFILIATION, 
   SCHOOL_ADDRESS, 
   PRINCIPAL_NAME, 
@@ -31,14 +29,14 @@ const Footer = () => {
                   Official Smart Campus Partner
                 </span>
                 <span className="text-xs font-semibold text-muted-foreground">
-                  {SCHOOL_MOTTO}
+                  Kendriya Vidyalaya Sangathan
                 </span>
               </div>
               <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-foreground mt-1">
                 {SCHOOL_NAME}
               </h3>
               <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                {SCHOOL_NAME_HINDI} • {SCHOOL_AFFILIATION}
+                {SCHOOL_AFFILIATION}
               </p>
             </div>
           </div>

@@ -532,7 +532,7 @@ const Index = () => {
                       Official Institutional Endorsement
                     </div>
                     <span className="text-xs font-semibold text-slate-300">
-                      Motto: तत् त्वं पूषन् अपावृणु
+                      Kendriya Vidyalaya Sangathan • Delhi Region
                     </span>
                   </div>
 

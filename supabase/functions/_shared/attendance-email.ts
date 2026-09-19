@@ -238,7 +238,7 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="font:400 12px/1.6 Arial,sans-serif;color:#64748b;">
-                  Official Automated Attendance Notification &bull; <em>तत् त्वं पूषन् अपावृणु</em><br />
+                  Official Automated Attendance Notification &bull; Kendriya Vidyalaya Sangathan<br />
                   <strong>Dr. Gaya Ravidas</strong>, Principal &bull; <strong>PM Shri Kendriya Vidyalaya NFC Vigyan Vihar, Delhi</strong><br />
                   Powered by <strong>Presences AI Smart Campus Engine</strong> (RCA)
                 </td>

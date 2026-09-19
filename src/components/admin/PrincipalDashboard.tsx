@@ -27,7 +27,6 @@ import {
 } from 'recharts';
 import { 
   SCHOOL_NAME, 
-  SCHOOL_NAME_HINDI, 
   SCHOOL_AFFILIATION, 
   PRINCIPAL_NAME, 
   PRINCIPAL_TITLE, 
@@ -349,7 +348,7 @@ const PrincipalDashboard: React.FC = () => {
                   Principal Executive Desk
                 </span>
                 <span className="text-[10px] text-slate-300 font-medium">
-                  {SCHOOL_NAME_HINDI}
+                  Autonomous Campus Governance
                 </span>
               </div>
               <h2 className="text-base sm:text-xl font-black text-white truncate">

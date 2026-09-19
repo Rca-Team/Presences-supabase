@@ -1,10 +1,9 @@
 // School configuration — Classes 6-12, Sections A-D
 
-// Official School & Institutional Metadata
+// Official School & Institutional Metadata (English Official)
 export const SCHOOL_NAME = 'PM SHRI KENDRIYA VIDYALAYA NFC VIGYAN VIHAR';
 export const SCHOOL_NAME_SHORT = 'PM Shri KV NFC Vigyan Vihar';
-export const SCHOOL_NAME_HINDI = 'पीएम श्री केन्द्रीय विद्यालय एनएफसी विज्ञान विहार';
-export const SCHOOL_MOTTO = 'तत् त्वं पूषन् अपावृणु';
+export const SCHOOL_TAGLINE = 'Kendriya Vidyalaya Sangathan';
 export const SCHOOL_AFFILIATION = 'Kendriya Vidyalaya Sangathan (Delhi Region) • CBSE Affiliated';
 export const SCHOOL_ADDRESS = 'NFC Vigyan Vihar, Delhi – 110092';
 export const SCHOOL_CONTACT_PHONE = '011-22154398';
