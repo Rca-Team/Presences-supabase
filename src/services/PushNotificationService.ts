@@ -200,11 +200,14 @@ class PushNotificationService {
   private async saveSubscription(subscription: PushSubscription): Promise<void> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
+      if (!session?.user?.id) return;
+
+      // UUID check
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(session.user.id);
+      if (!isUuid) return;
 
       const serialized = this.serializeSubscription(subscription);
       
-      // Use dedicated push_subscriptions table with proper unique constraint
       const payload = {
         user_id: session.user.id,
         endpoint: serialized.endpoint,
@@ -213,17 +216,21 @@ class PushNotificationService {
         updated_at: new Date().toISOString(),
       };
 
-      const byEndpoint = await (supabase as any).from('push_subscriptions').upsert(payload, {
-        onConflict: 'endpoint'
-      });
-
-      if (byEndpoint?.error) {
-        await (supabase as any).from('push_subscriptions').upsert(payload, {
-          onConflict: 'user_id'
+      try {
+        const { error: endpointErr } = await (supabase as any).from('push_subscriptions').upsert(payload, {
+          onConflict: 'endpoint'
         });
+
+        if (endpointErr) {
+          await (supabase as any).from('push_subscriptions').upsert(payload, {
+            onConflict: 'user_id'
+          });
+        }
+      } catch {
+        // Silently ignore if push_subscriptions table is not provisioned
       }
-    } catch (error) {
-      console.error('Failed to save subscription:', error);
+    } catch {
+      // Quiet fail
     }
   }
 
@@ -233,13 +240,16 @@ class PushNotificationService {
   private async removeSubscription(): Promise<void> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
+      if (!session?.user?.id) return;
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(session.user.id);
+      if (!isUuid) return;
 
       await (supabase as any).from('push_subscriptions')
         .delete()
         .eq('user_id', session.user.id);
-    } catch (error) {
-      console.error('Failed to remove subscription:', error);
+    } catch {
+      // Quiet fail
     }
   }
 
