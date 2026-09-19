@@ -232,14 +232,15 @@ export function buildAttendanceEmail(input: AttendanceEmailInput): { subject: st
           </td>
         </tr>
         ${snapshotBlock(input.snapshotUrl, time, date)}
-        <!-- FOOTER BRANDING -->
+        <!-- FOOTER BRANDING & PRINCIPAL ENDORSEMENT -->
         <tr>
           <td style="padding:18px 24px 24px;border-top:1px solid #f1f5f9;background:#fafafa;">
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="font:400 12px/1.6 Arial,sans-serif;color:#64748b;">
-                  Official Automated Attendance Notification<br />
-                  <strong>PM Shri Kendriya Vidyalaya NFC Vigyan Vihar, Delhi</strong> &bull; Powered by <strong>Presences AI Engine</strong>
+                  Official Automated Attendance Notification &bull; <em>तत् त्वं पूषन् अपावृणु</em><br />
+                  <strong>Dr. Gaya Ravidas</strong>, Principal &bull; <strong>PM Shri Kendriya Vidyalaya NFC Vigyan Vihar, Delhi</strong><br />
+                  Powered by <strong>Presences AI Smart Campus Engine</strong> (RCA)
                 </td>
               </tr>
             </table>

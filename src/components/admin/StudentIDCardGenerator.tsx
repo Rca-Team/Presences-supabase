@@ -714,8 +714,8 @@ const StudentIDCardGenerator: React.FC<StudentIDCardGeneratorProps> = ({ student
           </div>
           <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; text-align: center;">
             <div style="border-top: 1px dashed #1e3a5f; padding-top: 6px;">
-              <div style="font-size: 11px; font-weight: 700; color: #1e3a5f;">Principal</div>
-              <div style="font-size: 9px; color: #64748b;">Signature &amp; Seal</div>
+              <div style="font-size: 11px; font-weight: 800; color: #1e3a5f;">Dr. Gaya Ravidas</div>
+              <div style="font-size: 9px; color: #64748b;">Principal &amp; Issuing Authority</div>
             </div>
           </div>
         </div>

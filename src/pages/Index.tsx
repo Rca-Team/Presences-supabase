@@ -321,8 +321,12 @@ const Index = () => {
               <div>
                 {/* Collaboration & Active Status Badges */}
                 <div className="flex flex-wrap items-center gap-2.5 mb-6">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-primary backdrop-blur-md">
-                    <Building2 className="h-3.5 w-3.5" />
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 backdrop-blur-md shadow-xs">
+                    <img 
+                      src="/kvs-logo.png" 
+                      alt="KVS Logo" 
+                      className="h-4 w-4 object-contain rounded-full bg-white p-0.5 border border-amber-400/40" 
+                    />
                     PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
                   </div>
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
@@ -474,6 +478,101 @@ const Index = () => {
         </section>
 
         {/* ========================================================================= */}
+        {/* OFFICIAL INSTITUTIONAL LEADERSHIP — FROM THE PRINCIPAL'S DESK             */}
+        {/* ========================================================================= */}
+        <section className="pb-14">
+          <RoyalReveal effect="fade-up">
+            <div className="relative overflow-hidden rounded-3xl border border-amber-400/30 bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-[#1e1b4b]/90 text-white p-6 sm:p-8 md:p-10 shadow-2xl backdrop-blur-2xl">
+              <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+              <div className="absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+              
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+                {/* Principal Portrait & Institutional Seal */}
+                <div className="lg:col-span-4 flex flex-col items-center text-center">
+                  <div className="relative group">
+                    <div className="absolute -inset-1.5 rounded-3xl bg-gradient-to-r from-amber-400 to-yellow-500 opacity-70 blur-md group-hover:opacity-100 transition-opacity" />
+                    <div className="relative h-64 w-52 sm:h-72 sm:w-60 rounded-2xl overflow-hidden border-2 border-amber-300/80 bg-slate-950 shadow-2xl">
+                      <img
+                        src="/principal-dr-gaya-ravidas.jpg"
+                        alt="Dr. Gaya Ravidas — Principal, PM Shri Kendriya Vidyalaya NFC Vigyan Vihar"
+                        className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                    {/* Official KVS Crest Overlay Badge */}
+                    <div className="absolute -bottom-3 -right-3 h-14 w-14 rounded-2xl bg-white p-1 shadow-xl border-2 border-amber-400 flex items-center justify-center">
+                      <img
+                        src="/kvs-logo.png"
+                        alt="KVS Emblem"
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-1">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-amber-300 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30">
+                      Head of Institution &amp; Patron
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight pt-1" style={{ fontFamily: 'Sora, sans-serif' }}>
+                      Dr. Gaya Ravidas
+                    </h3>
+                    <p className="text-xs font-semibold text-amber-200">
+                      Principal
+                    </p>
+                    <p className="text-[11px] text-slate-300 font-medium">
+                      PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
+                    </p>
+                  </div>
+                </div>
+
+                {/* Principal Message & Institutional Vision */}
+                <div className="lg:col-span-8 space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-400/10 px-3.5 py-1 text-[11px] font-bold text-amber-200">
+                      <Award className="h-3.5 w-3.5 text-amber-300" />
+                      Official Institutional Endorsement
+                    </div>
+                    <span className="text-xs font-semibold text-slate-300">
+                      Motto: तत् त्वं पूषन् अपावृणु
+                    </span>
+                  </div>
+
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight" style={{ fontFamily: 'Sora, sans-serif' }}>
+                    From the Principal&apos;s Desk
+                  </h2>
+
+                  <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-normal">
+                    &ldquo;At <strong className="text-amber-300 font-bold">PM Shri Kendriya Vidyalaya NFC Vigyan Vihar</strong>, our vision is to foster educational excellence through modern innovation. The deployment of the <strong className="text-cyan-300 font-bold">Presences AI Smart School Platform</strong> brings millisecond facial verification, proactive campus gate security, automated timetable substitution, and instantaneous parent communication to our school.&rdquo;
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
+                      <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Zero False Markings</p>
+                      <p className="text-xs text-slate-300 mt-1">Multi-angle vector validation and edge facial analysis.</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
+                      <p className="text-xs font-bold text-cyan-300 uppercase tracking-wider">Smart Gate Safety</p>
+                      <p className="text-xs text-slate-300 mt-1">Direct Principal and Gate Security synchronization with parent alerts.</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5 backdrop-blur-md">
+                      <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">CBSE / KVS Aligned</p>
+                      <p className="text-xs text-slate-300 mt-1">Full compliance with academic timetables and attendance regulations.</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-medium text-slate-400">
+                    <span className="flex items-center gap-1 text-amber-300 font-semibold">
+                      <CheckCircle2 className="h-4 w-4" /> PM Shri KV NFC Vigyan Vihar Official Deployment
+                    </span>
+                    <span>•</span>
+                    <span>Delhi Region • Shift-1</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </RoyalReveal>
+        </section>
+
+        {/* ========================================================================= */}
         {/* PRESTIGIOUS TEAM RCA & LEADERSHIP SPOTLIGHT (Desktop Balanced Showcase)   */}
         {/* ========================================================================= */}
         <section className="pb-14">
@@ -485,19 +584,20 @@ const Index = () => {
                 className="lg:col-span-6 group relative overflow-hidden rounded-3xl border border-amber-300/30 bg-card/60 shadow-2xl backdrop-blur-2xl flex flex-col justify-between"
                 {...cardTilt}
               >
-                <div className="relative min-h-[480px] sm:min-h-[540px] md:min-h-[580px] h-full w-full overflow-hidden flex flex-col justify-between">
+                <div className="relative min-h-[500px] sm:min-h-[560px] md:min-h-[600px] h-full w-full overflow-hidden flex flex-col justify-between">
+                  {/* Photo adjusted lower so heads sit centered in the aura */}
                   <img
                     src={(teamRcaPhoto as any)?.url || (typeof teamRcaPhoto === 'string' ? teamRcaPhoto : '/team-rca.jpg')}
                     alt="Team RCA — Jatin Dhama, Gaurav Raj, Swami Anant Vyas"
-                    className="absolute inset-0 h-full w-full object-cover object-top sm:object-center transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                    className="absolute inset-x-0 -bottom-6 top-10 sm:top-14 h-[105%] w-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                     loading="lazy"
                   />
                   <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.35),transparent_65%)]" />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/40 via-55% to-transparent" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/50 via-50% to-transparent" />
 
                   {/* Top Bar with Team RCA Badge & Studio Navigation */}
                   <div className="relative z-20 p-5 sm:p-6 flex items-center justify-between pointer-events-auto">
-                    <div className="flex items-center gap-2 rounded-full border border-amber-300/40 bg-black/65 px-3.5 py-1.5 backdrop-blur-md shadow-md">
+                    <div className="flex items-center gap-2 rounded-full border border-amber-300/40 bg-black/70 px-3.5 py-1.5 backdrop-blur-md shadow-md">
                       <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)] animate-pulse" />
                       <span className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Team RCA</span>
                     </div>
@@ -506,7 +606,7 @@ const Index = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate('/portfolio')}
-                      className="text-xs font-bold text-amber-200 bg-black/50 hover:bg-black/80 hover:text-amber-100 border border-amber-300/30 rounded-full px-3 py-1 backdrop-blur-md transition-all shadow-sm"
+                      className="text-xs font-bold text-amber-200 bg-black/60 hover:bg-black/90 hover:text-amber-100 border border-amber-300/30 rounded-full px-3 py-1 backdrop-blur-md transition-all shadow-sm cursor-pointer"
                     >
                       <span>Studio</span>
                       <ArrowRight className="ml-1 h-3.5 w-3.5" />
@@ -514,16 +614,15 @@ const Index = () => {
                   </div>
 
                   {/* Interactive Hotspot Zones Across Photo */}
-                  <div className="absolute inset-0 z-10 grid grid-cols-3 pt-16 pb-44 pointer-events-auto">
+                  <div className="absolute inset-0 z-10 grid grid-cols-3 pt-20 pb-52 pointer-events-auto">
                     <button
                       type="button"
                       onClick={() => {
                         haptic('selection');
                         setActiveProfile(jatinMember);
                       }}
-                      className="group/zone h-full w-full focus:outline-none"
+                      className="group/zone h-full w-full focus:outline-none cursor-pointer"
                       aria-label="Open Jatin Dhama profile"
-                      title="Jatin Dhama (Left)"
                     />
                     <button
                       type="button"
@@ -531,9 +630,8 @@ const Index = () => {
                         haptic('selection');
                         setActiveProfile(gauravMember);
                       }}
-                      className="group/zone h-full w-full focus:outline-none"
+                      className="group/zone h-full w-full focus:outline-none cursor-pointer"
                       aria-label="Open Gaurav Raj profile"
-                      title="Gaurav Raj (Middle)"
                     />
                     <button
                       type="button"
@@ -541,14 +639,13 @@ const Index = () => {
                         haptic('selection');
                         setActiveProfile(swamiMember);
                       }}
-                      className="group/zone h-full w-full focus:outline-none"
+                      className="group/zone h-full w-full focus:outline-none cursor-pointer"
                       aria-label="Open Swami Anant Vyas profile"
-                      title="Swami Anant Vyas (Right)"
                     />
                   </div>
 
                   {/* Bottom Title Lockup, Member Hotspots & Go to RCA Projects Button */}
-                  <div className="relative z-20 p-5 sm:p-7 space-y-3.5 pointer-events-auto">
+                  <div className="relative z-20 p-5 sm:p-7 space-y-3.5 pointer-events-auto bg-gradient-to-t from-black via-black/80 to-transparent">
                     <div>
                       <p className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-300/90">
                         Presences · AI Architecture
@@ -574,7 +671,7 @@ const Index = () => {
                           haptic('selection');
                           setActiveProfile(jatinMember);
                         }}
-                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-white/15 bg-black/60 hover:bg-black/85 hover:border-amber-400/70 p-2 sm:p-2.5 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
+                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-white/15 bg-black/75 hover:bg-black/95 hover:border-amber-400/80 py-2 sm:py-2.5 px-1 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
                       >
                         <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-100 group-hover/btn:text-amber-300 transition-colors">
                           JATIN
@@ -592,12 +689,12 @@ const Index = () => {
                           haptic('selection');
                           setActiveProfile(gauravMember);
                         }}
-                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 hover:border-amber-300 p-2 sm:p-2.5 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
+                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-amber-400/50 bg-amber-500/25 hover:bg-amber-500/35 hover:border-amber-300 py-2 sm:py-2.5 px-1 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
                       >
                         <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-200 group-hover/btn:text-amber-100 transition-colors">
                           GAURAV
                         </span>
-                        <span className="text-[9px] sm:text-[10px] font-bold text-amber-300/80 group-hover/btn:text-amber-200 transition-colors">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-amber-300/90 group-hover/btn:text-amber-200 transition-colors">
                           (MIDDLE)
                         </span>
                       </button>
@@ -610,7 +707,7 @@ const Index = () => {
                           haptic('selection');
                           setActiveProfile(swamiMember);
                         }}
-                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-white/15 bg-black/60 hover:bg-black/85 hover:border-amber-400/70 p-2 sm:p-2.5 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
+                        className="group/btn relative flex flex-col items-center justify-center rounded-2xl border border-white/15 bg-black/75 hover:bg-black/95 hover:border-amber-400/80 py-2 sm:py-2.5 px-1 backdrop-blur-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer text-center"
                       >
                         <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-100 group-hover/btn:text-amber-300 transition-colors">
                           SWAMI
@@ -646,9 +743,9 @@ const Index = () => {
               </motion.div>
 
               {/* Right: Team Leadership & Members Grid */}
-              <div className="lg:col-span-6 flex flex-col justify-between gap-3 bg-white/90 dark:bg-card/75 p-6 rounded-3xl border border-border/80 dark:border-white/10 shadow-xl backdrop-blur-2xl">
+              <div className="lg:col-span-6 flex flex-col justify-between gap-4 bg-white/90 dark:bg-card/75 p-6 sm:p-7 rounded-3xl border border-border/80 dark:border-white/10 shadow-xl backdrop-blur-2xl">
                 <div>
-                  <div className="flex items-center justify-between pb-3 mb-2 border-b border-border/50">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/50">
                     <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Creators &amp; Core Architects
                     </span>
@@ -656,7 +753,7 @@ const Index = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate('/portfolio')}
-                      className="text-xs font-bold text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-400/10 rounded-xl"
+                      className="text-xs font-bold text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-400/10 rounded-xl cursor-pointer"
                     >
                       View Studio <ArrowRight className="ml-1 h-3.5 w-3.5" />
                     </Button>
@@ -665,36 +762,41 @@ const Index = () => {
                   {/* Lead Creator Spotlight Card */}
                   <button
                     type="button"
-                    onClick={() => setActiveProfile(gauravMember)}
-                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/60 dark:border-amber-400/30 bg-amber-500/10 dark:bg-gradient-to-r dark:from-amber-500/15 dark:via-amber-500/5 dark:to-transparent p-4 text-left transition-all hover:border-amber-400 hover:shadow-md mb-3"
+                    onClick={() => {
+                      haptic('selection');
+                      setActiveProfile(gauravMember);
+                    }}
+                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-amber-300/70 dark:border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent p-4 sm:p-5 text-left transition-all hover:border-amber-400 hover:shadow-lg mb-4 cursor-pointer group"
                   >
-                    <div className="flex items-center gap-3.5">
+                    <div className="flex items-center gap-4 min-w-0">
                       <img
                         src={portfolio.profileImage || gauravMember.image || gauravPhoto}
                         alt={gauravMember.name}
-                        className="h-12 w-12 rounded-2xl border-2 border-amber-400/60 object-cover shadow-md"
+                        className="h-14 w-14 rounded-2xl border-2 border-amber-400/70 object-cover shadow-md shrink-0 group-hover:scale-105 transition-transform"
                         loading="lazy"
                       />
-                      <div>
-                        <span className="inline-block text-[9px] font-black uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">Lead · Architect</span>
-                        <p className="text-base font-extrabold text-slate-900 dark:text-foreground">{gauravMember.name}</p>
-                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 line-clamp-1">{gauravMember.role}</p>
+                      <div className="min-w-0">
+                        <span className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">
+                          Lead · Architect &amp; Developer
+                        </span>
+                        <p className="text-lg font-black text-slate-900 dark:text-foreground truncate">{gauravMember.name}</p>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-300 line-clamp-1">{gauravMember.role}</p>
                       </div>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <ArrowRight className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:translate-x-1 transition-transform" />
                   </button>
 
                   {/* Team Members List Header & Swap Button */}
-                  <div className="flex items-center justify-between mt-3 mb-2 px-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                      Core Members
+                  <div className="flex items-center justify-between mt-4 mb-2.5 px-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                      Core Team Contributors
                     </span>
                     {displayedTeamMembers.length > 1 && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={handleSwapTeamMembers}
-                        className="h-6 px-2.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:bg-emerald-500/15 rounded-lg gap-1.5 transition-all active:scale-95 border border-emerald-500/30 bg-emerald-500/10 shadow-xs"
+                        className="h-6 px-2.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:bg-emerald-500/15 rounded-lg gap-1.5 transition-all active:scale-95 border border-emerald-500/30 bg-emerald-500/10 shadow-xs cursor-pointer"
                         title="Click to swap members"
                       >
                         <motion.div
@@ -709,38 +811,44 @@ const Index = () => {
                   </div>
 
                   {/* Team Members List */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 relative">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
                     {displayedTeamMembers.map((member) => (
                       <motion.button
                         layout
                         key={member.name}
                         type="button"
-                        onClick={() => setActiveProfile(member)}
+                        onClick={() => {
+                          haptic('selection');
+                          setActiveProfile(member);
+                        }}
                         transition={{ type: 'spring', stiffness: 450, damping: 30, mass: 0.6 }}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-white dark:bg-card/50 p-3 text-left transition-all hover:border-amber-400/60 hover:bg-amber-50/40 dark:hover:bg-accent/40 group shadow-xs"
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-white/90 dark:bg-card/60 p-3.5 text-left transition-all hover:border-amber-400/60 hover:bg-amber-50/40 dark:hover:bg-accent/40 group shadow-xs cursor-pointer"
                         aria-label={`Open ${member.name} profile`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <MemberAvatar
                             name={member.name}
                             image={member.image}
-                            className="h-9 w-9 rounded-xl border border-border/70 shrink-0 group-hover:scale-105 transition-transform"
+                            className="h-10 w-10 rounded-xl border border-border/70 shrink-0 group-hover:scale-105 transition-transform"
                             fallbackClassName="text-xs font-bold"
                           />
                           <div className="min-w-0">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Team Member</p>
-                            <p className="text-xs font-bold text-slate-900 dark:text-foreground truncate">{member.name}</p>
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Team Member</p>
+                            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-foreground truncate">{member.name}</p>
                           </div>
                         </div>
-                        <ArrowRight className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                        <ArrowRight className="h-4 w-4 text-slate-400 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
                       </motion.button>
                     ))}
                   </div>
                 </div>
 
                 <div className="pt-3 border-t border-border/50 flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400">
-                  <span>Presences AI Engine</span>
-                  <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">KV NFC Vigyan Vihar</span>
+                  <div className="flex items-center gap-1.5">
+                    <img src="/kvs-logo.png" alt="KVS" className="h-4 w-4 object-contain rounded-full bg-white p-0.5" />
+                    <span>Presences AI Engine</span>
+                  </div>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">PM Shri KV NFC Vigyan Vihar</span>
                 </div>
               </div>
 

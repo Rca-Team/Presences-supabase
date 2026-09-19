@@ -347,7 +347,7 @@ const AttendanceReportGenerator: React.FC = () => {
           doc.setFontSize(8);
           doc.setTextColor(148, 163, 184);
           doc.text(
-            `Presence AI · PM Shri KV NFC Vigyan Vihar · Page ${pageNum}`,
+            `Presences AI · PM Shri KV NFC Vigyan Vihar · Verified by Dr. Gaya Ravidas (Principal) · Page ${pageNum}`,
             pageWidth / 2,
             doc.internal.pageSize.getHeight() - 20,
             { align: 'center' }
@@ -371,6 +371,7 @@ const AttendanceReportGenerator: React.FC = () => {
       const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const lines = [
         `School,${esc('PM Shri Kendriya Vidyalaya NFC Vigyan Vihar')}`,
+        `Principal,${esc('Dr. Gaya Ravidas')}`,
         `Report,${esc('Attendance Summary Report')}`,
         `Date Range,${esc(reportData.dateRange.from + ' to ' + reportData.dateRange.to)}`,
         `Enrolled Students,${reportData.stats.totalStudents}`,

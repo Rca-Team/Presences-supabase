@@ -464,7 +464,7 @@ const ClassSectionReport: React.FC<ClassSectionReportProps> = ({ allowedCategori
             doc.setFontSize(7.5);
             doc.setTextColor(148, 163, 184);
             doc.text(
-              `Presence AI · PM Shri KV NFC Vigyan Vihar · Signature of Class Teacher: ____________________`,
+              `Presences AI · PM Shri KV NFC Vigyan Vihar · Class Teacher: ____________________ · Dr. Gaya Ravidas (Principal): ____________________`,
               pageWidth / 2,
               doc.internal.pageSize.getHeight() - 16,
               { align: 'center' },

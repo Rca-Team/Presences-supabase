@@ -1,5 +1,23 @@
 // School configuration — Classes 6-12, Sections A-D
 
+// Official School & Institutional Metadata
+export const SCHOOL_NAME = 'PM SHRI KENDRIYA VIDYALAYA NFC VIGYAN VIHAR';
+export const SCHOOL_NAME_SHORT = 'PM Shri KV NFC Vigyan Vihar';
+export const SCHOOL_NAME_HINDI = 'पीएम श्री केन्द्रीय विद्यालय एनएफसी विज्ञान विहार';
+export const SCHOOL_MOTTO = 'तत् त्वं पूषन् अपावृणु';
+export const SCHOOL_AFFILIATION = 'Kendriya Vidyalaya Sangathan (Delhi Region) • CBSE Affiliated';
+export const SCHOOL_ADDRESS = 'NFC Vigyan Vihar, Delhi – 110092';
+export const SCHOOL_CONTACT_PHONE = '011-22154398';
+export const SCHOOL_EMAIL = 'kvnfcvigyanvihar@gmail.com';
+
+// Official Principal Details
+export const PRINCIPAL_NAME = 'Dr. Gaya Ravidas';
+export const PRINCIPAL_TITLE = 'Principal';
+export const PRINCIPAL_ROLE = 'Head of Institution';
+export const PRINCIPAL_PHOTO_URL = '/principal-dr-gaya-ravidas.jpg';
+export const KVS_LOGO_URL = '/kvs-logo.png';
+export const PRESENCES_LOGO_URL = '/logo.png';
+
 export const CLASSES = [6, 7, 8, 9, 10, 11, 12] as const;
 export const SECTIONS = ['A', 'B', 'C', 'D'] as const;
 
@@ -65,3 +83,4 @@ export type TransportMode = typeof TRANSPORT_MODES[number];
 // Blood groups
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
 export type BloodGroup = typeof BLOOD_GROUPS[number];
+

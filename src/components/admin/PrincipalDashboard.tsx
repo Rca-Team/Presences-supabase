@@ -25,6 +25,16 @@ import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer
 } from 'recharts';
+import { 
+  SCHOOL_NAME, 
+  SCHOOL_NAME_HINDI, 
+  SCHOOL_AFFILIATION, 
+  PRINCIPAL_NAME, 
+  PRINCIPAL_TITLE, 
+  PRINCIPAL_PHOTO_URL, 
+  KVS_LOGO_URL 
+} from '@/constants/schoolConfig';
+import { Award, ShieldAlert, Sparkles, Building2 } from 'lucide-react';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'A': '#3b82f6', 'B': '#22c55e', 'C': '#eab308', 'D': '#f97316', 'Teacher': '#a855f7',
@@ -316,26 +326,64 @@ const PrincipalDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* Connection Status & Refresh */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {isConnected ? (
-            <Badge variant="outline" className="gap-1.5 text-green-600 border-green-500/30 bg-green-500/10 text-[10px] sm:text-xs">
-              <Wifi className="w-3 h-3" /> Live
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="gap-1.5 text-muted-foreground text-[10px] sm:text-xs">
-              <WifiOff className="w-3 h-3" /> Offline
-            </Badge>
-          )}
-          <span className="text-[10px] sm:text-xs text-muted-foreground">
-            {format(lastRefreshed, 'hh:mm a')}
-          </span>
+    <div className="space-y-4 sm:space-y-5">
+      {/* Official Institutional Executive Header */}
+      <div className="relative overflow-hidden rounded-3xl border border-amber-400/30 bg-gradient-to-r from-slate-900 via-slate-900/95 to-[#1e1b4b] text-white p-4 sm:p-6 shadow-xl backdrop-blur-2xl">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
+            <div className="relative shrink-0">
+              <img
+                src={PRINCIPAL_PHOTO_URL}
+                alt={PRINCIPAL_NAME}
+                className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl object-cover object-top border-2 border-amber-400 shadow-md bg-slate-950"
+              />
+              <img
+                src={KVS_LOGO_URL}
+                alt="KVS Emblem"
+                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-lg bg-white p-0.5 shadow-md border border-amber-400 object-contain"
+              />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                  Principal Executive Desk
+                </span>
+                <span className="text-[10px] text-slate-300 font-medium">
+                  {SCHOOL_NAME_HINDI}
+                </span>
+              </div>
+              <h2 className="text-base sm:text-xl font-black text-white truncate">
+                {PRINCIPAL_NAME}
+              </h2>
+              <p className="text-xs text-amber-200 font-semibold">
+                {PRINCIPAL_TITLE} • {SCHOOL_NAME}
+              </p>
+              <p className="text-[11px] text-slate-300">
+                {SCHOOL_AFFILIATION}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            {isConnected ? (
+              <Badge variant="outline" className="gap-1.5 text-emerald-300 border-emerald-500/40 bg-emerald-500/20 text-xs px-3 py-1 font-bold">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Live Terminal Connected
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1.5 text-slate-300 border-slate-500/40 bg-slate-500/20 text-xs px-3 py-1 font-bold">
+                <WifiOff className="w-3.5 h-3.5" /> Offline Mode
+              </Badge>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => fetchAllData()} 
+              className="gap-1.5 text-xs h-8 px-3 border-white/20 bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            </Button>
+          </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => fetchAllData()} className="gap-1.5 text-[10px] sm:text-xs h-7 sm:h-8 px-2 sm:px-3">
-          <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Refresh
-        </Button>
       </div>
 
       {/* Key Metrics — 2x2 grid on mobile */}
