@@ -648,7 +648,76 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         </CardContent>
       </Card>
 
-      {/* 4. Multi-Module Glimpse Cards */}
+      {/* 4. Weekly Attendance Trend Chart (Relocated directly below Campus Attendance Rate) */}
+      <Card className="border border-border/80 shadow-xs">
+        <CardHeader className="pb-1 sm:pb-2 px-4 sm:px-6 pt-4 sm:pt-5 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              Weekly Attendance Trend
+            </CardTitle>
+            <CardDescription className="text-xs">Turnout over the last 7 official working days</CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handleNavigate('reports')}
+            className="text-xs h-8 gap-1.5"
+          >
+            <BarChart3 className="w-3.5 h-3.5" /> Reports
+          </Button>
+        </CardHeader>
+        <CardContent className="px-1 sm:px-4 pb-3 sm:pb-4">
+          <div className="h-44 sm:h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyTrend} barSize={isMobile ? 22 : 36}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(val) => {
+                    const item = weeklyTrend.find(w => w.date === val);
+                    return item ? item.day : val;
+                  }}
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
+                  stroke="hsl(var(--muted-foreground))"
+                />
+                <YAxis
+                  tick={{ fontSize: isMobile ? 10 : 11 }}
+                  stroke="hsl(var(--muted-foreground))"
+                  width={isMobile ? 25 : 40}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                  }}
+                  formatter={(value: any) => [`${value} Students & Staff`, 'Present']}
+                  labelFormatter={(label: string) => {
+                    const item = weeklyTrend.find(w => w.date === label);
+                    return item?.fullDate || label;
+                  }}
+                />
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
+                  {weeklyTrend.map((entry, index) => {
+                    const isToday = entry.date === format(new Date(), 'yyyy-MM-dd');
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={isToday ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.6)'}
+                      />
+                    );
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 5. Multi-Module Glimpse Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         
         {/* Module 1: Class Breakdown */}
@@ -951,75 +1020,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           </CardContent>
         </Card>
       </div>
-
-      {/* 5. 7-Day Trend Chart */}
-      <Card className="border border-border/80 shadow-xs">
-        <CardHeader className="pb-1 sm:pb-2 px-4 sm:px-6 pt-4 sm:pt-5 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              Weekly Attendance Trend
-            </CardTitle>
-            <CardDescription className="text-xs">Turnout over the last 7 official working days</CardDescription>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => handleNavigate('reports')}
-            className="text-xs h-8 gap-1.5"
-          >
-            <BarChart3 className="w-3.5 h-3.5" /> Reports
-          </Button>
-        </CardHeader>
-        <CardContent className="px-1 sm:px-4 pb-3 sm:pb-4">
-          <div className="h-44 sm:h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyTrend} barSize={isMobile ? 22 : 36}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(val) => {
-                    const item = weeklyTrend.find(w => w.date === val);
-                    return item ? item.day : val;
-                  }}
-                  tick={{ fontSize: isMobile ? 10 : 11 }}
-                  stroke="hsl(var(--muted-foreground))"
-                />
-                <YAxis
-                  tick={{ fontSize: isMobile ? 10 : 11 }}
-                  stroke="hsl(var(--muted-foreground))"
-                  width={isMobile ? 25 : 40}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: any) => [`${value} Students & Staff`, 'Present']}
-                  labelFormatter={(label: string) => {
-                    const item = weeklyTrend.find(w => w.date === label);
-                    return item?.fullDate || label;
-                  }}
-                />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
-                  {weeklyTrend.map((entry, index) => {
-                    const isToday = entry.date === format(new Date(), 'yyyy-MM-dd');
-                    return (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={isToday ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.6)'}
-                      />
-                    );
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* 6. Student Registry & Live Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
