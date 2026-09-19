@@ -354,7 +354,7 @@ const Admin = () => {
       case 'dashboard':
         return (
           <TabPanel>
-            <PrincipalDashboard />
+            <PrincipalDashboard onNavigateTab={handleTabChange} />
           </TabPanel>
         );
       case 'sections':
@@ -458,7 +458,7 @@ const Admin = () => {
       default:
         return (
           <TabPanel>
-            <PrincipalDashboard />
+            <PrincipalDashboard onNavigateTab={handleTabChange} />
           </TabPanel>
         );
     }
