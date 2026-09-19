@@ -29,7 +29,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { descriptorToString, stringToDescriptor } from './ModelService';
-import { getAttendanceCutoffTime } from '../attendance/AttendanceSettingsService';
+import { getAttendanceCutoffTime, isSaveAttendanceFaceSamplesEnabledSync } from '../attendance/AttendanceSettingsService';
 import { getAllTrainedDescriptors } from './ProgressiveTrainingService';
 import { buildVectorIndex, searchVectorIndex } from './VectorIndexService';
 import { dataUrlToBlob, uploadAttendanceTrainingImage } from './TrainingDataStorageService';
@@ -666,15 +666,17 @@ export async function recordAttendance(
           const { data: urlData } = supabase.storage.from('face-images').getPublicUrl(fileName);
           uploadedImageUrl = urlData?.publicUrl ?? null;
         }
-        trainingAttendancePath = await uploadAttendanceTrainingImage({
-          imageBlob: blob,
-          studentId: userId,
-          status: adjustedStatus as 'present' | 'late' | 'absent' | 'unauthorized',
-          mode:    captureMode,
-          confidence,
-          employeeId: deviceInfo?.metadata?.employee_id,
-          category:   deviceInfo?.metadata?.category,
-        });
+        if (isSaveAttendanceFaceSamplesEnabledSync()) {
+          trainingAttendancePath = await uploadAttendanceTrainingImage({
+            imageBlob: blob,
+            studentId: userId,
+            status: adjustedStatus as 'present' | 'late' | 'absent' | 'unauthorized',
+            mode:    captureMode,
+            confidence,
+            employeeId: deviceInfo?.metadata?.employee_id,
+            category:   deviceInfo?.metadata?.category,
+          });
+        }
       }
     } catch (uploadErr) {
       console.warn('Image upload error:', uploadErr);

@@ -21,7 +21,7 @@ import { sendAutoParentNotification } from '@/services/notification/AutoNotifica
 import { storeFaceSample } from '@/services/face-recognition/ProgressiveTrainingService';
 import { supabase } from '@/integrations/supabase/client';
 
-import { getCutoffTime, isPastCutoffTime, getAttendanceCutoffTime } from '@/services/attendance/AttendanceSettingsService';
+import { getCutoffTime, isPastCutoffTime, getAttendanceCutoffTime, isSaveAttendanceFaceSamplesEnabledSync } from '@/services/attendance/AttendanceSettingsService';
 import { playSuccessChime, playLateChime } from '@/utils/audioFeedback';
 import * as faceapi from 'face-api.js';
 import { loadNet } from '@/services/face-recognition/NetLoaderService';
@@ -421,7 +421,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       try {
         const isHighQuality =
           job.confidence >= 0.65 && !!job.crop && job.crop.blurScore >= AUTO_SAMPLE_MIN_SHARPNESS;
-        if (job.descriptor && isHighQuality && job.crop) {
+        if (isSaveAttendanceFaceSamplesEnabledSync() && job.descriptor && isHighQuality && job.crop) {
           const blob = await (await fetch(job.crop.dataUrl)).blob();
           const stored = await storeFaceSample(job.userId, job.descriptor, blob, job.name, job.confidence);
           patchAutoMarked(job.entryId, { sampleSaved: stored });

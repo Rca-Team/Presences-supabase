@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { loadOptimizedModels, areOptimizedModelsLoaded, detectSingleFaceOptimized, resetTracking } from '@/services/face-recognition/OptimizedModelService';
 import { detectMultipleFaces, processBatchAttendance, getTrackingStats, MultipleFaceResult } from '@/services/face-recognition/MultipleFaceService';
-import { getAttendanceCutoffTime } from '@/services/attendance/AttendanceSettingsService';
+import { getAttendanceCutoffTime, isSaveAttendanceFaceSamplesEnabledSync } from '@/services/attendance/AttendanceSettingsService';
 import { storeFaceSample } from '@/services/face-recognition/ProgressiveTrainingService';
 import { toast } from 'sonner';
 
@@ -251,8 +251,8 @@ export const useOptimizedFaceRecognition = () => {
               );
             }
 
-            // Store face sample for progressive training
-            if (recognitionResult.confidence && recognitionResult.confidence > 0.75) {
+            // Store face sample for progressive training (if enabled in admin settings)
+            if (isSaveAttendanceFaceSamplesEnabledSync() && recognitionResult.confidence && recognitionResult.confidence > 0.75) {
               try {
                 let imageBlob: Blob | null = null;
                 if (mediaElement instanceof HTMLVideoElement) {

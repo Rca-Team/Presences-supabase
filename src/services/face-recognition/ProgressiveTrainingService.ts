@@ -25,6 +25,7 @@ import { descriptorToString, stringToDescriptor } from './ModelService';
 import { uploadImage } from './StorageService';
 import { uploadAttendanceTrainingImage } from './TrainingDataStorageService';
 import { getGalleryScope, isRowInGalleryScope } from './GalleryScopeService';
+import { isSaveAttendanceFaceSamplesEnabledSync } from '../attendance/AttendanceSettingsService';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,12 @@ export async function storeFaceSample(
   confidence:     number
 ): Promise<boolean> {
   try {
+    // 0. Setting check: if saving attendance images to face samples is turned off, skip automatic samples
+    if (confidence !== 1.0 && !isSaveAttendanceFaceSamplesEnabledSync()) {
+      console.log('Skipping training sample — saving attendance images to face samples is turned OFF in admin settings');
+      return false;
+    }
+
     // 1. Confidence gate for progressive training sample persistence
     if (confidence < 0.82 && confidence !== 1.0) {
       console.log(

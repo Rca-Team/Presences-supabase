@@ -149,3 +149,125 @@ export const isPastCutoffTime = (cutoffTime: { hour: number; minute: number }): 
   
   return now > cutoffDate;
 };
+
+// ── Save Attendance Face Samples Setting (Real-Time) ─────────────────────────
+
+const SAVE_SAMPLES_CACHE_TTL_MS = 60 * 1000;
+let saveSamplesCache: { value: boolean; expiresAt: number } | null = null;
+const LOCAL_STORAGE_KEY_SAVE_SAMPLES = 'presence:save_attendance_face_samples';
+
+/**
+ * Synchronously checks if saving attendance images as face samples is enabled.
+ * Designed for sub-millisecond execution inside continuous video recognition loops.
+ */
+export const isSaveAttendanceFaceSamplesEnabledSync = (): boolean => {
+  if (saveSamplesCache && saveSamplesCache.expiresAt > Date.now()) {
+    return saveSamplesCache.value;
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY_SAVE_SAMPLES);
+      if (stored !== null) {
+        const val = stored === 'true';
+        saveSamplesCache = { value: val, expiresAt: Date.now() + SAVE_SAMPLES_CACHE_TTL_MS };
+        return val;
+      }
+    } catch {}
+  }
+  return true; // Default enabled
+};
+
+/**
+ * Get the save attendance face samples setting from the database
+ */
+export const getSaveAttendanceFaceSamples = async (): Promise<boolean> => {
+  try {
+    if (saveSamplesCache && saveSamplesCache.expiresAt > Date.now()) {
+      return saveSamplesCache.value;
+    }
+
+    const { data, error } = await supabase
+      .from('attendance_settings')
+      .select('*')
+      .eq('key', 'save_attendance_face_samples')
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Error fetching save_attendance_face_samples:', error.message);
+      return isSaveAttendanceFaceSamplesEnabledSync();
+    }
+
+    let resolved = true; // default enabled
+    if (data && data.value !== undefined && data.value !== null) {
+      resolved = String(data.value).toLowerCase() === 'true' || data.value === true || data.value === 1 || data.value === '1';
+    }
+
+    saveSamplesCache = {
+      value: resolved,
+      expiresAt: Date.now() + SAVE_SAMPLES_CACHE_TTL_MS,
+    };
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY_SAVE_SAMPLES, String(resolved));
+      } catch {}
+    }
+
+    return resolved;
+  } catch (err) {
+    console.error('Error in getSaveAttendanceFaceSamples:', err);
+    return isSaveAttendanceFaceSamplesEnabledSync();
+  }
+};
+
+/**
+ * Update the save attendance face samples setting in database and broadcast in real time
+ */
+export const updateSaveAttendanceFaceSamples = async (enabled: boolean): Promise<boolean> => {
+  const valueStr = enabled ? 'true' : 'false';
+
+  saveSamplesCache = {
+    value: enabled,
+    expiresAt: Date.now() + SAVE_SAMPLES_CACHE_TTL_MS,
+  };
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY_SAVE_SAMPLES, valueStr);
+      window.dispatchEvent(new CustomEvent('presence:save-samples-setting-changed', { detail: { enabled } }));
+    } catch {}
+  }
+
+  const { data, error } = await supabase
+    .from('attendance_settings')
+    .select('*')
+    .eq('key', 'save_attendance_face_samples')
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Error checking save_attendance_face_samples setting:', error.message);
+  }
+
+  if (data) {
+    const { error: updateError } = await supabase
+      .from('attendance_settings')
+      .update({ value: valueStr, updated_at: new Date().toISOString() })
+      .eq('key', 'save_attendance_face_samples');
+
+    if (updateError) {
+      console.error('Error updating save_attendance_face_samples:', updateError);
+      throw new Error(updateError.message);
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from('attendance_settings')
+      .insert({ key: 'save_attendance_face_samples', value: valueStr });
+
+    if (insertError) {
+      console.error('Error inserting save_attendance_face_samples:', insertError);
+      throw new Error(insertError.message);
+    }
+  }
+
+  return true;
+};

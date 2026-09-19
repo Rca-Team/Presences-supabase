@@ -11,6 +11,7 @@ import {
   isPastCutoffTime
 } from '@/services/FaceRecognitionService';
 import { storeFaceSample } from '@/services/face-recognition/ProgressiveTrainingService';
+import { isSaveAttendanceFaceSamplesEnabledSync } from '@/services/attendance/AttendanceSettingsService';
 import { analyzeFace, detectMultipleFaces } from '@/services/ai/FaceAnalysisService';
 import { enhanceFaceImage } from '@/services/ai/FaceEnhancementService';
 import { smartAlertsService } from '@/services/ai/SmartAlertsService';
@@ -226,14 +227,16 @@ export const useFaceRecognition = () => {
             });
           }
           
-          await storeFaceSample(
-            recognitionResult.employee.id,
-            faceDescriptor,
-            imageBlob,
-            recognitionResult.employee.name,
-            recognitionResult.confidence
-          );
-          console.log('Progressive training sample stored successfully');
+          if (isSaveAttendanceFaceSamplesEnabledSync()) {
+            await storeFaceSample(
+              recognitionResult.employee.id,
+              faceDescriptor,
+              imageBlob,
+              recognitionResult.employee.name,
+              recognitionResult.confidence
+            );
+            console.log('Progressive training sample stored successfully');
+          }
         } catch (trainError) {
           console.error('Failed to store training sample:', trainError);
           // Don't fail the main flow if training fails
