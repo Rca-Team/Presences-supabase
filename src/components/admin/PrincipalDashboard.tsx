@@ -11,17 +11,16 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
 import { 
-  Users, UserCheck, Clock, TrendingUp, Activity, 
-  Wifi, WifiOff, CheckCircle2, UserX, RefreshCw,
-  Zap, Search, Filter, FolderKanban, CalendarDays,
+  Users, Clock, TrendingUp, Activity, 
+  WifiOff, CheckCircle2, UserX, RefreshCw,
+  Zap, Search, FolderKanban, CalendarDays,
   QrCode, CreditCard, Image, Bell, Siren, BarChart3,
-  ArrowRight, ShieldCheck, ChevronRight, ExternalLink,
-  GraduationCap, AlertTriangle, MessageSquareText, Mail,
-  Check, Sparkles, Building2, Eye
+  ArrowRight, ChevronRight, MessageSquareText, Mail,
+  Building2, Eye
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, eachDayOfInterval, subDays } from 'date-fns';
+import { format, eachDayOfInterval, subDays } from 'date-fns';
 import { useRealtimeAttendance } from '@/hooks/useRealtimeAttendance';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -33,11 +32,6 @@ import {
 } from 'recharts';
 import { 
   SCHOOL_NAME, 
-  SCHOOL_AFFILIATION, 
-  PRINCIPAL_NAME, 
-  PRINCIPAL_TITLE, 
-  PRINCIPAL_PHOTO_URL, 
-  KVS_LOGO_URL,
   CLASSES,
   parseCategory,
   getCategoryLabel
@@ -101,7 +95,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
   const [weeklyTrend, setWeeklyTrend] = useState<{ date: string; day: string; fullDate: string; count: number }[]>([]);
   const [classBreakdowns, setClassBreakdowns] = useState<ClassBreakdownItem[]>([]);
   const [gatePassStats, setGatePassStats] = useState({ totalToday: 0, active: 0, pending: 0 });
-  const [substitutionAlerts, setSubstitutionAlerts] = useState({ pendingCount: 0, absentTeachersCount: 0 });
   const [notificationStats, setNotificationStats] = useState({ unreadInbox: 0, sentToday: 0 });
   const [faceModelCoverage, setFaceModelCoverage] = useState({ registeredFaces: 0, totalCoverageRate: 100 });
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
@@ -110,7 +103,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
     if (onNavigateTab) {
       onNavigateTab(tabId);
     } else {
-      // Fallback deep link
       const url = new URL(window.location.href);
       url.searchParams.set('tab', tabId);
       window.history.pushState({}, '', url.toString());
@@ -197,7 +189,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
       entries.sort((a, b) => b.time.localeCompare(a.time));
       setLiveEntries(entries.slice(0, 30));
 
-      // Build student list with status
       let teacherTotal = 0;
       let teacherPresent = 0;
 
@@ -252,7 +243,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         teacherPresent,
       });
 
-      // 3. Compute Class-by-Class Breakdown (Classes 6 to 12 + Teacher)
+      // 3. Class-by-Class Breakdown (Classes 6 to 12 + Teacher)
       const classMap: Record<string, { total: number; present: number; late: number; absent: number }> = {};
       CLASSES.forEach(cls => {
         classMap[`Class ${cls}`] = { total: 0, present: 0, late: 0, absent: 0 };
@@ -260,16 +251,13 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
       classMap['Teachers'] = { total: 0, present: 0, late: 0, absent: 0 };
 
       studentList.forEach(s => {
-        let targetGroup = 'Class 10'; // fallback
+        let targetGroup = 'Class 10';
         if (s.category === 'Teacher') {
           targetGroup = 'Teachers';
         } else {
           const parsed = parseCategory(s.category);
           if (parsed && classMap[`Class ${parsed.class}`]) {
             targetGroup = `Class ${parsed.class}`;
-          } else {
-            // Check if category is legacy A, B, C, D
-            targetGroup = `Class 10`;
           }
         }
 
@@ -299,7 +287,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
 
       setClassBreakdowns(breakdownList);
 
-      // 4. Fetch Gate Pass & Entry Stats
+      // 4. Gate Pass Stats
       try {
         const { data: gateSetting } = await supabase
           .from('attendance_settings')
@@ -320,7 +308,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         console.warn('Gate pass fetch error:', err);
       }
 
-      // 5. Fetch Notification & Inbox Stats
+      // 5. Notifications Count
       try {
         const { count: unreadCount } = await supabase
           .from('notifications')
@@ -329,7 +317,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
 
         setNotificationStats({
           unreadInbox: unreadCount || 0,
-          sentToday: unified.presentToday + unified.lateToday, // Auto parent notification triggered count
+          sentToday: unified.presentToday + unified.lateToday,
         });
       } catch (err) {
         console.warn('Notification stats fetch error:', err);
@@ -459,14 +447,13 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
     return list;
   }, [allStudents, statusFilter, searchQuery]);
 
-  // Current active period calculation (assuming 8 periods: 08:00 to 14:00)
+  // Current active period calculation
   const currentPeriodInfo = useMemo(() => {
     const now = new Date();
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
 
-    // School timings 08:00 (480 min) to 14:00 (840 min)
     if (totalMinutes < 480) return { label: 'Pre-Assembly (Opens 08:00 AM)', isSchoolHours: false, period: 0 };
     if (totalMinutes > 840) return { label: 'School Dispersed', isSchoolHours: false, period: 8 };
 
@@ -478,14 +465,14 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
   if (isLoading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-32 rounded-3xl bg-muted/60" />
+        <div className="h-20 rounded-2xl bg-muted/60" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Skeleton className="h-64 rounded-2xl" />
-          <Skeleton className="h-64 rounded-2xl" />
-          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
         </div>
       </div>
     );
@@ -499,59 +486,45 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
   ];
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-[1600px] mx-auto pb-10">
-      {/* 1. Official Institutional Executive Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-amber-400/30 bg-gradient-to-r from-slate-900 via-slate-900/95 to-[#1e1b4b] text-white p-4 sm:p-6 shadow-xl backdrop-blur-2xl">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5 sm:gap-4 w-full md:w-auto">
-            <div className="relative shrink-0">
-              <img
-                src={PRINCIPAL_PHOTO_URL}
-                alt={PRINCIPAL_NAME}
-                className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl object-cover object-top border-2 border-amber-400 shadow-md bg-slate-950"
-              />
-              <img
-                src={KVS_LOGO_URL}
-                alt="KVS Emblem"
-                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-lg bg-white p-0.5 shadow-md border border-amber-400 object-contain"
-              />
+    <div className="space-y-4 sm:space-y-5 max-w-[1600px] mx-auto pb-10">
+      
+      {/* 1. Official School Command Center Header - Clean & Practical */}
+      <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+              <Building2 className="h-5 w-5" />
             </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
-                  Principal Executive Desk
-                </span>
-                <span className="text-[10px] text-slate-300 font-medium">
-                  Autonomous Campus Governance
-                </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-foreground">
+                  PM Shri KV NFC Vigyan Vihar
+                </h2>
+                <Badge variant="secondary" className="text-[10px] font-semibold px-2 py-0 h-5">
+                  Delhi Region
+                </Badge>
               </div>
-              <h2 className="text-base sm:text-xl font-black text-white truncate">
-                {PRINCIPAL_NAME}
-              </h2>
-              <p className="text-xs text-amber-200 font-semibold">
-                {PRINCIPAL_TITLE} • {SCHOOL_NAME}
-              </p>
-              <p className="text-[11px] text-slate-300">
-                {SCHOOL_AFFILIATION}
+              <p className="text-xs text-muted-foreground">
+                School Command Center • Attendance & Operations Matrix
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
             {isConnected ? (
-              <Badge variant="outline" className="gap-1.5 text-emerald-300 border-emerald-500/40 bg-emerald-500/20 text-xs px-3 py-1 font-bold">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Live Terminal Connected
+              <Badge variant="outline" className="gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-xs px-2.5 py-1 font-semibold">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live Terminal
               </Badge>
             ) : (
-              <Badge variant="outline" className="gap-1.5 text-slate-300 border-slate-500/40 bg-slate-500/20 text-xs px-3 py-1 font-bold">
-                <WifiOff className="w-3.5 h-3.5" /> Offline Mode
+              <Badge variant="outline" className="gap-1.5 text-muted-foreground border-border text-xs px-2.5 py-1">
+                <WifiOff className="w-3.5 h-3.5" /> Standby
               </Badge>
             )}
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => fetchAllData()} 
-              className="gap-1.5 text-xs h-8 px-3 border-white/20 bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              className="gap-1.5 text-xs h-8 px-3"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </Button>
@@ -559,15 +532,15 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         </div>
       </div>
 
-      {/* 2. Primary KPI Row (Glance Level 1) */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4 lg:grid-cols-6">
+      {/* 2. Primary Metric KPI Strip */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 lg:grid-cols-6">
         <MetricCard 
           label="Registered" 
           value={overallStats.totalRegistered} 
           icon={Users} 
           color="text-blue-600 dark:text-blue-400" 
           bgColor="bg-blue-500/10" 
-          subtitle={`${overallStats.teacherTotal} Staff`}
+          subtitle={`${overallStats.teacherTotal} Teachers`}
           onClick={() => handleNavigate('students')}
         />
         <MetricCard 
@@ -576,7 +549,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           icon={CheckCircle2} 
           color="text-emerald-600 dark:text-emerald-400" 
           bgColor="bg-emerald-500/10" 
-          subtitle={`${overallStats.attendanceRate}% Rate`}
+          subtitle={`${overallStats.attendanceRate}% Turnout`}
           onClick={() => handleNavigate('reports')}
         />
         <MetricCard 
@@ -585,7 +558,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           icon={Clock} 
           color="text-amber-600 dark:text-amber-400" 
           bgColor="bg-amber-500/10" 
-          subtitle="After 08:15 AM"
+          subtitle="Post 08:15 AM"
           onClick={() => setStatusFilter('late')}
         />
         <MetricCard 
@@ -607,7 +580,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           onClick={() => handleNavigate('gatepass')}
         />
         <MetricCard 
-          label="Schedule Pulse" 
+          label="Timetable Period" 
           value={currentPeriodInfo.period || 8} 
           icon={CalendarDays} 
           color="text-indigo-600 dark:text-indigo-400" 
@@ -617,8 +590,8 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         />
       </div>
 
-      {/* 3. Overall Attendance Ring & Quick Actions Banner */}
-      <Card className="overflow-hidden border border-slate-200/80 dark:border-white/10 bg-card/60 backdrop-blur-sm">
+      {/* 3. Overall Attendance Rate Ring & Quick Actions */}
+      <Card className="overflow-hidden border border-border/80 bg-card">
         <CardContent className="p-3.5 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 sm:gap-5 w-full md:w-auto">
             <ProgressRing
@@ -629,11 +602,11 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             />
             <div className="flex-1 min-w-0">
               <p className="text-xs sm:text-sm font-semibold text-muted-foreground">Today's Campus Attendance Rate</p>
-              <p className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-white">
+              <p className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-foreground">
                 {overallStats.attendanceRate}%
               </p>
               <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{overallStats.presentToday + overallStats.lateToday}</span> present out of <span className="font-bold">{overallStats.totalRegistered}</span> registered students & staff
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{overallStats.presentToday + overallStats.lateToday}</span> present out of <span className="font-bold">{overallStats.totalRegistered}</span> students & staff
               </p>
             </div>
           </div>
@@ -643,46 +616,46 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               size="sm" 
               variant="outline" 
               onClick={() => handleNavigate('sections')}
-              className="text-xs h-8 gap-1.5 rounded-xl border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+              className="text-xs h-8 gap-1.5 rounded-xl border-border"
             >
-              <FolderKanban className="w-3.5 h-3.5" /> Class Sections
+              <FolderKanban className="w-3.5 h-3.5 text-blue-600" /> Classes
             </Button>
             <Button 
               size="sm" 
               variant="outline" 
               onClick={() => handleNavigate('timetable')}
-              className="text-xs h-8 gap-1.5 rounded-xl border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              className="text-xs h-8 gap-1.5 rounded-xl border-border"
             >
-              <CalendarDays className="w-3.5 h-3.5" /> Timetable
+              <CalendarDays className="w-3.5 h-3.5 text-indigo-600" /> Timetable
             </Button>
             <Button 
               size="sm" 
               variant="outline" 
               onClick={() => handleNavigate('reports')}
-              className="text-xs h-8 gap-1.5 rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              className="text-xs h-8 gap-1.5 rounded-xl border-border"
             >
-              <BarChart3 className="w-3.5 h-3.5" /> Daily Report
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-600" /> Daily Report
             </Button>
             <Button 
               size="sm" 
               variant="outline" 
               onClick={() => handleNavigate('emergency')}
-              className="text-xs h-8 gap-1.5 rounded-xl border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+              className="text-xs h-8 gap-1.5 rounded-xl border-border"
             >
-              <Siren className="w-3.5 h-3.5" /> Safety & Emergency
+              <Siren className="w-3.5 h-3.5 text-rose-600" /> Emergency
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* 4. Multi-Module "Glimpse of All" Control Grid */}
+      {/* 4. Multi-Module Glimpse Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         
-        {/* Module Glimpse 1: Classes & Grades Breakdown */}
-        <Card className="border border-slate-200/80 dark:border-white/10 hover:shadow-md transition-shadow">
+        {/* Module 1: Class Breakdown */}
+        <Card className="border border-border/80 hover:shadow-sm transition-shadow">
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <FolderKanban className="w-4 h-4 text-blue-600" />
                 Class Attendance Glimpse
               </CardTitle>
@@ -692,9 +665,9 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               variant="ghost" 
               size="sm" 
               onClick={() => handleNavigate('sections')}
-              className="text-xs text-blue-600 dark:text-blue-400 h-7 px-2 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+              className="text-xs text-primary h-7 px-2 hover:bg-muted"
             >
-              Open Class <ArrowRight className="w-3 h-3 ml-1" />
+              View All <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent className="p-4 pt-2 space-y-2.5">
@@ -702,10 +675,10 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               <div 
                 key={item.key} 
                 onClick={() => handleNavigate('sections')}
-                className="cursor-pointer group flex items-center justify-between gap-3 text-xs p-1.5 rounded-lg hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+                className="cursor-pointer group flex items-center justify-between gap-3 text-xs p-1.5 rounded-lg hover:bg-muted/60 transition-colors"
               >
                 <div className="flex items-center gap-2 min-w-20">
-                  <span className="font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <span className="font-bold text-foreground group-hover:text-primary transition-colors">
                     {item.label}
                   </span>
                 </div>
@@ -730,45 +703,45 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           </CardContent>
         </Card>
 
-        {/* Module Glimpse 2: Timetable & Substitution Engine */}
-        <Card className="border border-slate-200/80 dark:border-white/10 hover:shadow-md transition-shadow">
+        {/* Module 2: Timetable & Substitutions */}
+        <Card className="border border-border/80 hover:shadow-sm transition-shadow">
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <CalendarDays className="w-4 h-4 text-indigo-600" />
-                Timetable & Substitutions
+                Timetable & Schedule
               </CardTitle>
-              <CardDescription className="text-[11px]">Daily schedule & teacher allocations</CardDescription>
+              <CardDescription className="text-[11px]">Daily periods & teacher coverage</CardDescription>
             </div>
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={() => handleNavigate('timetable')}
-              className="text-xs text-indigo-600 dark:text-indigo-400 h-7 px-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              className="text-xs text-primary h-7 px-2 hover:bg-muted"
             >
-              Open Timetable <ArrowRight className="w-3 h-3 ml-1" />
+              Timetable <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent className="p-4 pt-2 space-y-3">
-            <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-between">
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-indigo-900 dark:text-indigo-300">Active Campus Schedule</p>
-                <p className="text-xs font-bold text-indigo-700 dark:text-indigo-400 mt-0.5">{currentPeriodInfo.label}</p>
+                <p className="text-[11px] font-semibold text-muted-foreground">Campus Schedule</p>
+                <p className="text-xs font-bold text-foreground mt-0.5">{currentPeriodInfo.label}</p>
               </div>
-              <Badge className="bg-indigo-600 text-white text-[10px]">
-                {currentPeriodInfo.isSchoolHours ? 'Live Period' : 'Active'}
+              <Badge variant="outline" className="text-[10px] font-semibold">
+                {currentPeriodInfo.isSchoolHours ? 'In Session' : 'Standby'}
               </Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2.5 rounded-lg border bg-card/60">
+              <div className="p-2.5 rounded-lg border bg-card">
                 <p className="text-[10px] text-muted-foreground font-medium">Teachers Present</p>
-                <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
+                <p className="text-base font-bold text-foreground mt-0.5">
                   {overallStats.teacherPresent} / {overallStats.teacherTotal || 24}
                 </p>
               </div>
-              <div className="p-2.5 rounded-lg border bg-card/60">
-                <p className="text-[10px] text-muted-foreground font-medium">Substitutions Today</p>
+              <div className="p-2.5 rounded-lg border bg-card">
+                <p className="text-[10px] text-muted-foreground font-medium">Substitutions</p>
                 <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
                   0 Pending
                 </p>
@@ -778,122 +751,104 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => handleNavigate('reports')}
-              className="w-full text-xs h-8 border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+              onClick={() => handleNavigate('timetable')}
+              className="w-full text-xs h-8"
             >
-              View Substitution Matrix & Schedule
+              Open Timetable Matrix
             </Button>
           </CardContent>
         </Card>
 
-        {/* Module Glimpse 3: Gate Passes & Perimeter Security */}
-        <Card className="border border-slate-200/80 dark:border-white/10 hover:shadow-md transition-shadow">
+        {/* Module 3: Gate Passes */}
+        <Card className="border border-border/80 hover:shadow-sm transition-shadow">
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <QrCode className="w-4 h-4 text-purple-600" />
                 Gate Passes & Security
               </CardTitle>
-              <CardDescription className="text-[11px]">Guard checkouts & visitor permits</CardDescription>
+              <CardDescription className="text-[11px]">Guard checkouts & perimeter status</CardDescription>
             </div>
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={() => handleNavigate('gatepass')}
-              className="text-xs text-purple-600 dark:text-purple-400 h-7 px-2 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+              className="text-xs text-primary h-7 px-2 hover:bg-muted"
             >
-              Open Passes <ArrowRight className="w-3 h-3 ml-1" />
+              Passes <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent className="p-4 pt-2 space-y-3">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2 rounded-lg bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/50 dark:border-purple-800/40">
-                <p className="text-[10px] text-purple-700 dark:text-purple-300 font-medium">Active Passes</p>
-                <p className="text-lg font-bold text-purple-900 dark:text-purple-200">{gatePassStats.active}</p>
+              <div className="p-2 rounded-lg bg-muted/40 border border-border/60">
+                <p className="text-[10px] text-muted-foreground font-medium">Active</p>
+                <p className="text-lg font-bold text-foreground">{gatePassStats.active}</p>
               </div>
-              <div className="p-2 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-800/40">
-                <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">Pending</p>
-                <p className="text-lg font-bold text-amber-900 dark:text-amber-200">{gatePassStats.pending}</p>
+              <div className="p-2 rounded-lg bg-muted/40 border border-border/60">
+                <p className="text-[10px] text-muted-foreground font-medium">Pending</p>
+                <p className="text-lg font-bold text-foreground">{gatePassStats.pending}</p>
               </div>
-              <div className="p-2 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/40">
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">Perimeter</p>
-                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-1">SECURED</p>
+              <div className="p-2 rounded-lg bg-muted/40 border border-border/60">
+                <p className="text-[10px] text-muted-foreground font-medium">Perimeter</p>
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">SECURED</p>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs px-1 text-muted-foreground">
-              <span>Security Terminal Guard Mode:</span>
-              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/30">
-                Active & Scanning
-              </Badge>
             </div>
 
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => handleNavigate('gatepass')}
-              className="w-full text-xs h-8 border-purple-200 dark:border-purple-800/60 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+              className="w-full text-xs h-8"
             >
-              Issue / Approve Student Gate Pass
+              Manage & Approve Gate Passes
             </Button>
           </CardContent>
         </Card>
 
-        {/* Module Glimpse 4: Biometrics & Face Recognition Health */}
-        <Card className="border border-slate-200/80 dark:border-white/10 hover:shadow-md transition-shadow">
+        {/* Module 4: Biometrics */}
+        <Card className="border border-border/80 hover:shadow-sm transition-shadow">
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <Activity className="w-4 h-4 text-emerald-600" />
-                Biometrics & AI Health
+                Biometrics & Face AI
               </CardTitle>
-              <CardDescription className="text-[11px]">Face descriptors & camera pipeline</CardDescription>
+              <CardDescription className="text-[11px]">Camera detection pipeline</CardDescription>
             </div>
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={() => handleNavigate('samples')}
-              className="text-xs text-emerald-600 dark:text-emerald-400 h-7 px-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              className="text-xs text-primary h-7 px-2 hover:bg-muted"
             >
-              Face Samples <ArrowRight className="w-3 h-3 ml-1" />
+              Samples <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent className="p-4 pt-2 space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Biometric Coverage:</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">{faceModelCoverage.registeredFaces} Enrolled (100%)</span>
+              <span className="text-muted-foreground">Enrolled Profiles:</span>
+              <span className="font-bold text-foreground">{faceModelCoverage.registeredFaces} Students & Staff</span>
             </div>
             <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
               <div className="h-full rounded-full bg-emerald-500 w-full" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-              <div className="p-2 rounded-lg border bg-card/60">
-                <p className="text-[10px] text-muted-foreground">Face-API AI Models</p>
-                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">SSD MobileNet V1</p>
-              </div>
-              <div className="p-2 rounded-lg border bg-card/60">
-                <p className="text-[10px] text-muted-foreground">Confidence Threshold</p>
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">0.50 (Strict Match)</p>
-              </div>
             </div>
 
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => handleNavigate('students')}
-              className="w-full text-xs h-8 border-emerald-200 dark:border-emerald-800/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+              className="w-full text-xs h-8"
             >
-              View Biometric Profiles & Diagnostics
+              Biometric Profiles & Diagnostics
             </Button>
           </CardContent>
         </Card>
 
-        {/* Module Glimpse 5: Student ID Cards & Extraction */}
-        <Card className="border border-slate-200/80 dark:border-white/10 hover:shadow-md transition-shadow">
+        {/* Module 5: ID Cards */}
+        <Card className="border border-border/80 hover:shadow-sm transition-shadow">
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <CreditCard className="w-4 h-4 text-cyan-600" />
                 ID Cards & Registry
               </CardTitle>
@@ -903,20 +858,20 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               variant="ghost" 
               size="sm" 
               onClick={() => handleNavigate('idcards')}
-              className="text-xs text-cyan-600 dark:text-cyan-400 h-7 px-2 hover:bg-cyan-50 dark:hover:bg-cyan-950/40"
+              className="text-xs text-primary h-7 px-2 hover:bg-muted"
             >
-              Open ID Cards <ArrowRight className="w-3 h-3 ml-1" />
+              ID Cards <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent className="p-4 pt-2 space-y-3">
-            <div className="p-3 rounded-xl bg-cyan-50/70 dark:bg-cyan-950/30 border border-cyan-200/60 dark:border-cyan-800/40 flex items-center justify-between">
+            <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-cyan-900 dark:text-cyan-300">Institutional ID Status</p>
-                <p className="text-xs font-bold text-cyan-700 dark:text-cyan-400 mt-0.5">
-                  {overallStats.totalRegistered} Smart ID Cards Ready
+                <p className="text-[11px] font-semibold text-muted-foreground">Card Status</p>
+                <p className="text-xs font-bold text-foreground mt-0.5">
+                  {overallStats.totalRegistered} Cards Ready
                 </p>
               </div>
-              <Badge className="bg-cyan-600 text-white text-[10px]">Print Ready</Badge>
+              <Badge variant="outline" className="text-[10px]">Print Ready</Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -924,7 +879,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 variant="outline" 
                 size="sm" 
                 onClick={() => handleNavigate('idcard')}
-                className="text-xs h-8 gap-1 border-cyan-200 dark:border-cyan-800/60 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/30"
+                className="text-xs h-8 gap-1"
               >
                 <Image className="w-3.5 h-3.5" /> ID Extract
               </Button>
@@ -932,30 +887,21 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 variant="outline" 
                 size="sm" 
                 onClick={() => handleNavigate('idcards')}
-                className="text-xs h-8 gap-1 border-cyan-200 dark:border-cyan-800/60 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/30"
+                className="text-xs h-8 gap-1"
               >
                 <CreditCard className="w-3.5 h-3.5" /> Batch Print
               </Button>
             </div>
-
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => handleNavigate('idcards')}
-              className="w-full text-xs h-8"
-            >
-              Open Student ID Table & QR Registry
-            </Button>
           </CardContent>
         </Card>
 
-        {/* Module Glimpse 6: Parent Communications & Broadcast */}
-        <Card className="border border-slate-200/80 dark:border-white/10 hover:shadow-md transition-shadow">
+        {/* Module 6: Parent Alerts */}
+        <Card className="border border-border/80 hover:shadow-sm transition-shadow">
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <Bell className="w-4 h-4 text-amber-600" />
-                Parent Alerts & Delivery
+                Parent Notifications
               </CardTitle>
               <CardDescription className="text-[11px]">SMS, WhatsApp & Push updates</CardDescription>
             </div>
@@ -963,21 +909,21 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               variant="ghost" 
               size="sm" 
               onClick={() => handleNavigate('notifications')}
-              className="text-xs text-amber-600 dark:text-amber-400 h-7 px-2 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+              className="text-xs text-primary h-7 px-2 hover:bg-muted"
             >
               Broadcast <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent className="p-4 pt-2 space-y-3">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2.5 rounded-lg border bg-card/60">
-                <p className="text-[10px] text-muted-foreground font-medium">Unread Parent Inbox</p>
-                <p className="text-base font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+              <div className="p-2.5 rounded-lg border bg-card">
+                <p className="text-[10px] text-muted-foreground font-medium">Unread Inbox</p>
+                <p className="text-base font-bold text-foreground mt-0.5">
                   {notificationStats.unreadInbox} Messages
                 </p>
               </div>
-              <div className="p-2.5 rounded-lg border bg-card/60">
-                <p className="text-[10px] text-muted-foreground font-medium">Today's Delivery Rate</p>
+              <div className="p-2.5 rounded-lg border bg-card">
+                <p className="text-[10px] text-muted-foreground font-medium">Delivery Rate</p>
                 <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
                   99.8% Success
                 </p>
@@ -999,31 +945,22 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 onClick={() => handleNavigate('notif-log')}
                 className="flex-1 text-xs h-8 gap-1"
               >
-                <MessageSquareText className="w-3.5 h-3.5" /> Delivery Log
+                <MessageSquareText className="w-3.5 h-3.5" /> Log
               </Button>
             </div>
-
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => handleNavigate('notifications')}
-              className="w-full text-xs h-8 border-amber-200 dark:border-amber-800/60 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-            >
-              Send Official Circular or Notice
-            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* 5. Weekly Attendance Trend Chart (Full Width) */}
-      <Card className="border border-slate-200/80 dark:border-white/10 shadow-sm">
-        <CardHeader className="pb-1 sm:pb-2 px-4 sm:px-6 pt-4 sm:pt-6 flex flex-row items-center justify-between">
+      {/* 5. 7-Day Trend Chart */}
+      <Card className="border border-border/80 shadow-xs">
+        <CardHeader className="pb-1 sm:pb-2 px-4 sm:px-6 pt-4 sm:pt-5 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+            <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
               <TrendingUp className="w-4 h-4 text-primary" />
-              Weekly Attendance Trend & Turnout
+              Weekly Attendance Trend
             </CardTitle>
-            <CardDescription className="text-xs">Turnout analysis over the last 7 official school working days</CardDescription>
+            <CardDescription className="text-xs">Turnout over the last 7 official working days</CardDescription>
           </div>
           <Button 
             variant="outline" 
@@ -1031,11 +968,11 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             onClick={() => handleNavigate('reports')}
             className="text-xs h-8 gap-1.5"
           >
-            <BarChart3 className="w-3.5 h-3.5" /> Full Reports & Export
+            <BarChart3 className="w-3.5 h-3.5" /> Reports
           </Button>
         </CardHeader>
         <CardContent className="px-1 sm:px-4 pb-3 sm:pb-4">
-          <div className="h-44 sm:h-56">
+          <div className="h-44 sm:h-52">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyTrend} barSize={isMobile ? 22 : 36}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -1060,7 +997,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
                     fontSize: '12px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
                   }}
                   formatter={(value: any) => [`${value} Students & Staff`, 'Present']}
                   labelFormatter={(label: string) => {
@@ -1068,13 +1004,13 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     return item?.fullDate || label;
                   }}
                 />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
                   {weeklyTrend.map((entry, index) => {
                     const isToday = entry.date === format(new Date(), 'yyyy-MM-dd');
                     return (
                       <Cell
                         key={`cell-${index}`}
-                        fill={isToday ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.65)'}
+                        fill={isToday ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.6)'}
                       />
                     );
                   })}
@@ -1085,18 +1021,18 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         </CardContent>
       </Card>
 
-      {/* 6. Live Activity Stream + Searchable Student Directory */}
+      {/* 6. Student Registry & Live Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         
-        {/* Student Directory with Search & Deep Detail Trigger */}
-        <Card className="overflow-hidden border border-slate-200/80 dark:border-white/10">
+        {/* Student Directory */}
+        <Card className="overflow-hidden border border-border/80">
           <CardHeader className="pb-2 px-4 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <Users className="w-4 h-4 text-primary" />
                 Student Registry ({filteredStudents.length})
               </CardTitle>
-              <CardDescription className="text-[11px]">Click any student for instant deep dossier</CardDescription>
+              <CardDescription className="text-[11px]">Click any student to view dossier</CardDescription>
             </div>
             
             <div className="relative w-full sm:w-48">
@@ -1130,7 +1066,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           </div>
 
           <CardContent className="p-0">
-            <ScrollArea className="h-[320px]">
+            <ScrollArea className="h-[300px]">
               <div className="divide-y divide-border">
                 {filteredStudents.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground text-xs">
@@ -1141,17 +1077,17 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     <div 
                       key={i} 
                       onClick={() => setSelectedStudentForDetail(student)}
-                      className="cursor-pointer flex items-center gap-3 px-4 py-2.5 hover:bg-slate-100/70 dark:hover:bg-white/5 transition-colors group"
+                      className="cursor-pointer flex items-center gap-3 px-4 py-2 hover:bg-muted/50 transition-colors group"
                     >
-                      <Avatar className="h-8 w-8 flex-shrink-0 border border-slate-200 dark:border-white/10">
+                      <Avatar className="h-8 w-8 flex-shrink-0 border border-border">
                         <AvatarImage src={student.image_url} />
-                        <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
+                        <AvatarFallback className="text-xs font-bold bg-muted">
                           {student.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-xs sm:text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                          <p className="text-xs sm:text-sm font-medium truncate group-hover:text-primary transition-colors">
                             {student.name}
                           </p>
                           <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
@@ -1166,7 +1102,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                           <span className="text-[10px] text-muted-foreground tabular-nums">{student.time}</span>
                         )}
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground opacity-40 group-hover:opacity-100 transition-opacity" />
                     </div>
                   ))
                 )}
@@ -1176,7 +1112,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         </Card>
 
         {/* Real-time Live Activity Stream */}
-        <Card className="overflow-hidden border border-slate-200/80 dark:border-white/10">
+        <Card className="overflow-hidden border border-border/80">
           <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -1201,7 +1137,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[360px]">
+            <ScrollArea className="h-[340px]">
               <AnimatePresence initial={false}>
                 {liveEntries.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
@@ -1213,14 +1149,14 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     {liveEntries.map((entry, i) => (
                       <motion.div
                         key={entry.id}
-                        initial={i === 0 ? { opacity: 0, x: -20 } : false}
+                        initial={i === 0 ? { opacity: 0, x: -10 } : false}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-100/70 dark:hover:bg-white/5 transition-colors"
+                        transition={{ duration: 0.2 }}
+                        className="flex items-center gap-3 px-4 py-2 hover:bg-muted/50 transition-colors"
                       >
-                        <Avatar className="h-8 w-8 flex-shrink-0 border border-slate-200 dark:border-white/10">
+                        <Avatar className="h-8 w-8 flex-shrink-0 border border-border">
                           <AvatarImage src={entry.imageUrl?.startsWith('data:') ? entry.imageUrl : ''} />
-                          <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
+                          <AvatarFallback className="text-xs font-semibold bg-muted">
                             {entry.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
@@ -1246,14 +1182,14 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             <>
               <DialogHeader>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-14 w-14 border-2 border-primary/20 shadow-md">
+                  <Avatar className="h-12 w-12 border border-border">
                     <AvatarImage src={selectedStudentForDetail.image_url} />
-                    <AvatarFallback className="text-lg font-bold bg-primary/10 text-primary">
+                    <AvatarFallback className="text-base font-bold bg-muted">
                       {selectedStudentForDetail.name.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <DialogTitle className="text-base font-extrabold">{selectedStudentForDetail.name}</DialogTitle>
+                    <DialogTitle className="text-base font-bold">{selectedStudentForDetail.name}</DialogTitle>
                     <DialogDescription className="text-xs">
                       {getCategoryLabel(selectedStudentForDetail.category)} • Roll/ID: {selectedStudentForDetail.employee_id}
                     </DialogDescription>
@@ -1263,21 +1199,21 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
 
               <div className="space-y-3 py-2 text-xs">
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 rounded-xl border bg-card/60">
+                  <div className="p-3 rounded-xl border bg-card">
                     <span className="text-[10px] text-muted-foreground block">Today's Status</span>
                     <div className="mt-1 flex items-center gap-1.5">
                       <StatusDot status={selectedStudentForDetail.status} showLabel />
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl border bg-card/60">
+                  <div className="p-3 rounded-xl border bg-card">
                     <span className="text-[10px] text-muted-foreground block">Check-in Time</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-1 block">
+                    <span className="font-bold text-foreground mt-1 block">
                       {selectedStudentForDetail.time || 'Not Punched Today'}
                     </span>
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl border bg-card/60 space-y-1.5">
+                <div className="p-3 rounded-xl border bg-card space-y-1.5">
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
                     Institutional Record
                   </span>
@@ -1286,7 +1222,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     <span className="font-semibold text-right">PM Shri KV NFC Vigyan Vihar</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Biometric Model:</span>
+                    <span className="text-muted-foreground">Biometric Status:</span>
                     <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/30">
                       Face Enrolled & Verified
                     </Badge>
@@ -1325,7 +1261,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
   );
 };
 
-// Metric card with drill-down trigger
+// Clean Metric Card
 const MetricCard: React.FC<{
   label: string;
   value: number;
@@ -1336,36 +1272,36 @@ const MetricCard: React.FC<{
   onClick?: () => void;
 }> = ({ label, value, icon: Icon, color, bgColor, subtitle, onClick }) => (
   <motion.div
-    initial={{ opacity: 0, y: 10 }}
+    initial={{ opacity: 0, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
     onClick={onClick}
     className={cn(
-      "relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/10 bg-card/80 p-3 sm:p-4 transition-all duration-200",
-      onClick && "cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] group"
+      "relative overflow-hidden rounded-xl border border-border/80 bg-card p-3 sm:p-4 transition-all duration-150",
+      onClick && "cursor-pointer hover:shadow-xs hover:border-primary/40 active:scale-[0.99] group"
     )}
   >
     <div className="flex items-start justify-between">
       <div className="min-w-0">
-        <p className="text-[11px] sm:text-xs font-semibold text-muted-foreground truncate">{label}</p>
+        <p className="text-[11px] sm:text-xs font-medium text-muted-foreground truncate">{label}</p>
         <div className="flex items-baseline gap-1.5 mt-1">
-          <span className="text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight text-slate-900 dark:text-white">
+          <span className="text-xl sm:text-2xl font-bold tabular-nums tracking-tight text-foreground">
             {value}
           </span>
           {subtitle && (
-            <span className={cn("text-[10px] sm:text-xs font-bold truncate", color)}>
+            <span className={cn("text-[10px] sm:text-xs font-semibold truncate", color)}>
               {subtitle}
             </span>
           )}
         </div>
       </div>
-      <div className={cn("rounded-xl p-2 shrink-0 group-hover:scale-110 transition-transform", bgColor)}>
+      <div className={cn("rounded-lg p-1.5 shrink-0", bgColor)}>
         <Icon className={cn("w-4 h-4", color)} />
       </div>
     </div>
   </motion.div>
 );
 
-// Status dot with label
+// Status dot
 const StatusDot: React.FC<{ status: string; showLabel?: boolean }> = ({ status, showLabel }) => {
   const config = {
     present: { color: 'bg-emerald-500', label: 'Present', textColor: 'text-emerald-600 dark:text-emerald-400' },
@@ -1376,7 +1312,7 @@ const StatusDot: React.FC<{ status: string; showLabel?: boolean }> = ({ status, 
   return (
     <div className="flex items-center gap-1.5">
       <span className={cn("w-2 h-2 rounded-full", config.color)} />
-      {showLabel && <span className={cn("text-[10px] font-bold", config.textColor)}>{config.label}</span>}
+      {showLabel && <span className={cn("text-[10px] font-medium", config.textColor)}>{config.label}</span>}
     </div>
   );
 };
