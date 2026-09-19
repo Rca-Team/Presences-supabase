@@ -332,10 +332,39 @@ export async function createGatePass(
     });
 
     if (existingPassToday && pass.requested_by !== 'admin' && !pass.bypass_daily_limit) {
-      const statusLabel = (existingPassToday.status || 'pending').replace('_', ' ').toUpperCase();
-      const errorMsg = `A gate pass has already been requested for ${pass.student_name || 'this student'} today (${existingPassToday.pass_code} - ${statusLabel}). Only 1 gate pass is permitted per day.`;
-      console.warn('[GatePassService] Daily limit reached:', errorMsg);
-      throw new Error(errorMsg);
+      if (existingPassToday.status !== 'used' && existingPassToday.status !== 'rejected') {
+        // If a pending or approved pass exists, update it with new pickup/time/reason details rather than failing
+        const updated = currentList.map(p => {
+          if (p.id === existingPassToday.id) {
+            return {
+              ...p,
+              pickup_person_name: pass.pickup_person_name,
+              pickup_person_phone: pass.pickup_person_phone,
+              pickup_person_relation: pass.pickup_person_relation,
+              pickup_person_id_proof: pass.pickup_person_id_proof,
+              reason_category: pass.reason_category,
+              reason_text: pass.reason_text,
+              expected_pickup_time: pass.expected_pickup_time,
+              status: pass.status || p.status,
+            };
+          }
+          return p;
+        });
+        await persistGatePasses(updated);
+        const updatedPass = updated.find(p => p.id === existingPassToday.id)!;
+        
+        // Notify
+        try {
+          await supabase.from('notifications').insert({
+            title: `🚨 Updated Gate Pass Request: ${updatedPass.student_name}`,
+            message: `${updatedPass.student_name} (${updatedPass.class_section}) updated gate pass request. Pickup: ${updatedPass.pickup_person_name} (${updatedPass.pickup_person_relation}). Expected: ${updatedPass.expected_pickup_time}. Reason: ${updatedPass.reason_text}`,
+            type: 'gate_pass',
+            is_read: false,
+          });
+        } catch {}
+
+        return updatedPass;
+      }
     }
 
     const randomCode = Math.floor(1000 + Math.random() * 9000);
@@ -373,6 +402,19 @@ export async function createGatePass(
     const updatedList = [newPass, ...currentList.filter((p) => p.id !== newPass.id)];
 
     await persistGatePasses(updatedList);
+
+    // Insert real-time notification for Teacher and Admin
+    try {
+      await supabase.from('notifications').insert({
+        title: `🚨 Early Exit Gate Pass Request: ${newPass.student_name}`,
+        message: `${newPass.student_name} (${newPass.class_section}) requested early departure. Pass Code: ${newPass.pass_code}. Pickup: ${newPass.pickup_person_name} (${newPass.pickup_person_relation}). Reason: ${newPass.reason_text}`,
+        type: 'gate_pass',
+        is_read: false,
+      });
+    } catch (notifErr) {
+      console.warn('[GatePassService] Notification insert error:', notifErr);
+    }
+
     return newPass;
   } catch (err) {
     console.error('[GatePassService] createGatePass error:', err);
@@ -409,6 +451,17 @@ export async function verifyPassByTeacher(
     });
 
     await persistGatePasses(updated);
+
+    // Notify Principal & Admin in realtime
+    try {
+      await supabase.from('notifications').insert({
+        title: `📝 Gate Pass Verified by Teacher: ${target.student_name}`,
+        message: `Pass ${target.pass_code} for ${target.student_name} (${target.class_section}) verified by ${teacherName}. Awaiting Principal authorization.`,
+        type: 'gate_pass',
+        is_read: false,
+      });
+    } catch {}
+
     return true;
   } catch (err) {
     console.error('[GatePassService] verifyPassByTeacher error:', err);
@@ -452,6 +505,17 @@ export async function approvePassByPrincipal(
     });
 
     await persistGatePasses(updated);
+
+    // Notify Parent & Class Teacher in realtime
+    try {
+      await supabase.from('notifications').insert({
+        title: `✅ Gate Pass Authorized: ${target.student_name}`,
+        message: `Pass ${target.pass_code} for ${target.student_name} authorized by Principal ${principalName}. Digital QR Token activated for security turnstile.`,
+        type: 'gate_pass',
+        is_read: false,
+      });
+    } catch {}
+
     return updatedPass;
   } catch (err) {
     console.error('[GatePassService] approvePassByPrincipal error:', err);
@@ -488,6 +552,17 @@ export async function rejectGatePass(
     });
 
     await persistGatePasses(updated);
+
+    // Notify Parent in realtime
+    try {
+      await supabase.from('notifications').insert({
+        title: `❌ Gate Pass Disapproved: ${target.student_name}`,
+        message: `Gate Pass request for ${target.student_name} was disapproved by ${rejectedBy}. Reason: ${reason || 'Administrative discretion'}.`,
+        type: 'gate_pass',
+        is_read: false,
+      });
+    } catch {}
+
     return true;
   } catch (err) {
     console.error('[GatePassService] rejectGatePass error:', err);
@@ -684,6 +759,16 @@ export async function verifyAndExecuteExit(
         exit_event: 'AUTHORIZED_EARLY_EXIT_GATE_PASS',
       },
     });
+
+    // 3. Notify Parent & School of physical departure
+    try {
+      await supabase.from('notifications').insert({
+        title: `🚪 Campus Exit Recorded: ${pass.student_name}`,
+        message: `${pass.student_name} (${pass.class_section}) departed through ${gateName}. Handed over to ${pass.pickup_person_name} (${pass.pickup_person_relation}). Exit verified by ${guardName}.`,
+        type: 'gate_pass',
+        is_read: false,
+      });
+    } catch {}
 
     return {
       success: true,

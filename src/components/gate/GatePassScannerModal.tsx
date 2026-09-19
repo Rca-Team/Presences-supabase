@@ -193,15 +193,30 @@ export const GatePassScannerModal: React.FC<GatePassScannerModalProps> = ({
   }, [open, activeTab]);
 
   const handleScanSuccess = (scannedValue: string) => {
-    // Try to match either pass.id or pass.pass_code or student_id
-    const val = scannedValue.trim().toLowerCase();
+    const raw = scannedValue.trim();
+    let targetCode = raw.toLowerCase();
+    let targetId = raw.toLowerCase();
+    let targetStudentId = raw.toLowerCase();
+
+    // If QR payload is JSON from generateGatePassQrPayload
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.passCode) targetCode = String(parsed.passCode).toLowerCase();
+        if (parsed.passId) targetId = String(parsed.passId).toLowerCase();
+        if (parsed.studentId) targetStudentId = String(parsed.studentId).toLowerCase();
+      } catch {}
+    }
+
     const matched = passes.find(
       p =>
-        p.id.toLowerCase() === val ||
-        p.pass_code?.toLowerCase() === val ||
-        p.student_id?.toLowerCase() === val ||
-        val.includes(p.id.toLowerCase()) ||
-        (p.pass_code && val.includes(p.pass_code.toLowerCase()))
+        p.id.toLowerCase() === targetId ||
+        p.pass_code?.toLowerCase() === targetCode ||
+        p.student_id?.toLowerCase() === targetStudentId ||
+        p.id.toLowerCase() === raw.toLowerCase() ||
+        p.pass_code?.toLowerCase() === raw.toLowerCase() ||
+        raw.toLowerCase().includes(p.id.toLowerCase()) ||
+        (p.pass_code && raw.toLowerCase().includes(p.pass_code.toLowerCase()))
     );
 
     if (matched) {
