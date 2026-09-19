@@ -338,7 +338,7 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-12">
+    <div className="min-h-screen bg-background pb-28 sm:pb-12">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4">
 
         {/* ========================================================================= */}

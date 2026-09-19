@@ -674,7 +674,7 @@ const Admin = () => {
 
             {/* Content Area */}
             <PullToRefresh onRefresh={handleRefresh} enabled={isMobile} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-              <div className="p-2.5 sm:p-4 md:p-6 pb-6">
+              <div className="p-2.5 sm:p-4 md:p-6 pb-24 sm:pb-8">
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
                     key={isDataLoading ? 'loading' : activeTab}

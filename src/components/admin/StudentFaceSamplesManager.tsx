@@ -2124,16 +2124,16 @@ const StudentFaceSamplesManager: React.FC = () => {
 
       {/* Floating Multi-Select Action Bar */}
       {selectedSampleIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-2xl border border-primary/40 bg-card/95 backdrop-blur-2xl px-6 py-3 shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
-          <Badge variant="default" className="rounded-full px-3 py-1 font-bold text-xs">
-            {selectedSampleIds.size} Photos Selected
+        <div className="fixed bottom-[calc(84px+env(safe-area-inset-bottom))] sm:bottom-8 left-1/2 -translate-x-1/2 z-[60] rounded-2xl border border-primary/40 bg-card/95 backdrop-blur-2xl px-3.5 sm:px-6 py-2 sm:py-3 shadow-2xl flex items-center gap-2 sm:gap-4 max-w-[calc(100vw-24px)] animate-in fade-in slide-in-from-bottom-4">
+          <Badge variant="default" className="rounded-full px-2.5 sm:px-3 py-1 font-bold text-[11px] sm:text-xs shrink-0">
+            {selectedSampleIds.size} <span className="hidden xs:inline">Photos</span> Selected
           </Badge>
-          <div className="h-4 w-px bg-border" />
+          <div className="h-4 w-px bg-border shrink-0" />
           <Button
             size="sm"
             variant="ghost"
             onClick={() => setSelectedSampleIds(new Set())}
-            className="text-xs font-semibold"
+            className="text-xs font-semibold px-2 sm:px-3 h-8 shrink-0"
           >
             Clear
           </Button>
@@ -2141,9 +2141,9 @@ const StudentFaceSamplesManager: React.FC = () => {
             size="sm"
             variant="destructive"
             onClick={handleBulkDelete}
-            className="rounded-xl font-bold gap-1.5 text-xs shadow-lg shadow-destructive/20"
+            className="rounded-xl font-bold gap-1 sm:gap-1.5 text-xs px-3 h-8 shadow-lg shadow-destructive/20 shrink-0"
           >
-            <Trash2 className="h-3.5 w-3.5" /> Delete Selected ({selectedSampleIds.size})
+            <Trash2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Delete Selected</span><span className="sm:hidden">Delete</span> ({selectedSampleIds.size})
           </Button>
         </div>
       )}
