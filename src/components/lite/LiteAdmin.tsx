@@ -31,19 +31,27 @@ import {
   ChevronRight,
   SlidersHorizontal,
   RefreshCw,
+  QrCode,
+  CreditCard,
+  Sparkles,
 } from 'lucide-react';
 import LiteModeToggle from '@/components/LiteModeToggle';
 
 // Dynamic module loaders
 const PrincipalDashboard = lazyWithRetry(() => import('@/components/admin/PrincipalDashboard'), 'admin-dashboard');
+const GatePassManager = lazyWithRetry(() => import('@/components/admin/GatePassManager'), 'admin-gatepass');
+const AdminFacesList = lazyWithRetry(() => import('@/components/admin/AdminFacesList'), 'admin-faces-list');
 const CategoryBasedView = lazyWithRetry(() => import('@/components/admin/CategoryBasedView'), 'admin-sections');
 const StudentDetailsTable = lazyWithRetry(() => import('@/components/admin/StudentDetailsTable'), 'admin-id-cards');
 const AttendanceCalendar = lazyWithRetry(() => import('@/components/admin/AttendanceCalendar'), 'admin-calendar');
 const BatchIDCardExtractor = lazyWithRetry(() => import('@/components/admin/BatchIDCardExtractor'), 'admin-id-extract');
+const SubstitutionReport = lazyWithRetry(() => import('@/components/admin/SubstitutionReport'), 'admin-sub-report');
+const ClassSectionReport = lazyWithRetry(() => import('@/components/admin/ClassSectionReport'), 'admin-class-report');
 const AttendanceReportGenerator = lazyWithRetry(() => import('@/components/admin/AttendanceReportGenerator'), 'admin-report-gen');
+const FaceSamplesDiagnosticsPanel = lazyWithRetry(() => import('@/components/admin/FaceSamplesDiagnosticsPanel'), 'admin-face-diag');
+const StudentFaceSamplesManager = lazyWithRetry(() => import('@/components/admin/StudentFaceSamplesManager'), 'admin-samples');
 const UserAccessManager = lazyWithRetry(() => import('@/components/admin/UserAccessManager'), 'admin-access');
 const AdminNotificationSender = lazyWithRetry(() => import('@/components/admin/AdminNotificationSender'), 'admin-notif-sender');
-const StudentFaceSamplesManager = lazyWithRetry(() => import('@/components/admin/StudentFaceSamplesManager'), 'admin-samples');
 const NotificationLog = lazyWithRetry(() => import('@/components/admin/NotificationLog'), 'admin-notif-log');
 const AdminInbox = lazyWithRetry(() => import('@/components/admin/AdminInbox'), 'admin-inbox');
 const EmergencyAlertPanel = lazyWithRetry(() => import('@/components/admin/EmergencyAlertPanel'), 'admin-emergency');
@@ -71,6 +79,15 @@ const ADMIN_TABS: TabItem[] = [
     icon: LayoutDashboard,
     badge: 'Executive',
     tone: 'indigo',
+  },
+  {
+    id: 'gatepass',
+    label: 'Gate Pass Authority',
+    desc: 'Principal & Admin Tier-2 authorization, real-time requests & QR issuance',
+    category: 'Core Operations',
+    icon: QrCode,
+    badge: 'Tier 2',
+    tone: 'rose',
   },
   {
     id: 'timetable',
@@ -102,11 +119,19 @@ const ADMIN_TABS: TabItem[] = [
   {
     id: 'students',
     label: 'Master Student Roster',
-    desc: 'Comprehensive directory of enrolled students across all sections',
+    desc: 'Biometric face directory, enrollment and verification status',
     category: 'Students & AI',
     icon: Users,
     badge: 'Directory',
     tone: 'purple',
+  },
+  {
+    id: 'idcards',
+    label: 'Student Records & ID Cards',
+    desc: 'Comprehensive student profile table and official ID card generator',
+    category: 'Students & AI',
+    icon: CreditCard,
+    tone: 'blue',
   },
   {
     id: 'sections',
@@ -216,14 +241,23 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
   useEffect(() => {
     refreshStats();
 
+    const handleLocalMarked = () => {
+      refreshStats();
+    };
+    window.addEventListener('presence:attendance-marked', handleLocalMarked);
+
     const channel = supabase
       .channel('lite-admin-live-metrics')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
         refreshStats();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, () => {
+        refreshStats();
+      })
       .subscribe();
 
     return () => {
+      window.removeEventListener('presence:attendance-marked', handleLocalMarked);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -256,19 +290,34 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
   const renderActiveSection = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <PrincipalDashboard />;
+        return <PrincipalDashboard onNavigateTab={handleTabChange} />;
+      case 'gatepass':
+        return <GatePassManager />;
       case 'timetable':
         return <TimetableManager />;
       case 'reports':
-        return <AttendanceReportGenerator />;
+        return (
+          <div className="space-y-6">
+            <SubstitutionReport />
+            <ClassSectionReport />
+            <AttendanceReportGenerator />
+          </div>
+        );
       case 'export':
         return <AttendanceExport />;
       case 'students':
+        return <AdminFacesList />;
+      case 'idcards':
         return <StudentDetailsTable />;
       case 'sections':
         return <CategoryBasedView />;
       case 'samples':
-        return <StudentFaceSamplesManager />;
+        return (
+          <div className="space-y-6">
+            <FaceSamplesDiagnosticsPanel />
+            <StudentFaceSamplesManager />
+          </div>
+        );
       case 'idcard':
         return <BatchIDCardExtractor />;
       case 'emergency':
@@ -284,7 +333,7 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
       case 'settings':
         return <AttendanceCutoffSetting />;
       default:
-        return <PrincipalDashboard />;
+        return <PrincipalDashboard onNavigateTab={handleTabChange} />;
     }
   };
 
