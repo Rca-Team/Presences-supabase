@@ -50,7 +50,6 @@ const EmergencyAlertPanel = lazyWithRetry(() => import('@/components/admin/Emerg
 const TimetableManager = lazyWithRetry(() => import('@/components/admin/TimetableManager'), 'admin-timetable');
 const AttendanceCutoffSetting = lazyWithRetry(() => import('@/components/admin/AttendanceCutoffSetting'), 'admin-cutoff');
 const AttendanceExport = lazyWithRetry(() => import('@/components/admin/AttendanceExport'), 'admin-export');
-const AdminTutorial = lazyWithRetry(() => import('@/components/admin/AdminTutorial'), 'admin-tutorial');
 
 interface TabItem {
   id: string;
@@ -335,9 +334,6 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
           </div>
 
           <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
-            <Suspense fallback={null}>
-              <AdminTutorial onNavigate={handleTabChange} mode="lite" variant="pill" />
-            </Suspense>
             <Button
               variant="outline"
               size="sm"

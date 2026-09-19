@@ -40,7 +40,6 @@ const LiteAdmin = lazyWithRetry(() => import('@/components/lite/LiteAdmin'), 'ad
 // them out of the critical path too.
 const AttendanceExport = lazyWithRetry(() => import('@/components/admin/AttendanceExport'), 'admin-export');
 const BulkNotificationService = lazyWithRetry(() => import('@/components/admin/BulkNotificationService'), 'admin-bulk-notif');
-const AdminTutorial = lazyWithRetry(() => import('@/components/admin/AdminTutorial'), 'admin-tutorial');
 
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
 import { Button } from '@/components/ui/button';
@@ -598,9 +597,6 @@ const Admin = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                <Suspense fallback={null}>
-                  <AdminTutorial onNavigate={handleTabChange} mode="standard" variant="pill" />
-                </Suspense>
                 <Button
                   variant="outline"
                   size="sm"
