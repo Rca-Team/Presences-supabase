@@ -80,10 +80,13 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
   // Load passes for active child
   const loadPasses = useCallback(
     async (isInitial = false) => {
-      if (!child?.employee_id) return;
+      if (!child) return;
       if (isInitial) setIsLoading(true);
       try {
-        const studentPasses = await fetchStudentGatePasses(child.employee_id);
+        const studentPasses = await fetchStudentGatePasses(
+          child.employee_id || child.id || child.name,
+          child.name
+        );
         setPasses(studentPasses);
 
         // On initial open only: choose best initial tab
@@ -91,16 +94,7 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
           if (studentPasses.length === 0) {
             setActiveTab('apply');
           } else {
-            const hasActiveToday = studentPasses.some(
-              (p) =>
-                p.status === 'approved' ||
-                p.status === 'pending' ||
-                p.status === 'pending_teacher' ||
-                p.status === 'pending_principal'
-            );
-            if (hasActiveToday) {
-              setActiveTab('view');
-            }
+            setActiveTab('view');
           }
         }
       } catch (e) {
@@ -109,7 +103,7 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
         if (isInitial) setIsLoading(false);
       }
     },
-    [child?.employee_id]
+    [child?.employee_id, child?.id, child?.name]
   );
 
   useEffect(() => {
@@ -142,12 +136,16 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
   // Find the primary active pass (approved first, then pending_principal, then pending_teacher, or most recent)
   const activePass = useMemo(() => {
     if (passes.length === 0) return null;
-    const approved = passes.find((p) => p.status === 'approved');
-    if (approved) return approved;
-    const pendingPrincipal = passes.find((p) => p.status === 'pending_principal');
-    if (pendingPrincipal) return pendingPrincipal;
-    const pendingTeacher = passes.find((p) => p.status === 'pending_teacher' || p.status === 'pending');
-    if (pendingTeacher) return pendingTeacher;
+    const active = passes.filter((p) => p.status !== 'rejected' && p.status !== 'expired');
+    if (active.length > 0) {
+      const approved = active.find((p) => p.status === 'approved');
+      if (approved) return approved;
+      const pendingPrincipal = active.find((p) => p.status === 'pending_principal');
+      if (pendingPrincipal) return pendingPrincipal;
+      const pendingTeacher = active.find((p) => p.status === 'pending_teacher' || p.status === 'pending');
+      if (pendingTeacher) return pendingTeacher;
+      return active[0];
+    }
     return passes[0];
   }, [passes]);
 
@@ -166,10 +164,10 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
     setIsSubmitting(true);
     try {
       const created = await createGatePass({
-        student_id: child.employee_id,
+        student_id: child.employee_id || child.id || child.name,
         student_name: child.name,
-        class_section: child.category,
-        student_image_url: child.image_url,
+        class_section: child.category || '6-A',
+        student_image_url: child.image_url || child.cover_url,
         requested_by: 'parent',
         pickup_person_name: pickupPersonName.trim(),
         pickup_person_phone: pickupPersonPhone.trim(),
@@ -186,8 +184,9 @@ export const ParentEmergencyPassModal: React.FC<ParentEmergencyPassModalProps> =
           title: 'Gate Pass Requested ✅',
           description: `Pass ${created.pass_code} submitted to Class Teacher for initial verification.`,
         });
-        await loadPasses();
+        setPasses((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
         setActiveTab('view');
+        await loadPasses();
       } else {
         throw new Error('Could not create pass record');
       }

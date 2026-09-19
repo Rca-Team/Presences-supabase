@@ -246,12 +246,33 @@ export async function fetchAllGatePasses(): Promise<GatePass[]> {
 }
 
 /**
- * Fetch gate passes for a specific student (by employee_id / admission no)
+ * Fetch gate passes for a specific student (by employee_id, admission no, or student name)
  */
-export async function fetchStudentGatePasses(studentId: string): Promise<GatePass[]> {
+export async function fetchStudentGatePasses(
+  studentId?: string,
+  studentName?: string
+): Promise<GatePass[]> {
   const all = await fetchAllGatePasses();
   const cleanId = String(studentId || '').trim().toLowerCase();
-  return all.filter((p) => String(p.student_id || '').trim().toLowerCase() === cleanId);
+  const cleanName = String(studentName || '').trim().toLowerCase();
+
+  if (!cleanId && !cleanName) return all;
+
+  return all.filter((p) => {
+    const pId = String(p.student_id || '').trim().toLowerCase();
+    const pName = String(p.student_name || '').trim().toLowerCase();
+
+    // Match exact or substring normalized name / ID
+    if (cleanId) {
+      if (pId === cleanId || pName === cleanId) return true;
+      if (cleanId.length > 2 && (pName.includes(cleanId) || pId.includes(cleanId))) return true;
+    }
+    if (cleanName) {
+      if (pName === cleanName || pId === cleanName) return true;
+      if (cleanName.length > 2 && (pName.includes(cleanName) || pId.includes(cleanName))) return true;
+    }
+    return false;
+  });
 }
 
 /**
@@ -289,11 +310,14 @@ export function isSameDay(date1: string | Date, date2: string | Date = new Date(
 /**
  * Get any active/pending/approved/used gate pass for a student created today
  */
-export async function getStudentTodayGatePass(studentId: string): Promise<GatePass | null> {
+export async function getStudentTodayGatePass(
+  studentId: string,
+  studentName?: string
+): Promise<GatePass | null> {
   try {
     const cleanId = String(studentId || '').trim().toLowerCase();
-    if (!cleanId) return null;
-    const passes = await fetchStudentGatePasses(cleanId);
+    if (!cleanId && !studentName) return null;
+    const passes = await fetchStudentGatePasses(cleanId, studentName);
     const today = new Date();
     const activePassToday = passes.find((p) => {
       if (!isSameDay(p.created_at, today)) return false;
