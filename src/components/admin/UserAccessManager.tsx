@@ -135,22 +135,34 @@ const UserAccessManager: React.FC = () => {
       const matrixData = await fetchClassTeacherMatrix();
       setMatrix(matrixData);
 
-      const { data: authUsers, error: authError } = await supabase.rpc('get_all_auth_users');
-      if (authError) throw authError;
+      let authUsers: any[] = [];
+      try {
+        const { data: rpcData, error: authError } = await supabase.rpc('get_all_auth_users');
+        if (!authError && Array.isArray(rpcData)) {
+          authUsers = rpcData;
+        }
+      } catch (e) {
+        console.warn('[UserAccessManager] get_all_auth_users RPC not found, falling back to profiles/roles:', e);
+      }
 
       const [profilesRes, rolesRes] = await Promise.all([
-        supabase.from('profiles').select('id, user_id, display_name, avatar_url, parent_email, username'),
+        supabase.from('profiles').select('id, user_id, display_name, avatar_url, parent_email, username, created_at, updated_at'),
         supabase.from('user_roles').select('user_id, role'),
       ]);
 
       const profileMap = new Map((profilesRes.data || []).map((p) => [p.user_id, p]));
       const roleMap = new Map((rolesRes.data || []).map((r) => [r.user_id, r.role]));
+      const authUserMap = new Map(authUsers.map((au) => [au.user_id, au]));
+
+      const allUserIds = new Set<string>();
+      authUsers.forEach((au) => au.user_id && allUserIds.add(au.user_id));
+      (profilesRes.data || []).forEach((p) => p.user_id && allUserIds.add(p.user_id));
+      (rolesRes.data || []).forEach((r) => r.user_id && allUserIds.add(r.user_id));
 
       const processedUsers: RegisteredUser[] = [];
-      for (const au of authUsers || []) {
-        const userId = au.user_id;
+      for (const userId of Array.from(allUserIds)) {
         if (!userId) continue;
-
+        const au: any = authUserMap.get(userId) || {};
         const profile: any = profileMap.get(userId) || {};
         const assignedRole = roleMap.get(userId) as Role | undefined;
         const categories = await fetchTeacherCategories(userId);
@@ -168,8 +180,8 @@ const UserAccessManager: React.FC = () => {
           isTeacher: hasTeacherPerms || computedRole === 'teacher',
           teacherCategories: categories,
           permissions: perms,
-          lastSignIn: au.last_sign_in_at,
-          signedUpAt: au.created_at,
+          lastSignIn: au.last_sign_in_at || null,
+          signedUpAt: au.created_at || profile.created_at || null,
         });
       }
       setUsers(processedUsers);

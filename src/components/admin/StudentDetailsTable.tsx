@@ -54,7 +54,7 @@ const StudentDetailsTable: React.FC = () => {
       const [attendanceRes, descriptorsRes, profilesRes] = await Promise.all([
         supabase
           .from('attendance_records')
-          .select('id, user_id, student_id, student_name, status, device_info, category, image_url, timestamp')
+          .select('id, user_id, status, device_info, category, image_url, timestamp')
           .eq('status', 'registered')      // only registered students, not present/late rows
           .order('timestamp', { ascending: false }),
         supabase

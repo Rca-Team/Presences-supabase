@@ -481,7 +481,7 @@ const Admin = () => {
   return (
     <PageTransition>
       <PageLayout className="min-h-screen bg-slate-50/50 dark:bg-slate-950 p-0" fullWidth noFooter>
-        <div className="flex h-[calc(100dvh-4rem)] overflow-hidden">
+        <div className={cn("flex overflow-hidden", isMobile ? "min-h-[calc(100dvh-6rem)] flex-col" : "h-[calc(100dvh-4rem)]")}>
           {/* Desktop Sidebar — Apple macOS Nano-Glass Style */}
           {!isMobile && (
             <aside
