@@ -54,7 +54,7 @@ import {
   User, Calendar, Clock, FolderKanban, School,
   LayoutDashboard, Settings, Bell, Users, BarChart3,
   Shield, Activity, TrendingUp, ChevronRight, Send, UserCog,
-  CreditCard, Image, Download, RefreshCw, MessageSquareText, Mail, Siren, CalendarDays, DatabaseBackup, ScanLine, QrCode } from
+  CreditCard, Image, Download, RefreshCw, MessageSquareText, Mail, Siren, CalendarDays, DatabaseBackup, ScanLine, QrCode, Smartphone } from
 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -62,6 +62,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { fetchUnifiedStudentSnapshot } from '@/utils/attendanceStatsHelper';
+import AdminUpdatePusherDialog from '@/components/admin/AdminUpdatePusherDialog';
 
 interface NavItem {
   id: string;
@@ -175,6 +176,7 @@ const Admin = () => {
     presentToday: 0,
     lateToday: 0
   });
+  const [showUpdatePusher, setShowUpdatePusher] = useState(false);
 
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
@@ -600,6 +602,16 @@ const Admin = () => {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-8 px-2.5 sm:px-3 rounded-xl border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-bold btn-spring shadow-xs"
+                  onClick={() => setShowUpdatePusher(true)}
+                  title="Broadcast app updates to all mobile devices and PWA clients"
+                >
+                  <Smartphone className="h-3.5 w-3.5 sm:mr-1.5 text-purple-600 dark:text-purple-400" />
+                  <span className="hidden sm:inline">Push App Update</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="h-8 px-3 rounded-xl border-slate-200/80 dark:border-white/10 nano-glass-dock hover:bg-white dark:hover:bg-slate-800 text-xs font-bold btn-spring"
                   onClick={handleRefresh}
                 >
@@ -699,6 +711,11 @@ const Admin = () => {
           </main>
         </div>
 
+        {/* Mobile App Update Pusher Dialog */}
+        <AdminUpdatePusherDialog
+          isOpen={showUpdatePusher}
+          onClose={() => setShowUpdatePusher(false)}
+        />
       </PageLayout>
     </PageTransition>);
 

@@ -53,6 +53,7 @@ import SplashAnimation from './components/SplashAnimation';
 import NotificationPermissionGate from './components/NotificationPermissionGate';
 import LuminaScope from './components/LuminaScope';
 import RoyalScrollProvider from './components/RoyalScrollProvider';
+import MobileAppUpdateBanner from './components/mobile/MobileAppUpdateBanner';
 
 
 const queryClient = new QueryClient();
@@ -414,6 +415,7 @@ function App() {
                         <>
                           <AppExperienceLayer />
                           <PWAInstallPrompt />
+                          <MobileAppUpdateBanner />
                         </>
                       )}
                       <EmergencyAlertListener />
