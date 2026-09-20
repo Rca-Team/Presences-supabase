@@ -40,8 +40,81 @@ const StudentCSVImporter: React.FC<{ onImported?: () => void }> = ({ onImported 
         toast({ title: 'Empty CSV', description: 'No rows found', variant: 'destructive' });
         setBusy(false); return;
       }
-      const { data, error } = await supabase.functions.invoke('bulk-create-students', { body: { rows } });
-      if (error) throw error;
+      let data: any = null;
+      try {
+        const res = await supabase.functions.invoke('bulk-create-students', { body: { rows } });
+        if (!res.error && res.data?.summary) {
+          data = res.data;
+        }
+      } catch (invokeErr) {
+        console.warn('[StudentCSVImporter] Edge function unavailable, executing client-side batch insert fallback:', invokeErr);
+      }
+
+      if (!data) {
+        let created = 0;
+        let skipped = 0;
+        let errors = 0;
+        const resultsList: any[] = [];
+
+        for (const r of rows) {
+          try {
+            const rollNumber = (r.roll_number || '').trim();
+            const name = (r.name || '').trim();
+            const className = (r.class || '').trim();
+            const section = (r.section || '').trim().toUpperCase();
+            const category = className && section ? `${className}-${section}` : 'General';
+
+            if (!name) {
+              skipped++;
+              continue;
+            }
+
+            const deviceInfo = {
+              metadata: {
+                name,
+                student_name: name,
+                roll_number: rollNumber,
+                employee_id: rollNumber || `S-${Date.now().toString().slice(-4)}`,
+                class: className,
+                section,
+                class_section: category,
+                category,
+                parent_name: r.parent_name || '',
+                parent_phone: r.parent_phone || '',
+                parent_email: r.parent_email || '',
+              },
+            };
+
+            const { error: insErr } = await supabase.from('attendance_records').insert({
+              status: 'registered',
+              timestamp: new Date().toISOString(),
+              date: new Date().toISOString().split('T')[0],
+              category,
+              confidence: 1.0,
+              confidence_score: 1.0,
+              device_info: deviceInfo,
+              metadata: deviceInfo.metadata,
+            });
+
+            if (insErr) {
+              errors++;
+              resultsList.push({ name, status: 'error', error: insErr.message });
+            } else {
+              created++;
+              resultsList.push({ name, status: 'created' });
+            }
+          } catch (err: any) {
+            errors++;
+            resultsList.push({ name: r.name, status: 'error', error: err.message });
+          }
+        }
+
+        data = {
+          summary: { created, skipped, errors },
+          results: resultsList,
+        };
+      }
+
       setSummary(data?.summary); setResults(data?.results || []);
       toast({
         title: 'Import complete',

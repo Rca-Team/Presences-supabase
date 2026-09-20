@@ -63,6 +63,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   Cpu,
+  UserPlus,
 } from 'lucide-react';
 
 const cardTilt = {
