@@ -223,21 +223,24 @@ async function drainQueue(): Promise<{ synced: number; failed: number }> {
 
         const primaryPayload: any = {
           user_id: validUserId,
-          student_id: entry.userId,
-          student_name: entry.studentName,
           timestamp: entry.timestamp,
           date: dateStr,
           status: entry.status,
-          source: entry.source,
-          capture_mode: 'gate-mode',
           confidence: entry.confidence,
           confidence_score: entry.confidence,
           image_url: imageUrl,
           device_info: {
             ...entry.metadata,
+            name: entry.studentName,
+            source: entry.source,
             offline_queued: true,
             offline_created_at: new Date(entry.createdAt).toISOString(),
             offline_synced_at: new Date().toISOString(),
+          },
+          metadata: {
+            ...entry.metadata,
+            name: entry.studentName,
+            source: entry.source,
           },
         };
 

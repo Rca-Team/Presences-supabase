@@ -194,11 +194,11 @@ export const FloatingDeviceWidgets: React.FC = () => {
       const [recordsRes, registeredRes] = await Promise.all([
         supabase
           .from('attendance_records')
-          .select('id, student_name, status, timestamp')
+          .select('id, status, timestamp, device_info')
           .gte('timestamp', today.toISOString()),
         supabase
           .from('attendance_records')
-          .select('id, student_name')
+          .select('id, device_info')
           .eq('status', 'registered'),
       ]);
 
@@ -261,11 +261,14 @@ export const FloatingDeviceWidgets: React.FC = () => {
 
     try {
       await supabase.from('attendance_records').insert({
-        student_name: name,
         status: 'present',
-        source: 'device-widget',
-        capture_mode: 'manual',
         timestamp: new Date().toISOString(),
+        device_info: {
+          metadata: {
+            name,
+            source: 'device-widget',
+          },
+        },
       });
     } catch (e) {
       console.warn('Mark error:', e);

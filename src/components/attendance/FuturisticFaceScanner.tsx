@@ -742,7 +742,7 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
             counted: true,
           });
 
-          // Trigger parent component callback immediately
+          // Trigger parent component callback immediately & dispatch instant feed event
           try {
             onAttendanceMarked?.({
               userId: face.userId,
@@ -755,6 +755,27 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               name: face.name,
               confidence: face.confidence,
             });
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('presence:attendance-marked', {
+                  detail: {
+                    id: entryId,
+                    user_id: face.userId,
+                    student_name: face.name,
+                    status,
+                    confidence: face.confidence,
+                    timestamp: new Date().toISOString(),
+                    image_url: cachedCover || crop?.dataUrl || null,
+                    device_info: {
+                      metadata: {
+                        name: face.name,
+                        source: liteMode ? 'lite-face-terminal' : 'live-face-id',
+                      },
+                    },
+                  },
+                })
+              );
+            }
           } catch {
             /* ignore */
           }

@@ -75,9 +75,9 @@ function buildDeduplicatedRoster(registrationRecords: any[], descriptorRows: any
   (registrationRecords || []).forEach((r) => {
     const di = (r.device_info as any) || {};
     const meta = di.metadata || di || {};
-    const rawName = r.student_name || meta.name || di.name || '';
+    const rawName = meta.name || di.name || (r as any).student_name || '';
     const name = String(rawName).trim();
-    const rawEmp = r.student_id || meta.employee_id || meta.roll_number || di.employee_id || '';
+    const rawEmp = meta.employee_id || meta.roll_number || di.employee_id || (r as any).student_id || '';
     const employee_id = String(rawEmp).trim();
 
     if (
@@ -167,14 +167,14 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
     const [registeredRes, descriptorsRes, todayRes, gateRes] = await Promise.all([
       supabase
         .from('attendance_records')
-        .select('id, user_id, student_id, student_name, device_info, category')
+        .select('id, user_id, device_info, category')
         .eq('status', 'registered'),
       supabase
         .from('face_descriptors')
-        .select('id, user_id, student_id, student_name, label'),
+        .select('id, user_id, student_id, label'),
       supabase
         .from('attendance_records')
-        .select('id, user_id, student_id, student_name, status, timestamp, date, device_info')
+        .select('id, user_id, status, timestamp, date, device_info')
         .in('status', ['present', 'late', 'unauthorized'])
         .or(`timestamp.gte.${startIso},date.eq.${localDateStr},date.eq.${utcDateStr}`),
       supabase
@@ -192,12 +192,12 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
     const lateKeys = new Set<string>();
 
     (todayRes.data || []).forEach((r) => {
-      const m = (r.device_info as any)?.metadata || {};
-      const empId = r.student_id || m.employee_id || (r.device_info as any)?.employee_id;
-      const name = r.student_name || m.name || (r.device_info as any)?.name;
+      const m = (r.device_info as any)?.metadata || r.device_info || {};
+      const empId = m.employee_id || m.roll_number || (r.device_info as any)?.employee_id || (r as any).student_id;
+      const name = m.name || m.student_name || (r.device_info as any)?.name || (r as any).student_name;
       const norm = normalizeStatus(r.status);
 
-      const keys = [r.user_id, r.student_id, empId, name, r.id]
+      const keys = [r.user_id, empId, name, r.id]
         .filter(Boolean)
         .map((k) => normStr(k));
 
@@ -277,14 +277,14 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
     const [registeredRes, descriptorsRes, todayRes, gateRes] = await Promise.all([
       supabase
         .from('attendance_records')
-        .select('id, user_id, student_id, student_name, device_info, category')
+        .select('id, user_id, device_info, category')
         .eq('status', 'registered'),
       supabase
         .from('face_descriptors')
-        .select('id, user_id, student_id, student_name, label'),
+        .select('id, user_id, student_id, label'),
       supabase
         .from('attendance_records')
-        .select('id, user_id, student_id, student_name, status, timestamp, date, device_info')
+        .select('id, user_id, status, timestamp, date, device_info')
         .in('status', ['present', 'late', 'unauthorized'])
         .or(`timestamp.gte.${startIso},date.eq.${localDateStr},date.eq.${utcDateStr}`)
         .order('timestamp', { ascending: false }),
@@ -312,14 +312,14 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
 
     // Latest attendance record wins
     (todayRes.data || []).forEach((r) => {
-      const metadata = (r.device_info as any)?.metadata || {};
+      const metadata = (r.device_info as any)?.metadata || r.device_info || {};
       const possibleIds = [
-        r.student_id,
         metadata.employee_id,
         (r.device_info as any)?.employee_id,
-        r.student_name,
+        (r as any).student_id,
         metadata.name,
         (r.device_info as any)?.name,
+        (r as any).student_name,
         r.user_id,
         r.id,
       ]

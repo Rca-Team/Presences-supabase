@@ -46,26 +46,33 @@ const LiteAttendanceMode: React.FC = () => {
     attendanceRate: 0,
   });
 
-  const refreshStats = async () => {
+  const refreshStats = useCallback(async () => {
     try {
       const data = await fetchUnifiedAttendanceStats();
       setStats(data);
     } catch (e) {
       console.warn('Lite Attendance stats error:', e);
     }
-  };
+  }, []);
 
   const refreshTimerRef = useRef<number | null>(null);
   const debouncedRefreshStats = useCallback(() => {
     if (refreshTimerRef.current) return;
     refreshTimerRef.current = window.setTimeout(() => {
       refreshTimerRef.current = null;
-      refreshStats();
-    }, 2500);
-  }, []);
+      void refreshStats();
+    }, 400);
+  }, [refreshStats]);
 
   useEffect(() => {
-    refreshStats();
+    void refreshStats();
+
+    const handleLocalMarked = () => {
+      // Instant refresh on local recognition
+      void refreshStats();
+    };
+
+    window.addEventListener('presence:attendance-marked', handleLocalMarked);
 
     const channel = supabase
       .channel('lite-attendance-live-metrics')
@@ -86,12 +93,13 @@ const LiteAttendanceMode: React.FC = () => {
       .subscribe();
 
     return () => {
+      window.removeEventListener('presence:attendance-marked', handleLocalMarked);
       if (refreshTimerRef.current) {
         window.clearTimeout(refreshTimerRef.current);
       }
       supabase.removeChannel(channel);
     };
-  }, [debouncedRefreshStats]);
+  }, [debouncedRefreshStats, refreshStats]);
 
   return (
     <div className="space-y-4">
@@ -222,6 +230,7 @@ const LiteAttendanceMode: React.FC = () => {
             <FuturisticFaceScanner
               onAttendanceMarked={(rec) => {
                 signal(rec.status === 'late' ? 'warn' : 'ok');
+                void refreshStats();
               }}
             />
           ) : (

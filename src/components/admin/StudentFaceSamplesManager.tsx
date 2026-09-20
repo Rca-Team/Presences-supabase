@@ -1255,7 +1255,7 @@ const StudentFaceSamplesManager: React.FC = () => {
       const [profilesRes, descriptorsRes, attendanceRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('face_descriptors').select('id, user_id, student_id, label, image_url, descriptor'),
-        supabase.from('attendance_records').select('id, user_id, student_id, student_name, image_url'),
+        supabase.from('attendance_records').select('id, user_id, device_info, image_url'),
       ]);
 
       const profiles = profilesRes.data || [];
