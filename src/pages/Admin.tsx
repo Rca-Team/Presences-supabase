@@ -324,25 +324,29 @@ const Admin = () => {
   }
 
   const navItems: NavItem[] = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', group: 'Overview' },
-  { id: 'sections', icon: FolderKanban, label: 'Class', group: 'Overview' },
-  { id: 'students', icon: Users, label: 'Students', group: 'Overview', badge: attendanceUpdated ? 'new' : undefined },
-  { id: 'idcard', icon: Image, label: 'ID Extract', group: 'Registration' },
-  { id: 'idcards', icon: CreditCard, label: 'ID Cards', group: 'Registration' },
-  
-  { id: 'reports', icon: BarChart3, label: 'Reports', group: 'Management' },
-  { id: 'access', icon: UserCog, label: 'Access', group: 'Management' },
-  { id: 'notifications', icon: Bell, label: 'Notifications', group: 'Management', count: notificationCount },
-  { id: 'samples', icon: Activity, label: 'Face Samples', group: 'Management' },
-  { id: 'notif-log', icon: MessageSquareText, label: 'Delivery Log', group: 'Management' },
-  { id: 'inbox', icon: Mail, label: 'Inbox', group: 'Management' },
-  { id: 'emergency', icon: Siren, label: 'Emergency', group: 'Management' },
-  { id: 'gatepass', icon: QrCode, label: 'Gate Passes', group: 'Management' },
-  { id: 'timetable', icon: CalendarDays, label: 'Timetable', group: 'Management' },
-  { id: 'settings', icon: Settings, label: 'Settings', group: 'Management' }];
+    // 1. Daily Operations
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Command Center', group: 'Daily Operations' },
+    { id: 'students', icon: Users, label: 'Student Directory', group: 'Daily Operations', badge: attendanceUpdated ? 'new' : undefined },
+    { id: 'sections', icon: FolderKanban, label: 'Classes & Cohorts', group: 'Daily Operations' },
+    { id: 'timetable', icon: CalendarDays, label: 'Timetable & Substitutions', group: 'Daily Operations' },
 
+    // 2. Reports & Safety
+    { id: 'reports', icon: BarChart3, label: 'Attendance Reports', group: 'Reports & Safety' },
+    { id: 'gatepass', icon: QrCode, label: 'Gate Passes', group: 'Reports & Safety' },
+    { id: 'emergency', icon: Siren, label: 'Campus Safety Alerts', group: 'Reports & Safety' },
+    { id: 'notifications', icon: Bell, label: 'Broadcast Notices', group: 'Reports & Safety', count: notificationCount },
+    { id: 'inbox', icon: Mail, label: 'Parent Inbox', group: 'Reports & Safety' },
 
-  const groups = ['Overview', 'Registration', 'Management'];
+    // 3. System & Biometrics
+    { id: 'access', icon: UserCog, label: 'Teacher Permissions', group: 'System & Biometrics' },
+    { id: 'samples', icon: Activity, label: 'Face AI Biometrics', group: 'System & Biometrics' },
+    { id: 'idcard', icon: Image, label: 'Batch ID Extraction', group: 'System & Biometrics' },
+    { id: 'idcards', icon: CreditCard, label: 'Student ID Cards', group: 'System & Biometrics' },
+    { id: 'notif-log', icon: MessageSquareText, label: 'Delivery Log', group: 'System & Biometrics' },
+    { id: 'settings', icon: Settings, label: 'School Settings', group: 'System & Biometrics' },
+  ];
+
+  const groups = ['Daily Operations', 'Reports & Safety', 'System & Biometrics'];
 
   const statsCards = [
   { label: 'Registered', value: stats.totalFaces, icon: Users, color: 'text-primary' },
@@ -591,10 +595,15 @@ const Admin = () => {
                   <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate mt-0.5">
                     {activeTab === 'dashboard' && 'School-wide attendance command center and analytics'}
                     {activeTab === 'students' && 'Manage registered student biometric profiles and class assignments'}
+                    {activeTab === 'sections' && 'Manage classroom sections, student cohorts, and teacher assignments'}
                     {activeTab === 'reports' && 'Generate and export official attendance reports and daily logs'}
+                    {activeTab === 'gatepass' && 'Manage digital gate passes, pickup verifications, and exit history'}
                     {activeTab === 'access' && 'Manage system roles, permissions, and teacher class assignments'}
                     {activeTab === 'emergency' && 'Instant safety alerts, campus lockdown, and fire emergency broadcasting'}
                     {activeTab === 'timetable' && 'Class timetables, schedules, and automatic teacher substitutions'}
+                    {activeTab === 'samples' && 'Face biometric gallery, verification thresholds, and training samples'}
+                    {activeTab === 'notifications' && 'Send SMS, Email, and in-app notices to parents and staff'}
+                    {activeTab === 'settings' && 'Configure attendance cutoffs, notification triggers, and school parameters'}
                   </p>
                 </div>
               </div>
