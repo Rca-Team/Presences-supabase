@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { pushNotificationService } from '@/services/PushNotificationService';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const STORAGE_KEY_NOTIF_DISMISSED = 'presences_notif_gate_dismissed';
+
 interface NotificationPermissionGateProps {
   children: React.ReactNode;
 }
@@ -19,9 +21,23 @@ const NotificationPermissionGate: React.FC<NotificationPermissionGateProps> = ({
       // Already enabled — silently ensure subscription
       pushNotificationService.registerServiceWorker().then(() => pushNotificationService.subscribe()).catch(() => {});
     } else if (Notification.permission === 'default') {
-      setShowBanner(true);
+      try {
+        const isDismissed = localStorage.getItem(STORAGE_KEY_NOTIF_DISMISSED);
+        if (!isDismissed) {
+          setShowBanner(true);
+        }
+      } catch {
+        setShowBanner(true);
+      }
     }
   }, []);
+
+  const handleDismiss = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY_NOTIF_DISMISSED, 'true');
+    } catch {}
+    setShowBanner(false);
+  };
 
   const handleEnable = async () => {
     setIsRequesting(true);
@@ -35,9 +51,9 @@ const NotificationPermissionGate: React.FC<NotificationPermissionGateProps> = ({
           tag: 'welcome-notification',
         });
       }
-      setShowBanner(false);
+      handleDismiss();
     } catch {
-      setShowBanner(false);
+      handleDismiss();
     } finally {
       setIsRequesting(false);
     }
@@ -67,8 +83,9 @@ const NotificationPermissionGate: React.FC<NotificationPermissionGateProps> = ({
                 {isRequesting ? 'Enabling...' : 'Enable'}
               </Button>
               <button
-                onClick={() => setShowBanner(false)}
+                onClick={handleDismiss}
                 className="text-white/70 hover:text-white text-lg leading-none px-1"
+                aria-label="Dismiss notification prompt"
               >
                 ×
               </button>

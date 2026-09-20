@@ -21,6 +21,8 @@ type UpdateListener = (details: AppUpdateDetails | null) => void;
 const UPDATE_BROADCAST_CHANNEL = 'presences_app_updates_broadcast';
 const SETTING_KEY_APP_UPDATE = 'latest_app_version_announcement';
 const CURRENT_APP_VERSION = 'v2.4.2';
+const STORAGE_KEY_DISMISSED_UPDATE = 'presences_app_update_dismissed_version';
+const STORAGE_KEY_PROMPTED_UPDATE = 'presences_app_update_prompted_version';
 
 class AppUpdateManager {
   private listeners: Set<UpdateListener> = new Set();
@@ -77,7 +79,7 @@ class AppUpdateManager {
       console.warn('[AppUpdateService] Realtime channel subscription skipped:', e);
     }
 
-    // 4. Initial check on focus and periodic (every 6 minutes)
+    // 4. Initial check on focus and periodic (every 10 minutes)
     if (typeof window !== 'undefined') {
       window.addEventListener('focus', () => this.checkForUpdates());
       document.addEventListener('visibilitychange', () => {
@@ -85,7 +87,7 @@ class AppUpdateManager {
           this.checkForUpdates();
         }
       });
-      this.checkInterval = setInterval(() => this.checkForUpdates(), 6 * 60 * 1000);
+      this.checkInterval = setInterval(() => this.checkForUpdates(), 10 * 60 * 1000);
       this.checkForUpdates();
     }
   }
@@ -97,7 +99,7 @@ class AppUpdateManager {
     navigator.serviceWorker.getRegistration().then((reg) => {
       if (!reg) return;
 
-      // If a worker is already waiting, trigger update immediately
+      // If a worker is already waiting, trigger update
       if (reg.waiting) {
         this.setPendingUpdate({
           version: CURRENT_APP_VERSION,
@@ -222,6 +224,12 @@ class AppUpdateManager {
    */
   public async applyUpdate(forced = false): Promise<void> {
     try {
+      // Clear dismissal flags upon successful upgrade
+      try {
+        localStorage.removeItem(STORAGE_KEY_DISMISSED_UPDATE);
+        sessionStorage.removeItem(STORAGE_KEY_PROMPTED_UPDATE);
+      } catch {}
+
       // 1. Notify waiting service workers to skip waiting
       if ('serviceWorker' in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
@@ -237,8 +245,8 @@ class AppUpdateManager {
         const keys = await caches.keys();
         await Promise.all(
           keys
-            .filter((k) => k.includes('workbox') || k.includes('precache') || k.includes('runtime'))
-            .map((k) => caches.delete(k))
+              .filter((k) => k.includes('workbox') || k.includes('precache') || k.includes('runtime'))
+              .map((k) => caches.delete(k))
         );
       }
     } catch {}
@@ -253,12 +261,59 @@ class AppUpdateManager {
     }, forced ? 100 : 300);
   }
 
+  /**
+   * Dismiss the update and remember choice so user is asked only ONCE.
+   */
   public dismissUpdate() {
+    if (this.pendingUpdate) {
+      try {
+        const updateKey =
+          this.pendingUpdate.version ||
+          (this.pendingUpdate.timestamp ? String(this.pendingUpdate.timestamp) : 'dismissed_update');
+        localStorage.setItem(STORAGE_KEY_DISMISSED_UPDATE, updateKey);
+      } catch {}
+    }
     this.pendingUpdate = null;
     this.notifyListeners();
   }
 
+  /**
+   * Set pending update with One-Time Prompt Protection.
+   * If already dismissed or already prompted in this session, do not harass user.
+   */
   public setPendingUpdate(details: AppUpdateDetails | null) {
+    if (!details) {
+      this.pendingUpdate = null;
+      this.notifyListeners();
+      return;
+    }
+
+    const updateKey =
+      details.version ||
+      (details.timestamp ? String(details.timestamp) : 'release_update');
+
+    // If not a forced update, respect one-time ask logic:
+    if (!details.forced) {
+      try {
+        const dismissedKey = localStorage.getItem(STORAGE_KEY_DISMISSED_UPDATE);
+        if (dismissedKey === updateKey) {
+          // User already dismissed this update — DO NOT prompt again!
+          return;
+        }
+
+        const promptedKey = sessionStorage.getItem(STORAGE_KEY_PROMPTED_UPDATE);
+        if (promptedKey === updateKey && this.pendingUpdate === null) {
+          // Already presented once during this session — DO NOT prompt again!
+          return;
+        }
+      } catch {}
+    }
+
+    // Mark as prompted in session
+    try {
+      sessionStorage.setItem(STORAGE_KEY_PROMPTED_UPDATE, updateKey);
+    } catch {}
+
     this.pendingUpdate = details;
     this.notifyListeners();
   }
