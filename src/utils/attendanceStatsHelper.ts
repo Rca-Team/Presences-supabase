@@ -22,6 +22,14 @@ export interface UnifiedStudentSnapshot {
   statusesByEmployeeId: Record<string, UnifiedStudentStatus>;
 }
 
+export interface CanonicalStudent {
+  id: string;
+  user_id: string | null;
+  employee_id: string;
+  name: string;
+  category?: string;
+}
+
 /**
  * Returns ISO strings and local date strings for today's 00:00:00 to 23:59:59 window.
  */
@@ -46,6 +54,8 @@ function getTodayRange() {
   };
 }
 
+const normStr = (v: unknown) => (v == null ? '' : String(v).trim().toLowerCase().replace(/\s+/g, ' '));
+
 const normalizeStatus = (s: string | null | undefined): 'present' | 'late' | 'absent' | string => {
   const lower = (s || '').toLowerCase().trim();
   if (lower === 'unauthorized' || lower.includes('present')) return 'present';
@@ -55,16 +65,106 @@ const normalizeStatus = (s: string | null | undefined): 'present' | 'late' | 'ab
 };
 
 /**
+ * Build a strictly deduplicated roster of enrolled students.
+ * Groups multiple registrations, face samples, and alias IDs into unique physical students.
+ */
+function buildDeduplicatedRoster(registrationRecords: any[], descriptorRows: any[]): CanonicalStudent[] {
+  const candidates: CanonicalStudent[] = [];
+
+  // 1. Process attendance_records with status='registered'
+  (registrationRecords || []).forEach((r) => {
+    const di = (r.device_info as any) || {};
+    const meta = di.metadata || di || {};
+    const rawName = r.student_name || meta.name || di.name || '';
+    const name = String(rawName).trim();
+    const rawEmp = r.student_id || meta.employee_id || meta.roll_number || di.employee_id || '';
+    const employee_id = String(rawEmp).trim();
+
+    if (
+      name &&
+      name !== 'Unknown' &&
+      !name.toLowerCase().includes('unknown') &&
+      name !== 'User' &&
+      !name.toLowerCase().includes('test face')
+    ) {
+      candidates.push({
+        id: r.id,
+        user_id: r.user_id || null,
+        employee_id,
+        name,
+        category: r.category || meta.class_section || meta.department,
+      });
+    }
+  });
+
+  // 2. Process unique students from face_descriptors who might not be in attendance_records
+  const descriptorsByNameOrEmp = new Map<string, any>();
+  (descriptorRows || []).forEach((d) => {
+    const name = String(d.student_name || d.label || '').trim();
+    const empId = String(d.student_id || '').trim();
+    const uid = String(d.user_id || '').trim();
+    if (!name || name === 'Unknown' || name.toLowerCase().includes('unknown')) return;
+
+    const groupKey = empId ? `emp:${normStr(empId)}` : `name:${normStr(name)}`;
+    if (!descriptorsByNameOrEmp.has(groupKey)) {
+      descriptorsByNameOrEmp.set(groupKey, {
+        id: d.id,
+        user_id: uid || null,
+        employee_id: empId,
+        name,
+      });
+    }
+  });
+
+  descriptorsByNameOrEmp.forEach((cand) => {
+    candidates.push(cand);
+  });
+
+  // 3. Multi-key alias collapsing (collapses identical name, employee_id, or user_id)
+  const byEmpId = new Map<string, CanonicalStudent>();
+  const byUserId = new Map<string, CanonicalStudent>();
+  const byName = new Map<string, CanonicalStudent>();
+  const canonicalRoster: CanonicalStudent[] = [];
+
+  candidates.forEach((cand) => {
+    const empKey = normStr(cand.employee_id);
+    const uKey = normStr(cand.user_id);
+    const nameKey = normStr(cand.name);
+
+    let existing: CanonicalStudent | undefined;
+    if (empKey && byEmpId.has(empKey)) existing = byEmpId.get(empKey);
+    else if (nameKey && byName.has(nameKey)) existing = byName.get(nameKey);
+    else if (uKey && byUserId.has(uKey)) existing = byUserId.get(uKey);
+
+    if (existing) {
+      // Merge identifiers into existing student
+      if (!existing.employee_id && cand.employee_id) existing.employee_id = cand.employee_id;
+      if (!existing.user_id && cand.user_id) existing.user_id = cand.user_id;
+      if (!existing.category && cand.category) existing.category = cand.category;
+
+      if (empKey) byEmpId.set(empKey, existing);
+      if (uKey) byUserId.set(uKey, existing);
+      if (nameKey) byName.set(nameKey, existing);
+    } else {
+      canonicalRoster.push(cand);
+      if (empKey) byEmpId.set(empKey, cand);
+      if (uKey) byUserId.set(uKey, cand);
+      if (nameKey) byName.set(nameKey, cand);
+    }
+  });
+
+  return canonicalRoster;
+}
+
+/**
  * Single source of truth for attendance stats across the entire application.
- * 1. Registered = attendance_records (status='registered') + face_descriptors + profiles
- * 2. Present/Late = attendance_records (present/late) + gate_entries (within today's bounds)
- * 3. Multi-identifier matching (user_id, student_id, employee_id, student_name, id)
+ * Returns exact counts without duplicate multiplication.
  */
 export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceStats> {
-  const { startIso, endIso, localDateStr, utcDateStr } = getTodayRange();
+  const { startIso, localDateStr, utcDateStr } = getTodayRange();
 
   try {
-    const [registeredRes, descriptorsRes, profilesRes, todayRes, gateRes] = await Promise.all([
+    const [registeredRes, descriptorsRes, todayRes, gateRes] = await Promise.all([
       supabase
         .from('attendance_records')
         .select('id, user_id, student_id, student_name, device_info, category')
@@ -72,10 +172,6 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
       supabase
         .from('face_descriptors')
         .select('id, user_id, student_id, student_name, label'),
-      supabase
-        .from('profiles')
-        .select('id, full_name, username, role')
-        .limit(200),
       supabase
         .from('attendance_records')
         .select('id, user_id, student_id, student_name, status, timestamp, date, device_info')
@@ -88,78 +184,22 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
         .eq('is_recognized', true),
     ]);
 
-    // 1. Build comprehensive registered students roster
-    const rawUsers: Array<{ id: string; user_id: string | null; employee_id: string; name: string }> = [];
-
-    // From attendance_records (registered)
-    (registeredRes.data || []).forEach((r) => {
-      const m = (r.device_info as any)?.metadata || {};
-      const empId = r.student_id || m.employee_id || (r.device_info as any)?.employee_id || '';
-      const name = r.student_name || m.name || (r.device_info as any)?.name || '';
-      if (name && name !== 'Unknown' && !name.toLowerCase().includes('unknown') && name !== 'User') {
-        rawUsers.push({
-          id: r.id,
-          user_id: r.user_id,
-          employee_id: String(empId).trim(),
-          name: String(name).trim(),
-        });
-      }
-    });
-
-    // From face_descriptors (enrolled biometric models)
-    (descriptorsRes.data || []).forEach((d) => {
-      const empId = d.student_id || '';
-      const name = d.student_name || d.label || '';
-      if (name && name !== 'Unknown' && !name.toLowerCase().includes('unknown')) {
-        rawUsers.push({
-          id: d.id,
-          user_id: d.user_id,
-          employee_id: String(empId).trim(),
-          name: String(name).trim(),
-        });
-      }
-    });
-
-    // From profiles
-    (profilesRes.data || []).forEach((p) => {
-      if (p.role === 'teacher' || p.role === 'admin' || p.role === 'guard') return;
-      const name = p.full_name || p.username || '';
-      if (name && name !== 'Unknown' && !name.toLowerCase().includes('unknown')) {
-        rawUsers.push({
-          id: p.id,
-          user_id: p.id,
-          employee_id: '',
-          name: String(name).trim(),
-        });
-      }
-    });
-
-    // Deduplicate roster by normalized name or employee_id or user_id
-    const seenRoster = new Set<string>();
-    const uniqueUsers = rawUsers.filter((u) => {
-      const key = u.employee_id ? `emp:${u.employee_id.toLowerCase()}`
-        : (u.name ? `name:${u.name.toLowerCase()}` : `uid:${u.user_id || u.id}`);
-      if (seenRoster.has(key)) return false;
-      seenRoster.add(key);
-      return true;
-    });
+    // 1. Build strictly deduplicated roster
+    const roster = buildDeduplicatedRoster(registeredRes.data || [], descriptorsRes.data || []);
 
     // 2. Build present/late lookup sets
     const presentKeys = new Set<string>();
     const lateKeys = new Set<string>();
-    const distinctPresentEntries = new Set<string>();
-    const distinctLateEntries = new Set<string>();
 
     (todayRes.data || []).forEach((r) => {
       const m = (r.device_info as any)?.metadata || {};
       const empId = r.student_id || m.employee_id || (r.device_info as any)?.employee_id;
       const name = r.student_name || m.name || (r.device_info as any)?.name;
       const norm = normalizeStatus(r.status);
-      const uniqueEntryKey = `${norm}:${empId || ''}:${name || ''}:${r.user_id || r.id}`;
 
       const keys = [r.user_id, r.student_id, empId, name, r.id]
         .filter(Boolean)
-        .map((k) => String(k).trim().toLowerCase());
+        .map((k) => normStr(k));
 
       keys.forEach((k) => {
         if (norm === 'present') {
@@ -169,56 +209,40 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
           lateKeys.add(k);
         }
       });
-
-      if (norm === 'present') {
-        distinctPresentEntries.add(uniqueEntryKey);
-      } else if (norm === 'late') {
-        distinctLateEntries.add(uniqueEntryKey);
-      }
     });
 
     // Merge gate entries
     (gateRes.data || []).forEach((g) => {
-      const sId = g.student_id ? String(g.student_id).trim().toLowerCase() : '';
+      const sId = normStr(g.student_id);
       if (sId) {
         presentKeys.add(sId);
         lateKeys.delete(sId);
-        distinctPresentEntries.add(`present:gate:${sId}`);
       }
     });
 
-    // 3. Count matching roster students
+    // 3. Count statuses across unique students
     let totalPresent = 0;
     let totalLate = 0;
-    const accountedRosterKeys = new Set<string>();
 
-    uniqueUsers.forEach((u) => {
-      const identifiers = [u.employee_id, u.user_id, u.id, u.name]
+    roster.forEach((student) => {
+      const identifiers = [student.employee_id, student.user_id, student.id, student.name]
         .filter(Boolean)
-        .map((k) => String(k).trim().toLowerCase());
+        .map((k) => normStr(k));
 
       for (const id of identifiers) {
         if (!id) continue;
         if (presentKeys.has(id)) {
           totalPresent++;
-          accountedRosterKeys.add(id);
           return;
         }
         if (lateKeys.has(id)) {
           totalLate++;
-          accountedRosterKeys.add(id);
           return;
         }
       }
     });
 
-    // If there were check-in rows that didn't link to a pre-existing roster user, include them so stats never drop live marks!
-    const unlistedPresent = Math.max(0, distinctPresentEntries.size - totalPresent);
-    const unlistedLate = Math.max(0, distinctLateEntries.size - totalLate);
-    totalPresent += unlistedPresent;
-    totalLate += unlistedLate;
-
-    const totalRegistered = Math.max(uniqueUsers.length, totalPresent + totalLate);
+    const totalRegistered = roster.length;
     const absentToday = Math.max(0, totalRegistered - totalPresent - totalLate);
     const attendanceRate =
       totalRegistered > 0 ? Math.round(((totalPresent + totalLate) / totalRegistered) * 100) : 0;
@@ -250,18 +274,14 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
   const { startIso, localDateStr, utcDateStr } = getTodayRange();
 
   try {
-    const [registeredRes, descriptorsRes, profilesRes, todayRes, gateRes] = await Promise.all([
+    const [registeredRes, descriptorsRes, todayRes, gateRes] = await Promise.all([
       supabase
         .from('attendance_records')
-        .select('id, user_id, student_id, student_name, device_info')
+        .select('id, user_id, student_id, student_name, device_info, category')
         .eq('status', 'registered'),
       supabase
         .from('face_descriptors')
         .select('id, user_id, student_id, student_name, label'),
-      supabase
-        .from('profiles')
-        .select('id, full_name, username, role')
-        .limit(200),
       supabase
         .from('attendance_records')
         .select('id, user_id, student_id, student_name, status, timestamp, date, device_info')
@@ -276,69 +296,18 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
         .order('entry_time', { ascending: false }),
     ]);
 
-    const rawRoster: Array<{ id: string; user_id: string | null; employee_id: string; name: string }> = [];
+    const roster = buildDeduplicatedRoster(registeredRes.data || [], descriptorsRes.data || []);
 
-    (registeredRes.data || []).forEach((r) => {
-      const m = (r.device_info as any)?.metadata || {};
-      const empId = r.student_id || m.employee_id || (r.device_info as any)?.employee_id || '';
-      const name = r.student_name || m.name || (r.device_info as any)?.name || '';
-      if (name && name !== 'Unknown' && !name.toLowerCase().includes('unknown') && name !== 'User') {
-        rawRoster.push({
-          id: r.id,
-          user_id: r.user_id,
-          employee_id: String(empId).trim(),
-          name: String(name).trim(),
-        });
-      }
-    });
-
-    (descriptorsRes.data || []).forEach((d) => {
-      const empId = d.student_id || '';
-      const name = d.student_name || d.label || '';
-      if (name && name !== 'Unknown' && !name.toLowerCase().includes('unknown')) {
-        rawRoster.push({
-          id: d.id,
-          user_id: d.user_id,
-          employee_id: String(empId).trim(),
-          name: String(name).trim(),
-        });
-      }
-    });
-
-    (profilesRes.data || []).forEach((p) => {
-      if (p.role === 'teacher' || p.role === 'admin' || p.role === 'guard') return;
-      const name = p.full_name || p.username || '';
-      if (name && name !== 'Unknown' && !name.toLowerCase().includes('unknown')) {
-        rawRoster.push({
-          id: p.id,
-          user_id: p.id,
-          employee_id: '',
-          name: String(name).trim(),
-        });
-      }
-    });
-
-    const seen = new Set<string>();
-    const uniqueUsers = rawRoster.filter((u) => {
-      const key = u.employee_id ? `emp:${u.employee_id.toLowerCase()}`
-        : (u.name ? `name:${u.name.toLowerCase()}` : `uid:${u.user_id || u.id}`);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    const idToEmployeeId = new Map<string, string>();
-    uniqueUsers.forEach((u) => {
-      const employeeKey = u.employee_id || u.name || u.id;
-      [u.employee_id, u.user_id, u.id, u.name].filter(Boolean).forEach((id) => {
-        idToEmployeeId.set(String(id).trim().toLowerCase(), employeeKey);
-      });
-    });
-
+    const idToStudentKey = new Map<string, string>();
     const statusesByEmployeeId: Record<string, UnifiedStudentStatus> = {};
-    uniqueUsers.forEach((u) => {
-      const employeeKey = u.employee_id || u.name || u.id;
-      statusesByEmployeeId[employeeKey] = { status: 'absent' };
+
+    roster.forEach((student) => {
+      const studentKey = student.employee_id || student.name || student.id;
+      statusesByEmployeeId[studentKey] = { status: 'absent' };
+
+      [student.employee_id, student.user_id, student.id, student.name].filter(Boolean).forEach((id) => {
+        idToStudentKey.set(normStr(id), studentKey);
+      });
     });
 
     // Latest attendance record wins
@@ -355,22 +324,18 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
         r.id,
       ]
         .filter(Boolean)
-        .map((s) => String(s).trim().toLowerCase());
+        .map((s) => normStr(s));
 
-      const matchedEmployeeId = possibleIds
-        .map((id) => idToEmployeeId.get(id))
+      const matchedStudentKey = possibleIds
+        .map((id) => idToStudentKey.get(id))
         .find(Boolean);
 
-      const targetKey = matchedEmployeeId || r.student_id || r.student_name || r.user_id || r.id;
-      if (!targetKey) return;
-
-      if (statusesByEmployeeId[targetKey]?.status && statusesByEmployeeId[targetKey]?.status !== 'absent') {
-        return;
-      }
+      if (!matchedStudentKey) return;
+      if (statusesByEmployeeId[matchedStudentKey]?.status !== 'absent') return;
 
       const normalized = normalizeStatus(r.status);
       if (normalized === 'present' || normalized === 'late') {
-        statusesByEmployeeId[targetKey] = {
+        statusesByEmployeeId[matchedStudentKey] = {
           status: normalized as 'present' | 'late',
           time: r.timestamp,
         };
@@ -380,19 +345,19 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
     // Gate entries fill remaining absentees
     (gateRes.data || []).forEach((g) => {
       if (!g.student_id) return;
-      const sId = String(g.student_id).trim().toLowerCase();
-      const matchedEmployeeId = idToEmployeeId.get(sId) || g.student_id;
-      if (!matchedEmployeeId) return;
+      const sId = normStr(g.student_id);
+      const matchedStudentKey = idToStudentKey.get(sId);
+      if (!matchedStudentKey) return;
 
-      if (!statusesByEmployeeId[matchedEmployeeId] || statusesByEmployeeId[matchedEmployeeId].status === 'absent') {
-        statusesByEmployeeId[matchedEmployeeId] = {
+      if (statusesByEmployeeId[matchedStudentKey]?.status === 'absent') {
+        statusesByEmployeeId[matchedStudentKey] = {
           status: 'present',
           time: g.entry_time,
         };
       }
     });
 
-    const totalRegistered = Object.keys(statusesByEmployeeId).length;
+    const totalRegistered = roster.length;
     const presentToday = Object.values(statusesByEmployeeId).filter((s) => s.status === 'present').length;
     const lateToday = Object.values(statusesByEmployeeId).filter((s) => s.status === 'late').length;
     const absentToday = Math.max(0, totalRegistered - presentToday - lateToday);
