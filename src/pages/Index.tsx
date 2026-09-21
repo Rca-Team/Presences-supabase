@@ -317,31 +317,31 @@ const Index = () => {
             {/* Left Hero Main Card */}
             <RoyalReveal
               effect="fade-up"
-              className="nano-glass-hero nano-texture-grain col-span-12 lg:col-span-7 rounded-3xl p-6 sm:p-10 md:p-12 lg:p-14 border border-white/80 dark:border-white/10 shadow-2xl flex flex-col justify-between"
+              className="nano-glass-hero nano-texture-grain col-span-12 lg:col-span-7 rounded-3xl p-4 sm:p-8 md:p-12 lg:p-14 border border-white/80 dark:border-white/10 shadow-2xl flex flex-col justify-between"
             >
               <div>
                 {/* Collaboration & Active Status Badges */}
-                <div className="flex flex-wrap items-center gap-2.5 mb-6">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 backdrop-blur-md shadow-xs">
+                <div className="flex flex-wrap items-center gap-2 mb-4 sm:mb-6">
+                  <div className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 backdrop-blur-md shadow-xs">
                     <img 
                       src="/kvs-logo.png" 
                       alt="KVS Logo" 
-                      className="h-4 w-4 object-contain rounded-full bg-white p-0.5 border border-amber-400/40" 
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4 object-contain rounded-full bg-white p-0.5 border border-amber-400/40" 
                     />
-                    PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
+                    <span className="truncate max-w-[220px] sm:max-w-none">PM Shri Kendriya Vidyalaya NFC</span>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-[11px] sm:text-xs font-semibold">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                     </span>
-                    AI Campus Active
+                    AI Active
                   </span>
                 </div>
 
                 {/* Hero Title */}
                 <h1
-                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.06] text-slate-900 dark:text-foreground tracking-tight"
+                  className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.08] text-slate-900 dark:text-foreground tracking-tight"
                   style={{ fontFamily: 'Sora, sans-serif' }}
                 >
                   Your School,
@@ -351,58 +351,58 @@ const Index = () => {
                   </span>
                 </h1>
 
-                <p className="mt-6 max-w-xl text-base sm:text-lg md:text-xl leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
+                <p className="mt-4 sm:mt-6 max-w-xl text-sm sm:text-lg md:text-xl leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
                   Face-recognition attendance, intelligent timetable substitution, kiosk security, parent portal & AI analytics — all in one unified, intelligent platform.
                 </p>
 
                 {/* Action CTAs — Clean & Intuitive 1-Tap Role Pathways */}
-                <div className="mt-8 sm:mt-10 space-y-3.5">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Link to="/attendance">
+                <div className="mt-6 sm:mt-10 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    <Link to="/attendance" className="w-full sm:w-auto">
                       <Button
-                        className="h-12 sm:h-13 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-extrabold px-7 text-sm sm:text-base shadow-lg shadow-cyan-500/25 transition-all duration-200 btn-spring gap-2.5 active:scale-95"
+                        className="w-full sm:w-auto h-11 sm:h-13 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-extrabold px-6 sm:px-7 text-sm sm:text-base shadow-lg shadow-cyan-500/25 transition-all duration-200 btn-spring gap-2.5 active:scale-95"
                       >
-                        <Scan className="w-5 h-5 stroke-[2.2]" />
+                        <Scan className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
                         <span>Mark Attendance</span>
-                        <ArrowRight className="w-4 h-4 stroke-[2.2]" />
+                        <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2]" />
                       </Button>
                     </Link>
-                    <Link to="/parent">
+                    <Link to="/parent" className="flex-1 sm:flex-initial">
                       <Button
                         variant="outline"
-                        className="h-12 sm:h-13 rounded-2xl border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
+                        className="w-full sm:w-auto h-11 sm:h-13 rounded-2xl border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 px-4 sm:px-6 text-xs sm:text-base font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-1.5 sm:gap-2 active:scale-95"
                       >
                         <GraduationCap className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                         <span>Parent Portal</span>
                       </Button>
                     </Link>
-                    <Link to="/admin">
+                    <Link to="/admin" className="flex-1 sm:flex-initial">
                       <Button
                         variant="outline"
-                        className="h-12 sm:h-13 rounded-2xl border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
+                        className="w-full sm:w-auto h-11 sm:h-13 rounded-2xl border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 px-4 sm:px-6 text-xs sm:text-base font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-1.5 sm:gap-2 active:scale-95"
                       >
                         <Building2 className="w-4 h-4 text-purple-500 dark:text-purple-400" />
                         <span>Admin Console</span>
                       </Button>
                     </Link>
-                    <ThemeToggle className="h-12 w-12 sm:h-13 sm:w-13 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md btn-spring text-slate-900 dark:text-white active:scale-95" />
+                    <ThemeToggle className="h-11 w-11 sm:h-13 sm:w-13 shrink-0 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md btn-spring text-slate-900 dark:text-white active:scale-95" />
                   </div>
                 </div>
               </div>
 
-              {/* Desktop Live Speed & Trust Bar */}
-              <div className="mt-10 pt-6 border-t border-border/70 dark:border-white/10 grid grid-cols-3 gap-3">
-                <div className="flex items-center gap-2.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">99.9% Recognition</span>
+              {/* Desktop & Mobile Live Speed & Trust Bar */}
+              <div className="mt-6 sm:mt-10 pt-4 sm:pt-6 border-t border-border/70 dark:border-white/10 grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-2.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 truncate">99.9% Match</span>
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">&lt;120ms Fast Scan</span>
+                <div className="flex items-center gap-1.5 sm:gap-2.5">
+                  <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 truncate">&lt;120ms Speed</span>
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Offline AI Sync</span>
+                <div className="flex items-center gap-1.5 sm:gap-2.5">
+                  <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 truncate">Offline Sync</span>
                 </div>
               </div>
             </RoyalReveal>
@@ -419,7 +419,7 @@ const Index = () => {
               <RoyalReveal
                 effect="fade-up"
                 delay={0.15}
-                className="nano-glass-bento rounded-3xl p-6 sm:p-7 border border-white/80 dark:border-white/10 shadow-2xl flex-1 flex flex-col justify-between"
+                className="nano-glass-bento rounded-3xl p-4 sm:p-7 border border-white/80 dark:border-white/10 shadow-2xl flex-1 flex flex-col justify-between"
               >
                 <div>
                   <div className="mb-5 flex items-center justify-between">

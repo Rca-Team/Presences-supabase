@@ -221,14 +221,25 @@ async function drainQueue(): Promise<{ synced: number; failed: number }> {
         const validUserId = isUuid(entry.userId) ? entry.userId : null;
         const dateStr = (entry.timestamp || new Date().toISOString()).split('T')[0];
 
+        const resolvedClass = entry.metadata?.class ?? null;
+        const resolvedSection = entry.metadata?.section ?? null;
+        const resolvedCategory =
+          entry.metadata?.category ??
+          (resolvedClass && resolvedSection ? `${resolvedClass}-${resolvedSection}` : null);
+
         const primaryPayload: any = {
           user_id: validUserId,
-          timestamp: entry.timestamp,
-          date: dateStr,
+          student_id: entry.metadata?.employee_id || entry.metadata?.student_id || entry.userId || null,
+          student_name: entry.studentName || 'Student',
+          class: resolvedClass,
+          section: resolvedSection,
+          category: resolvedCategory,
           status: entry.status,
-          confidence: entry.confidence,
+          timestamp: entry.timestamp,
           confidence_score: entry.confidence,
-          image_url: imageUrl,
+          source: entry.source || 'ai-scan',
+          capture_mode: entry.source || 'ai-scan',
+          image_url: imageUrl || null,
           device_info: {
             ...entry.metadata,
             name: entry.studentName,
@@ -247,17 +258,17 @@ async function drainQueue(): Promise<{ synced: number; failed: number }> {
         let { error } = await supabase.from('attendance_records').insert(primaryPayload);
 
         if (error) {
-          // Schema fallback
+          // Schema fallback: minimal reliable columns
           const fallbackPayload: any = {
             user_id: validUserId,
-            timestamp: entry.timestamp,
-            date: dateStr,
+            student_id: entry.metadata?.employee_id || entry.metadata?.student_id || null,
+            student_name: entry.studentName || 'Student',
             status: entry.status,
-            confidence: entry.confidence,
+            timestamp: entry.timestamp,
             confidence_score: entry.confidence,
-            image_url: imageUrl,
+            image_url: imageUrl || null,
             device_info: primaryPayload.device_info,
-            metadata: primaryPayload.device_info,
+            metadata: primaryPayload.metadata,
           };
           const fallbackRes = await supabase.from('attendance_records').insert(fallbackPayload);
           error = fallbackRes.error;

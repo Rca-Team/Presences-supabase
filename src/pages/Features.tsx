@@ -54,7 +54,7 @@ const Features = () => {
 
   return (
     <PageLayout>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <PageHeader
           title={
             <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
@@ -65,7 +65,7 @@ const Features = () => {
           icon={<Sparkles className="h-8 w-8 text-cyan-400" />}
         />
         {isAdminOrPrincipal && (
-          <Button onClick={() => navigate('/gate')} className="gap-2" size="lg">
+          <Button onClick={() => navigate('/gate')} className="gap-2 w-full sm:w-auto" size="lg">
             <DoorOpen className="h-5 w-5" />
             Launch Gate Mode
           </Button>

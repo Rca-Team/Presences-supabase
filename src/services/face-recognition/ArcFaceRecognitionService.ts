@@ -131,17 +131,19 @@ export async function recordAttendance(
   imageUrl?: string
 ): Promise<any> {
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     const { data, error } = await supabase
       .from('attendance_records')
       .insert({
-        user_id: userId,
+        user_id: isUuid ? userId : null,
+        student_id: userId,
         status,
         confidence_score: confidence,
         image_url: imageUrl,
         timestamp: new Date().toISOString()
       })
       .select()
-      .single();
+      .maybeSingle();
     
     if (error) throw error;
     

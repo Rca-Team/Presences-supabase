@@ -587,7 +587,7 @@ const Attendance: React.FC = () => {
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`relative px-3 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
+                        className={`relative px-2.5 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center gap-1 sm:gap-2 shrink-0 cursor-pointer ${
                           isActive ? 'text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                         }`}
                       >
@@ -632,9 +632,9 @@ const Attendance: React.FC = () => {
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
                     {/* Left 2/3: Nano-Glass Camera Stage Housing */}
-                    <div className="lg:col-span-2 nano-glass rounded-[32px] p-3 sm:p-5 shadow-2xl border border-white/70 dark:border-white/10 overflow-hidden">
+                    <div className="lg:col-span-2 nano-glass rounded-[24px] sm:rounded-[32px] p-2 sm:p-5 shadow-2xl border border-white/70 dark:border-white/10 overflow-hidden">
                       <FuturisticFaceScanner
                         onAttendanceMarked={(rec) => {
                           signal(rec.status === 'late' ? 'warn' : 'ok');

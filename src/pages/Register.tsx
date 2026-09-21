@@ -508,21 +508,21 @@ const Register = () => {
               PM Shri KV
             </span>
           </div>
-          <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-12 xl:px-16 py-8">
+          <div className="flex-1 flex flex-col justify-center px-3 sm:px-8 lg:px-12 xl:px-16 py-4 sm:py-8">
             <div className="w-full max-w-lg mx-auto">
               {returnUrl && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mb-6 p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-between gap-3 shadow-xs"
+                  className="mb-4 sm:mb-6 p-3 sm:p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-between gap-3 shadow-xs"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                      <GraduationCap className="h-4 w-4" />
+                  <div className="flex items-center gap-2 sm:gap-2.5">
+                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                      <GraduationCap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-foreground">Teacher Portal Enrollment</p>
-                      <p className="text-[11px] text-muted-foreground">Enrolling new student to Class <strong className="text-primary">{departmentParam || formData.department}</strong></p>
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground">Enrolling new student to Class <strong className="text-primary">{departmentParam || formData.department}</strong></p>
                     </div>
                   </div>
                   <Button
@@ -531,18 +531,18 @@ const Register = () => {
                     onClick={() => navigate(returnUrl)}
                     className="text-xs h-7 rounded-xl font-bold border-blue-500/30 text-blue-600 hover:bg-blue-500/10 gap-1 shrink-0"
                   >
-                    <ArrowLeft className="h-3 w-3" /> Return to Class
+                    <ArrowLeft className="h-3 w-3" /> Return
                   </Button>
                 </motion.div>
               )}
 
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className="mb-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full nano-glass mb-4 border border-primary/20 hardware-layer shadow-xs">
-                  <Scan className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Biometric Enrollment</span>
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className="mb-6 sm:mb-8">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full nano-glass mb-3 sm:mb-4 border border-primary/20 hardware-layer shadow-xs">
+                  <Scan className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                  <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-primary">Biometric Enrollment</span>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Register Student Profile</h2>
-                <p className="mt-1.5 text-sm text-muted-foreground">Capture student details & multi-angle AI face baseline</p>
+                <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight text-foreground">Register Student Profile</h2>
+                <p className="mt-1 sm:mt-1.5 text-xs sm:text-sm text-muted-foreground">Capture student details & multi-angle AI face baseline</p>
               </motion.div>
 
               {drafts.length > 0 && (
@@ -568,11 +568,24 @@ const Register = () => {
                           </p>
                         </div>
                         <div className="ml-3 flex items-center gap-1">
-                          <Button type="button" size="sm" variant="outline" className="rounded-xl btn-spring" onClick={() => resumeDraft(draft)}>
-                            <Play className="mr-1 h-3.5 w-3.5" /> Resume
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2.5 text-xs"
+                            onClick={() => resumeDraft(draft)}
+                          >
+                            <Play className="mr-1 h-3 w-3" /> Resume
                           </Button>
-                          <Button type="button" size="icon" variant="ghost" className="rounded-xl btn-spring" onClick={() => clearDraftById(draft.id)}>
-                            <Trash2 className="h-4 w-4" />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => clearDraftById(draft.id)}
+                            aria-label={`Delete draft for ${draft.formData.name || 'unnamed student'}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -582,24 +595,24 @@ const Register = () => {
               )}
 
               {/* Progress Steps */}
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="mb-8">
-                <div className="flex items-center justify-between relative">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mb-6 sm:mb-8">
+                <div className="flex items-center justify-between max-w-xs mx-auto">
                   {steps.map((step, i) => (
                     <React.Fragment key={step.number}>
-                      <div className="flex flex-col items-center z-10">
+                      <div className="flex flex-col items-center">
                         <motion.div animate={{ scale: registrationStep >= step.number ? 1 : 0.9, opacity: registrationStep >= step.number ? 1 : 0.5 }}
-                          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
+                          className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
                             registrationStep >= step.number ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-muted text-muted-foreground'
                           }`}>
-                          {registrationStep > step.number ? <CheckCircle2 className="w-6 h-6" /> : <step.icon className="w-5 h-5" />}
+                          {registrationStep > step.number ? <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /> : <step.icon className="w-4 h-4 sm:w-5 sm:h-5" />}
                         </motion.div>
-                        <span className={`mt-2 text-sm font-medium ${registrationStep >= step.number ? 'text-foreground' : 'text-muted-foreground'}`}>{step.title}</span>
+                        <span className={`mt-1.5 sm:mt-2 text-xs sm:text-sm font-medium ${registrationStep >= step.number ? 'text-foreground' : 'text-muted-foreground'}`}>{step.title}</span>
                       </div>
                       {i < steps.length - 1 && (
-                        <div className="flex-1 mx-4 relative">
-                          <div className="absolute top-6 left-0 right-0 h-0.5 bg-muted" />
+                        <div className="flex-1 mx-2 sm:mx-4 relative">
+                          <div className="absolute top-4.5 sm:top-6 left-0 right-0 h-0.5 bg-muted" />
                           <motion.div initial={{ width: 0 }} animate={{ width: registrationStep > 1 ? '100%' : '0%' }}
-                            className="absolute top-6 left-0 h-0.5 bg-gradient-to-r from-blue-600 to-blue-500 transition-all duration-500" />
+                            className="absolute top-4.5 sm:top-6 left-0 h-0.5 bg-gradient-to-r from-blue-600 to-blue-500 transition-all duration-500" />
                         </div>
                       )}
                     </React.Fragment>

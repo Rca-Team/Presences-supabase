@@ -457,103 +457,185 @@ const StudentDetailsTable: React.FC = () => {
           <Badge variant="secondary">{filtered.length} Shown</Badge>
         </div>
 
-        {/* Table */}
+        {/* Table / Mobile Cards */}
         {loading ? (
-          <div className="space-y-2">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          <div className="space-y-2">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-3 opacity-40" />
             <p>No students match the current filters.</p>
           </div>
         ) : (
-          <div className="rounded-lg border overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Roll / ID</TableHead>
-                  <TableHead>Blood</TableHead>
-                  <TableHead>Parent</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Transport</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((s) => (
-                  <TableRow key={s.id} className="hover:bg-muted/40">
-                    <TableCell>
-                      <div className="flex items-center gap-3 min-w-[200px]">
-                        <Avatar className="h-10 w-10 border">
-                          {s.avatar_url ? <AvatarImage src={s.avatar_url} alt={s.name} /> : null}
-                          <AvatarFallback><UserIcon className="h-4 w-4" /></AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{s.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{s.parent_email}</p>
-                        </div>
+          <>
+            {/* Mobile Card Layout (< md screens) */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {filtered.map((s) => (
+                <div
+                  key={s.id}
+                  className="rounded-2xl border border-border/80 bg-card/70 p-3.5 shadow-xs flex flex-col gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12 border shrink-0">
+                      {s.avatar_url ? <AvatarImage src={s.avatar_url} alt={s.name} /> : null}
+                      <AvatarFallback><UserIcon className="h-5 w-5" /></AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <p className="font-bold text-foreground text-sm truncate">{s.name}</p>
+                        <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">
+                          {getCategoryLabel(s.category)}
+                        </Badge>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getCategoryLabel(s.category)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      <div>Roll: <span className="font-semibold">{s.roll_number}</span></div>
-                      <div className="text-xs text-muted-foreground">ID: {s.employee_id}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-red-600 border-red-300">
-                        <Heart className="h-3 w-3 mr-1" />
-                        {s.blood_group}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">{s.parent_name}</TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {s.parent_phone}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      <span className="inline-flex items-center gap-1">
-                        <Bus className="h-3 w-3" />
-                        {s.transport_mode}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-sm max-w-[200px]">
-                      <span className="inline-flex items-start gap-1">
-                        <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                        <span className="line-clamp-2">{s.address}</span>
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setCaptureFor(s)}
-                          title="Capture face for this student"
+                      <p className="text-xs text-muted-foreground truncate">{s.parent_email !== '—' ? s.parent_email : `ID: ${s.employee_id}`}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 rounded-xl p-2.5">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Roll / ID</span>
+                      <span className="font-semibold text-foreground">{s.roll_number}</span>
+                      {s.employee_id !== s.roll_number && s.employee_id !== '—' && (
+                        <span className="text-muted-foreground text-[10px] block truncate">({s.employee_id})</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Blood Group</span>
+                      <span className="font-semibold text-red-600 dark:text-red-400">{s.blood_group}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Parent</span>
+                      <span className="font-medium text-foreground truncate block">{s.parent_name}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Contact</span>
+                      {s.parent_phone && s.parent_phone !== '—' ? (
+                        <a
+                          href={`tel:${s.parent_phone.replace(/\s+/g, '')}`}
+                          className="font-medium text-primary hover:underline inline-flex items-center gap-1"
                         >
-                          <Camera className="h-3.5 w-3.5 mr-1" />
-                          Capture Face
-                        </Button>
-                        <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPreviewStudents([s])}
-                      >
-                        <Download className="h-3.5 w-3.5 mr-1" />
-                        ID Card
-                        </Button>
-                      </div>
-                    </TableCell>
+                          <Phone className="h-3 w-3" />
+                          <span className="truncate">{s.parent_phone}</span>
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-9 rounded-xl text-xs gap-1"
+                      onClick={() => setCaptureFor(s)}
+                    >
+                      <Camera className="h-3.5 w-3.5 text-primary" />
+                      <span>Face Photo</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-9 rounded-xl text-xs gap-1"
+                      onClick={() => setPreviewStudents([s])}
+                    >
+                      <Download className="h-3.5 w-3.5 text-primary" />
+                      <span>ID Card</span>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Full Desktop Table (>= md screens) */}
+            <div className="hidden md:block rounded-lg border overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Roll / ID</TableHead>
+                    <TableHead>Blood</TableHead>
+                    <TableHead>Parent</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Transport</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((s) => (
+                    <TableRow key={s.id} className="hover:bg-muted/40">
+                      <TableCell>
+                        <div className="flex items-center gap-3 min-w-[200px]">
+                          <Avatar className="h-10 w-10 border">
+                            {s.avatar_url ? <AvatarImage src={s.avatar_url} alt={s.name} /> : null}
+                            <AvatarFallback><UserIcon className="h-4 w-4" /></AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{s.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{s.parent_email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{getCategoryLabel(s.category)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <div>Roll: <span className="font-semibold">{s.roll_number}</span></div>
+                        <div className="text-xs text-muted-foreground">ID: {s.employee_id}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-red-600 border-red-300">
+                          <Heart className="h-3 w-3 mr-1" />
+                          {s.blood_group}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{s.parent_name}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {s.parent_phone}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <span className="inline-flex items-center gap-1">
+                          <Bus className="h-3 w-3" />
+                          {s.transport_mode}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[200px]">
+                        <span className="inline-flex items-start gap-1">
+                          <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                          <span className="line-clamp-2">{s.address}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setCaptureFor(s)}
+                            title="Capture face for this student"
+                          >
+                            <Camera className="h-3.5 w-3.5 mr-1" />
+                            Capture Face
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPreviewStudents([s])}
+                          >
+                            <Download className="h-3.5 w-3.5 mr-1" />
+                            ID Card
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </CardContent>
 

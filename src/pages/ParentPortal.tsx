@@ -161,7 +161,7 @@ export default function ParentPortal() {
                 className="w-full space-y-4"
               >
                 {/* Horizontal Tab Navigation Bar */}
-                <div className="overflow-x-auto pb-1">
+                <div className="overflow-x-auto pb-1 no-scrollbar">
                   <TabsList className="nano-glass-dock border border-slate-200/70 dark:border-white/10 p-1 rounded-2xl h-11 inline-flex w-full sm:w-auto min-w-full sm:min-w-0 justify-start hardware-layer shadow-xs">
                     <TabsTrigger
                       value="attendance"
