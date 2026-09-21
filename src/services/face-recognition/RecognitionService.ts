@@ -538,7 +538,23 @@ export async function recordAttendance(
   const isUuid = (val?: string | null): val is string =>
     typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-  const validUserId = isUuid(userId) ? userId : null;
+  let validUserId = isUuid(userId) ? userId : null;
+  if (!validUserId && resolvedStudentId && resolvedStudentId !== 'unknown') {
+    try {
+      const { data: fdRow } = await supabase
+        .from('face_descriptors')
+        .select('user_id')
+        .or(`student_id.eq.${resolvedStudentId},label.eq.${resolvedStudentId}`)
+        .not('user_id', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      if (fdRow?.user_id && isUuid(fdRow.user_id)) {
+        validUserId = fdRow.user_id;
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   // Resolve user profile and effective name early to avoid TDZ ReferenceError
   let userName: string | null = null;
@@ -710,23 +726,26 @@ export async function recordAttendance(
     },
   };
 
-  // ── Multi-Stage Resilient Database Insert ────────────────────────────────────
+  // ── Direct Schema-Compliant Database Insert ──────────────────────────────────
   let data: any = null;
   let insertError: any = null;
 
   // Schema-compliant primary payload for public.attendance_records
   const primaryPayload: any = {
     user_id:          validUserId,
-    timestamp,
-    date:             dateStr,
-    status:           adjustedStatus,
+    student_id:       resolvedStudentId ? String(resolvedStudentId) : null,
+    student_name:     effectiveName || 'Student',
     class:            fullDeviceInfo?.metadata?.class   ?? null,
     section:          fullDeviceInfo?.metadata?.section ?? null,
     category:         fullDeviceInfo?.metadata?.category ?? null,
-    method:           captureMode === 'qr-scan' ? 'qr' : 'face',
+    roll_number:      fullDeviceInfo?.metadata?.roll_number ? String(fullDeviceInfo.metadata.roll_number) : null,
+    status:           adjustedStatus,
+    timestamp,
     confidence:       confidence ?? 0.95,
     confidence_score: confidence ?? 0.95,
-    image_url:        uploadedImageUrl,
+    image_url:        uploadedImageUrl || null,
+    capture_mode:     sanitizeSegment(captureMode),
+    source:           resolvedSource,
     device_info:      fullDeviceInfo,
     metadata:         fullDeviceInfo?.metadata || fullDeviceInfo,
   };
@@ -739,7 +758,7 @@ export async function recordAttendance(
       .maybeSingle();
 
     if (res.error) {
-      console.warn('[AttendanceService] Primary insert with select returned error, trying standard insert:', res.error);
+      console.warn('[AttendanceService] Primary insert with select returned error, trying direct insert:', res.error);
       const resDirect = await supabase.from('attendance_records').insert(primaryPayload);
       if (resDirect.error) {
         throw resDirect.error;
@@ -750,15 +769,18 @@ export async function recordAttendance(
     }
   } catch (err: any) {
     console.warn('[AttendanceService] Primary insert fallback triggered:', err?.message || err);
-    // Tier 2 Fallback: standard core columns
+    // Tier 2 Fallback: standard core columns without extra metadata
     const tier2Payload: any = {
       user_id:          validUserId,
-      timestamp,
-      date:             dateStr,
+      student_id:       resolvedStudentId ? String(resolvedStudentId) : null,
+      student_name:     effectiveName || 'Student',
       status:           adjustedStatus,
+      timestamp,
       confidence:       confidence ?? 0.95,
       confidence_score: confidence ?? 0.95,
-      image_url:        uploadedImageUrl,
+      image_url:        uploadedImageUrl || null,
+      source:           resolvedSource,
+      capture_mode:     sanitizeSegment(captureMode),
       device_info:      fullDeviceInfo,
       metadata:         fullDeviceInfo?.metadata || fullDeviceInfo,
     };
@@ -770,23 +792,13 @@ export async function recordAttendance(
       .maybeSingle();
 
     if (res2.error) {
-      // Tier 3 Emergency minimal insert
-      const tier3Payload: any = {
-        user_id:          validUserId,
-        timestamp,
-        date:             dateStr,
-        status:           adjustedStatus,
-        confidence:       confidence ?? 0.95,
-        confidence_score: confidence ?? 0.95,
-        image_url:        uploadedImageUrl,
-        device_info:      fullDeviceInfo,
-      };
-      const res3 = await supabase.from('attendance_records').insert(tier3Payload);
-      if (res3.error) {
-        insertError = res3.error;
-        console.error('[AttendanceService] Emergency insert failed:', res3.error);
+      console.warn('[AttendanceService] Tier 2 insert with select returned error, trying direct insert:', res2.error);
+      const res2Direct = await supabase.from('attendance_records').insert(tier2Payload);
+      if (res2Direct.error) {
+        insertError = res2Direct.error;
+        console.error('[AttendanceService] Direct fallback insert failed:', res2Direct.error);
       } else {
-        data = { id: `rec-${Date.now()}`, ...tier3Payload };
+        data = { id: `rec-${Date.now()}`, ...tier2Payload };
       }
     } else {
       data = res2.data || { id: `rec-${Date.now()}`, ...tier2Payload };

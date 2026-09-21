@@ -9,7 +9,6 @@ import type { GateEntry } from '@/pages/GateMode';
 import { loadGateDetectionModels, areGateDetectionModelsLoaded } from '@/services/face-recognition/ModelService';
 import { recordAttendance, recognizeFace } from '@/services/face-recognition/RecognitionService';
 import { usePhotoEnhancer } from '@/hooks/usePhotoEnhancer';
-import { enqueueAttendance, startOfflineQueueDrain, stopOfflineQueueDrain } from '@/services/face-recognition/AttendanceWriteQueue';
 import { analyzeUniformFromVideo, analyzeUniformViaCloudVision, type UniformAnalysisResult } from '@/services/face-recognition/UniformVisionService';
 import * as faceapi from 'face-api.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -1004,32 +1003,13 @@ const GateModeScanner = ({
 
                 speakGreeting(studentName, isLate, uniformInfo.status === 'compliant');
                 onFaceDetected({ ...entry, photoUrl: photo ?? undefined });
-              } catch (err) {
-                console.error('[Gate] Online DB write failed — storing to offline IndexedDB vault:', err);
-                enqueueAttendance({
-                  id: entry.id,
-                  userId: studentId,
-                  studentName,
-                  status: isLate ? 'late' : 'present',
-                  confidence,
-                  timestamp: nowTime.toISOString(),
-                  source: 'gate-mode',
-                  photoDataUrl: captureFrame(0.85) ?? undefined,
-                  metadata: {
-                    gate_period_key: currentPeriod,
-                    class: className,
-                    section,
-                    subject,
-                    uniform_ai: {
-                      isCompliant: uniformInfo.status === 'compliant',
-                      hasIdCard: uniformInfo.hasLanyard,
-                      uniformType: uniformInfo.uniformType,
-                      confidence: uniformInfo.confidence,
-                    },
-                  },
+              } catch (err: any) {
+                console.error('[Gate] Direct online DB write failed:', err);
+                toast({
+                  title: 'Cloud Save Failed',
+                  description: `Could not save attendance for ${studentName} (${err?.message || 'Network error'}).`,
+                  variant: 'destructive',
                 });
-                speakGreeting(studentName, isLate, uniformInfo.status === 'compliant');
-                onFaceDetected({ ...entry, photoUrl: captureFrame(0.85) ?? undefined });
               }
               continue;
             }

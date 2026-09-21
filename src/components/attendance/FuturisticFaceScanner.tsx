@@ -717,87 +717,39 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
             });
           }
 
-          // Automatically clear ID plate after 4.5s
-          setTimeout(() => {
-            setRecognizedFaces((prev) => prev.filter((f) => f.id !== face.userId));
-          }, 4500);
-
-          setAutoMarkedLog((prev) => {
-            const next = [
-              { id: entryId, name: face.name, status, confidence: face.confidence, at: Date.now() },
-              ...prev.filter((e) => e.name !== face.name),
-            ];
-            return next.slice(0, 8);
-          });
-
-          toast({
-            title: `${face.name} marked ${status}`,
-            description: `Auto attendance · ${Math.round(face.confidence * 100)}% match`,
-          });
-
-          scanTelemetry.matched({
-            name: face.name,
-            confidence: face.confidence,
-            meta: `Marked ${status} · 100% verified`,
-            counted: true,
-          });
-
-          // Trigger parent component callback immediately & dispatch instant feed event
+          // Direct persistent cloud write to Supabase
+          let outcome: any = null;
           try {
-            onAttendanceMarked?.({
-              userId: face.userId,
-              name: face.name,
+            outcome = await recordAttendance(
+              face.userId,
               status,
-              confidence: face.confidence,
-            });
-            onScanComplete?.({
-              recognized: true,
-              name: face.name,
-              confidence: face.confidence,
-            });
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(
-                new CustomEvent('presence:attendance-marked', {
-                  detail: {
-                    id: entryId,
-                    user_id: face.userId,
-                    student_name: face.name,
-                    status,
-                    confidence: face.confidence,
-                    timestamp: new Date().toISOString(),
-                    image_url: cachedCover || crop?.dataUrl || null,
-                    device_info: {
-                      metadata: {
-                        name: face.name,
-                        source: liteMode ? 'lite-face-terminal' : 'live-face-id',
-                      },
-                    },
-                  },
-                })
-              );
-            }
-          } catch {
-            /* ignore */
-          }
-
-          // Persistent background write to Supabase
-          const outcome = await recordAttendance(
-            face.userId,
-            status,
-            face.confidence,
-            {
-              metadata: {
-                name: face.name,
-                source: liteMode ? 'lite-face-terminal' : 'live-face-id',
-                track_id: face.trackId,
-                distance: Number(face.distance.toFixed(4)),
-                force_attendance_save: true,
-                suppress_auto_notification: true,
+              face.confidence,
+              {
+                metadata: {
+                  name: face.name,
+                  source: liteMode ? 'lite-face-terminal' : 'live-face-id',
+                  track_id: face.trackId,
+                  distance: Number(face.distance.toFixed(4)),
+                  force_attendance_save: true,
+                  suppress_auto_notification: true,
+                },
               },
-            },
-            crop?.dataUrl,
-            'ai-scan'
-          );
+              crop?.dataUrl,
+              'ai-scan'
+            );
+          } catch (cloudErr: any) {
+            autoMarkedUsersRef.current.delete(face.userId);
+            if (normName !== 'unknown') {
+              autoMarkedUsersRef.current.delete(`name:${normName}`);
+            }
+            console.error('[Scanner] Cloud attendance save failed:', cloudErr);
+            toast({
+              title: "Cloud Save Failed",
+              description: `Could not save attendance for ${face.name}: ${cloudErr?.message || 'Network error'}`,
+              variant: "destructive",
+            });
+            return;
+          }
 
           if (outcome?.skipped) {
             if (outcome.reason !== 'already_marked') {
@@ -815,7 +767,75 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               meta: outcome.reason === 'already_marked' ? 'Already marked today' : 'Needs a clearer look',
               counted: outcome.reason === 'already_marked',
             });
+            if (outcome.reason === 'already_marked') {
+              toast({
+                title: `${face.name} already marked`,
+                description: `Attendance was already recorded in database today.`,
+              });
+            }
             return;
+          }
+
+          // Verified cloud save confirmed! Now trigger success feedback & notifications
+          setTimeout(() => {
+            setRecognizedFaces((prev) => prev.filter((f) => f.id !== face.userId));
+          }, 4500);
+
+          setAutoMarkedLog((prev) => {
+            const next = [
+              { id: entryId, name: face.name, status, confidence: face.confidence, at: Date.now() },
+              ...prev.filter((e) => e.name !== face.name),
+            ];
+            return next.slice(0, 8);
+          });
+
+          toast({
+            title: `${face.name} marked ${status}`,
+            description: `Saved to Cloud · ${Math.round(face.confidence * 100)}% match`,
+          });
+
+          scanTelemetry.matched({
+            name: face.name,
+            confidence: face.confidence,
+            meta: `Marked ${status} · 100% cloud verified`,
+            counted: true,
+          });
+
+          try {
+            onAttendanceMarked?.({
+              userId: face.userId,
+              name: face.name,
+              status,
+              confidence: face.confidence,
+            });
+            onScanComplete?.({
+              recognized: true,
+              name: face.name,
+              confidence: face.confidence,
+            });
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('presence:attendance-marked', {
+                  detail: {
+                    id: outcome?.id || entryId,
+                    user_id: outcome?.user_id || face.userId,
+                    student_name: face.name,
+                    status,
+                    confidence: face.confidence,
+                    timestamp: outcome?.timestamp || new Date().toISOString(),
+                    image_url: cachedCover || crop?.dataUrl || null,
+                    device_info: {
+                      metadata: {
+                        name: face.name,
+                        source: liteMode ? 'lite-face-terminal' : 'live-face-id',
+                      },
+                    },
+                  },
+                })
+              );
+            }
+          } catch {
+            /* ignore */
           }
 
           // Background follow-ups: parent email (Resend), in-app notification and face sample
@@ -1116,27 +1136,32 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
                 );
                 rememberSessionEmbedding(descriptor, result.employee.id);
                 recognizedCount++;
-              } catch (recordErr) {
-                console.error('Failed to record attendance:', recordErr);
+
+                sendAutoParentNotification(
+                  result.employee.id,
+                  result.employee.name || 'Student',
+                  status,
+                  result.employee.avatar_url || result.employee.firebase_image_url
+                ).catch(err => console.error('Auto notification error:', err));
+
+                results.push({
+                  id: result.employee.id,
+                  name: result.employee.name || 'Unknown',
+                  status,
+                  confidence: (result.confidence ?? 0) * 100,
+                  strictScore,
+                  thresholdTarget,
+                  imageUrl: result.employee.avatar_url || result.employee.firebase_image_url,
+                  box: { x: box.x, y: box.y, width: box.width, height: box.height }
+                });
+              } catch (recordErr: any) {
+                console.error('[Scanner] Failed to record attendance to cloud:', recordErr);
+                toast({
+                  title: "Cloud Save Failed",
+                  description: `Could not save attendance for ${result.employee.name} to cloud database.`,
+                  variant: "destructive",
+                });
               }
-
-              sendAutoParentNotification(
-                result.employee.id,
-                result.employee.name || 'Student',
-                status,
-                result.employee.avatar_url || result.employee.firebase_image_url
-              ).catch(err => console.error('Auto notification error:', err));
-
-              results.push({
-                id: result.employee.id,
-                name: result.employee.name || 'Unknown',
-                status,
-                confidence: (result.confidence ?? 0) * 100,
-                strictScore,
-                thresholdTarget,
-                imageUrl: result.employee.avatar_url || result.employee.firebase_image_url,
-                box: { x: box.x, y: box.y, width: box.width, height: box.height }
-              });
             } else {
               reviewQueue.push({
                 id: `${result.employee.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

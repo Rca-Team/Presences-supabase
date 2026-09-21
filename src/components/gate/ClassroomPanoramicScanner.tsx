@@ -366,22 +366,30 @@ export default function ClassroomPanoramicScanner({
       );
       setVerifiedCount((c) => c + 1);
 
-      // Background DB write + Auto notification
+      // Direct cloud DB write + Auto notification
       void (async () => {
+        const student = roster.find((r) => r.userId === userId);
+        const studentName = student?.name || 'Student';
         try {
-          const student = roster.find((r) => r.userId === userId);
-          const studentName = student?.name || 'Student';
           await recordAttendance(userId, 'present', confidence, {
             metadata: {
+              name: studentName,
+              student_id: student?.studentId || student?.employee_id,
               class: selectedClass,
               section: selectedSection,
               mode: 'classroom-panoramic',
+              source: 'classroom-panoramic',
               verifiedAt: new Date().toISOString(),
             },
           });
           void sendAutoParentNotification(userId, studentName, 'present').catch(() => {});
-        } catch (err) {
-          console.warn('Classroom attendance record write failed:', err);
+        } catch (err: any) {
+          console.error('[Panoramic] Classroom attendance cloud write failed:', err);
+          toast.error(`Cloud save failed for ${studentName}: ${err?.message || 'Check connection'}`);
+          setRoster((prev) =>
+            prev.map((s) => (s.userId === userId ? { ...s, verified: false } : s))
+          );
+          setVerifiedCount((c) => Math.max(0, c - 1));
         }
       })();
     },

@@ -28,7 +28,7 @@ import { createFaceTracker, type FaceTrack, type Box } from './FaceTrackerServic
 import { initializeWorkerPool, matchDescriptorParallel, isPoolInitialized } from './WorkerPoolService';
 import { initializeGPU } from './GPUAccelerationService';
 import { embedFaceOnnx, initializeOnnxEmbedder, isOnnxEmbedderReady } from './OnnxEmbeddingService';
-import { enqueueWrite } from './AttendanceWriteQueue';
+import { recordAttendance } from './RecognitionService';
 import { assessFaceQuality } from './FaceQualityGate';
 
 export interface EngineOptions {
@@ -423,26 +423,25 @@ export function createRecognitionEngine(
 
               if (options.markAttendance) {
                 options.markAttendance(identified).catch(err => {
-                  console.warn('markAttendance failed, queueing offline backup:', err);
-                  enqueueWrite({
-                    userId: match.userId,
-                    studentName: match.name,
-                    status: 'present',
-                    confidence: match.confidence,
-                    timestamp: new Date().toISOString(),
-                    source: 'realtime-engine',
-                    metadata: { trackId: t.id, matchDistance: match.distance },
-                  });
+                  console.error('[RealtimeEngine] markAttendance handler error:', err);
                 });
               } else {
-                enqueueWrite({
-                  userId: match.userId,
-                  studentName: match.name,
-                  status: 'present',
-                  confidence: match.confidence,
-                  timestamp: new Date().toISOString(),
-                  source: 'realtime-engine',
-                  metadata: { trackId: t.id, matchDistance: match.distance },
+                recordAttendance(
+                  match.userId,
+                  'present',
+                  match.confidence,
+                  {
+                    metadata: {
+                      name: match.name,
+                      source: 'realtime-engine',
+                      trackId: t.id,
+                      matchDistance: match.distance,
+                    },
+                  },
+                  undefined,
+                  'ai-scan'
+                ).catch(err => {
+                  console.error('[RealtimeEngine] Direct cloud attendance write failed:', err);
                 });
               }
             }

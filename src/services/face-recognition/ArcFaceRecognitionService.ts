@@ -128,20 +128,30 @@ export async function recordAttendance(
   userId: string,
   status: 'present' | 'late' | 'absent' | 'unauthorized',
   confidence: number,
-  imageUrl?: string
+  imageUrl?: string,
+  studentName?: string
 ): Promise<any> {
   try {
+    const isUuid = (val?: string | null): val is string =>
+      typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    const validUserId = isUuid(userId) ? userId : null;
+
     const { data, error } = await supabase
       .from('attendance_records')
       .insert({
-        user_id: userId,
+        user_id: validUserId,
+        student_id: String(userId),
+        student_name: studentName || 'Student',
         status,
         confidence_score: confidence,
-        image_url: imageUrl,
+        confidence,
+        source: 'arcface',
+        capture_mode: 'ai-scan',
+        image_url: imageUrl || null,
         timestamp: new Date().toISOString()
       })
       .select()
-      .single();
+      .maybeSingle();
     
     if (error) throw error;
     

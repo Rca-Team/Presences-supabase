@@ -88,10 +88,12 @@ const StudentCSVImporter: React.FC<{ onImported?: () => void }> = ({ onImported 
             const { error: insErr } = await supabase.from('attendance_records').insert({
               status: 'registered',
               timestamp: new Date().toISOString(),
-              date: new Date().toISOString().split('T')[0],
+              student_name: name,
+              student_id: r.employee_id || r.admission_number || r.roll_number || null,
               category,
               confidence: 1.0,
               confidence_score: 1.0,
+              source: 'csv-import',
               device_info: deviceInfo,
               metadata: deviceInfo.metadata,
             });
