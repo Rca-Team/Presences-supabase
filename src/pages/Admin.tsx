@@ -47,7 +47,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import {
@@ -86,10 +85,9 @@ const AdminContentSkeleton = () => (
   </div>
 );
 
-// Plain wrapper — the single AnimatePresence in the content area owns the
-// transition, so panels must not animate a second time (double animation = jank).
+// Plain wrapper for sections with clean padding and natural scrolling
 const TabPanel: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <div data-lenis-prevent="true" className={cn("space-y-4 min-w-0 overscroll-contain pb-6", className)}>{children}</div>
+  <div className={cn("space-y-4 min-w-0 pb-6", className)}>{children}</div>
 );
 
 interface SectionErrorBoundaryProps {
@@ -481,8 +479,13 @@ const Admin = () => {
 
   return (
     <PageTransition>
-      <PageLayout className="min-h-screen bg-slate-50/50 dark:bg-slate-950 p-0" fullWidth noFooter>
-        <div className={cn("flex overflow-hidden", isMobile ? "min-h-[calc(100dvh-6rem)] flex-col" : "h-[calc(100dvh-4rem)]")}>
+      <PageLayout className="min-h-screen bg-slate-50/50 dark:bg-slate-950 !pt-0 md:!pt-16 !pb-0 !px-0" fullWidth noFooter>
+        <div className={cn(
+          "w-full",
+          isMobile 
+            ? "flex flex-col min-h-screen" 
+            : "flex h-[calc(100vh-4rem)] overflow-hidden"
+        )}>
           {/* Desktop Sidebar — Apple macOS Nano-Glass Style */}
           {!isMobile && (
             <aside
@@ -580,7 +583,10 @@ const Admin = () => {
           )}
 
           {/* Main Content Stage */}
-          <main data-lenis-prevent="true" className="flex-1 flex flex-col min-w-0 h-full min-h-0 overflow-hidden bg-transparent will-change-transform">
+          <main className={cn(
+            "flex-1 flex flex-col min-w-0 bg-transparent will-change-transform",
+            isMobile ? "overflow-visible" : "h-full min-h-0 overflow-hidden"
+          )}>
             {/* Top Bar - Apple Nano-Glass Header */}
             <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -660,54 +666,72 @@ const Admin = () => {
 
             {/* Mobile feature navigation - Apple Nano-Glass Segmented Capsule */}
             {isMobile && (
-              <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass px-2.5 py-2 sticky top-0 z-20">
-                <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                  {navItems.map((item) => {
-                    const isActive = activeTab === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => handleTabChange(item.id)}
-                        className={cn(
-                          "relative shrink-0 h-8 px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold select-none transition-all duration-200 active:scale-95",
-                          isActive
-                            ? "text-white font-bold"
-                            : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                        )}
-                      >
-                        {isActive && (
-                          <motion.span
-                            layoutId="admin-mobile-nav-active"
-                            className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-md shadow-blue-600/30 border border-white/20"
-                            transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.7 }}
-                          />
-                        )}
-                        <item.icon className="relative z-10 w-3.5 h-3.5" />
-                        <span className="relative z-10 text-[11px] whitespace-nowrap">{item.label}</span>
-                        {item.count !== undefined && item.count > 0 && (
-                          <Badge variant="destructive" className="relative z-10 text-[8px] h-4 min-w-[14px] px-1 rounded-full">
-                            {item.count}
-                          </Badge>
-                        )}
-                      </button>
-                    );
-                  })}
+              <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass px-2.5 py-2 sticky top-0 z-20 backdrop-blur-xl bg-slate-50/85 dark:bg-slate-950/85">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+                    {navItems.map((item) => {
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleTabChange(item.id)}
+                          className={cn(
+                            "relative shrink-0 h-8 px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold select-none transition-all duration-200 active:scale-95",
+                            isActive
+                              ? "text-white font-bold"
+                              : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                          )}
+                        >
+                          {isActive && (
+                            <motion.span
+                              layoutId="admin-mobile-nav-active"
+                              className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-md shadow-blue-600/30 border border-white/20"
+                              transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.7 }}
+                            />
+                          )}
+                          <item.icon className="relative z-10 w-3.5 h-3.5" />
+                          <span className="relative z-10 text-[11px] whitespace-nowrap">{item.label}</span>
+                          {item.count !== undefined && item.count > 0 && (
+                            <Badge variant="destructive" className="relative z-10 text-[8px] h-4 min-w-[14px] px-1 rounded-full">
+                              {item.count}
+                            </Badge>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    onClick={handleRefresh}
+                    title="Refresh data"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 text-blue-500" />
+                  </Button>
                 </div>
               </div>
             )}
 
-            {/* Content Area */}
-            <PullToRefresh onRefresh={handleRefresh} enabled={isMobile} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-              <div className="p-2.5 sm:p-4 md:p-6 pb-24 sm:pb-8">
-                <AnimatePresence mode="popLayout" initial={false}>
+            {/* Content Area - Fluid Native Scrolling */}
+            <div 
+              className={cn(
+                "w-full",
+                isMobile 
+                  ? "flex-1 overflow-visible" 
+                  : "flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+              )}
+              style={!isMobile ? { WebkitOverflowScrolling: 'touch' } : undefined}
+            >
+              <div className="p-2.5 sm:p-4 md:p-6 pb-32 sm:pb-12 max-w-full">
+                <AnimatePresence mode="wait" initial={false}>
                   <motion.div
                     key={isDataLoading ? 'loading' : activeTab}
-                    initial={{ opacity: 0, y: 8 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.7 }}
-                    style={{ willChange: 'opacity, transform' }}>
-
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18 }}
+                  >
                     {isDataLoading ? (
                       <AdminContentSkeleton />
                     ) : (
@@ -718,7 +742,7 @@ const Admin = () => {
                   </motion.div>
                 </AnimatePresence>
               </div>
-            </PullToRefresh>
+            </div>
 
           </main>
         </div>
