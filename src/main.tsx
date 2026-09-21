@@ -29,7 +29,8 @@ const unregisterStaleServiceWorkers = async () => {
           k.includes('workbox') ||
           k.includes('precache') ||
           k.includes('runtime') ||
-          k.includes('googleAnalytics'),
+          k.includes('googleAnalytics') ||
+          k.includes('supabase'),
       );
       await Promise.all(staleKeys.map((k) => caches.delete(k)));
     }

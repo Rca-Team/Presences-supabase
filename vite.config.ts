@@ -79,16 +79,7 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "supabase-cache",
-                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
-              },
-            },
-          ],
+          runtimeCaching: [],
         },
       }),
     ].filter(Boolean),

@@ -34,17 +34,23 @@ export interface CanonicalStudent {
  * Returns ISO strings and local date strings for today's 00:00:00 to 23:59:59 window.
  */
 function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const localMidnight = new Date(now);
+  localMidnight.setHours(0, 0, 0, 0);
 
-  const end = new Date();
+  const utcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+
+  // Use earlier of local midnight or UTC midnight so today's records are never missed across timezones
+  const start = new Date(Math.min(localMidnight.getTime(), utcMidnight.getTime()));
+
+  const end = new Date(now);
   end.setHours(23, 59, 59, 999);
 
-  const year = start.getFullYear();
-  const month = String(start.getMonth() + 1).padStart(2, '0');
-  const day = String(start.getDate()).padStart(2, '0');
+  const year = localMidnight.getFullYear();
+  const month = String(localMidnight.getMonth() + 1).padStart(2, '0');
+  const day = String(localMidnight.getDate()).padStart(2, '0');
   const localDateStr = `${year}-${month}-${day}`;
-  const utcDateStr = start.toISOString().split('T')[0];
+  const utcDateStr = utcMidnight.toISOString().split('T')[0];
 
   return {
     startIso: start.toISOString(),
@@ -193,11 +199,11 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
 
     (todayRes.data || []).forEach((r) => {
       const m = (r.device_info as any)?.metadata || r.device_info || {};
-      const empId = m.employee_id || m.roll_number || (r.device_info as any)?.employee_id || (r as any).student_id;
-      const name = m.name || m.student_name || (r.device_info as any)?.name || (r as any).student_name;
+      const empId = (r as any).student_id || m.employee_id || m.roll_number || (r.device_info as any)?.employee_id;
+      const name = (r as any).student_name || m.name || m.student_name || (r.device_info as any)?.name;
       const norm = normalizeStatus(r.status);
 
-      const keys = [r.user_id, empId, name, r.id]
+      const keys = [r.user_id, (r as any).student_id, empId, name, (r as any).student_name, r.id]
         .filter(Boolean)
         .map((k) => normStr(k));
 
