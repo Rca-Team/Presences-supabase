@@ -280,12 +280,12 @@ class PresencesDataContextService {
             for (const student of matchedProfiles) {
               const { data: recentAtt } = await (supabase as any)
                 .from("attendance_records")
-                .select("date, status, timestamp, method")
+                .select("status, timestamp, capture_mode, source")
                 .eq("user_id", student.id)
                 .order("timestamp", { ascending: false })
                 .limit(3);
 
-              const attHistory = (recentAtt || []).map((a: any) => `${a.date || a.timestamp?.slice(0, 10)}: ${a.status} (${a.method || "gate"})`).join("; ");
+              const attHistory = (recentAtt || []).map((a: any) => `${a.timestamp?.slice(0, 10)}: ${a.status} (${a.capture_mode || a.source || "terminal"})`).join("; ");
 
               targetedSections.push(
                 `[STUDENT PROFILE MATCH: ${student.name.toUpperCase()}]\n` +

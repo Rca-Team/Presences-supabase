@@ -41,3 +41,4 @@ __pycache__/
 *.db
 *.sqlite
 supabase/.temp/
+.vercel

@@ -355,7 +355,7 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
         .from('attendance_records')
         .select('*')
         .in('status', ['present', 'late', 'absent'])
-        .or(`timestamp.gte.${startIso},date.eq.${localDateStr},date.eq.${utcDateStr}`)
+        .gte('timestamp', startIso)
         .order('timestamp', { ascending: false })
         .limit(maxInitialCount);
 

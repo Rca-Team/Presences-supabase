@@ -416,7 +416,7 @@ const Index = () => {
                 </div>
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Offline AI Sync</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Instant Cloud Sync</span>
                 </div>
               </div>
             </RoyalReveal>

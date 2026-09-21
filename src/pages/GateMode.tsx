@@ -112,7 +112,7 @@ const GateMode = () => {
   const [voiceGreeting,    setVoiceGreeting]    = useState<'voice' | 'chime' | 'off'>('voice');
   const [uniformDetectionEnabled, setUniformDetectionEnabled] = useState(true);
   const [aiEnhancerEnabled,setAiEnhancerEnabled]= useState(true);
-  const [cloudOffline,     setCloudOffline]     = useState(false);
+
   const [mobileStatsOpen,  setMobileStatsOpen]  = useState(false);
 
   const [entries,          setEntries]          = useState<GateEntry[]>([]);
@@ -816,7 +816,6 @@ const GateMode = () => {
             onCrowdHotspot={handleCrowdHotspot}
             isActive={true}
             onPendingCountChange={setPendingCount}
-            onCloudStatusChange={setCloudOffline}
             markedCount={autoMarkedCount}
             periodKey={activePeriodKey}
             className={className}

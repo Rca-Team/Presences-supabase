@@ -756,7 +756,7 @@ const LoopFaceScanMode: React.FC = () => {
           disabled={!queue.length || submitting}
           size="lg"
           variant="outline"
-          title="Send in background — falls back to on-device if server is offline"
+          title="Send in background — direct cloud sync"
         >
           <Sparkles className="w-4 h-4 mr-1" /> Send & Close-Safe
         </Button>

@@ -1,113 +1,197 @@
 /**
- * Direct Cloud Attendance Pipeline (Offline Queue Removed)
+ * AttendanceWriteQueue
  *
- * All attendance events write directly and immediately to Supabase.
- * Offline IndexedDB queue has been removed per system specification.
+ * Thread 4 of the pipeline: database updates.
+ *
+ * Recognition never awaits a network round-trip. Identified faces are pushed
+ * into this queue, which drains in the background with de-duplication,
+ * retries and resilience, saving directly to Supabase cloud.
+ *
+ * All offline database/vault algorithms and IndexedDB queues have been removed
+ * to match previous stable architecture where attendance is saved directly to cloud.
  */
 
 import { supabase } from '@/integrations/supabase/client';
 
-export interface QueuedAttendanceEntry {
-  id: string;
-  userId: string;
-  studentName: string;
-  status: 'present' | 'late';
-  confidence: number;
-  timestamp: string;
-  source: string;
-  metadata: Record<string, any>;
-  photoDataUrl?: string;
-  retries: number;
-  createdAt: number;
+export interface WriteJob<T = unknown> {
+  /** de-dup key — repeated pushes within `dedupeMs` are ignored */
+  key: string;
+  payload: T;
+  run: (payload: T) => Promise<void>;
+  attempts?: number;
 }
 
-// Clean up legacy IndexedDB database on startup if it exists
-if (typeof window !== 'undefined' && 'indexedDB' in window) {
-  try {
-    const req = window.indexedDB.deleteDatabase('presences-attendance-queue');
-    req.onsuccess = () => console.info('[AttendanceSync] Legacy offline queue database purged');
-  } catch {
-    // ignore
-  }
+interface QueueOptions {
+  dedupeMs?: number;
+  maxAttempts?: number;
+  concurrency?: number;
+}
+
+const seen = new Map<string, number>();
+let queue: WriteJob[] = [];
+let active = 0;
+let draining = false;
+let opts: Required<QueueOptions> = { dedupeMs: 20_000, maxAttempts: 4, concurrency: 3 };
+const listeners = new Set<(depth: number) => void>();
+
+export function configureWriteQueue(next: QueueOptions): void {
+  opts = { ...opts, ...next };
+}
+
+export function onWriteQueueChange(fn: (depth: number) => void): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+function notify() {
+  const depth = queue.length + active;
+  listeners.forEach(fn => fn(depth));
+}
+
+function hasPendingKey(key: string): boolean {
+  return queue.some(job => job.key === key);
 }
 
 /**
- * Direct cloud insert for attendance events.
- * Bypasses local queue and writes directly to Supabase cloud.
+ * Enqueue a write job to the in-memory queue.
+ * Drains asynchronously with direct cloud persistence.
  */
-export async function enqueueAttendance(entry: Partial<QueuedAttendanceEntry> & { userId: string; studentName?: string }): Promise<void> {
+export function enqueueWrite<T = any>(job: WriteJob<T> | any): boolean {
+  // If invoked with a legacy payload object directly
+  if (!job.run && (job.payload || job.userId)) {
+    const p = job.payload || job;
+    const key = job.key || `att:${p.userId || p.student_id}:${Math.floor(Date.now() / 15_000)}`;
+    return enqueueWrite({
+      key,
+      payload: p,
+      run: async (item: any) => {
+        await directCloudInsert(item);
+      },
+    });
+  }
+
+  const now = Date.now();
+  const last = seen.get(job.key);
+  if (last && now - last < opts.dedupeMs) return false;
+  seen.set(job.key, now);
+
+  // prune old dedupe entries
+  if (seen.size > 500) {
+    for (const [k, t] of seen) if (now - t > opts.dedupeMs * 2) seen.delete(k);
+  }
+
+  queue.push({ ...(job as WriteJob), attempts: 0 });
+  notify();
+  void drain();
+  return true;
+}
+
+async function drain(): Promise<void> {
+  if (draining) return;
+  draining = true;
+  try {
+    while (queue.length > 0) {
+      while (active < opts.concurrency && queue.length > 0) {
+        const job = queue.shift()!;
+        active++;
+        notify();
+        void runJob(job).finally(() => {
+          active--;
+          notify();
+        });
+      }
+      // yield so the UI thread keeps painting
+      await new Promise(resolve => setTimeout(resolve, 40));
+      if (active >= opts.concurrency) continue;
+    }
+  } finally {
+    draining = false;
+  }
+}
+
+async function runJob(job: WriteJob): Promise<void> {
+  try {
+    await job.run(job.payload);
+  } catch (err) {
+    const attempts = (job.attempts ?? 0) + 1;
+    if (attempts < opts.maxAttempts) {
+      const backoff = Math.min(500 * 2 ** (attempts - 1), 8000);
+      setTimeout(() => {
+        if (!hasPendingKey(job.key)) queue.push({ ...job, attempts });
+        notify();
+        void drain();
+      }, backoff);
+    } else {
+      seen.delete(job.key);
+      console.error('[AttendanceWriteQueue] Write job failed permanently:', job.key, err);
+    }
+  }
+}
+
+/** Direct cloud insert helper */
+async function directCloudInsert(p: any): Promise<void> {
   const isUuid = (val?: string | null): val is string =>
     typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-  const validUserId = isUuid(entry.userId) ? entry.userId : null;
-  const resolvedStudentId = entry.metadata?.employee_id || entry.userId;
-  const studentName = entry.studentName || entry.metadata?.name || 'Student';
-  const timestamp = entry.timestamp || new Date().toISOString();
+  const validUserId = isUuid(p.userId || p.user_id) ? (p.userId || p.user_id) : null;
+  const resolvedStudentId = p.student_id || p.metadata?.employee_id || p.userId || p.employee_id;
+  const studentName = p.studentName || p.student_name || p.name || p.metadata?.name || 'Student';
+  const timestamp = p.timestamp || new Date().toISOString();
 
   const payload: any = {
     user_id: validUserId,
     student_id: resolvedStudentId ? String(resolvedStudentId) : null,
     student_name: studentName,
-    class: entry.metadata?.class ?? null,
-    section: entry.metadata?.section ?? null,
-    category: entry.metadata?.category ?? null,
-    roll_number: entry.metadata?.roll_number ? String(entry.metadata.roll_number) : null,
-    status: entry.status || 'present',
+    class: p.metadata?.class ?? p.class ?? null,
+    section: p.metadata?.section ?? p.section ?? null,
+    category: p.metadata?.category ?? p.category ?? null,
+    roll_number: p.metadata?.roll_number ? String(p.metadata.roll_number) : null,
+    status: p.status || 'present',
     timestamp,
-    confidence: entry.confidence ?? 0.95,
-    confidence_score: entry.confidence ?? 0.95,
-    source: entry.source || 'direct-cloud',
-    capture_mode: entry.metadata?.capture_mode || 'ai-scan',
+    confidence: p.confidence ?? 0.95,
+    confidence_score: p.confidence ?? 0.95,
+    source: p.source || 'direct-cloud',
+    capture_mode: p.capture_mode || p.metadata?.capture_mode || 'ai-scan',
     device_info: {
-      ...entry.metadata,
+      ...p.metadata,
       name: studentName,
-      source: entry.source || 'direct-cloud',
+      source: p.source || 'direct-cloud',
     },
     metadata: {
-      ...entry.metadata,
+      ...p.metadata,
       name: studentName,
-      source: entry.source || 'direct-cloud',
+      source: p.source || 'direct-cloud',
     },
   };
 
-  try {
-    const { error } = await supabase.from('attendance_records').insert(payload);
-    if (error) {
-      console.error('[AttendanceSync] Direct cloud write failed:', error.message);
-      throw error;
-    }
-    console.info(`[AttendanceSync] Saved directly to cloud: ${studentName}`);
-  } catch (err) {
-    console.error('[AttendanceSync] Failed to write attendance to Supabase:', err);
-    throw err;
+  const { error } = await supabase.from('attendance_records').insert(payload);
+  if (error) {
+    console.error('[AttendanceWriteQueue] Direct cloud insert failed:', error.message);
+    throw error;
   }
 }
 
-/** Legacy alias */
-export const enqueueWrite = (job: any) => {
-  if (job?.payload && job.key) {
-    const p = job.payload;
-    return enqueueAttendance({
-      id: job.key,
-      userId: p.userId,
-      studentName: p.name || p.studentName || 'Student',
-      status: 'present',
-      confidence: p.confidence || 0.85,
-      timestamp: new Date().toISOString(),
-      source: 'realtime-engine',
-      metadata: p,
-    });
-  } else if (job?.userId) {
-    return enqueueAttendance(job);
-  }
-};
+export function getWriteQueueDepth(): number {
+  return queue.length + active;
+}
 
-export async function getPendingEntries(): Promise<QueuedAttendanceEntry[]> {
+export function clearWriteQueue(): void {
+  queue = [];
+  seen.clear();
+  notify();
+}
+
+/** Compatibility wrapper for legacy callers */
+export async function enqueueAttendance(entry: any): Promise<void> {
+  await directCloudInsert(entry);
+}
+
+export async function getPendingEntries(): Promise<any[]> {
   return [];
 }
 
 export async function getQueueSize(): Promise<number> {
-  return 0;
+  return queue.length + active;
 }
 
 export function startOfflineQueueDrain(): void {}

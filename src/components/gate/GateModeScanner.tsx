@@ -218,13 +218,6 @@ const GateModeScanner = ({
 
   const { isEnhancing: isAIEnhancing, autoEnhance } = usePhotoEnhancer();
 
-  // Start offline queue background drain
-  useEffect(() => {
-    startOfflineQueueDrain();
-    return () => {
-      stopOfflineQueueDrain();
-    };
-  }, []);
 
   const speakGreeting = useCallback((name: string, isLate: boolean, isUniformCompliant?: boolean) => {
     if (voiceGreeting === 'off' || typeof window === 'undefined' || !('speechSynthesis' in window)) return;

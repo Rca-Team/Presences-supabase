@@ -167,16 +167,16 @@ export async function fetchUnifiedAttendanceStats(): Promise<UnifiedAttendanceSt
     const [registeredRes, descriptorsRes, todayRes, gateRes] = await Promise.all([
       supabase
         .from('attendance_records')
-        .select('id, user_id, device_info, category')
+        .select('id, user_id, device_info, category, student_id, student_name')
         .eq('status', 'registered'),
       supabase
         .from('face_descriptors')
         .select('id, user_id, student_id, label'),
       supabase
         .from('attendance_records')
-        .select('id, user_id, status, timestamp, date, device_info')
+        .select('id, user_id, status, timestamp, device_info, student_id, student_name')
         .in('status', ['present', 'late', 'unauthorized'])
-        .or(`timestamp.gte.${startIso},date.eq.${localDateStr},date.eq.${utcDateStr}`),
+        .gte('timestamp', startIso),
       supabase
         .from('gate_entries')
         .select('id, student_id, entry_time, is_recognized')
@@ -277,16 +277,16 @@ export async function fetchUnifiedStudentSnapshot(): Promise<UnifiedStudentSnaps
     const [registeredRes, descriptorsRes, todayRes, gateRes] = await Promise.all([
       supabase
         .from('attendance_records')
-        .select('id, user_id, device_info, category')
+        .select('id, user_id, device_info, category, student_id, student_name')
         .eq('status', 'registered'),
       supabase
         .from('face_descriptors')
         .select('id, user_id, student_id, label'),
       supabase
         .from('attendance_records')
-        .select('id, user_id, status, timestamp, date, device_info')
+        .select('id, user_id, status, timestamp, device_info, student_id, student_name')
         .in('status', ['present', 'late', 'unauthorized'])
-        .or(`timestamp.gte.${startIso},date.eq.${localDateStr},date.eq.${utcDateStr}`)
+        .gte('timestamp', startIso)
         .order('timestamp', { ascending: false }),
       supabase
         .from('gate_entries')
