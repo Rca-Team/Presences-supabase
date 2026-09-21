@@ -63,6 +63,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { fetchUnifiedStudentSnapshot } from '@/utils/attendanceStatsHelper';
 import AdminUpdatePusherDialog from '@/components/admin/AdminUpdatePusherDialog';
+import LiteModeToggle from '@/components/LiteModeToggle';
 
 interface NavItem {
   id: string;
@@ -608,6 +609,8 @@ const Admin = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                <LiteModeToggle variant="segmented" className="hidden md:inline-flex" />
+                <LiteModeToggle variant="badge" className="md:hidden" />
                 <Button
                   variant="outline"
                   size="sm"

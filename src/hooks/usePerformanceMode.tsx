@@ -2,8 +2,16 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { playModeSwitchSound } from '@/utils/audioFeedback';
 import ModeSwitchTransitionHUD from '@/components/ModeSwitchTransitionHUD';
 
-type LitePref = 'auto' | 'on' | 'off';
+export type LitePref = 'auto' | 'on' | 'off' | 'standard' | 'lite';
 const STORAGE_KEY = 'presences:lite-mode';
+
+export function normalizePref(p: string | null | undefined): 'on' | 'off' | 'auto' {
+  if (!p) return 'auto';
+  const lower = p.toLowerCase().trim();
+  if (lower === 'off' || lower === 'standard' || lower === '0' || lower === 'false') return 'off';
+  if (lower === 'on' || lower === 'lite' || lower === '1' || lower === 'true') return 'on';
+  return 'auto';
+}
 
 interface PerfSignals {
   saveData: boolean;
@@ -21,7 +29,7 @@ interface PerformanceModeContextValue {
   signals: PerfSignals;
   isTransitioning: boolean;
   targetMode: 'lite' | 'standard' | null;
-  setPreference: (p: LitePref) => void;
+  setPreference: (p: LitePref | string) => void;
   toggleLite: () => void;
   dismissTransition: () => void;
 }
@@ -77,18 +85,23 @@ export const PerformanceModeProvider: React.FC<{ children: React.ReactNode }> = 
   const [preference, setPrefState] = useState<LitePref>(() => {
     if (typeof window === 'undefined') return 'auto';
     try {
-      // Lite app shortcut / installed Lite PWA launches with ?lite=1
-      const param = new URLSearchParams(window.location.search).get('lite');
-      if (param === '1' || param === 'true') {
+      // Lite app shortcut / installed Lite PWA launches with ?lite=1 or ?mode=standard
+      const searchParams = new URLSearchParams(window.location.search);
+      const param = searchParams.get('lite');
+      const modeParam = searchParams.get('mode');
+      if (param === '1' || param === 'true' || param === 'lite' || modeParam === 'lite') {
         localStorage.setItem(STORAGE_KEY, 'on');
         return 'on';
       }
-      if (param === '0' || param === 'false') {
+      if (param === '0' || param === 'false' || param === 'standard' || param === 'off' || modeParam === 'standard') {
         localStorage.setItem(STORAGE_KEY, 'off');
         return 'off';
       }
-      const stored = localStorage.getItem(STORAGE_KEY) as LitePref | null;
-      if (stored === 'on' || stored === 'off' || stored === 'auto') return stored;
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const normalized = normalizePref(stored);
+        if (normalized === 'on' || normalized === 'off') return normalized;
+      }
 
       // Default to Lite Mode for teachers / teacher portal
       if (window.location.pathname.startsWith('/teacher')) {
@@ -113,8 +126,9 @@ export const PerformanceModeProvider: React.FC<{ children: React.ReactNode }> = 
   }, []);
 
   const liteMode = useMemo(() => {
-    if (preference === 'on') return true;
-    if (preference === 'off') return false;
+    const normalized = normalizePref(preference);
+    if (normalized === 'on') return true;
+    if (normalized === 'off') return false;
     return shouldAutoEnable(signals);
   }, [preference, signals]);
 
@@ -131,11 +145,12 @@ export const PerformanceModeProvider: React.FC<{ children: React.ReactNode }> = 
     setIsTransitioning(false);
   }, []);
 
-  const setPreference = useCallback((p: LitePref) => {
-    setPrefState(p);
-    try { localStorage.setItem(STORAGE_KEY, p); } catch {}
+  const setPreference = useCallback((p: LitePref | string) => {
+    const normalized = normalizePref(p);
+    setPrefState(normalized);
+    try { localStorage.setItem(STORAGE_KEY, normalized); } catch {}
 
-    const nextIsLite = p === 'on' || (p === 'auto' && shouldAutoEnable(signals));
+    const nextIsLite = normalized === 'on' || (normalized === 'auto' && shouldAutoEnable(signals));
     const nextTarget: 'lite' | 'standard' = nextIsLite ? 'lite' : 'standard';
 
     setTargetMode(nextTarget);

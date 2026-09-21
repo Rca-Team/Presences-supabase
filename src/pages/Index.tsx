@@ -321,27 +321,27 @@ const Index = () => {
             >
               <div>
                 {/* Collaboration & Active Status Badges */}
-                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mb-5 sm:mb-6">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 sm:px-3.5 sm:py-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 backdrop-blur-md shadow-xs max-w-full">
+                <div className="flex flex-wrap items-center gap-2.5 mb-6">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 backdrop-blur-md shadow-xs">
                     <img 
                       src="/kvs-logo.png" 
                       alt="KVS Logo" 
                       className="h-4 w-4 object-contain rounded-full bg-white p-0.5 border border-amber-400/40 shrink-0" 
                     />
-                    <span className="truncate">PM Shri KV NFC Vigyan Vihar</span>
+                    PM Shri Kendriya Vidyalaya NFC Vigyan Vihar
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-[11px] sm:text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                     </span>
-                    AI Campus Active
+                    AI Attendance & Security Active
                   </span>
                 </div>
 
                 {/* Hero Title */}
                 <h1
-                  className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-extrabold leading-[1.08] text-slate-900 dark:text-foreground tracking-tight break-words"
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.06] text-slate-900 dark:text-foreground tracking-tight break-words"
                   style={{ fontFamily: 'Sora, sans-serif' }}
                 >
                   Your School,
@@ -351,56 +351,70 @@ const Index = () => {
                   </span>
                 </h1>
 
-                <p className="mt-4 sm:mt-6 max-w-xl text-sm sm:text-lg md:text-xl leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
+                <p className="mt-6 max-w-xl text-base sm:text-lg md:text-xl leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
                   Face-recognition attendance, intelligent timetable substitution, kiosk security, parent portal & AI analytics — all in one unified, intelligent platform.
                 </p>
 
-                {/* Action CTAs — Clean & Intuitive 1-Tap Role Pathways */}
-                <div className="mt-6 sm:mt-10 space-y-3.5">
-                  <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-                    <Link to="/attendance" className="w-full sm:w-auto">
+                {/* Action CTAs — Rebuilt to precisely match capsule button layout */}
+                <div className="mt-8 sm:mt-10 space-y-3.5">
+                  {/* Row 1: Launch Attendance & Parent Portal */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link to="/attendance">
                       <Button
-                        className="w-full sm:w-auto h-12 sm:h-13 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-extrabold px-6 sm:px-7 text-sm sm:text-base shadow-lg shadow-cyan-500/25 transition-all duration-200 btn-spring gap-2.5 active:scale-95"
+                        className="h-12 sm:h-13 rounded-full bg-[#22d3ee] hover:bg-[#06b6d4] text-slate-950 font-bold px-7 text-sm sm:text-base shadow-[0_0_24px_rgba(34,211,238,0.45)] hover:shadow-[0_0_32px_rgba(34,211,238,0.6)] transition-all duration-200 btn-spring gap-2.5 active:scale-95"
                       >
                         <Scan className="w-5 h-5 stroke-[2.2]" />
-                        <span>Mark Attendance</span>
+                        <span>Launch Attendance</span>
                         <ArrowRight className="w-4 h-4 stroke-[2.2]" />
                       </Button>
                     </Link>
                     <Link to="/parent">
                       <Button
                         variant="outline"
-                        className="h-11 sm:h-13 rounded-2xl border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 px-4 sm:px-6 text-xs sm:text-base font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-1.5 sm:gap-2 active:scale-95"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
                       >
-                        <GraduationCap className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                        <Globe className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                         <span>Parent Portal</span>
                       </Button>
                     </Link>
-                    <Link to="/admin">
+                  </div>
+
+                  {/* Row 2: Gate Kiosk, Timetable & Theme Toggle */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link to="/gate">
                       <Button
                         variant="outline"
-                        className="h-11 sm:h-13 rounded-2xl border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 px-4 sm:px-6 text-xs sm:text-base font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-1.5 sm:gap-2 active:scale-95"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
                       >
-                        <Building2 className="w-4 h-4 text-purple-500 dark:text-purple-400" />
-                        <span>Admin Console</span>
+                        <DoorOpen className="w-4 h-4 text-fuchsia-500 dark:text-fuchsia-400" />
+                        <span>Gate Kiosk</span>
                       </Button>
                     </Link>
-                    <ThemeToggle className="h-11 w-11 sm:h-13 sm:w-13 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md btn-spring text-slate-900 dark:text-white active:scale-95" />
+                    <Link to="/admin?tab=timetable">
+                      <Button
+                        variant="outline"
+                        className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
+                      >
+                        <BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                        <span>Timetable</span>
+                      </Button>
+                    </Link>
+                    <ThemeToggle className="h-12 w-12 sm:h-13 sm:w-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md btn-spring text-slate-900 dark:text-white active:scale-95" />
                   </div>
                 </div>
               </div>
 
               {/* Desktop Live Speed & Trust Bar */}
-              <div className="mt-8 sm:mt-10 pt-5 sm:pt-6 border-t border-border/70 dark:border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                <div className="flex items-center gap-2">
+              <div className="mt-10 pt-6 border-t border-border/70 dark:border-white/10 grid grid-cols-3 gap-3">
+                <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">99.9% Recognition</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">&lt;120ms Fast Scan</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Offline AI Sync</span>
                 </div>
@@ -462,209 +476,6 @@ const Index = () => {
             </div>
 
           </div>
-        </section>
-
-        {/* ========================================================================= */}
-        {/* QUICK ACCESS ACTION HUB — Instant 1-Tap Role Pathways                     */}
-        {/* ========================================================================= */}
-        <section className="pb-12">
-          <RoyalReveal effect="fade-up">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-cyan-500" />
-                    <span>Quick Access Hub</span>
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium mt-0.5">
-                    Choose your role or tool to get started instantly
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {/* 1. Mark Attendance */}
-                <Link
-                  to="/attendance"
-                  className="group rounded-3xl border border-cyan-500/40 bg-gradient-to-br from-cyan-500/10 via-card to-card p-5 shadow-sm hover:border-cyan-500/80 hover:shadow-cyan-500/15 transition-all flex flex-col justify-between card-hover-pop"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="h-12 w-12 rounded-2xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 flex items-center justify-center font-bold shadow-xs">
-                        <Scan className="h-6 w-6" />
-                      </div>
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
-                        Camera Scan
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-base sm:text-lg text-foreground group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                        <span>Mark Attendance</span>
-                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        Hands-free Face AI recognition and Digital ID QR code scanner.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-3.5 mt-3.5 border-t border-border/60 flex items-center justify-between text-xs font-bold text-cyan-600 dark:text-cyan-400">
-                    <span>Open Scanner</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
-                </Link>
-
-                {/* 2. Parent Portal */}
-                <Link
-                  to="/parent"
-                  className="group rounded-3xl border border-blue-500/40 bg-gradient-to-br from-blue-500/10 via-card to-card p-5 shadow-sm hover:border-blue-500/80 hover:shadow-blue-500/15 transition-all flex flex-col justify-between card-hover-pop"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="h-12 w-12 rounded-2xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold shadow-xs">
-                        <GraduationCap className="h-6 w-6" />
-                      </div>
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30">
-                        For Parents
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-base sm:text-lg text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1.5">
-                        <span>Parent Portal</span>
-                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        Check your child&apos;s live attendance, arrival times, and request early gate passes.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-3.5 mt-3.5 border-t border-border/60 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400">
-                    <span>View Records</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
-                </Link>
-
-                {/* 3. Teacher Portal */}
-                <Link
-                  to="/teacher"
-                  className="group rounded-3xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/10 via-card to-card p-5 shadow-sm hover:border-emerald-500/80 hover:shadow-emerald-500/15 transition-all flex flex-col justify-between card-hover-pop"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="h-12 w-12 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shadow-xs">
-                        <BookOpen className="h-6 w-6" />
-                      </div>
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                        Teachers
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-base sm:text-lg text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                        <span>Teacher Workspace</span>
-                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        Class roll-call, period timetables, auto-substitutions, and student verification.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-3.5 mt-3.5 border-t border-border/60 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    <span>Open Workspace</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
-                </Link>
-
-                {/* 4. Principal & Admin Command */}
-                <Link
-                  to="/admin"
-                  className="group rounded-3xl border border-purple-500/40 bg-gradient-to-br from-purple-500/10 via-card to-card p-5 shadow-sm hover:border-purple-500/80 hover:shadow-purple-500/15 transition-all flex flex-col justify-between card-hover-pop"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="h-12 w-12 rounded-2xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold shadow-xs">
-                        <Building2 className="h-6 w-6" />
-                      </div>
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
-                        Leadership
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-base sm:text-lg text-foreground group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors flex items-center gap-1.5">
-                        <span>Admin Command Center</span>
-                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        School-wide attendance analytics, student roster, PDF reports, and system settings.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-3.5 mt-3.5 border-t border-border/60 flex items-center justify-between text-xs font-bold text-purple-600 dark:text-purple-400">
-                    <span>Access Admin</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
-                </Link>
-
-                {/* 5. Student Enrollment */}
-                <Link
-                  to="/register"
-                  className="group rounded-3xl border border-amber-500/40 bg-gradient-to-br from-amber-500/10 via-card to-card p-5 shadow-sm hover:border-amber-500/80 hover:shadow-amber-500/15 transition-all flex flex-col justify-between card-hover-pop"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="h-12 w-12 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shadow-xs">
-                        <UserPlus className="h-6 w-6" />
-                      </div>
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                        Enrollment
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-base sm:text-lg text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1.5">
-                        <span>Register Student</span>
-                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        Register new student biometric face profile, admission ID, and class section.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-3.5 mt-3.5 border-t border-border/60 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
-                    <span>Enroll Now</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
-                </Link>
-
-                {/* 6. Gate Security Kiosk */}
-                <Link
-                  to="/gate"
-                  className="group rounded-3xl border border-rose-500/40 bg-gradient-to-br from-rose-500/10 via-card to-card p-5 shadow-sm hover:border-rose-500/80 hover:shadow-rose-500/15 transition-all flex flex-col justify-between card-hover-pop"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="h-12 w-12 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold shadow-xs">
-                        <DoorOpen className="h-6 w-6" />
-                      </div>
-                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30">
-                        Security
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-base sm:text-lg text-foreground group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors flex items-center gap-1.5">
-                        <span>Gate Kiosk</span>
-                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        Campus turnstile security, visitor pass verification, and stranger detection.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-3.5 mt-3.5 border-t border-border/60 flex items-center justify-between text-xs font-bold text-rose-600 dark:text-rose-400">
-                    <span>Open Gate Kiosk</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
-                </Link>
-              </div>
-            </div>
-          </RoyalReveal>
         </section>
 
         {/* ========================================================================= */}

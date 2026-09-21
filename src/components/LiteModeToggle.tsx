@@ -30,42 +30,52 @@ export const LiteModeToggle: React.FC<LiteModeToggleProps> = ({
   if (variant === 'segmented') {
     return (
       <div
-        className={`relative inline-flex items-center p-1 rounded-2xl border border-border/80 bg-muted/40 backdrop-blur-md shadow-xs select-none ${className}`}
+        className={`relative inline-flex items-center p-1 rounded-2xl border border-border/80 bg-muted/40 backdrop-blur-md shadow-xs select-none touch-manipulation ${className}`}
       >
         <button
           type="button"
-          onClick={() => setPreference('off')}
-          className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-            !liteMode ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+          onClick={(e) => {
+            e.stopPropagation();
+            setPreference('off');
+          }}
+          className={`relative z-10 flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-1.5 min-h-[38px] sm:min-h-[32px] rounded-xl text-xs font-semibold transition-all cursor-pointer touch-manipulation active:scale-95 ${
+            !liteMode ? 'text-primary-foreground font-bold' : 'text-muted-foreground hover:text-foreground'
           }`}
+          aria-label="Switch to Standard Mode"
+          title="Switch to Standard Mode"
         >
           {!liteMode && (
             <motion.div
               layoutId="mode-segmented-active"
-              className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 shadow-md shadow-blue-500/25"
+              className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 shadow-md shadow-blue-500/25 pointer-events-none"
               transition={{ type: 'spring', stiffness: 480, damping: 32 }}
             />
           )}
-          <Sparkles className="w-3.5 h-3.5 relative z-10" />
-          <span className="relative z-10">Standard</span>
+          <Sparkles className="w-3.5 h-3.5 relative z-10 pointer-events-none shrink-0" />
+          <span className="relative z-10 pointer-events-none">Standard</span>
         </button>
 
         <button
           type="button"
-          onClick={() => setPreference('on')}
-          className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+          onClick={(e) => {
+            e.stopPropagation();
+            setPreference('on');
+          }}
+          className={`relative z-10 flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-1.5 min-h-[38px] sm:min-h-[32px] rounded-xl text-xs font-semibold transition-all cursor-pointer touch-manipulation active:scale-95 ${
             liteMode ? 'text-amber-950 dark:text-amber-950 font-bold' : 'text-muted-foreground hover:text-foreground'
           }`}
+          aria-label="Switch to Lite Mode"
+          title="Switch to Lite Mode"
         >
           {liteMode && (
             <motion.div
               layoutId="mode-segmented-active"
-              className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 shadow-md shadow-amber-500/30"
+              className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 shadow-md shadow-amber-500/30 pointer-events-none"
               transition={{ type: 'spring', stiffness: 480, damping: 32 }}
             />
           )}
-          <Zap className="w-3.5 h-3.5 relative z-10 fill-current" />
-          <span className="relative z-10">Lite (60 FPS)</span>
+          <Zap className="w-3.5 h-3.5 relative z-10 fill-current pointer-events-none shrink-0" />
+          <span className="relative z-10 pointer-events-none">Lite (60 FPS)</span>
         </button>
       </div>
     );

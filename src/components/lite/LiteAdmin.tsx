@@ -353,10 +353,14 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
           </p>
           <button
             type="button"
-            onClick={() => setPreference('standard')}
-            className="text-xs font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPreference('off');
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-all cursor-pointer py-1.5 px-3 rounded-lg hover:bg-blue-500/10 active:scale-95 touch-manipulation"
           >
-            Switch to Full Experience
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Switch to Full Experience (Standard Mode)</span>
           </button>
         </div>
 
@@ -382,12 +386,12 @@ export const LiteAdmin: React.FC<Props> = ({ stats: initialStats }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
+          <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-between sm:justify-end flex-wrap">
             <Button
               variant="outline"
               size="sm"
               onClick={refreshStats}
-              className="h-8 px-3 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+              className="h-9 px-3 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer touch-manipulation active:scale-95"
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
               <span>Sync</span>

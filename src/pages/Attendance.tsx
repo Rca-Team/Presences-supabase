@@ -238,10 +238,14 @@ const Attendance: React.FC = () => {
                 </p>
                 <button
                   type="button"
-                  onClick={() => setPreference('standard')}
-                  className="text-xs font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPreference('off');
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-all cursor-pointer py-1 px-2.5 rounded-lg active:scale-95 touch-manipulation"
                 >
-                  Switch to Full Experience
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Switch to Full Experience (Standard Mode)</span>
                 </button>
               </div>
 
