@@ -161,11 +161,11 @@ export default function ParentPortal() {
                 className="w-full space-y-4"
               >
                 {/* Horizontal Tab Navigation Bar */}
-                <div className="overflow-x-auto pb-1 no-scrollbar">
-                  <TabsList className="nano-glass-dock border border-slate-200/70 dark:border-white/10 p-1 rounded-2xl h-11 inline-flex w-full sm:w-auto min-w-full sm:min-w-0 justify-start hardware-layer shadow-xs">
+                <div className="overflow-x-auto pb-1 no-scrollbar scrollbar-none -mx-2 px-2 sm:mx-0 sm:px-0">
+                  <TabsList className="nano-glass-dock border border-slate-200/70 dark:border-white/10 p-1 rounded-2xl h-11 inline-flex w-max min-w-full sm:min-w-0 justify-start hardware-layer shadow-xs">
                     <TabsTrigger
                       value="attendance"
-                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
+                      className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5 shrink-0"
                     >
                       <Calendar className="h-3.5 w-3.5" /> Attendance
                     </TabsTrigger>

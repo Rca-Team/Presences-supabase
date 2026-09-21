@@ -82,7 +82,7 @@ const Contact = () => {
       />
 
       <div className="max-w-3xl mx-auto w-full animate-slide-in-up">
-        <Card>
+        <Card className="rounded-2xl sm:rounded-3xl">
           <CardContent className="p-4 sm:p-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

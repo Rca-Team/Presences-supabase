@@ -235,7 +235,7 @@
    UNIVERSAL NATIVE SCROLL ENGINE (100% HARDWARE-ACCELERATED)
    ========================================================================= */
 
-/* Base Universal Scroll Behavior */
+/* Base Universal Scroll & Viewport Behavior */
 html {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
@@ -256,6 +256,16 @@ body {
 .overflow-auto,
 [data-radix-scroll-area-viewport] {
   -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile Dialog & Sheet Overflow Safeguards */
+@media (max-width: 640px) {
+  [role="dialog"] {
+    max-height: calc(100dvh - 1.5rem) !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* 1. Mobile & Touch Screen Devices — Pure Native 120fps Inertia */

@@ -391,65 +391,70 @@ const StudentDetailsTable: React.FC = () => {
       </CardHeader>
 
       <CardContent className="p-4 space-y-4">
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 min-w-[200px]">
+        {/* Responsive Filters */}
+        <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2 items-center">
+          <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search name, roll, ID, parent or phone…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-9 w-full"
             />
           </div>
-          <Select value={classFilter} onValueChange={setClassFilter}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Class" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
-              {CLASSES.map((c) => (
-                <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sectionFilter} onValueChange={setSectionFilter}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Section" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Sections</SelectItem>
-              {SECTIONS.map((s) => (
-                <SelectItem key={s} value={s}>Sec {s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="default"
-            size="sm"
-            disabled={filtered.length === 0}
-            onClick={() => setPreviewStudents(filtered)}
-          >
-            <IdCard className="h-4 w-4 mr-1" />
-            Generate ID Cards ({filtered.length})
-          </Button>
-          <StudentCSVImporter onImported={fetchStudents} />
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={removeDuplicateStudents}
-            disabled={isRemovingDuplicates}
-            title="Delete duplicate student rows, keeping newest"
-          >
-            {isRemovingDuplicates ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4 mr-1" />
-            )}
-            Remove Duplicates
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Select value={classFilter} onValueChange={setClassFilter}>
+              <SelectTrigger className="flex-1 sm:w-[120px]">
+                <SelectValue placeholder="Class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {CLASSES.map((c) => (
+                  <SelectItem key={c} value={String(c)}>Class {c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sectionFilter} onValueChange={setSectionFilter}>
+              <SelectTrigger className="flex-1 sm:w-[120px]">
+                <SelectValue placeholder="Section" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sections</SelectItem>
+                {SECTIONS.map((s) => (
+                  <SelectItem key={s} value={s}>Sec {s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Button
+              variant="default"
+              size="sm"
+              className="flex-1 sm:flex-initial"
+              disabled={filtered.length === 0}
+              onClick={() => setPreviewStudents(filtered)}
+            >
+              <IdCard className="h-4 w-4 mr-1" />
+              ID Cards ({filtered.length})
+            </Button>
+            <StudentCSVImporter onImported={fetchStudents} />
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-1 sm:flex-initial"
+              onClick={removeDuplicateStudents}
+              disabled={isRemovingDuplicates}
+              title="Delete duplicate student rows, keeping newest"
+            >
+              {isRemovingDuplicates ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-1" />
+              )}
+              Remove Duplicates
+            </Button>
+          </div>
         </div>
-
 
         {/* Stats */}
         <div className="flex flex-wrap gap-2">
@@ -457,9 +462,9 @@ const StudentDetailsTable: React.FC = () => {
           <Badge variant="secondary">{filtered.length} Shown</Badge>
         </div>
 
-        {/* Table / Mobile Cards */}
+        {/* Content: Mobile Cards (< md) & Desktop Table (>= md) */}
         {loading ? (
-          <div className="space-y-2">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>
+          <div className="space-y-2">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-3 opacity-40" />
@@ -467,86 +472,81 @@ const StudentDetailsTable: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Mobile Card Layout (< md screens) */}
-            <div className="grid grid-cols-1 gap-3 md:hidden">
+            {/* Mobile View: Clean, high-density student cards */}
+            <div className="grid grid-cols-1 gap-2.5 md:hidden">
               {filtered.map((s) => (
                 <div
                   key={s.id}
-                  className="rounded-2xl border border-border/80 bg-card/70 p-3.5 shadow-xs flex flex-col gap-3"
+                  className="rounded-2xl border border-border/80 bg-card p-3.5 shadow-xs space-y-3"
                 >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-12 w-12 border shrink-0">
-                      {s.avatar_url ? <AvatarImage src={s.avatar_url} alt={s.name} /> : null}
-                      <AvatarFallback><UserIcon className="h-5 w-5" /></AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <p className="font-bold text-foreground text-sm truncate">{s.name}</p>
-                        <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">
-                          {getCategoryLabel(s.category)}
-                        </Badge>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-11 w-11 border shrink-0">
+                        {s.avatar_url ? <AvatarImage src={s.avatar_url} alt={s.name} /> : null}
+                        <AvatarFallback><UserIcon className="h-4 w-4" /></AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-foreground truncate">{s.name}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                          <span>Roll: <strong className="text-foreground">{s.roll_number}</strong></span>
+                          <span>•</span>
+                          <span>ID: {s.employee_id}</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">{s.parent_email !== '—' ? s.parent_email : `ID: ${s.employee_id}`}</p>
                     </div>
+                    <Badge variant="outline" className="shrink-0 text-[11px] font-bold">
+                      {getCategoryLabel(s.category)}
+                    </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 rounded-xl p-2.5">
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Roll / ID</span>
-                      <span className="font-semibold text-foreground">{s.roll_number}</span>
-                      {s.employee_id !== s.roll_number && s.employee_id !== '—' && (
-                        <span className="text-muted-foreground text-[10px] block truncate">({s.employee_id})</span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Blood Group</span>
-                      <span className="font-semibold text-red-600 dark:text-red-400">{s.blood_group}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Parent</span>
-                      <span className="font-medium text-foreground truncate block">{s.parent_name}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Contact</span>
-                      {s.parent_phone && s.parent_phone !== '—' ? (
-                        <a
-                          href={`tel:${s.parent_phone.replace(/\s+/g, '')}`}
-                          className="font-medium text-primary hover:underline inline-flex items-center gap-1"
-                        >
-                          <Phone className="h-3 w-3" />
-                          <span className="truncate">{s.parent_phone}</span>
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </div>
+                  {/* Contact & Detail Row */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
+                    {s.parent_name && (
+                      <span className="truncate">Parent: <strong className="text-foreground font-medium">{s.parent_name}</strong></span>
+                    )}
+                    {s.parent_phone && (
+                      <a
+                        href={`tel:${s.parent_phone}`}
+                        className="inline-flex items-center gap-1 text-primary font-semibold hover:underline"
+                      >
+                        <Phone className="h-3 w-3" />
+                        {s.parent_phone}
+                      </a>
+                    )}
+                    {s.blood_group && (
+                      <Badge variant="outline" className="text-[10px] text-red-600 border-red-300 px-1.5 py-0">
+                        <Heart className="h-2.5 w-2.5 mr-0.5" />
+                        {s.blood_group}
+                      </Badge>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 pt-1">
+                  {/* Actions */}
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/50">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="flex-1 h-9 rounded-xl text-xs gap-1"
+                      className="h-8 text-xs flex-1"
                       onClick={() => setCaptureFor(s)}
                     >
-                      <Camera className="h-3.5 w-3.5 text-primary" />
-                      <span>Face Photo</span>
+                      <Camera className="h-3.5 w-3.5 mr-1" />
+                      Face Scan
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="flex-1 h-9 rounded-xl text-xs gap-1"
+                      className="h-8 text-xs flex-1"
                       onClick={() => setPreviewStudents([s])}
                     >
-                      <Download className="h-3.5 w-3.5 text-primary" />
-                      <span>ID Card</span>
+                      <Download className="h-3.5 w-3.5 mr-1" />
+                      ID Card
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Full Desktop Table (>= md screens) */}
+            {/* Desktop View: Full Data Table */}
             <div className="hidden md:block rounded-lg border overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/50">

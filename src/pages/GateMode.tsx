@@ -515,7 +515,7 @@ const GateMode = () => {
                 className="h-7 px-2.5 sm:px-3 text-xs font-black gap-1.5 rounded-lg bg-primary text-primary-foreground shadow-sm"
               >
                 <GraduationCap className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Classroom Seated</span>
+                <span className="hidden xs:inline">Classroom Seated</span>
                 <Badge variant="secondary" className="text-[9px] py-0 px-1 ml-0.5 uppercase bg-white/20 text-white font-black">Primary</Badge>
               </Button>
               <Button
@@ -525,7 +525,7 @@ const GateMode = () => {
                 onClick={() => setActiveGateMode('turnstile')}
               >
                 <DoorOpen className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Turnstile Gate</span>
+                <span className="hidden xs:inline">Turnstile Gate</span>
               </Button>
             </div>
 

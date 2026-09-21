@@ -714,27 +714,19 @@ export async function recordAttendance(
   let data: any = null;
   let insertError: any = null;
 
-  const resolvedClass = fullDeviceInfo?.metadata?.class ?? null;
-  const resolvedSection = fullDeviceInfo?.metadata?.section ?? null;
-  const resolvedCategory =
-    fullDeviceInfo?.metadata?.category ??
-    (resolvedClass && resolvedSection ? `${resolvedClass}-${resolvedSection}` : null);
-
-  // Schema-compliant primary payload matching public.attendance_records exact columns
+  // Schema-compliant primary payload for public.attendance_records
   const primaryPayload: any = {
     user_id:          validUserId,
-    student_id:       resolvedStudentId || null,
-    student_name:     effectiveName || 'Student',
-    class:            resolvedClass,
-    section:          resolvedSection,
-    roll_number:      fullDeviceInfo?.metadata?.roll_number ?? null,
-    category:         resolvedCategory,
-    status:           adjustedStatus,
     timestamp,
-    image_url:        uploadedImageUrl || null,
+    date:             dateStr,
+    status:           adjustedStatus,
+    class:            fullDeviceInfo?.metadata?.class   ?? null,
+    section:          fullDeviceInfo?.metadata?.section ?? null,
+    category:         fullDeviceInfo?.metadata?.category ?? null,
+    method:           captureMode === 'qr-scan' ? 'qr' : 'face',
+    confidence:       confidence ?? 0.95,
     confidence_score: confidence ?? 0.95,
-    capture_mode:     captureMode,
-    source:           resolvedSource,
+    image_url:        uploadedImageUrl,
     device_info:      fullDeviceInfo,
     metadata:         fullDeviceInfo?.metadata || fullDeviceInfo,
   };
@@ -758,15 +750,15 @@ export async function recordAttendance(
     }
   } catch (err: any) {
     console.warn('[AttendanceService] Primary insert fallback triggered:', err?.message || err);
-    // Tier 2 Fallback: standard core columns (strictly valid columns)
+    // Tier 2 Fallback: standard core columns
     const tier2Payload: any = {
       user_id:          validUserId,
-      student_id:       resolvedStudentId || null,
-      student_name:     effectiveName || 'Student',
-      status:           adjustedStatus,
       timestamp,
+      date:             dateStr,
+      status:           adjustedStatus,
+      confidence:       confidence ?? 0.95,
       confidence_score: confidence ?? 0.95,
-      image_url:        uploadedImageUrl || null,
+      image_url:        uploadedImageUrl,
       device_info:      fullDeviceInfo,
       metadata:         fullDeviceInfo?.metadata || fullDeviceInfo,
     };
@@ -778,13 +770,16 @@ export async function recordAttendance(
       .maybeSingle();
 
     if (res2.error) {
-      // Tier 3 Emergency minimal insert (only universally guaranteed columns)
+      // Tier 3 Emergency minimal insert
       const tier3Payload: any = {
         user_id:          validUserId,
-        student_name:     effectiveName || 'Student',
-        status:           adjustedStatus,
         timestamp,
+        date:             dateStr,
+        status:           adjustedStatus,
+        confidence:       confidence ?? 0.95,
         confidence_score: confidence ?? 0.95,
+        image_url:        uploadedImageUrl,
+        device_info:      fullDeviceInfo,
       };
       const res3 = await supabase.from('attendance_records').insert(tier3Payload);
       if (res3.error) {

@@ -578,16 +578,16 @@ const Attendance: React.FC = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={iosSpring}
-                className="flex justify-center"
+                className="flex justify-center w-full px-1 overflow-hidden"
               >
-                <div className="nano-glass-dock rounded-full p-1 sm:p-1.5 inline-flex items-center gap-0.5 sm:gap-1 shadow-xl shadow-slate-900/5 max-w-full overflow-x-auto no-scrollbar scrollbar-none">
+                <div className="nano-glass-dock rounded-full p-1 sm:p-1.5 flex items-center justify-between sm:justify-center gap-0.5 sm:gap-1 shadow-xl shadow-slate-900/5 max-w-full overflow-x-auto no-scrollbar scrollbar-none w-full sm:w-auto">
                   {tabs.map((tab) => {
                     const isActive = activeTab === tab.id;
                     return (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`relative px-2.5 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center gap-1 sm:gap-2 shrink-0 cursor-pointer ${
+                        className={`relative px-2.5 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shrink-0 sm:shrink cursor-pointer flex-1 sm:flex-initial ${
                           isActive ? 'text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                         }`}
                       >
@@ -632,9 +632,9 @@ const Attendance: React.FC = () => {
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="space-y-4"
                 >
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
                     {/* Left 2/3: Nano-Glass Camera Stage Housing */}
-                    <div className="lg:col-span-2 nano-glass rounded-[24px] sm:rounded-[32px] p-2 sm:p-5 shadow-2xl border border-white/70 dark:border-white/10 overflow-hidden">
+                    <div className="lg:col-span-2 nano-glass rounded-2xl sm:rounded-[32px] p-2.5 sm:p-5 shadow-2xl border border-white/70 dark:border-white/10 overflow-hidden">
                       <FuturisticFaceScanner
                         onAttendanceMarked={(rec) => {
                           signal(rec.status === 'late' ? 'warn' : 'ok');
@@ -644,7 +644,7 @@ const Attendance: React.FC = () => {
                     </div>
 
                     {/* Right 1/3: iOS 18 Dynamic Island Live Activity Feed */}
-                    <div className="nano-glass rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 sticky top-4 hardware-layer">
+                    <div className="nano-glass rounded-2xl sm:rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 sticky top-4 hardware-layer">
                       <LiveAttendanceFeed scopedCategory={scopedCategory} />
                     </div>
                   </div>
@@ -661,10 +661,10 @@ const Attendance: React.FC = () => {
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-                    <div className="lg:col-span-2 nano-glass rounded-[32px] p-5 sm:p-7 shadow-2xl border border-white/70 dark:border-white/10">
+                    <div className="lg:col-span-2 nano-glass rounded-2xl sm:rounded-[32px] p-3 sm:p-7 shadow-2xl border border-white/70 dark:border-white/10">
                       <QRCodeScanner autoStart={true} hideManualControls={isQRKioskMode} />
                     </div>
-                    <div className="nano-glass rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 hardware-layer">
+                    <div className="nano-glass rounded-2xl sm:rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 hardware-layer">
                       <LiveAttendanceFeed scopedCategory={scopedCategory} />
                     </div>
                   </div>
@@ -681,10 +681,10 @@ const Attendance: React.FC = () => {
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-                    <div className="lg:col-span-2 nano-glass rounded-[32px] p-5 sm:p-7 shadow-2xl border border-white/70 dark:border-white/10">
+                    <div className="lg:col-span-2 nano-glass rounded-2xl sm:rounded-[32px] p-3.5 sm:p-7 shadow-2xl border border-white/70 dark:border-white/10">
                       <AttendanceStats />
                     </div>
-                    <div className="nano-glass rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 hardware-layer">
+                    <div className="nano-glass rounded-2xl sm:rounded-[32px] p-3 sm:p-4 shadow-2xl border border-white/70 dark:border-white/10 hardware-layer">
                       <LiveAttendanceFeed scopedCategory={scopedCategory} />
                     </div>
                   </div>
@@ -700,7 +700,7 @@ const Attendance: React.FC = () => {
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="max-w-3xl mx-auto"
                 >
-                  <div className="nano-glass rounded-[32px] p-6 sm:p-8 shadow-2xl border border-white/70 dark:border-white/10">
+                  <div className="nano-glass rounded-2xl sm:rounded-[32px] p-4 sm:p-8 shadow-2xl border border-white/70 dark:border-white/10">
                     <AttendanceInstructions />
                   </div>
                 </motion.div>
