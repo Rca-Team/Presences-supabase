@@ -591,7 +591,7 @@ const Admin = () => {
 
           {/* Main Content Stage */}
           <main className={cn(
-            "flex-1 flex flex-col min-w-0 bg-transparent will-change-transform",
+            "flex-1 flex flex-col min-w-0 bg-transparent",
             isMobile ? "overflow-visible" : "h-full min-h-0 overflow-hidden"
           )}>
             {/* Top Bar - Apple Nano-Glass Header */}

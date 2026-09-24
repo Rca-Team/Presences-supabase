@@ -206,6 +206,16 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
     return result;
   }, [faces, nameFilter, searchTerm, sectionFilter, classFilter, statusFilter, sortField, sortDir, todayStatuses]);
 
+  const [displayLimit, setDisplayLimit] = useState(40);
+
+  useEffect(() => {
+    setDisplayLimit(40);
+  }, [searchTerm, sectionFilter, classFilter, statusFilter, sortField, sortDir]);
+
+  const displayedFaces = useMemo(() => {
+    return filteredAndSortedFaces.slice(0, displayLimit);
+  }, [filteredAndSortedFaces, displayLimit]);
+
   // Stats counts
   const statusCounts = useMemo(() => {
     const counts = { present: 0, late: 0, absent: 0 };
@@ -369,12 +379,7 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
           setSelectedFaceId(null);
         }
 
-        const uniqueEmployeeIds = [...new Set(processedFaces.map(face => face.employee_id))];
-        Promise.all(
-          uniqueEmployeeIds.map(employeeId => fetchAttendanceCount(String(employeeId)))
-        ).catch(error => {
-          console.error('Error fetching attendance counts:', error);
-        });
+        fetchBatchAttendanceCounts(processedFaces);
       }
     } catch (error) {
       console.error('Error fetching registered faces:', error);
@@ -402,7 +407,7 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
           clearTimeout(updateTimeout);
           updateTimeout = setTimeout(() => {
             fetchRegisteredFaces();
-          }, 1000);
+          }, 2500);
         }
       )
       .on('postgres_changes',
@@ -411,7 +416,7 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
           clearTimeout(updateTimeout);
           updateTimeout = setTimeout(() => {
             fetchRegisteredFaces();
-          }, 1000);
+          }, 2500);
         }
       )
       .subscribe();
@@ -422,29 +427,41 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
     };
   }, [nameFilter, fetchRegisteredFaces]);
 
-  const fetchAttendanceCount = async (employeeId: string) => {
+  const fetchBatchAttendanceCounts = async (faceList: RegisteredFace[]) => {
     try {
-      // Query by employee_id in device_info AND by status present/late
       const { data, error } = await supabase
         .from('attendance_records')
-        .select('timestamp, status')
+        .select('timestamp, status, student_id, device_info')
         .in('status', ['present', 'late', 'unauthorized'])
-        .contains('device_info', { metadata: { employee_id: employeeId } });
+        .limit(10000);
 
-      if (error) throw error;
+      if (error || !data) return;
 
-      const uniqueDays = new Set(
-        (data || []).map(record => new Date(record.timestamp).toLocaleDateString())
-      );
-      
-      const attendanceCount = uniqueDays.size;
+      const employeeIdSet = new Set(faceList.map(f => f.employee_id).filter(Boolean));
+      const countsByEmp: Record<string, Set<string>> = {};
 
-      setAttendanceCounts(prev => ({ ...prev, [employeeId]: attendanceCount }));
-      setFaces(prev => prev.map(face => 
-        face.employee_id === employeeId ? { ...face, total_attendance: attendanceCount } : face
-      ));
+      data.forEach(record => {
+        const m = (record.device_info as any)?.metadata || {};
+        const emp = String(m.employee_id || (record.device_info as any)?.employee_id || record.student_id || '').trim();
+        if (emp && employeeIdSet.has(emp)) {
+          if (!countsByEmp[emp]) countsByEmp[emp] = new Set();
+          const day = new Date(record.timestamp).toLocaleDateString();
+          countsByEmp[emp].add(day);
+        }
+      });
+
+      const countsMap: Record<string, number> = {};
+      Object.entries(countsByEmp).forEach(([emp, daysSet]) => {
+        countsMap[emp] = daysSet.size;
+      });
+
+      setAttendanceCounts(countsMap);
+      setFaces(prev => prev.map(face => ({
+        ...face,
+        total_attendance: countsMap[face.employee_id] || 0
+      })));
     } catch (error) {
-      console.error(`Error fetching attendance count for ${employeeId}:`, error);
+      console.error('Error batch fetching attendance counts:', error);
     }
   };
 
@@ -789,12 +806,12 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
                     <p className="text-xs mt-1">Try adjusting your filters</p>
                   </div>
                 ) : (
-                  filteredAndSortedFaces.map((face, index) => (
+                  displayedFaces.map((face, index) => (
                     <motion.div
                       key={face.id}
-                      initial={{ opacity: 0, y: 8 }}
+                      initial={index < 8 ? { opacity: 0, y: 6 } : false}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(index * 0.02, 0.3) }}
+                      transition={{ duration: 0.15 }}
                     >
                       <Card
                         className={cn(
@@ -907,8 +924,21 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
                 )}
               </div>
 
+              {filteredAndSortedFaces.length > displayLimit && (
+                <div className="pt-2 text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs font-semibold h-8 rounded-xl"
+                    onClick={() => setDisplayLimit(prev => prev + 40)}
+                  >
+                    Load More Students ({filteredAndSortedFaces.length - displayLimit} remaining)
+                  </Button>
+                </div>
+              )}
+
               <p className="text-[10px] text-muted-foreground text-center pt-2">
-                {filteredAndSortedFaces.length} of {totalStudents} students
+                Showing {Math.min(displayLimit, filteredAndSortedFaces.length)} of {filteredAndSortedFaces.length} students ({totalStudents} total enrolled)
               </p>
             </>
           )}

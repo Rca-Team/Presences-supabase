@@ -110,6 +110,19 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
     }
   };
 
+  const dashboardDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchAllDataRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
+
+  const debouncedRefresh = useCallback(() => {
+    if (dashboardDebounceRef.current) {
+      clearTimeout(dashboardDebounceRef.current);
+    }
+    dashboardDebounceRef.current = setTimeout(() => {
+      fetchAllDataRef.current(true);
+      dashboardDebounceRef.current = null;
+    }, 2500);
+  }, []);
+
   const { isConnected } = useRealtimeAttendance({
     showNotifications: true,
     useSessionEventsOnly: false,
@@ -124,7 +137,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         time: format(new Date(record.timestamp), 'hh:mm a'),
         imageUrl,
       }, ...prev].slice(0, 30));
-      fetchAllData(true);
+      debouncedRefresh();
     }
   });
 
@@ -323,7 +336,24 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         console.warn('Notification stats fetch error:', err);
       }
 
-      // 6. Weekly Trend (Last 7 working days)
+      setFaceModelCoverage({
+        registeredFaces: processedUsers.length,
+        totalCoverageRate: 100,
+      });
+
+      setLastRefreshed(new Date());
+    } catch (err) {
+      console.error('Dashboard fetch error:', err);
+      if (!silent) toast({ title: 'Error', description: 'Failed to load school snapshot', variant: 'destructive' });
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  }, [toast]);
+
+  fetchAllDataRef.current = fetchAllData;
+
+  const fetchWeeklyTrend = useCallback(async () => {
+    try {
       const todayDate = new Date();
       const lookbackStart = subDays(todayDate, 14);
       const workingDays = filterWorkingDaysForSchool(
@@ -348,49 +378,28 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           .eq('is_recognized', true),
       ]);
 
-      const idToEmployeeId = new Map<string, string>();
-      processedUsers.forEach(u => {
-        const employeeKey = u.employee_id || u.id;
-        [u.employee_id, u.user_id, u.id].filter(Boolean).forEach(id => {
-          idToEmployeeId.set(String(id), employeeKey);
-        });
-      });
-
       const dailyPresent: Record<string, Set<string>> = {};
       (weekAttRes.data || []).forEach(r => {
         const d = format(new Date(r.timestamp), 'yyyy-MM-dd');
         const m = (r.device_info as any)?.metadata || {};
-        const possibleIds = [
-          r.student_id,
-          m.employee_id,
-          (r.device_info as any)?.employee_id,
-          r.user_id,
-          r.id,
-        ].filter(Boolean).map(String);
-
-        const matched = possibleIds.map(id => idToEmployeeId.get(id)).find(Boolean);
-        const key = matched || r.student_id || r.user_id || m.name || r.student_name;
+        const key = r.student_id || m.employee_id || r.user_id || m.name || r.student_name;
         if (key) {
           if (!dailyPresent[d]) dailyPresent[d] = new Set();
-          dailyPresent[d].add(key);
+          dailyPresent[d].add(String(key));
         }
       });
 
       (weekGateRes.data || []).forEach(g => {
         if (!g.student_id) return;
         const d = format(new Date(g.entry_time), 'yyyy-MM-dd');
-        const matched = idToEmployeeId.get(String(g.student_id));
-        const key = matched || g.student_id;
         if (!dailyPresent[d]) dailyPresent[d] = new Set();
-        dailyPresent[d].add(key);
+        dailyPresent[d].add(String(g.student_id));
       });
 
+      const todayStr = format(todayDate, 'yyyy-MM-dd');
       const trendData = workingDays.map(d => {
         const dateStr = format(d, 'yyyy-MM-dd');
         let count = dailyPresent[dateStr]?.size || 0;
-        if (dateStr === today) {
-          count = Math.max(count, unified.presentToday + unified.lateToday);
-        }
         return {
           date: dateStr,
           day: format(d, 'EEE'),
@@ -400,38 +409,32 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
       });
 
       setWeeklyTrend(trendData);
-      setFaceModelCoverage({
-        registeredFaces: processedUsers.length,
-        totalCoverageRate: 100,
-      });
-
-      setLastRefreshed(new Date());
     } catch (err) {
-      console.error('Dashboard fetch error:', err);
-      if (!silent) toast({ title: 'Error', description: 'Failed to load school snapshot', variant: 'destructive' });
-    } finally {
-      if (!silent) setIsLoading(false);
+      console.warn('Weekly trend fetch error:', err);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     fetchAllData();
-  }, [fetchAllData]);
+    fetchWeeklyTrend();
+  }, [fetchAllData, fetchWeeklyTrend]);
 
   useEffect(() => {
-    const refreshDashboard = () => fetchAllData(true);
-
     const channel = supabase
       .channel('principal-glimpse-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, refreshDashboard)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, refreshDashboard)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_settings' }, refreshDashboard)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_settings' }, debouncedRefresh)
       .subscribe();
 
     return () => {
+      if (dashboardDebounceRef.current) {
+        clearTimeout(dashboardDebounceRef.current);
+        dashboardDebounceRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
-  }, [fetchAllData]);
+  }, [debouncedRefresh]);
 
   const filteredStudents = useMemo(() => {
     let list = allStudents;
@@ -446,6 +449,16 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
     }
     return list;
   }, [allStudents, statusFilter, searchQuery]);
+
+  const [studentDisplayLimit, setStudentDisplayLimit] = useState(30);
+
+  useEffect(() => {
+    setStudentDisplayLimit(30);
+  }, [searchQuery, statusFilter]);
+
+  const displayedStudents = useMemo(() => {
+    return filteredStudents.slice(0, studentDisplayLimit);
+  }, [filteredStudents, studentDisplayLimit]);
 
   // Current active period calculation
   const currentPeriodInfo = useMemo(() => {
@@ -1073,7 +1086,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     No students match your filter
                   </div>
                 ) : (
-                  filteredStudents.map((student, i) => (
+                  displayedStudents.map((student, i) => (
                     <div 
                       key={i} 
                       onClick={() => setSelectedStudentForDetail(student)}
@@ -1105,6 +1118,18 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                       <ChevronRight className="w-4 h-4 text-muted-foreground opacity-40 group-hover:opacity-100 transition-opacity" />
                     </div>
                   ))
+                )}
+                {filteredStudents.length > studentDisplayLimit && (
+                  <div className="p-2 text-center border-t border-border/60">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-primary hover:text-primary/80 h-7"
+                      onClick={() => setStudentDisplayLimit(prev => prev + 40)}
+                    >
+                      Show more ({filteredStudents.length - studentDisplayLimit} remaining)
+                    </Button>
+                  </div>
                 )}
               </div>
             </ScrollArea>
