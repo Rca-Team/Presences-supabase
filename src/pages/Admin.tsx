@@ -177,6 +177,13 @@ const Admin = () => {
   });
   const [showUpdatePusher, setShowUpdatePusher] = useState(false);
 
+  const statsCards = React.useMemo(() => [
+    { label: 'Registered', value: stats.totalFaces, icon: Users, color: 'text-primary' },
+    { label: 'Present', value: stats.presentToday, icon: TrendingUp, color: 'text-green-600 dark:text-green-400' },
+    { label: 'Late', value: stats.lateToday, icon: Clock, color: 'text-orange-600 dark:text-orange-400' },
+    { label: 'Total', value: stats.todayAttendance, icon: Activity, color: 'text-blue-600 dark:text-blue-400' }
+  ], [stats.totalFaces, stats.presentToday, stats.lateToday, stats.todayAttendance]);
+
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
 
@@ -352,14 +359,6 @@ const Admin = () => {
   ];
 
   const groups = ['Daily Operations', 'Reports & Safety', 'Settings & Photos'];
-
-  const statsCards = React.useMemo(() => [
-    { label: 'Registered', value: stats.totalFaces, icon: Users, color: 'text-primary' },
-    { label: 'Present', value: stats.presentToday, icon: TrendingUp, color: 'text-green-600 dark:text-green-400' },
-    { label: 'Late', value: stats.lateToday, icon: Clock, color: 'text-orange-600 dark:text-orange-400' },
-    { label: 'Total', value: stats.todayAttendance, icon: Activity, color: 'text-blue-600 dark:text-blue-400' }
-  ], [stats.totalFaces, stats.presentToday, stats.lateToday, stats.todayAttendance]);
-
 
   const renderContent = () => {
     switch (activeTab) {
