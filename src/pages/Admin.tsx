@@ -345,20 +345,17 @@ const Admin = () => {
     // 2. Reports & Safety
     { id: 'reports', icon: BarChart3, label: 'Attendance Reports', group: 'Reports & Safety' },
     { id: 'gatepass', icon: QrCode, label: 'Gate Passes & Leaves', group: 'Reports & Safety' },
-    { id: 'emergency', icon: Siren, label: 'Emergency Alerts', group: 'Reports & Safety' },
-    { id: 'notifications', icon: Bell, label: 'Send Messages', group: 'Reports & Safety', count: notificationCount },
+    { id: 'notifications', icon: Bell, label: 'Send Messages', group: 'Reports & Safety' },
     { id: 'inbox', icon: Mail, label: 'Parent Messages', group: 'Reports & Safety' },
+    { id: 'emergency', icon: Siren, label: 'Emergency Alerts', group: 'Reports & Safety' },
 
-    // 3. Settings & Photos
-    { id: 'access', icon: UserCog, label: 'Staff Permissions', group: 'Settings & Photos' },
-    { id: 'samples', icon: Activity, label: 'Student Face Photos', group: 'Settings & Photos' },
-    { id: 'idcard', icon: Image, label: 'Scan ID Cards', group: 'Settings & Photos' },
-    { id: 'idcards', icon: CreditCard, label: 'Student ID Cards', group: 'Settings & Photos' },
-    { id: 'notif-log', icon: MessageSquareText, label: 'Message History', group: 'Settings & Photos' },
-    { id: 'settings', icon: Settings, label: 'School Settings', group: 'Settings & Photos' },
+    // 3. Settings & Admin
+    { id: 'access', icon: UserCog, label: 'Staff Permissions', group: 'Settings & Admin' },
+    { id: 'samples', icon: Activity, label: 'Student Face Photos', group: 'Settings & Admin' },
+    { id: 'settings', icon: Settings, label: 'School Settings', group: 'Settings & Admin' },
   ];
 
-  const groups = ['Daily Operations', 'Reports & Safety', 'Settings & Photos'];
+  const groups = ['Daily Operations', 'Reports & Safety', 'Settings & Admin'];
 
   const renderContent = () => {
     switch (activeTab) {
@@ -564,26 +561,16 @@ const Admin = () => {
                 ))}
               </ScrollArea>
 
-              <div className="p-2.5 border-t border-slate-200/70 dark:border-white/10 space-y-1.5">
-                <div className="flex items-center justify-between px-1.5">
-                  <ThemeToggle />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-xl hover:bg-white/60 dark:hover:bg-white/10"
-                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  >
-                    <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-300", sidebarCollapsed && "rotate-180")} />
-                  </Button>
-                </div>
-                {!sidebarCollapsed && (
-                  <div className="flex gap-1">
-                    <Suspense fallback={<div className="h-8 flex-1 rounded-md bg-muted/40" />}>
-                      <AttendanceExport />
-                      <BulkNotificationService availableFaces={availableFaces} />
-                    </Suspense>
-                  </div>
-                )}
+              <div className="p-2.5 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between px-3">
+                <ThemeToggle />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-xl hover:bg-white/60 dark:hover:bg-white/10"
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                >
+                  <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-300", sidebarCollapsed && "rotate-180")} />
+                </Button>
               </div>
             </aside>
           )}
@@ -593,8 +580,8 @@ const Admin = () => {
             "flex-1 flex flex-col min-w-0 bg-transparent",
             isMobile ? "overflow-visible" : "h-full min-h-0 overflow-hidden"
           )}>
-            {/* Top Bar - Apple Nano-Glass Header */}
-            <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3 shadow-xs">
+            {/* Top Bar - Clean Apple Nano-Glass Header */}
+            <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -606,7 +593,7 @@ const Admin = () => {
                     </span>
                   </div>
                   <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate mt-0.5">
-                    {activeTab === 'dashboard' && 'Daily school attendance summary and overview'}
+                    {activeTab === 'dashboard' && 'Daily attendance summary, turnout trends, and quick actions'}
                     {activeTab === 'students' && 'View and manage student details, classes, and photos'}
                     {activeTab === 'sections' && 'Manage classes, sections, and assigned class teachers'}
                     {activeTab === 'reports' && 'Download and print daily, weekly, or monthly attendance records'}
@@ -615,7 +602,7 @@ const Admin = () => {
                     {activeTab === 'emergency' && 'Send urgent safety alerts to parents, teachers, and staff'}
                     {activeTab === 'timetable' && 'View class timetables and assign substitute teachers'}
                     {activeTab === 'samples' && 'Check and update student face photos for attendance'}
-                    {activeTab === 'notifications' && 'Send SMS, WhatsApp, and email notices to parents'}
+                    {activeTab === 'notifications' && 'Send SMS, WhatsApp, and notices to parents'}
                     {activeTab === 'settings' && 'Set school timings, late arrival cutoffs, and notifications'}
                   </p>
                 </div>
@@ -626,47 +613,14 @@ const Admin = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 px-2.5 sm:px-3 rounded-xl border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-bold btn-spring shadow-xs"
-                  onClick={() => setShowUpdatePusher(true)}
-                  title="Send app update notice to users"
-                >
-                  <Smartphone className="h-3.5 w-3.5 sm:mr-1.5 text-purple-600 dark:text-purple-400" />
-                  <span className="hidden sm:inline">Update App</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   className="h-8 px-3 rounded-xl border-slate-200/80 dark:border-white/10 nano-glass-dock hover:bg-white dark:hover:bg-slate-800 text-xs font-bold btn-spring"
                   onClick={handleRefresh}
+                  title="Refresh data"
                 >
                   <RefreshCw className="h-3.5 w-3.5 sm:mr-1.5 text-blue-500" />
                   <span className="hidden sm:inline">Refresh</span>
                 </Button>
                 {isMobile && <ThemeToggle />}
-              </div>
-            </div>
-
-            {/* Stats Bar - Nano-Glass Modular Strip */}
-            <div className="border-b border-slate-200/70 dark:border-white/10 nano-glass-dock px-3.5 sm:px-6 py-2">
-              <div className="flex gap-2.5 sm:gap-4 overflow-x-auto no-scrollbar items-center">
-                {statsCards.map((stat, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-2xl nano-glass border border-slate-200/60 dark:border-white/10 shadow-xs hover:border-blue-500/30 transition-all card-hover-pop shrink-0"
-                  >
-                    <div className="p-1.5 rounded-xl bg-blue-500/10 dark:bg-blue-400/10">
-                      <stat.icon className={cn("w-3.5 h-3.5", stat.color)} />
-                    </div>
-                    <div>
-                      <div className="text-xs sm:text-sm font-black tabular-nums tracking-tight text-slate-900 dark:text-white font-mono">
-                        {stat.value}
-                      </div>
-                      <div className="text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        {stat.label}
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
 
