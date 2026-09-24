@@ -194,15 +194,32 @@ const Admin = () => {
 
   const fetchData = useCallback(async () => {
     if (!isAdminOrPrincipal) return;
-    // Only the very first load may show a skeleton — background refreshes must
-    // never blank out the active section (that's what felt like a page reload).
     if (!hasLoadedOnceRef.current) setIsDataLoading(true);
     try {
+      const unified = await fetchUnifiedStudentSnapshot();
 
-      // Registered users: attendance_records with status='registered' is the canonical source
+      setStats(prev => {
+        const next = {
+          totalFaces: unified.totalRegistered,
+          todayAttendance: unified.presentToday + unified.lateToday,
+          presentToday: unified.presentToday,
+          lateToday: unified.lateToday,
+        };
+        if (
+          prev.totalFaces === next.totalFaces &&
+          prev.todayAttendance === next.todayAttendance &&
+          prev.presentToday === next.presentToday &&
+          prev.lateToday === next.lateToday
+        ) {
+          return prev;
+        }
+        return next;
+      });
+
+      // Registered users for available faces list
       const { data: faceData } = await supabase
         .from('attendance_records')
-        .select('id, user_id, device_info, image_url, category')
+        .select('id, user_id, device_info, category')
         .eq('status', 'registered');
 
       const processedFaces = (faceData || []).map(r => {
@@ -212,7 +229,6 @@ const Admin = () => {
         return { id: r.id, user_id: r.user_id || undefined, name, employee_id: employeeId, category: r.category || 'A' };
       }).filter(u => u.name && u.name !== 'Unknown' && u.name !== 'User');
 
-      // Deduplicate by employee_id
       const seenIds = new Set<string>();
       const uniqueFaces = processedFaces.filter(u => {
         const key = u.employee_id || u.user_id || u.id;
@@ -220,16 +236,8 @@ const Admin = () => {
         seenIds.add(key);
         return true;
       });
-      setAvailableFaces(uniqueFaces);
 
-      const unified = await fetchUnifiedStudentSnapshot();
-
-      setStats({
-        totalFaces: unified.totalRegistered,
-        todayAttendance: unified.presentToday + unified.lateToday,
-        presentToday: unified.presentToday,
-        lateToday: unified.lateToday,
-      });
+      setAvailableFaces(prev => (prev.length === uniqueFaces.length ? prev : uniqueFaces));
 
       const { count } = await supabase
         .from('notifications')
@@ -252,25 +260,23 @@ const Admin = () => {
     refreshTimerRef.current = window.setTimeout(() => {
       fetchData();
       refreshTimerRef.current = null;
-    }, 300);
+    }, 3000);
   }, [fetchData]);
 
   useEffect(() => {
     fetchData();
-    const channel = supabase.
-    channel('admin-dashboard').
-    on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
-      setAttendanceUpdated(true);
-      haptic('medium');
-      queueRefresh();
-    }).
-    on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, () => {
-      setAttendanceUpdated(true);
-      haptic('medium');
-      queueRefresh();
-    }).
-    on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => queueRefresh()).
-    subscribe();
+    const channel = supabase
+      .channel('admin-dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
+        setAttendanceUpdated(true);
+        queueRefresh();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_entries' }, () => {
+        setAttendanceUpdated(true);
+        queueRefresh();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => queueRefresh())
+      .subscribe();
     return () => {
       if (refreshTimerRef.current) {
         window.clearTimeout(refreshTimerRef.current);
@@ -278,7 +284,7 @@ const Admin = () => {
       }
       supabase.removeChannel(channel);
     };
-  }, [fetchData, haptic, queueRefresh]);
+  }, [fetchData, queueRefresh]);
 
   useEffect(() => {
     if (attendanceUpdated) {
@@ -306,8 +312,8 @@ const Admin = () => {
             <Skeleton className="h-96 w-full" />
           </div>
         </PageLayout>
-      </PageTransition>);
-
+      </PageTransition>
+    );
   }
 
   if (isTeacher && !isAdminOrPrincipal) {
@@ -318,40 +324,41 @@ const Admin = () => {
             <TeacherDashboard />
           </Suspense>
         </PageLayout>
-      </PageTransition>);
-
+      </PageTransition>
+    );
   }
 
   const navItems: NavItem[] = [
     // 1. Daily Operations
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Command Center', group: 'Daily Operations' },
-    { id: 'students', icon: Users, label: 'Student Directory', group: 'Daily Operations', badge: attendanceUpdated ? 'new' : undefined },
-    { id: 'sections', icon: FolderKanban, label: 'Classes & Cohorts', group: 'Daily Operations' },
-    { id: 'timetable', icon: CalendarDays, label: 'Timetable & Substitutions', group: 'Daily Operations' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'School Overview', group: 'Daily Operations' },
+    { id: 'students', icon: Users, label: 'Students', group: 'Daily Operations', badge: attendanceUpdated ? 'new' : undefined },
+    { id: 'sections', icon: FolderKanban, label: 'Classes & Sections', group: 'Daily Operations' },
+    { id: 'timetable', icon: CalendarDays, label: 'Timetable & Teachers', group: 'Daily Operations' },
 
     // 2. Reports & Safety
     { id: 'reports', icon: BarChart3, label: 'Attendance Reports', group: 'Reports & Safety' },
-    { id: 'gatepass', icon: QrCode, label: 'Gate Passes', group: 'Reports & Safety' },
-    { id: 'emergency', icon: Siren, label: 'Campus Safety Alerts', group: 'Reports & Safety' },
-    { id: 'notifications', icon: Bell, label: 'Broadcast Notices', group: 'Reports & Safety', count: notificationCount },
-    { id: 'inbox', icon: Mail, label: 'Parent Inbox', group: 'Reports & Safety' },
+    { id: 'gatepass', icon: QrCode, label: 'Gate Passes & Leaves', group: 'Reports & Safety' },
+    { id: 'emergency', icon: Siren, label: 'Emergency Alerts', group: 'Reports & Safety' },
+    { id: 'notifications', icon: Bell, label: 'Send Messages', group: 'Reports & Safety', count: notificationCount },
+    { id: 'inbox', icon: Mail, label: 'Parent Messages', group: 'Reports & Safety' },
 
-    // 3. System & Biometrics
-    { id: 'access', icon: UserCog, label: 'Teacher Permissions', group: 'System & Biometrics' },
-    { id: 'samples', icon: Activity, label: 'Face AI Biometrics', group: 'System & Biometrics' },
-    { id: 'idcard', icon: Image, label: 'Batch ID Extraction', group: 'System & Biometrics' },
-    { id: 'idcards', icon: CreditCard, label: 'Student ID Cards', group: 'System & Biometrics' },
-    { id: 'notif-log', icon: MessageSquareText, label: 'Delivery Log', group: 'System & Biometrics' },
-    { id: 'settings', icon: Settings, label: 'School Settings', group: 'System & Biometrics' },
+    // 3. Settings & Photos
+    { id: 'access', icon: UserCog, label: 'Staff Permissions', group: 'Settings & Photos' },
+    { id: 'samples', icon: Activity, label: 'Student Face Photos', group: 'Settings & Photos' },
+    { id: 'idcard', icon: Image, label: 'Scan ID Cards', group: 'Settings & Photos' },
+    { id: 'idcards', icon: CreditCard, label: 'Student ID Cards', group: 'Settings & Photos' },
+    { id: 'notif-log', icon: MessageSquareText, label: 'Message History', group: 'Settings & Photos' },
+    { id: 'settings', icon: Settings, label: 'School Settings', group: 'Settings & Photos' },
   ];
 
-  const groups = ['Daily Operations', 'Reports & Safety', 'System & Biometrics'];
+  const groups = ['Daily Operations', 'Reports & Safety', 'Settings & Photos'];
 
-  const statsCards = [
-  { label: 'Registered', value: stats.totalFaces, icon: Users, color: 'text-primary' },
-  { label: 'Present', value: stats.presentToday, icon: TrendingUp, color: 'text-green-600 dark:text-green-400' },
-  { label: 'Late', value: stats.lateToday, icon: Clock, color: 'text-orange-600 dark:text-orange-400' },
-  { label: 'Total', value: stats.todayAttendance, icon: Activity, color: 'text-blue-600 dark:text-blue-400' }];
+  const statsCards = React.useMemo(() => [
+    { label: 'Registered', value: stats.totalFaces, icon: Users, color: 'text-primary' },
+    { label: 'Present', value: stats.presentToday, icon: TrendingUp, color: 'text-green-600 dark:text-green-400' },
+    { label: 'Late', value: stats.lateToday, icon: Clock, color: 'text-orange-600 dark:text-orange-400' },
+    { label: 'Total', value: stats.todayAttendance, icon: Activity, color: 'text-blue-600 dark:text-blue-400' }
+  ], [stats.totalFaces, stats.presentToday, stats.lateToday, stats.todayAttendance]);
 
 
   const renderContent = () => {
@@ -501,8 +508,8 @@ const Admin = () => {
                 </div>
                 {!sidebarCollapsed && (
                   <div className="min-w-0">
-                    <p className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white truncate">Admin Center</p>
-                    <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">Campus Control</p>
+                    <p className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white truncate">School Admin</p>
+                    <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">Principal & Staff</p>
                   </div>
                 )}
               </div>
@@ -593,24 +600,24 @@ const Admin = () => {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-white truncate">
-                      {navItems.find((n) => n.id === activeTab)?.label || 'Dashboard'}
+                      {navItems.find((n) => n.id === activeTab)?.label || 'School Overview'}
                     </h1>
                     <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-bold">
                       PM Shri KV NFC
                     </span>
                   </div>
                   <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate mt-0.5">
-                    {activeTab === 'dashboard' && 'School-wide attendance command center and analytics'}
-                    {activeTab === 'students' && 'Manage registered student biometric profiles and class assignments'}
-                    {activeTab === 'sections' && 'Manage classroom sections, student cohorts, and teacher assignments'}
-                    {activeTab === 'reports' && 'Generate and export official attendance reports and daily logs'}
-                    {activeTab === 'gatepass' && 'Manage digital gate passes, pickup verifications, and exit history'}
-                    {activeTab === 'access' && 'Manage system roles, permissions, and teacher class assignments'}
-                    {activeTab === 'emergency' && 'Instant safety alerts, campus lockdown, and fire emergency broadcasting'}
-                    {activeTab === 'timetable' && 'Class timetables, schedules, and automatic teacher substitutions'}
-                    {activeTab === 'samples' && 'Face biometric gallery, verification thresholds, and training samples'}
-                    {activeTab === 'notifications' && 'Send SMS, Email, and in-app notices to parents and staff'}
-                    {activeTab === 'settings' && 'Configure attendance cutoffs, notification triggers, and school parameters'}
+                    {activeTab === 'dashboard' && 'Daily school attendance summary and overview'}
+                    {activeTab === 'students' && 'View and manage student details, classes, and photos'}
+                    {activeTab === 'sections' && 'Manage classes, sections, and assigned class teachers'}
+                    {activeTab === 'reports' && 'Download and print daily, weekly, or monthly attendance records'}
+                    {activeTab === 'gatepass' && 'Approve student gate passes and view student exit logs'}
+                    {activeTab === 'access' && 'Manage teacher accounts and access permissions'}
+                    {activeTab === 'emergency' && 'Send urgent safety alerts to parents, teachers, and staff'}
+                    {activeTab === 'timetable' && 'View class timetables and assign substitute teachers'}
+                    {activeTab === 'samples' && 'Check and update student face photos for attendance'}
+                    {activeTab === 'notifications' && 'Send SMS, WhatsApp, and email notices to parents'}
+                    {activeTab === 'settings' && 'Set school timings, late arrival cutoffs, and notifications'}
                   </p>
                 </div>
               </div>
@@ -622,10 +629,10 @@ const Admin = () => {
                   size="sm"
                   className="h-8 px-2.5 sm:px-3 rounded-xl border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-bold btn-spring shadow-xs"
                   onClick={() => setShowUpdatePusher(true)}
-                  title="Broadcast app updates to all mobile devices and PWA clients"
+                  title="Send app update notice to users"
                 >
                   <Smartphone className="h-3.5 w-3.5 sm:mr-1.5 text-purple-600 dark:text-purple-400" />
-                  <span className="hidden sm:inline">Push App Update</span>
+                  <span className="hidden sm:inline">Update App</span>
                 </Button>
                 <Button
                   variant="outline"

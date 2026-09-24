@@ -97,7 +97,7 @@ export default function ParentPortal() {
                       isLive ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'
                     }`}
                   />
-                  <span className="hidden sm:inline">{isLive ? 'Realtime Connected' : 'Auto Syncing'}</span>
+                  <span className="hidden sm:inline">{isLive ? 'Connected' : 'Updating'}</span>
                 </Badge>
 
                 <Button
@@ -190,13 +190,13 @@ export default function ParentPortal() {
                       value="gate"
                       className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
-                      <DoorOpen className="h-3.5 w-3.5" /> Gate Logs
+                      <DoorOpen className="h-3.5 w-3.5" /> Gate Activity
                     </TabsTrigger>
                     <TabsTrigger
                       value="teachers"
                       className="rounded-xl text-xs font-bold gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm px-3.5"
                     >
-                      <Users className="h-3.5 w-3.5" /> Teachers Desk
+                      <Users className="h-3.5 w-3.5" /> Teachers
                     </TabsTrigger>
                     <TabsTrigger
                       value="achievements"

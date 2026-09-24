@@ -505,7 +505,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                School Command Center • Attendance & Operations Matrix
+                School Overview • Today's Attendance & Summary
               </p>
             </div>
           </div>
@@ -513,7 +513,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
             {isConnected ? (
               <Badge variant="outline" className="gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-xs px-2.5 py-1 font-semibold">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live Terminal
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live Attendance Active
               </Badge>
             ) : (
               <Badge variant="outline" className="gap-1.5 text-muted-foreground border-border text-xs px-2.5 py-1">
@@ -780,7 +780,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 <CalendarDays className="w-4 h-4 text-indigo-600" />
                 Timetable & Schedule
               </CardTitle>
-              <CardDescription className="text-[11px]">Daily periods & teacher coverage</CardDescription>
+              <CardDescription className="text-[11px]">Daily periods & teacher schedule</CardDescription>
             </div>
             <Button 
               variant="ghost" 
@@ -823,7 +823,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               onClick={() => handleNavigate('timetable')}
               className="w-full text-xs h-8"
             >
-              Open Timetable Matrix
+              Open Timetable
             </Button>
           </CardContent>
         </Card>
@@ -834,9 +834,9 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             <div>
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <QrCode className="w-4 h-4 text-purple-600" />
-                Gate Passes & Security
+                Gate Passes & Movement
               </CardTitle>
-              <CardDescription className="text-[11px]">Guard checkouts & perimeter status</CardDescription>
+              <CardDescription className="text-[11px]">Gate checkouts & student leaves</CardDescription>
             </div>
             <Button 
               variant="ghost" 
@@ -858,8 +858,8 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 <p className="text-lg font-bold text-foreground">{gatePassStats.pending}</p>
               </div>
               <div className="p-2 rounded-lg bg-muted/40 border border-border/60">
-                <p className="text-[10px] text-muted-foreground font-medium">Perimeter</p>
-                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">SECURED</p>
+                <p className="text-[10px] text-muted-foreground font-medium">Main Gate</p>
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">OPEN</p>
               </div>
             </div>
 
@@ -880,9 +880,9 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             <div>
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <Activity className="w-4 h-4 text-emerald-600" />
-                Biometrics & Face AI
+                Student Face Photos
               </CardTitle>
-              <CardDescription className="text-[11px]">Camera detection pipeline</CardDescription>
+              <CardDescription className="text-[11px]">Camera attendance photos</CardDescription>
             </div>
             <Button 
               variant="ghost" 
@@ -890,12 +890,12 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               onClick={() => handleNavigate('samples')}
               className="text-xs text-primary h-7 px-2 hover:bg-muted"
             >
-              Samples <ArrowRight className="w-3 h-3 ml-1" />
+              Photos <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent className="p-4 pt-2 space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Enrolled Profiles:</span>
+              <span className="text-muted-foreground">Photos Saved:</span>
               <span className="font-bold text-foreground">{faceModelCoverage.registeredFaces} Students & Staff</span>
             </div>
             <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
@@ -908,7 +908,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               onClick={() => handleNavigate('students')}
               className="w-full text-xs h-8"
             >
-              Biometric Profiles & Diagnostics
+              View Student Photos & Details
             </Button>
           </CardContent>
         </Card>
@@ -919,9 +919,9 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
             <div>
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <CreditCard className="w-4 h-4 text-cyan-600" />
-                ID Cards & Registry
+                Student ID Cards
               </CardTitle>
-              <CardDescription className="text-[11px]">Batch extraction & smart ID cards</CardDescription>
+              <CardDescription className="text-[11px]">Printable smart ID cards</CardDescription>
             </div>
             <Button 
               variant="ghost" 
@@ -1215,16 +1215,16 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
 
                 <div className="p-3 rounded-xl border bg-card space-y-1.5">
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                    Institutional Record
+                    School Information
                   </span>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">School:</span>
                     <span className="font-semibold text-right">PM Shri KV NFC Vigyan Vihar</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Biometric Status:</span>
+                    <span className="text-muted-foreground">Face Photo:</span>
                     <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/30">
-                      Face Enrolled & Verified
+                      Photo Saved
                     </Badge>
                   </div>
                 </div>

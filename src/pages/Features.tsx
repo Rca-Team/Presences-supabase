@@ -58,16 +58,16 @@ const Features = () => {
         <PageHeader
           title={
             <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Advanced Features
+              School Features
             </span>
           }
-          description="Access powerful tools for attendance management"
+          description="Helpful tools for attendance, timetables, and campus activities"
           icon={<Sparkles className="h-8 w-8 text-cyan-400" />}
         />
         {isAdminOrPrincipal && (
           <Button onClick={() => navigate('/gate')} className="gap-2 w-full sm:w-auto shrink-0" size="lg">
             <DoorOpen className="h-5 w-5" />
-            Launch Gate Mode
+            Open Gate & Classroom Camera
           </Button>
         )}
       </div>
@@ -76,16 +76,16 @@ const Features = () => {
         <ScrollArea className="w-full whitespace-nowrap">
           <TabsList className="inline-flex mb-6">
             <TabsTrigger value="heatmap" className="gap-2">
-              <CalendarDays className="h-4 w-4" /> Heat Map
+              <CalendarDays className="h-4 w-4" /> Attendance Trends
             </TabsTrigger>
             <TabsTrigger value="assembly" className="gap-2">
-              <Users className="h-4 w-4" /> Assembly
+              <Users className="h-4 w-4" /> Morning Assembly
             </TabsTrigger>
             <TabsTrigger value="holidays" className="gap-2">
-              <Flag className="h-4 w-4" /> Holidays
+              <Flag className="h-4 w-4" /> School Holidays
             </TabsTrigger>
             <TabsTrigger value="emotions" className="gap-2">
-              <Smile className="h-4 w-4" /> Emotions
+              <Smile className="h-4 w-4" /> Student Wellness
             </TabsTrigger>
             <TabsTrigger value="idcard" className="gap-2">
               <IdCard className="h-4 w-4" /> ID Cards
@@ -94,13 +94,13 @@ const Features = () => {
               <Users className="h-4 w-4" /> Parent Portal
             </TabsTrigger>
             <TabsTrigger value="batch" className="gap-2">
-              <Camera className="h-4 w-4" /> Batch Register
+              <Camera className="h-4 w-4" /> Class Photo Register
             </TabsTrigger>
             <TabsTrigger value="gamification" className="gap-2">
-              <Trophy className="h-4 w-4" /> Rewards
+              <Trophy className="h-4 w-4" /> Student Badges
             </TabsTrigger>
             <TabsTrigger value="circulars" className="gap-2">
-              <BookOpen className="h-4 w-4" /> Circulars
+              <BookOpen className="h-4 w-4" /> School Circulars
             </TabsTrigger>
             {isAdminOrPrincipal && (
               <>

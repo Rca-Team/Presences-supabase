@@ -443,7 +443,7 @@ const Register = () => {
 
   const steps = [
     { number: 1, title: "Student Info", icon: User },
-    { number: 2, title: "3D Face Scan", icon: Camera }
+    { number: 2, title: "Student Photo", icon: Camera }
   ];
 
   return (
@@ -473,18 +473,18 @@ const Register = () => {
             <div className="space-y-6">
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                 <span className="px-3 py-1 rounded-full bg-white/10 text-xs font-medium backdrop-blur-sm border border-white/10">
-                  Biometric Face Enrollment
+                  Student Registration
                 </span>
-                <h1 className="text-4xl font-bold mt-4">Fast & Secure Student Onboarding</h1>
+                <h1 className="text-4xl font-bold mt-4">Add New Student</h1>
                 <p className="text-white/80 mt-2">
-                  AI-assisted high-precision 3D biometric enrollment with anti-spoofing validation.
+                  Quickly add student details and take a face photo for attendance.
                 </p>
               </motion.div>
               <div className="space-y-4">
                 {[
-                  { icon: Sparkles, text: "3D multi-angle face scan for 99.8% precision" },
-                  { icon: Shield, text: "Encrypted on-device biometric vector embedding" },
-                  { icon: Users, text: "Instant autonomous attendance verification" }
+                  { icon: Sparkles, text: "Fast face photo capture for instant attendance" },
+                  { icon: Shield, text: "Safe, secure student photo storage" },
+                  { icon: Users, text: "Automatic daily attendance marking" }
                 ].map((item, i) => (
                   <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }}
                     className="flex items-center gap-3 text-white/90">
@@ -539,10 +539,10 @@ const Register = () => {
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className="mb-8">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full nano-glass mb-4 border border-primary/20 hardware-layer shadow-xs">
                   <Scan className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Biometric Enrollment</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Student Registration</span>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Register Student Profile</h2>
-                <p className="mt-1.5 text-sm text-muted-foreground">Capture student details & multi-angle AI face baseline</p>
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Add New Student</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">Enter student details and take attendance photos</p>
               </motion.div>
 
               {drafts.length > 0 && (

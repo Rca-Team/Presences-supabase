@@ -21,12 +21,12 @@ export const LiteModeToggle: React.FC<LiteModeToggleProps> = ({
 }) => {
   const { liteMode, toggleLite, setPreference, signals } = usePerformanceMode();
 
-  const statusText = liteMode ? 'Lite Mode Active' : 'Standard Visual Mode';
+  const statusText = liteMode ? 'Fast Mode Active' : 'Standard Mode Active';
   const detailsText = liteMode
-    ? `Battery & GPU optimized${signals.slowNetwork ? ` · Network: ${signals.effectiveType}` : ''}`
-    : 'Full 3D Neural Orbs & Liquid Glass Active';
+    ? `Battery-saving mode for fast performance${signals.slowNetwork ? ` · Network: ${signals.effectiveType}` : ''}`
+    : 'Standard mode with full graphics and animations';
 
-  // 1. Segmented Slider Variant: [ ✦ Standard | ⚡ Lite ]
+  // 1. Segmented Slider Variant: [ ✦ Standard | ⚡ Fast Mode ]
   if (variant === 'segmented') {
     return (
       <div
@@ -64,8 +64,8 @@ export const LiteModeToggle: React.FC<LiteModeToggleProps> = ({
           className={`relative z-10 flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-1.5 min-h-[38px] sm:min-h-[32px] rounded-xl text-xs font-semibold transition-all cursor-pointer touch-manipulation active:scale-95 ${
             liteMode ? 'text-amber-950 dark:text-amber-950 font-bold' : 'text-muted-foreground hover:text-foreground'
           }`}
-          aria-label="Switch to Lite Mode"
-          title="Switch to Lite Mode"
+          aria-label="Switch to Fast Mode"
+          title="Switch to Fast Mode"
         >
           {liteMode && (
             <motion.div
@@ -75,7 +75,7 @@ export const LiteModeToggle: React.FC<LiteModeToggleProps> = ({
             />
           )}
           <Zap className="w-3.5 h-3.5 relative z-10 fill-current pointer-events-none shrink-0" />
-          <span className="relative z-10 pointer-events-none">Lite (60 FPS)</span>
+          <span className="relative z-10 pointer-events-none">Fast Mode</span>
         </button>
       </div>
     );
@@ -119,7 +119,7 @@ export const LiteModeToggle: React.FC<LiteModeToggleProps> = ({
                     className="flex items-center gap-1.5"
                   >
                     <Zap className="w-3.5 h-3.5 fill-current text-amber-500 animate-pulse" />
-                    <span>Lite Mode</span>
+                    <span>Fast Mode</span>
                   </motion.div>
                 ) : (
                   <motion.div

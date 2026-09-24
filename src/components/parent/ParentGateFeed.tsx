@@ -62,14 +62,14 @@ export const ParentGateFeed: React.FC<ParentGateFeedProps> = ({ child }) => {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg font-black text-foreground flex items-center gap-2">
-              <DoorOpen className="h-5 w-5 text-primary" /> Campus Gate Entry & Exit Logs
+              <DoorOpen className="h-5 w-5 text-primary" /> Campus Gate Entry & Exit Times
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Automated AI biometric gate verification records for {child.name}.
+              Gate arrival and exit records for {child.name}.
             </CardDescription>
           </div>
           <Badge variant="outline" className="text-xs rounded-full gap-1 border-emerald-500/30 text-emerald-600 bg-emerald-500/10">
-            <ShieldCheck className="h-3 w-3" /> Live Biometric Gate
+            <ShieldCheck className="h-3 w-3" /> Main School Gate
           </Badge>
         </div>
       </CardHeader>
@@ -78,9 +78,9 @@ export const ParentGateFeed: React.FC<ParentGateFeedProps> = ({ child }) => {
         {gateEntries.length === 0 ? (
           <div className="p-8 text-center rounded-2xl border border-dashed border-border/80 bg-background/40">
             <DoorOpen className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-            <p className="text-xs font-bold text-foreground">No Gate Turnstile Logs Recorded Yet</p>
+            <p className="text-xs font-bold text-foreground">No Gate Activity Recorded Yet</p>
             <p className="text-[11px] text-muted-foreground max-w-xs mx-auto mt-0.5">
-              Live gate timestamps appear automatically when your child passes through smart AI turnstiles.
+              Gate entry and exit timestamps appear automatically when your child enters or leaves school.
             </p>
           </div>
         ) : (

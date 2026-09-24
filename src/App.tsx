@@ -70,74 +70,74 @@ const SITE_URL = "https://presences.dev";
 
 const ROUTE_SEO: Record<string, { title: string; description: string }> = {
   "/": {
-    title: "Presences | Smart School Automation Platform",
+    title: "Presences | Smart School System",
     description:
-      "Automate school attendance, gate security, parent updates, and timetable management with real-time face recognition.",
+      "Easy school attendance, entry gate security, parent updates, and class schedules using smart face recognition.",
   },
   "/contact": {
-    title: "Contact Presences | School Automation Support",
+    title: "Contact Us | Presences",
     description:
-      "Contact the Presences team for school onboarding, technical support, and product demos.",
+      "Get in touch with the Presences team for help, questions, or setting up your school.",
   },
   "/features": {
-    title: "Features | Presences Smart School System",
+    title: "Features | Presences Smart School",
     description:
-      "Explore face attendance, gate mode, parent portal, timetable, alerts, analytics, and automation features in Presences.",
+      "See how Presences helps with attendance, gate checks, parent updates, timetables, and alerts.",
   },
   "/login": {
-    title: "Login | Presences",
+    title: "Sign In | Presences",
     description:
-      "Sign in to Presences to manage attendance, gate operations, and school workflows securely.",
+      "Log into your school account to view attendance, manage classes, and check updates.",
   },
   "/signup": {
     title: "Create Account | Presences",
     description:
-      "Create your Presences account to set up smart attendance, classroom tools, and parent communication.",
+      "Sign up for Presences to manage your school attendance and parent updates easily.",
   },
   "/parent": {
     title: "Parent Portal | Presences",
     description:
-      "Track student attendance, receive notifications, and stay connected with school updates in the Presences Parent Portal.",
+      "Check your child's daily attendance, class timetable, and school entry updates.",
   },
   "/guard": {
-    title: "Gate Guard Scanner | Presences",
+    title: "Gate Pass Scanner | Presences",
     description:
-      "Specialized Gate Pass QR and Early Exit verification console for campus security personnel.",
+      "Easy QR code scanner for school security guards to verify student gate passes and exit slips.",
   },
   "/widgets": {
-    title: "Android Widgets Hub | Presences Smart School",
+    title: "School Widgets | Presences",
     description:
-      "Material You interactive school widgets with live attendance donut, period countdown, decibel meter, stopwatch, and quick actions.",
+      "Handy tools including attendance stats, class period countdowns, noise meter, and stopwatch.",
   },
   "/register": {
     title: "Student Registration | Presences",
     description:
-      "Register students quickly with face data capture and profile setup in the Presences platform.",
+      "Register new students easily by saving their details and taking a photo.",
   },
   "/portfolio": {
-    title: "Gaurav Portfolio Studio | Presences",
+    title: "Creator Portfolio | Presences",
     description:
-      "Secure portfolio studio with PIN access for editing Gaurav's profile, achievements, gallery, and project highlights.",
+      "Learn more about the creator of Presences, achievements, and project highlights.",
   },
   "/unsubscribe": {
-    title: "Unsubscribe | Presences Notifications",
+    title: "Unsubscribe | Presences",
     description:
-      "Manage and unsubscribe from Presences school notification emails.",
+      "Manage your email notification settings for school updates.",
   },
   "/backup": {
-    title: "Cloud Backup & Restore | Presences",
+    title: "Data Backup & Recovery | Presences",
     description:
-      "1-Click full cloud backup and restore engine for Database tables, Auth accounts, and Storage files in a standalone ZIP package.",
+      "Save a safe backup of your school records, student photos, and accounts with one simple click.",
   },
   "/data": {
     title: "Data Backup | Presences",
     description:
-      "1-Click full cloud backup and restore engine for Database tables, Auth accounts, and Storage files.",
+      "Backup and restore student data, accounts, and photo files safely.",
   },
   "/jarvis": {
-    title: "J.A.R.V.I.S. AI Diagnostics | Presences",
+    title: "Jarvis AI Assistant | Presences",
     description:
-      "Autonomous on-demand AI monitoring, registry anomaly detection, and voice-assisted administrative diagnostics.",
+      "Your smart voice assistant that checks school records, finds missing info, and answers your questions.",
   },
 };
 

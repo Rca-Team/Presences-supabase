@@ -910,13 +910,13 @@ const Backup = () => {
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
                   <Cloud className="h-3.5 w-3.5" />
-                  Cloud Infrastructure Hub
+                  School Data Safety
                 </div>
                 <h1 className="text-3xl md:text-4xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
-                  Cloud Backup & Restore
+                  Data Backup & Restore
                 </h1>
                 <p className="text-sm md:text-base text-muted-foreground max-w-2xl">
-                  Take a complete snapshot of your entire school cloud — Database tables, Auth Users, and Storage files into a single standalone ZIP archive.
+                  Save a complete backup copy of your school data, student accounts, and photos into a safe, downloadable backup file.
                 </p>
               </div>
 
@@ -929,7 +929,7 @@ const Backup = () => {
                   className="rounded-2xl border-border/70 bg-card/60 gap-2 text-xs font-semibold"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${isLoadingManifest ? 'animate-spin' : ''}`} />
-                  Refresh Cloud Stats
+                  Refresh Record Count
                 </Button>
                 {lastBackupAt && (
                   <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium gap-1.5">
@@ -943,7 +943,7 @@ const Backup = () => {
             <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md">
                 <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase">
-                  <Database className="h-4 w-4 text-primary" /> Public Tables
+                  <Database className="h-4 w-4 text-primary" /> Data Tables
                 </div>
                 <p className="mt-2 text-2xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
                   {isLoadingManifest ? '...' : totalTablesLive.toLocaleString()}
@@ -961,7 +961,7 @@ const Backup = () => {
 
               <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md">
                 <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase">
-                  <Users className="h-4 w-4 text-blue-500" /> Auth Accounts
+                  <Users className="h-4 w-4 text-blue-500" /> User Accounts
                 </div>
                 <p className="mt-2 text-2xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
                   {isLoadingManifest ? '...' : totalAuthUsersLive.toLocaleString()}
@@ -970,7 +970,7 @@ const Backup = () => {
 
               <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-md">
                 <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase">
-                  <HardDrive className="h-4 w-4 text-amber-500" /> Local Snapshots
+                  <HardDrive className="h-4 w-4 text-amber-500" /> Saved Backups
                 </div>
                 <p className="mt-2 text-2xl font-extrabold text-foreground" style={{ fontFamily: 'Sora, sans-serif' }}>
                   {snapshots.length}
@@ -1001,7 +1001,7 @@ const Backup = () => {
                 <Progress value={progress.pct} className="h-2.5 rounded-full" />
                 {progress.currentScope && (
                   <p className="text-xs text-muted-foreground font-mono truncate">
-                    Scope: {progress.currentScope}
+                    Status: {progress.currentScope}
                   </p>
                 )}
               </CardContent>
@@ -1012,13 +1012,13 @@ const Backup = () => {
           <Tabs defaultValue="export" className="w-full space-y-6">
             <TabsList className="grid grid-cols-3 max-w-xl rounded-2xl p-1 bg-card/70 border border-border/60">
               <TabsTrigger value="export" className="rounded-xl font-bold gap-2">
-                <Download className="h-4 w-4" /> 1-Click ZIP Export
+                <Download className="h-4 w-4" /> Save Backup
               </TabsTrigger>
               <TabsTrigger value="import" className="rounded-xl font-bold gap-2">
-                <Upload className="h-4 w-4" /> Import & Restore
+                <Upload className="h-4 w-4" /> Restore Backup
               </TabsTrigger>
               <TabsTrigger value="snapshots" className="rounded-xl font-bold gap-2">
-                <DatabaseBackup className="h-4 w-4" /> Local Snapshots
+                <DatabaseBackup className="h-4 w-4" /> Backup History
               </TabsTrigger>
             </TabsList>
 
@@ -1034,9 +1034,9 @@ const Backup = () => {
                         <FileArchive className="h-6 w-6" />
                       </div>
                       <div>
-                        <CardTitle className="text-xl font-bold">Download Complete Cloud ZIP</CardTitle>
+                        <CardTitle className="text-xl font-bold">Download School Backup File</CardTitle>
                         <CardDescription>
-                          Compiles Auth Users, Database tables, and Storage files into a single <code className="text-xs font-mono font-bold text-primary">.zip</code> package.
+                          Saves student records, login accounts, and face photos into a safe backup file on your device.
                         </CardDescription>
                       </div>
                     </div>

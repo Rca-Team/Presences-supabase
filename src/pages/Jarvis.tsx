@@ -403,13 +403,23 @@ export default function Jarvis() {
           </div>
 
           <div className="p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+            <div className="text-xs font-mono uppercase tracking-wider text-slate-400">
+              Total Registered
+            </div>
+            <div className="text-2xl font-bold font-mono text-slate-100 mt-1">
+              {auditSummary ? auditSummary.totalStudentsChecked : "—"}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Students in database</div>
+          </div>
+
+          <div className="p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
             <div className="text-xs font-mono uppercase tracking-wider text-rose-400">
-              Missing Biometrics
+              Missing Face Data
             </div>
             <div className="text-2xl font-bold font-mono text-rose-300 mt-1">
               {auditSummary ? auditSummary.missingFaceDescriptors : "—"}
             </div>
-            <div className="text-[11px] text-rose-400/70 mt-0.5">Turnstile recognition disabled</div>
+            <div className="text-[11px] text-rose-400/70 mt-0.5">Needs photo for gate entry</div>
           </div>
 
           <div className="p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
@@ -419,17 +429,17 @@ export default function Jarvis() {
             <div className="text-2xl font-bold font-mono text-amber-300 mt-1">
               {auditSummary ? auditSummary.missingPhotos : "—"}
             </div>
-            <div className="text-[11px] text-amber-400/70 mt-0.5">Profile avatar missing</div>
+            <div className="text-[11px] text-amber-400/70 mt-0.5">No profile picture</div>
           </div>
 
           <div className="p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
             <div className="text-xs font-mono uppercase tracking-wider text-cyan-400">
-              Guardian Linkage
+              Parent Contacts
             </div>
             <div className="text-2xl font-bold font-mono text-cyan-300 mt-1">
               {auditSummary ? auditSummary.missingParentContacts : "—"}
             </div>
-            <div className="text-[11px] text-cyan-400/70 mt-0.5">Missing SMS / Email target</div>
+            <div className="text-[11px] text-cyan-400/70 mt-0.5">Missing parent phone/email</div>
           </div>
         </div>
 
@@ -441,10 +451,10 @@ export default function Jarvis() {
               <div className="flex items-center gap-2">
                 <Terminal className="w-4 h-4 text-cyan-400" />
                 <span className="text-xs font-mono uppercase tracking-widest text-cyan-300">
-                  Tactical Voice & Dialogue
+                  Jarvis Voice & Chat
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-cyan-400/80">NEURAL INTERFACE</span>
+              <span className="text-[10px] font-mono text-cyan-400/80">AI ASSISTANT</span>
             </div>
 
             {/* Chat Messages */}
@@ -486,7 +496,7 @@ export default function Jarvis() {
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask Jarvis or issue a system command..."
+                  placeholder="Ask Jarvis anything about school records..."
                   className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm placeholder:text-slate-500 text-slate-100 focus:outline-none focus:border-cyan-400"
                 />
                 <button
@@ -513,7 +523,7 @@ export default function Jarvis() {
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  Registry Audits ({auditSummary?.studentAudits.length || 0})
+                  Record Checks ({auditSummary?.studentAudits.length || 0})
                 </button>
 
                 <button
@@ -524,7 +534,7 @@ export default function Jarvis() {
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  Jarvis Solutions ({analysis?.recommendations.length || 0})
+                  Jarvis Advice ({analysis?.recommendations.length || 0})
                 </button>
 
                 <button
@@ -544,16 +554,16 @@ export default function Jarvis() {
                 <button
                   onClick={handleAutoHealBiometrics}
                   disabled={isHealing}
-                  title="Auto-extract & enroll 128D facial vectors for all students with photos"
+                  title="Automatically setup face recognition for all students with photos"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-mono font-medium transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Fingerprint className={`w-3.5 h-3.5 ${isHealing ? "animate-spin" : ""}`} />
-                  <span>{isHealing ? "Healing..." : "Auto-Heal Biometrics"}</span>
+                  <span>{isHealing ? "Updating..." : "Fix Face Data"}</span>
                 </button>
 
                 <button
                   onClick={handleExportCSV}
-                  title="Export Audit Report as CSV"
+                  title="Export Report as CSV File"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-cyan-300 text-xs font-mono transition-all cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -562,7 +572,7 @@ export default function Jarvis() {
 
                 <button
                   onClick={handleClearResolved}
-                  title="Purge Resolved Audits"
+                  title="Clear Fixed Items"
                   className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 transition-all cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -576,7 +586,7 @@ export default function Jarvis() {
                 <div className="flex items-center gap-2">
                   <Fingerprint className="w-4 h-4 animate-spin text-amber-400" />
                   <span>
-                    AUTONOMOUS ENROLLMENT ({healingProgress.current} / {healingProgress.total}): Processing {healingProgress.name}...
+                    UPDATING FACE PHOTOS ({healingProgress.current} / {healingProgress.total}): {healingProgress.name}...
                   </span>
                 </div>
                 <span>{Math.round((healingProgress.current / healingProgress.total) * 100)}%</span>

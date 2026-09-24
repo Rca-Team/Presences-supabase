@@ -25,7 +25,7 @@ const DEFAULT_BADGES = [
   { name: '🔥 Consistency Streak', desc: 'Maintained continuous 100% daily attendance', unlocked: true, color: 'from-rose-500 to-amber-500' },
   { name: '🌟 Perfect Month Star', desc: 'Completed full month without unauthorized absences', unlocked: true, color: 'from-emerald-500 to-teal-500' },
   { name: '⏰ Punctuality Master', desc: 'Zero late arrivals during official morning gate period', unlocked: true, color: 'from-blue-500 to-indigo-500' },
-  { name: '🛡️ Safety First Cadet', desc: 'Always checked in at designated biometric campus gate', unlocked: true, color: 'from-purple-500 to-pink-500' },
+  { name: '🛡️ Safety First Cadet', desc: 'Always checked in safely at the school gate', unlocked: true, color: 'from-purple-500 to-pink-500' },
 ];
 
 export const ParentAchievementsHub: React.FC<ParentAchievementsHubProps> = ({

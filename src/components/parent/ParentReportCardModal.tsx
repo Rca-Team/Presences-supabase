@@ -140,7 +140,7 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
           <div class="header">
             <h1>PM SHRI KENDRIYA VIDYALAYA NFC VIGYAN VIHAR</h1>
             <p>Affiliated to CBSE • Senior Secondary Section • Delhi Region</p>
-            <p style="margin-top: 6px; font-weight: 600; color: #0284c7;">STUDENT OFFICIAL ATTENDANCE & BIOMETRIC REPORT</p>
+            <p style="margin-top: 6px; font-weight: 600; color: #0284c7;">OFFICIAL STUDENT ATTENDANCE REPORT</p>
           </div>
 
           <div class="student-info">
@@ -242,7 +242,7 @@ export const ParentReportCardModal: React.FC<ParentReportCardModalProps> = ({
 
           <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
-            Verified by School Biometric Recognition Engine
+            Verified by School Attendance System
           </div>
         </div>
 

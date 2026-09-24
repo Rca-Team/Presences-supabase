@@ -439,14 +439,14 @@ export const GuardScanner: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-black tracking-tight text-white">
-                SECURITY GATE PASS SCANNER
+                Gate Pass Scanner
               </h1>
               <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px] font-bold">
-                LIVE COCKPIT
+                Active Scanner
               </Badge>
             </div>
             <p className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
-              <span>Officer: <strong className="text-white">{guardName}</strong></span>
+              <span>Duty Staff: <strong className="text-white">{guardName}</strong></span>
               <span>•</span>
               <select
                 value={gateName}
@@ -454,7 +454,7 @@ export const GuardScanner: React.FC = () => {
                 className="bg-slate-800 border border-slate-700 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-blue-400 focus:ring-0"
               >
                 <option value="Main Gate 1">Main Gate 1</option>
-                <option value="Turnstile 2 (South)">Turnstile 2 (South)</option>
+                <option value="Gate 2 (South)">Gate 2 (South)</option>
                 <option value="North Gate 3">North Gate 3</option>
                 <option value="Admin Block Gate">Admin Block Gate</option>
               </select>
@@ -499,7 +499,7 @@ export const GuardScanner: React.FC = () => {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Camera className="h-3.5 w-3.5" /> Camera Scanner
+              <Camera className="h-3.5 w-3.5" /> QR Scanner
             </button>
             <button
               onClick={() => setActiveTab('search')}
@@ -509,7 +509,7 @@ export const GuardScanner: React.FC = () => {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Search className="h-3.5 w-3.5" /> Manual Search
+              <Search className="h-3.5 w-3.5" /> Search Student
             </button>
             <button
               onClick={() => setActiveTab('log')}
@@ -519,7 +519,7 @@ export const GuardScanner: React.FC = () => {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Clock className="h-3.5 w-3.5" /> Gate Log ({exitedTodayPasses.length})
+              <Clock className="h-3.5 w-3.5" /> Exit History ({exitedTodayPasses.length})
             </button>
           </div>
 
@@ -549,7 +549,7 @@ export const GuardScanner: React.FC = () => {
                     <div className="absolute inset-x-4 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-pulse shadow-[0_0_12px_cyan]" />
 
                     <div className="text-[11px] font-bold text-blue-300/80 bg-slate-950/80 px-2.5 py-1 rounded-full border border-blue-500/30">
-                      ALIGN GATE PASS QR CODE
+                      POINT CAMERA AT STUDENT QR CODE
                     </div>
                   </div>
                 </div>

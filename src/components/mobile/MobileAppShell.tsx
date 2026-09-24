@@ -25,20 +25,20 @@ type MobileAppShellProps = {
 
 const routeTitles: Record<string, string> = {
   "/": "Home",
-  "/register": "Student Register",
-  "/attendance": "Smart Attendance",
-  "/gate": "Gate Control",
-  "/gate-vision": "Vision Gate",
+  "/register": "Register Student",
+  "/attendance": "Attendance",
+  "/gate": "Gate & Classroom Camera",
+  "/gate-vision": "Gate Scanner",
   "/profile": "My Profile",
-  "/admin": "Admin Center",
+  "/admin": "School Admin",
   "/teacher": "Teacher Portal",
-  "/features": "Features",
+  "/features": "School Features",
   "/parent": "Parent Portal",
-  "/contact": "Contact",
-  "/portfolio": "Portfolio",
+  "/contact": "Contact Us",
+  "/portfolio": "About Team",
   "/login": "Sign In",
   "/signup": "Create Account",
-  "/widgets": "Widgets Hub",
+  "/widgets": "Quick Tools",
   "/jarvis": "Jarvis Assistant",
 };
 
@@ -85,7 +85,7 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
       },
       {
         key: "attendance",
-        label: "Attend",
+        label: "Attendance",
         to: "/attendance",
         icon: ScanLine,
         show: true,
@@ -108,7 +108,7 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
     return [
       { key: "home", label: "Home", to: "/", icon: Home, show: true },
       { key: "register", label: "Register", to: "/register", icon: UserPlus, show: isSignedIn },
-      { key: "attendance", label: "Attend", to: "/attendance", icon: ScanLine, show: true },
+      { key: "attendance", label: "Attendance", to: "/attendance", icon: ScanLine, show: true },
       { key: "gate", label: "Gate", to: "/gate", icon: ShieldCheck, show: canUseGate },
       { key: "admin", label: "Admin", to: "/admin", icon: LayoutDashboard, show: canUseAdmin },
       { key: "profile", label: isSignedIn ? "Profile" : "Login", to: isSignedIn ? "/profile" : "/login", icon: UserCircle, show: true },

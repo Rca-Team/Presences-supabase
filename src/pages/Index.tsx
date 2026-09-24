@@ -125,29 +125,29 @@ const Index = () => {
   const modules = [
     { icon: Scan, label: 'Attendance', tone: 'bg-primary/20 text-primary', to: '/attendance' },
     { icon: BookOpen, label: 'Timetable', tone: 'bg-accent/30 text-accent-foreground', to: '/admin?tab=timetable' },
-    { icon: Shield, label: 'Security', tone: 'bg-warning/20 text-warning-foreground', to: '/gate' },
+    { icon: Shield, label: 'Gate Passes', tone: 'bg-warning/20 text-warning-foreground', to: '/gate' },
     { icon: Bell, label: 'Alerts', tone: 'bg-success/20 text-success', to: '/admin?tab=emergency' },
-    { icon: BarChart3, label: 'Analytics', tone: 'bg-primary/20 text-primary', to: '/admin?tab=reports' },
+    { icon: BarChart3, label: 'Reports', tone: 'bg-primary/20 text-primary', to: '/admin?tab=reports' },
     { icon: Bus, label: 'Transport', tone: 'bg-accent/30 text-accent-foreground', to: '/features' },
   ];
 
   const stats = [
-    { value: '99.9%', label: 'Attendance accuracy', glow: 'from-[#6c5ce7] to-[#e84393]' },
+    { value: '99.9%', label: 'Scan accuracy', glow: 'from-[#6c5ce7] to-[#e84393]' },
     { value: '<1s', label: 'Face scan speed', glow: 'from-[#ff6b35] to-[#f7931e]' },
-    { value: '1000+', label: 'Bulk registrations', glow: 'from-[#e84393] to-[#6c5ce7]' },
-    { value: '24/7', label: 'Campus monitoring', glow: 'from-[#f7931e] to-[#ff6b35]' },
+    { value: '1000+', label: 'Registered students', glow: 'from-[#e84393] to-[#6c5ce7]' },
+    { value: '24/7', label: 'Campus safety', glow: 'from-[#f7931e] to-[#ff6b35]' },
   ];
 
   const featureCategories = [
     {
-      category: 'AI-Powered Attendance',
+      category: 'Smart Face Attendance',
       icon: Scan,
       gradient: 'from-[#6c5ce7] to-[#e84393]',
       features: [
-        { icon: Camera, title: 'Face Recognition', desc: 'Millisecond facial detection with high precision.' },
-        { icon: Users, title: 'Multi-Face Scanning', desc: 'Recognize multiple students at once in live gate flow.' },
-        { icon: DoorOpen, title: 'Gate Mode', desc: 'Kiosk-ready scanning with stranger detection.' },
-        { icon: Clock, title: 'Auto Cutoff Alerts', desc: 'Absence notifications sent after daily cutoff.' },
+        { icon: Camera, title: 'Face Recognition', desc: 'Fast face scan to mark attendance instantly.' },
+        { icon: Users, title: 'Group Scanning', desc: 'Quickly scan multiple students entering class.' },
+        { icon: DoorOpen, title: 'Gate & Classroom', desc: 'Camera mode for classroom or school gate.' },
+        { icon: Clock, title: 'Late Arrival Alerts', desc: 'Notify parents if a student arrives late.' },
       ],
     },
     {
@@ -155,21 +155,21 @@ const Index = () => {
       icon: BookOpen,
       gradient: 'from-[#ff6b35] to-[#f7931e]',
       features: [
-        { icon: CalendarDays, title: 'Smart Timetable', desc: 'Structured timetable management for all classes.' },
-        { icon: UserCheck, title: 'Auto Substitution', desc: 'Automatic replacement when a teacher is absent.' },
-        { icon: ClipboardList, title: 'Teacher Permissions', desc: 'Granular class-section access controls.' },
-        { icon: FileText, title: 'Substitution Reports', desc: 'Printable and shareable daily reports.' },
+        { icon: CalendarDays, title: 'Class Timetable', desc: 'Daily period schedule for every class.' },
+        { icon: UserCheck, title: 'Teacher Substitutions', desc: 'Assign replacement teachers when someone is absent.' },
+        { icon: ClipboardList, title: 'Teacher Logins', desc: 'Teachers can view and manage their assigned classes.' },
+        { icon: FileText, title: 'Substitution Reports', desc: 'Download and print daily substitution charts.' },
       ],
     },
     {
-      category: 'Student Management',
+      category: 'Students & Classes',
       icon: GraduationCap,
       gradient: 'from-[#e84393] to-[#6c5ce7]',
       features: [
-        { icon: Layers, title: 'Class Structure', desc: 'Organize students by classes and sections.' },
-        { icon: Fingerprint, title: 'Bulk Registration', desc: 'Import and register students at scale.' },
-        { icon: Award, title: 'Gamification', desc: 'Badges, points, and class leaderboards.' },
-        { icon: Heart, title: 'Wellness Scores', desc: 'Track punctuality and behavioral trends.' },
+        { icon: Layers, title: 'Classes & Sections', desc: 'Organize students by classes and sections.' },
+        { icon: Fingerprint, title: 'Easy Registration', desc: 'Add new students with photos in seconds.' },
+        { icon: Award, title: 'Punctuality Badges', desc: 'Celebrate students with 100% attendance.' },
+        { icon: Heart, title: 'Attendance Health', desc: 'Spot attendance trends before exams.' },
       ],
     },
     {
@@ -177,14 +177,14 @@ const Index = () => {
       icon: Shield,
       gradient: 'from-[#f7931e] to-[#ff6b35]',
       features: [
-        { icon: AlertTriangle, title: 'Emergency Alerts', desc: 'Instant lockdown and fire alerts.' },
-        { icon: UserCheck, title: 'Visitor Management', desc: 'Visitor face verification and QR pass flow.' },
-        { icon: MapPin, title: 'Zone Monitoring', desc: 'Track restricted areas with alerts.' },
-        { icon: Lock, title: 'Stranger Detection', desc: 'Unknown face detection at entry points.' },
+        { icon: AlertTriangle, title: 'Emergency Alerts', desc: 'Send urgent alerts to staff and parents.' },
+        { icon: UserCheck, title: 'Visitor Passes', desc: 'Track school visitors with photo check-in.' },
+        { icon: MapPin, title: 'Gate Exit Passes', desc: 'Verify parent pickup and student leaves.' },
+        { icon: Lock, title: 'Security Kiosk', desc: 'Guard camera view for campus entry.' },
       ],
     },
     {
-      category: 'Parent & Communication',
+      category: 'Parent Communication',
       icon: MessageSquare,
       gradient: 'from-[#6c5ce7] to-[#ff6b35]',
       features: [
@@ -352,7 +352,7 @@ const Index = () => {
                 </h1>
 
                 <p className="mt-6 max-w-xl text-base sm:text-lg md:text-xl leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
-                  Face-recognition attendance, intelligent timetable substitution, kiosk security, parent portal & AI analytics — all in one unified, intelligent platform.
+                  Fast face-recognition attendance, teacher substitutions, student gate passes, parent portal & attendance reports — simple and easy for everyday use.
                 </p>
 
                 {/* Action CTAs — Rebuilt to precisely match capsule button layout */}
@@ -364,7 +364,7 @@ const Index = () => {
                         className="h-12 sm:h-13 rounded-full bg-[#22d3ee] hover:bg-[#06b6d4] text-slate-950 font-bold px-7 text-sm sm:text-base shadow-[0_0_24px_rgba(34,211,238,0.45)] hover:shadow-[0_0_32px_rgba(34,211,238,0.6)] transition-all duration-200 btn-spring gap-2.5 active:scale-95"
                       >
                         <Scan className="w-5 h-5 stroke-[2.2]" />
-                        <span>Launch Attendance</span>
+                        <span>Take Attendance</span>
                         <ArrowRight className="w-4 h-4 stroke-[2.2]" />
                       </Button>
                     </Link>
@@ -387,7 +387,7 @@ const Index = () => {
                         className="h-12 sm:h-13 rounded-full border border-slate-300/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/60 px-6 text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95"
                       >
                         <DoorOpen className="w-4 h-4 text-fuchsia-500 dark:text-fuchsia-400" />
-                        <span>Gate Kiosk</span>
+                        <span>Gate & Campus</span>
                       </Button>
                     </Link>
                     <Link to="/admin?tab=timetable">
@@ -408,15 +408,15 @@ const Index = () => {
               <div className="mt-10 pt-6 border-t border-border/70 dark:border-white/10 grid grid-cols-3 gap-3">
                 <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">99.9% Recognition</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">99.9% Accuracy</span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">&lt;120ms Fast Scan</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Instant Face Scan</span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Instant Cloud Sync</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Safe & Auto-Saved</span>
                 </div>
               </div>
             </RoyalReveal>
@@ -438,7 +438,7 @@ const Index = () => {
                 <div>
                   <div className="mb-5 flex items-center justify-between">
                     <span className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                      <Cpu className="h-3.5 w-3.5 text-primary" /> System Modules
+                      <Cpu className="h-3.5 w-3.5 text-primary" /> Quick Features
                     </span>
                     <div className="flex gap-1.5 items-center">
                       <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">LIVE</span>
@@ -469,7 +469,7 @@ const Index = () => {
                 </div>
 
                 <p className="mt-5 text-center text-[10px] font-black tracking-widest text-primary uppercase">
-                  All Systems Fully Operational
+                  All Features Ready to Use
                 </p>
               </RoyalReveal>
 

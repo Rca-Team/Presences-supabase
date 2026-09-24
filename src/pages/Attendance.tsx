@@ -199,16 +199,16 @@ const Attendance: React.FC = () => {
     }
   }, [isQRKioskMode]);
 
-  // iOS Dock Navigation Items
+  // Dock Navigation Items
   const tabs = [
-    { id: 'kiosk', label: 'Face Terminal', shortLabel: 'Face', badge: 'Ultra-Fast', icon: Scan },
-    { id: 'qr', label: 'Digital ID Pass', shortLabel: 'QR Pass', badge: 'Contactless', icon: QrCode },
-    { id: 'analytics', label: 'Telemetry & Stats', shortLabel: 'Stats', badge: null, icon: BarChart3 },
-    { id: 'help', label: 'Operations Guide', shortLabel: 'Guide', badge: null, icon: Info },
+    { id: 'kiosk', label: 'Face Camera', shortLabel: 'Camera', badge: 'Fast', icon: Scan },
+    { id: 'qr', label: 'Scan QR Code', shortLabel: 'QR Code', badge: 'Contactless', icon: QrCode },
+    { id: 'analytics', label: 'Attendance Stats', shortLabel: 'Stats', badge: null, icon: BarChart3 },
+    { id: 'help', label: 'How to Use', shortLabel: 'Help', badge: null, icon: Info },
   ];
 
   // ---------------------------------------------------------------------------
-  // UNIFIED APPLE NANO-TEXTURED GLASS & iOS MOTION INTERFACE (Zero Lag in Lite Mode)
+  // UNIFIED INTERFACE (Zero Lag in Fast Mode)
   // ---------------------------------------------------------------------------
   return (
     <PageTransition>
@@ -216,7 +216,7 @@ const Attendance: React.FC = () => {
         {/* Visual Flash feedback overlay */}
         <LiteFlashOverlay kind={flashKind} />
 
-        {/* Optimized Multi-Chromic Ambient Light Backing (Single Composite Layer) */}
+        {/* Multi-Chromic Ambient Light Backing */}
         <div 
           className="fixed inset-0 pointer-events-none -z-10 opacity-60 dark:opacity-25"
           style={{
@@ -231,10 +231,10 @@ const Attendance: React.FC = () => {
               {/* Top Title & Mode Switch Link */}
               <div className="text-center space-y-1 py-1">
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-2">
-                  Smart Attendance <span className="text-amber-500 font-extrabold">(Lite)</span>
+                  Daily Attendance <span className="text-amber-500 font-extrabold">(Fast Mode)</span>
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-                  High efficiency mode for low-latency devices
+                  Fast, battery-saving mode for all devices
                 </p>
                 <button
                   type="button"
@@ -245,7 +245,7 @@ const Attendance: React.FC = () => {
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-all cursor-pointer py-1 px-2.5 rounded-lg active:scale-95 touch-manipulation"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Switch to Full Experience (Standard Mode)</span>
+                  <span>Switch to Standard Mode</span>
                 </button>
               </div>
 
@@ -376,7 +376,7 @@ const Attendance: React.FC = () => {
                   }`}
                 >
                   <Scan className="w-4 h-4" />
-                  <span>Autonomous Face Terminal</span>
+                  <span>Face Attendance Camera</span>
                 </button>
 
                 <button
@@ -389,13 +389,13 @@ const Attendance: React.FC = () => {
                   }`}
                 >
                   <QrCode className="w-4 h-4" />
-                  <span>Digital ID QR Scanner</span>
+                  <span>Student QR Code Scanner</span>
                 </button>
               </div>
             </div>
           ) : (
             <>
-              {/* 1. iOS Dynamic Island Command Header */}
+              {/* 1. Dynamic Header */}
               <motion.header
                 initial={{ opacity: 0, y: -16 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -414,7 +414,7 @@ const Attendance: React.FC = () => {
                           Presences<span className="text-blue-500">.</span>AI
                         </span>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                          v2.4 Nano
+                          School Attendance
                         </span>
                       </div>
                       <AppleLiveClock />
@@ -428,11 +428,11 @@ const Attendance: React.FC = () => {
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
                     </span>
                     <span className="text-xs font-semibold tracking-tight text-slate-200">
-                      Neural Face ID • Ultra-Fast Sub-Second Mark Active
+                      Face Attendance Active • Look at Camera
                     </span>
                     <span className="h-3 w-[1px] bg-white/20" />
                     <span className="text-[11px] font-mono text-emerald-400 font-medium">
-                      100% Verified
+                      Ready
                     </span>
                   </div>
 
@@ -453,7 +453,7 @@ const Attendance: React.FC = () => {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setIsKioskFocus(!isKioskFocus)}
-                      title={isKioskFocus ? 'Exit Kiosk Focus' : 'Enter Kiosk Focus Mode'}
+                      title={isKioskFocus ? 'Exit Full Screen' : 'Open Full Screen Camera'}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold transition-all border cursor-pointer ${
                         isKioskFocus
                           ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
@@ -461,7 +461,7 @@ const Attendance: React.FC = () => {
                       }`}
                     >
                       {isKioskFocus ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                      <span className="hidden sm:inline">{isKioskFocus ? 'Standard View' : 'Kiosk Focus'}</span>
+                      <span className="hidden sm:inline">{isKioskFocus ? 'Normal View' : 'Full Screen'}</span>
                     </motion.button>
                   </div>
                 </div>
@@ -553,7 +553,7 @@ const Attendance: React.FC = () => {
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Recognition Velocity
+                            Scan Speed
                           </span>
                           <div className="h-7 w-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20">
                             <Zap className="h-3.5 w-3.5" />
@@ -561,15 +561,15 @@ const Attendance: React.FC = () => {
                         </div>
                         <div className="mt-3 flex items-baseline gap-2">
                           <span className="text-2xl sm:text-3xl font-black tracking-tight text-amber-500 font-mono">
-                            &lt; 0.3s
+                            Instant
                           </span>
                           <span className="text-xs text-slate-500 dark:text-slate-400">
-                            sub-second
+                            Fast & accurate
                           </span>
                         </div>
                         <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                           <Sparkles className="w-3 h-3 text-amber-500" />
-                          <span>100% True Identity Verified</span>
+                          <span>Automated Check-in</span>
                         </div>
                       </motion.div>
                     </div>
