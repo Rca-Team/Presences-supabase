@@ -8,6 +8,7 @@ import { Helmet, HelmetProvider } from "react-helmet-async";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import RouteFallback from "@/components/RouteFallback";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary";
 import { warmCommonRoutes } from "@/lib/preloadRoute";
 import { isRecoverableChunkOrNetworkError, performAppRecovery } from "@/utils/errorHandler";
 
@@ -220,105 +221,109 @@ function AnimatedRoutes() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [renderedLocation.pathname]);
 
+  const bound = (element: React.ReactNode, title?: string) => (
+    <RouteErrorBoundary pageTitle={title}>{element}</RouteErrorBoundary>
+  );
+
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes location={renderedLocation}>
-        <Route path="/" element={<Index />} />
-        <Route path="/features" element={<Features />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/" element={bound(<Index />, "Home")} />
+        <Route path="/features" element={bound(<Features />, "Features")} />
+        <Route path="/contact" element={bound(<Contact />, "Contact")} />
+        <Route path="/login" element={bound(<Login />, "Login")} />
+        <Route path="/signup" element={bound(<Signup />, "Sign Up")} />
+        <Route path="/register" element={bound(<Register />, "Add Student")} />
         <Route path="/profile" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-            <Profile />
+            {bound(<Profile />, "Profile")}
           </ProtectedRoute>
         } />
         <Route path="/attendance" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-            <Attendance />
+            {bound(<Attendance />, "Attendance")}
           </ProtectedRoute>
         } />
         <Route path="/user" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher", "user"]}>
-            <Attendance />
+            {bound(<Attendance />, "Attendance")}
           </ProtectedRoute>
         } />
         <Route path="/gate" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-            <GateMode />
+            {bound(<GateMode />, "Gate & Campus")}
           </ProtectedRoute>
         } />
         <Route path="/gate/vision" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-            <GateVisionMode />
+            {bound(<GateVisionMode />, "Gate Vision")}
           </ProtectedRoute>
         } />
         <Route path="/guard" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher", "guard", "security"]}>
-            <GuardScanner />
+            {bound(<GuardScanner />, "Gate Scanner")}
           </ProtectedRoute>
         } />
         <Route path="/gate/scanner" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher", "guard", "security"]}>
-            <GuardScanner />
+            {bound(<GuardScanner />, "Gate Scanner")}
           </ProtectedRoute>
         } />
-        <Route path="/parent" element={<ParentPortal />} />
+        <Route path="/parent" element={bound(<ParentPortal />, "Parent Portal")} />
         <Route path="/teacher" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-            <TeacherPortal />
+            {bound(<TeacherPortal />, "Teacher Portal")}
           </ProtectedRoute>
         } />
         <Route path="/teacher/:classId" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-            <TeacherPortal />
+            {bound(<TeacherPortal />, "Teacher Portal")}
           </ProtectedRoute>
         } />
         <Route path="/class" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-            <TeacherPortal />
+            {bound(<TeacherPortal />, "Class Teacher")}
           </ProtectedRoute>
         } />
         <Route path="/class/:classId" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-            <TeacherPortal />
+            {bound(<TeacherPortal />, "Class Teacher")}
           </ProtectedRoute>
         } />
         <Route path="/admin" element={
           <ProtectedRoute requireRoles={["admin", "principal", "teacher"]}>
-            <Admin />
+            {bound(<Admin />, "Admin Center")}
           </ProtectedRoute>
         } />
         <Route path="/notifications" element={
           <ProtectedRoute requireRoles={["admin", "principal"]}>
-            <NotificationDemo />
+            {bound(<NotificationDemo />, "Notifications")}
           </ProtectedRoute>
         } />
-        <Route path="/portfolio" element={<Portfolio />} />
-        <Route path="/unsubscribe" element={<Unsubscribe />} />
+        <Route path="/portfolio" element={bound(<Portfolio />, "Portfolio")} />
+        <Route path="/unsubscribe" element={bound(<Unsubscribe />, "Unsubscribe")} />
         <Route path="/backup" element={
           <ProtectedRoute requireRoles={["admin", "principal"]}>
-            <Backup />
+            {bound(<Backup />, "Backup & Recovery")}
           </ProtectedRoute>
         } />
         <Route path="/data" element={
           <ProtectedRoute requireRoles={["admin", "principal"]}>
-            <Backup />
+            {bound(<Backup />, "Backup & Recovery")}
           </ProtectedRoute>
         } />
         <Route path="/__admin/face-model-validator" element={
           <ProtectedRoute requireRoles={["admin"]}>
-            <FaceModelValidator />
+            {bound(<FaceModelValidator />, "Model Validator")}
           </ProtectedRoute>
         } />
         <Route path="/jarvis" element={
           <ProtectedRoute requireRoles={["admin"]}>
-            <Jarvis />
+            {bound(<Jarvis />, "Jarvis Assistant")}
           </ProtectedRoute>
         } />
-        <Route path="/widgets" element={<Widgets />} />
-        <Route path="*" element={<NotFound />} />
+        <Route path="/widgets" element={bound(<Widgets />, "Quick Tools")} />
+        <Route path="*" element={bound(<NotFound />, "Page Not Found")} />
       </Routes>
     </Suspense>
   );
