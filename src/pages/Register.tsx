@@ -32,8 +32,8 @@ const registrationSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name is too long'),
   employeeId: z.string().trim().min(1, 'Admission No. is required').max(50, 'Admission No. is too long'),
   department: z.string().trim().min(1, 'Class-Section is required').max(50, 'Class-Section is too long'),
-  parentName: z.string().trim().min(1, 'Parent name is required').max(100, 'Parent name is too long'),
-  parentPhone: z.string().trim().min(1, 'Parent phone is required').max(20, 'Parent phone is too long'),
+  parentName: z.string().trim().max(100, 'Parent name is too long').optional().default(''),
+  parentPhone: z.string().trim().max(20, 'Parent phone is too long').optional().default(''),
   email: z.union([z.literal(''), z.string().trim().email('Invalid student email').max(255)]),
   parentEmail: z.union([z.literal(''), z.string().trim().email('Invalid parent email').max(255)]),
   phone: z.string().trim().max(20, 'Phone is too long').optional(),
@@ -351,17 +351,17 @@ const Register = () => {
         imageBlob, validData.name, validData.employeeId, validData.department,
         validData.position || validData.rollNumber || '', userId, faceDescriptor,
         {
-          phone: validData.phone,
-          parent_name: validData.parentName,
-          parent_email: validData.parentEmail,
-          parent_phone: validData.parentPhone,
-          student_email: validData.email,
-          roll_number: validData.rollNumber,
-          blood_group: validData.bloodGroup,
-          medical_info: validData.medicalInfo,
-          transport_mode: validData.transportMode,
+          phone: validData.phone || undefined,
+          parent_name: validData.parentName || 'Parent / Guardian',
+          parent_email: validData.parentEmail || undefined,
+          parent_phone: validData.parentPhone || undefined,
+          student_email: validData.email || undefined,
+          roll_number: validData.rollNumber || undefined,
+          blood_group: validData.bloodGroup || undefined,
+          medical_info: validData.medicalInfo || undefined,
+          transport_mode: validData.transportMode || undefined,
           class_section: validData.department,
-          address: validData.address,
+          address: validData.address || undefined,
         },
         validData.department, // category = class-section
         {
@@ -537,12 +537,12 @@ const Register = () => {
               )}
 
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} className="mb-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full nano-glass mb-4 border border-primary/20 hardware-layer shadow-xs">
-                  <Scan className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Student Registration</span>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full nano-glass mb-4 border border-emerald-500/25 bg-emerald-500/10 hardware-layer shadow-xs">
+                  <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Open Student Enrollment · All Users</span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Add New Student</h2>
-                <p className="mt-1.5 text-sm text-muted-foreground">Enter student details and take attendance photos</p>
+                <p className="mt-1.5 text-sm text-muted-foreground">Anyone (students, parents, teachers, and staff) can enroll students directly with name, admission number, and a photo scan.</p>
               </motion.div>
 
               {drafts.length > 0 && (
@@ -726,22 +726,22 @@ const Register = () => {
                       <div className="relative py-3">
                         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-blue-100 dark:border-blue-900" /></div>
                         <div className="relative flex justify-center">
-                          <span className="px-3 bg-gradient-to-r from-slate-50 via-blue-50/30 to-white dark:from-slate-950 dark:via-blue-950/30 dark:to-slate-900 text-sm text-muted-foreground">Parent/Guardian Info</span>
+                          <span className="px-3 bg-gradient-to-r from-slate-50 via-blue-50/30 to-white dark:from-slate-950 dark:via-blue-950/30 dark:to-slate-900 text-sm text-muted-foreground">Parent / Guardian Info (Optional)</span>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="parentName">Parent Name *</Label>
-                          <Input id="parentName" name="parentName" value={formData.parentName} onChange={handleInputChange} placeholder="Parent's name" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" required />
+                          <Label htmlFor="parentName">Parent Name (optional)</Label>
+                          <Input id="parentName" name="parentName" value={formData.parentName} onChange={handleInputChange} placeholder="Parent or guardian name" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="parentPhone" className="flex items-center gap-2"><Phone className="w-4 h-4 text-blue-500" />Parent Phone *</Label>
-                          <Input id="parentPhone" name="parentPhone" type="tel" value={formData.parentPhone} onChange={handleInputChange} placeholder="+91 98765 43210" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" required />
+                          <Label htmlFor="parentPhone" className="flex items-center gap-2"><Phone className="w-4 h-4 text-blue-500" />Parent Phone (optional)</Label>
+                          <Input id="parentPhone" name="parentPhone" type="tel" value={formData.parentPhone} onChange={handleInputChange} placeholder="+91 98765 43210" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="parentEmail">Parent Email</Label>
+                        <Label htmlFor="parentEmail">Parent Email (optional)</Label>
                         <Input id="parentEmail" name="parentEmail" type="email" value={formData.parentEmail} onChange={handleInputChange} placeholder="parent@email.com" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" />
                       </div>
 
