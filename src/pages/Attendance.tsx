@@ -44,54 +44,9 @@ import { useToast } from '@/hooks/use-toast';
 import { fetchUnifiedAttendanceStats, type UnifiedAttendanceStats } from '@/utils/attendanceStatsHelper';
 import { supabase } from '@/integrations/supabase/client';
 import { getCutoffTime } from '@/services/attendance/AttendanceSettingsService';
+import { cn } from '@/lib/utils';
 
-// Apple iOS Fluid Spring Configurations
-const iosSpring = {
-  type: 'spring',
-  stiffness: 380,
-  damping: 28,
-  mass: 0.8,
-};
 
-const iosSnappySpring = {
-  type: 'spring',
-  stiffness: 450,
-  damping: 32,
-  mass: 0.7,
-};
-
-// Smooth Counter for iOS Metric Cards
-const AnimatedNumber: React.FC<{ value: number; durationMs?: number }> = ({ value, durationMs = 600 }) => {
-  const [displayValue, setDisplayValue] = useState(0);
-  const startTimeRef = useRef<number | null>(null);
-  const startValRef = useRef<number>(0);
-  const targetValRef = useRef<number>(value);
-
-  useEffect(() => {
-    startValRef.current = displayValue;
-    targetValRef.current = value;
-    startTimeRef.current = null;
-
-    let rafId: number;
-    const animate = (time: number) => {
-      if (startTimeRef.current === null) startTimeRef.current = time;
-      const elapsed = time - startTimeRef.current;
-      const progress = Math.min(1, elapsed / durationMs);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(startValRef.current + (targetValRef.current - startValRef.current) * ease);
-      setDisplayValue(current);
-
-      if (progress < 1) {
-        rafId = requestAnimationFrame(animate);
-      }
-    };
-
-    rafId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafId);
-  }, [value, durationMs]);
-
-  return <span>{displayValue.toLocaleString()}</span>;
-};
 
 // Live Digital Apple Clock
 const AppleLiveClock: React.FC = () => {
@@ -259,453 +214,219 @@ const Attendance: React.FC = () => {
         />
 
         <div className="relative max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
-          {/* CONDITIONAL HEADER & STATS: LITE MODE VS STANDARD MODE */}
-          {liteMode ? (
-            <div className="space-y-4">
-              {/* Top Title & Mode Switch Link */}
-              <div className="text-center space-y-1 py-1">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-2">
-                  Daily Attendance <span className="text-amber-500 font-extrabold">(Fast Mode)</span>
-                </h1>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-                  Fast, battery-saving mode for all devices
+          {/* 1. Top Title & School Branding */}
+          <div className="text-center space-y-1.5 py-1">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-bold">
+              <Scan className="w-3.5 h-3.5" />
+              <span>PM Shri KV NFC Vigyan Vihar</span>
+              <span className="opacity-40">•</span>
+              <span>Presences.AI</span>
+            </div>
+            <h1 className="text-xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-2">
+              Daily Attendance {liteMode && <span className="text-amber-500 font-extrabold">(Fast Mode)</span>}
+            </h1>
+            <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+              <span>Biometric & QR Attendance System</span>
+              <span className="opacity-40">•</span>
+              <AppleLiveClock />
+            </div>
+          </div>
+
+          {/* 2. Unified Terminal Active Card (Matching Lite Mode Layout) */}
+          <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3.5 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border",
+                liteMode
+                  ? "bg-amber-500/10 text-amber-500 border-amber-500/25"
+                  : "bg-blue-600/10 text-blue-600 dark:text-blue-400 border-blue-600/25"
+              )}>
+                {liteMode ? <Zap className="w-5 h-5 fill-current" /> : <Scan className="w-5 h-5" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">
+                    {liteMode ? 'Lite Mode Terminal Active' : 'Daily Attendance Terminal Active'}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    LIVE SYNC
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30" title={`Arrivals after ${format12Hour(activeCutoffTime)} are marked Late`}>
+                    <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    Cutoff: {format12Hour(activeCutoffTime)}
+                  </span>
+                  {scopedCategory && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                      <Users className="w-3 h-3" />
+                      Class {scopedCategory}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {liteMode 
+                    ? `Optimized for smooth high-speed attendance${signals?.slowNetwork ? ` · Slow network (${signals.effectiveType})` : ''}${signals?.saveData ? ' · Data saver' : ''}`
+                    : 'High-speed biometric recognition active · Keep face visible in camera'}
                 </p>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPreference('off');
-                  }}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-500 hover:text-blue-400 underline underline-offset-4 transition-all cursor-pointer py-1 px-2.5 rounded-lg active:scale-95 touch-manipulation"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Switch to Standard Mode</span>
-                </button>
-              </div>
-
-              {/* Terminal Active Card */}
-              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3.5 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 border border-amber-500/25">
-                    <Zap className="w-5 h-5 fill-current" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">
-                        Lite Mode Terminal Active
-                      </span>
-                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        LIVE SYNC
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                        Cutoff: {format12Hour(activeCutoffTime)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Optimized for smooth high-speed attendance
-                      {signals?.slowNetwork ? ` · Slow network (${signals.effectiveType})` : ''}
-                      {signals?.saveData ? ' · Data saver' : ''}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-stretch sm:self-auto justify-end flex-wrap">
-                  {/* Feedback Toggles */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => toggleFeedback('sound')}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
-                        feedbackPrefs.sound
-                          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700'
-                      }`}
-                    >
-                      {feedbackPrefs.sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-                      <span>Sound {feedbackPrefs.sound ? 'on' : 'off'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleFeedback('vibrate')}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
-                        feedbackPrefs.vibrate
-                          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700'
-                      }`}
-                    >
-                      {feedbackPrefs.vibrate ? <Vibrate className="w-3.5 h-3.5" /> : <VibrateOff className="w-3.5 h-3.5" />}
-                      <span>Vibrate {feedbackPrefs.vibrate ? 'on' : 'off'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleFeedback('flash')}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
-                        feedbackPrefs.flash
-                          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700'
-                      }`}
-                    >
-                      {feedbackPrefs.flash ? <Sun className="w-3.5 h-3.5" /> : <SunDim className="w-3.5 h-3.5" />}
-                      <span>Flash {feedbackPrefs.flash ? 'on' : 'off'}</span>
-                    </button>
-                  </div>
-
-                  {/* Mode Switcher */}
-                  <LiteModeToggle variant="segmented" />
-                </div>
-              </div>
-
-              {/* 4 Lite Metric Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-                <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3 sm:p-3.5 shadow-xs">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-                    <span>ENROLLED</span>
-                    <Users className="w-3.5 h-3.5 text-purple-500" />
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono mt-1">
-                    {stats.totalRegistered}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-3.5 shadow-xs">
-                  <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider">
-                    <span>PRESENT</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-                    {stats.presentToday}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 sm:p-3.5 shadow-xs">
-                  <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 text-xs font-bold uppercase tracking-wider">
-                    <span>LATE</span>
-                    <Clock className="w-3.5 h-3.5 text-amber-500" />
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
-                    {stats.lateToday}
-                  </div>
-                  <div className="text-[10px] text-amber-600/80 font-medium truncate mt-0.5">
-                    After {format12Hour(activeCutoffTime)}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 sm:p-3.5 shadow-xs">
-                  <div className="flex items-center justify-between text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
-                    <span>RATE</span>
-                    <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 font-mono mt-1">
-                    {stats.attendanceRate}%
-                  </div>
-                </div>
-              </div>
-
-              {/* Lite Method Switcher */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('kiosk')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    activeTab === 'kiosk'
-                      ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Scan className="w-4 h-4" />
-                  <span>Face Attendance Camera</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('qr')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    activeTab === 'qr'
-                      ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <QrCode className="w-4 h-4" />
-                  <span>Student QR Code Scanner</span>
-                </button>
               </div>
             </div>
-          ) : (
-            <>
-              {/* 1. Dynamic Header */}
-              <motion.header
-                initial={{ opacity: 0, y: -16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={iosSpring}
-                className="relative z-30"
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-stretch sm:self-auto justify-end flex-wrap">
+              {/* Feedback Toggles */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => toggleFeedback('sound')}
+                  title={feedbackPrefs.sound ? 'Mute Arrival Sound' : 'Enable Arrival Sound'}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    feedbackPrefs.sound
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {feedbackPrefs.sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  <span>Sound {feedbackPrefs.sound ? 'on' : 'off'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => toggleFeedback('vibrate')}
+                  title={feedbackPrefs.vibrate ? 'Disable Vibration' : 'Enable Vibration'}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    feedbackPrefs.vibrate
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {feedbackPrefs.vibrate ? <Vibrate className="w-3.5 h-3.5" /> : <VibrateOff className="w-3.5 h-3.5" />}
+                  <span>Vibrate {feedbackPrefs.vibrate ? 'on' : 'off'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => toggleFeedback('flash')}
+                  title={feedbackPrefs.flash ? 'Disable Visual Flash' : 'Enable Visual Flash'}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    feedbackPrefs.flash
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {feedbackPrefs.flash ? <Sun className="w-3.5 h-3.5" /> : <SunDim className="w-3.5 h-3.5" />}
+                  <span>Flash {feedbackPrefs.flash ? 'on' : 'off'}</span>
+                </button>
+              </div>
+
+              {/* Mode Switcher */}
+              <LiteModeToggle variant="segmented" />
+
+              {/* Kiosk Fullscreen Focus Button */}
+              <button
+                type="button"
+                onClick={() => setIsKioskFocus(!isKioskFocus)}
+                title={isKioskFocus ? 'Exit Full Screen' : 'Open Full Screen Camera'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  isKioskFocus
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
+                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
               >
-                <div className="nano-glass rounded-[28px] p-2.5 sm:p-3.5 flex items-center justify-between gap-3 shadow-lg shadow-blue-500/5">
-                  {/* Left: Clock & Time Capsule */}
-                  <div className="flex items-center gap-2 sm:gap-3 pl-1.5 sm:pl-2">
-                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-blue-600/25 shrink-0 border border-white/25">
-                      <Scan className="h-5 w-5" />
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-extrabold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white">
-                          Presences<span className="text-blue-500">.</span>AI
-                        </span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                          School Attendance
-                        </span>
-                        <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20" title={`Arrivals after ${format12Hour(activeCutoffTime)} are marked Late`}>
-                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          <span>Cutoff: {format12Hour(activeCutoffTime)}</span>
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <AppleLiveClock />
-                        <span className="sm:hidden inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                          Cutoff {format12Hour(activeCutoffTime)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                {isKioskFocus ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{isKioskFocus ? 'Normal View' : 'Full Screen'}</span>
+              </button>
+            </div>
+          </div>
 
-                  {/* Center: Dynamic Island Biometric Radar Pill */}
-                  <div className="hidden lg:flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-slate-950/85 dark:bg-black/90 text-white border border-white/15 shadow-inner">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                    </span>
-                    <span className="text-xs font-semibold tracking-tight text-slate-200">
-                      Face Attendance Active • Look at Camera
-                    </span>
-                    <span className="h-3 w-[1px] bg-white/20" />
-                    <span className="text-[11px] font-mono text-emerald-400 font-medium">
-                      Ready
-                    </span>
-                  </div>
-
-                  {/* Right: Scoped Badge, Feedback Toggles, Lite Mode Toggle & Kiosk Focus Toggle */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 pr-1 flex-wrap justify-end">
-                    {scopedCategory && (
-                      <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25 text-xs font-bold">
-                        <Users className="h-3.5 w-3.5" />
-                        Class {scopedCategory}
-                      </span>
-                    )}
-
-                    {/* Standard Mode Audio/Vibe/Flash controls matching Lite mode */}
-                    <div className="hidden md:flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => toggleFeedback('sound')}
-                        title={feedbackPrefs.sound ? 'Mute Arrival Sound' : 'Enable Arrival Sound'}
-                        className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
-                          feedbackPrefs.sound
-                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-white/10'
-                        }`}
-                      >
-                        {feedbackPrefs.sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleFeedback('vibrate')}
-                        title={feedbackPrefs.vibrate ? 'Disable Vibration' : 'Enable Vibration'}
-                        className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
-                          feedbackPrefs.vibrate
-                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-white/10'
-                        }`}
-                      >
-                        {feedbackPrefs.vibrate ? <Vibrate className="w-3.5 h-3.5" /> : <VibrateOff className="w-3.5 h-3.5" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleFeedback('flash')}
-                        title={feedbackPrefs.flash ? 'Disable Visual Flash' : 'Enable Visual Flash'}
-                        className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
-                          feedbackPrefs.flash
-                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-white/10'
-                        }`}
-                      >
-                        {feedbackPrefs.flash ? <Sun className="w-3.5 h-3.5" /> : <SunDim className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-
-                    {/* Segmented Lite Mode Toggle */}
-                    <LiteModeToggle variant="segmented" />
-
-                    {/* Kiosk Fullscreen Focus Button */}
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.96 }}
-                      onClick={() => setIsKioskFocus(!isKioskFocus)}
-                      title={isKioskFocus ? 'Exit Full Screen' : 'Open Full Screen Camera'}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold transition-all border cursor-pointer ${
-                        isKioskFocus
-                          ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
-                          : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {isKioskFocus ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                      <span className="hidden sm:inline">{isKioskFocus ? 'Normal View' : 'Full Screen'}</span>
-                    </motion.button>
-                  </div>
+          {/* 3. The 4 Clean Metric Cards (Zero-Lag Direct Render, High-Contrast) */}
+          {!isKioskFocus && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+              <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3 sm:p-3.5 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
+                  <span>ENROLLED</span>
+                  <Users className="w-3.5 h-3.5 text-purple-500" />
                 </div>
-              </motion.header>
-
-              {/* 2. iOS Control Center 4-Card Modular KPI Grid (Lag-free GPU accelerated) */}
-              <AnimatePresence>
-                {!isKioskFocus && (
-                  <motion.section
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={iosSpring}
-                    className="overflow-hidden"
-                  >
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 transform-gpu">
-                      {/* Card 1: Enrolled Students */}
-                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-slate-200/80 dark:border-white/10 shadow-xs hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          <span>ENROLLED</span>
-                          <div className="h-7 w-7 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-purple-500/20">
-                            <Users className="h-3.5 w-3.5" />
-                          </div>
-                        </div>
-                        <div className="mt-2.5 flex items-baseline gap-1.5">
-                          <span className="text-xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
-                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.totalRegistered} />}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground font-medium hidden sm:inline">
-                            students
-                          </span>
-                        </div>
-                        <div className="mt-2 text-[10px] sm:text-[11px] text-muted-foreground font-medium truncate">
-                          Total database roster
-                        </div>
-                      </div>
-
-                      {/* Card 2: Present Today */}
-                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-emerald-500/30 bg-emerald-500/[0.03] shadow-xs hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                          <span>PRESENT</span>
-                          <div className="h-7 w-7 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          </div>
-                        </div>
-                        <div className="mt-2.5 flex items-baseline gap-1.5">
-                          <span className="text-xl sm:text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 font-mono">
-                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.presentToday} />}
-                          </span>
-                          <span className="text-[11px] text-emerald-600/80 font-bold hidden sm:inline">
-                            on-time
-                          </span>
-                        </div>
-                        <div className="mt-2 text-[10px] sm:text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 truncate">
-                          Before {format12Hour(activeCutoffTime)}
-                        </div>
-                      </div>
-
-                      {/* Card 3: Late Arrivals */}
-                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-amber-500/30 bg-amber-500/[0.03] shadow-xs hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                          <span>LATE</span>
-                          <div className="h-7 w-7 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30">
-                            <Clock className="h-3.5 w-3.5" />
-                          </div>
-                        </div>
-                        <div className="mt-2.5 flex items-baseline gap-1.5">
-                          <span className="text-xl sm:text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400 font-mono">
-                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.lateToday} />}
-                          </span>
-                          <span className="text-[11px] text-amber-600/80 font-bold hidden sm:inline">
-                            after {format12Hour(activeCutoffTime)}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-[10px] sm:text-[11px] font-semibold text-amber-600 dark:text-amber-400 truncate">
-                          {stats.lateToday > 0 ? 'Notified guardians' : `No late arrivals (> ${format12Hour(activeCutoffTime)})`}
-                        </div>
-                      </div>
-
-                      {/* Card 4: Attendance Rate */}
-                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-blue-500/30 bg-blue-500/[0.03] shadow-xs hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                          <span>RATE</span>
-                          <div className="h-7 w-7 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/30">
-                            <TrendingUp className="h-3.5 w-3.5" />
-                          </div>
-                        </div>
-                        <div className="mt-2.5 flex items-baseline gap-1.5">
-                          <span className="text-xl sm:text-3xl font-black tracking-tight text-blue-600 dark:text-blue-400 font-mono">
-                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.attendanceRate} />}%
-                          </span>
-                          <span className="text-[11px] text-blue-600/80 font-bold hidden sm:inline">
-                            turnout
-                          </span>
-                        </div>
-                        {/* Smooth Mini Progress Bar */}
-                        <div className="mt-2 w-full h-1.5 rounded-full bg-blue-500/20 overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full transition-all duration-700 ease-out"
-                            style={{ width: `${Math.min(100, Math.max(0, stats.attendanceRate))}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.section>
-                )}
-              </AnimatePresence>
-
-              {/* 3. iOS 18 Floating Nano-Glass Segmented Dock */}
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={iosSpring}
-                className="flex justify-center w-full px-1 overflow-hidden"
-              >
-                <div className="nano-glass-dock rounded-full p-1 sm:p-1.5 flex items-center justify-between sm:justify-center gap-0.5 sm:gap-1 shadow-xl shadow-slate-900/5 max-w-full overflow-x-auto no-scrollbar scrollbar-none w-full sm:w-auto">
-                  {tabs.map((tab) => {
-                    const isActive = activeTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`relative px-2.5 sm:px-6 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 shrink-0 sm:shrink cursor-pointer flex-1 sm:flex-initial ${
-                          isActive ? 'text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
-                      >
-                        {isActive && (
-                          <motion.div
-                            layoutId="iosDockPill"
-                            className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-md shadow-blue-600/35 border border-white/20"
-                            transition={iosSpring}
-                          />
-                        )}
-                        <tab.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 relative z-10" />
-                        <span className="relative z-10 hidden sm:inline">{tab.label}</span>
-                        <span className="relative z-10 sm:hidden">{tab.shortLabel}</span>
-                        {tab.badge && (
-                          <span
-                            className={`relative z-10 text-[9px] uppercase px-1.5 py-0.2 rounded-md font-extrabold hidden md:inline ${
-                              isActive
-                                ? 'bg-white/20 text-white'
-                                : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                            }`}
-                          >
-                            {tab.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono mt-1">
+                  {stats.totalRegistered}
                 </div>
-              </motion.div>
-            </>
+                <div className="text-[10px] text-muted-foreground font-medium truncate mt-0.5">
+                  Total registered roster
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-3.5 shadow-xs">
+                <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                  <span>PRESENT</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
+                  {stats.presentToday}
+                </div>
+                <div className="text-[10px] text-emerald-600/80 font-medium truncate mt-0.5">
+                  Before {format12Hour(activeCutoffTime)}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 sm:p-3.5 shadow-xs">
+                <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 text-xs font-bold uppercase tracking-wider">
+                  <span>LATE</span>
+                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
+                  {stats.lateToday}
+                </div>
+                <div className="text-[10px] text-amber-600/80 font-medium truncate mt-0.5">
+                  After {format12Hour(activeCutoffTime)}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 sm:p-3.5 shadow-xs">
+                <div className="flex items-center justify-between text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
+                  <span>RATE</span>
+                  <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 font-mono mt-1">
+                  {stats.attendanceRate}%
+                </div>
+                <div className="text-[10px] text-blue-600/80 font-medium truncate mt-0.5">
+                  Turnout percentage
+                </div>
+              </div>
+            </div>
           )}
+
+          {/* 4. Snappy Segmented Method Switcher (Lag-free, Unified Across All Modes) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-900/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    isActive
+                      ? liteMode 
+                        ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20' 
+                        : 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                  {tab.badge && (
+                    <span className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-extrabold hidden lg:inline ${
+                      isActive 
+                        ? 'bg-white/20 text-white' 
+                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                    }`}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           {/* 4. Main Workstation Bento Stage */}
           <main className="relative">
