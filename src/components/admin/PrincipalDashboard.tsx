@@ -197,7 +197,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
     onNewAttendance: (record) => {
       const name = record.student_name || record.device_info?.metadata?.name || 'Student';
       const studentId = resolveStudentAdmissionId(record);
-      const category = resolveStudentClass(record) || record.category || '—';
+      const category = resolveStudentClass(record) || record.category || '';
       const imageUrl = record.device_info?.metadata?.firebase_image_url || record.image_url || '';
       if (studentId || category) {
         registerStudentIdentity({
@@ -210,8 +210,8 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
       setLiveEntries(prev => [{
         id: record.id,
         name,
-        studentId,
-        category,
+        studentId: studentId || undefined,
+        category: category && category !== '—' && category !== '?' ? category : '',
         status: record.status,
         time: format(new Date(record.timestamp), 'hh:mm a'),
         imageUrl,
@@ -220,9 +220,17 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
     }
   });
 
+  useEffect(() => {
+    const handleIdentitiesLoaded = () => {
+      debouncedRefresh();
+    };
+    window.addEventListener('presence:student-identities-loaded', handleIdentitiesLoaded);
+    return () => window.removeEventListener('presence:student-identities-loaded', handleIdentitiesLoaded);
+  }, [debouncedRefresh]);
+
   const fetchAllData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
-    prefetchStudentIdentities().catch(() => undefined);
+    await prefetchStudentIdentities().catch(() => undefined);
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -270,12 +278,12 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         const m = (r.device_info as any)?.metadata || {};
         const normalized = (r.status || '').toLowerCase().includes('late') ? 'late' : 'present';
         const studentId = resolveStudentAdmissionId(r);
-        const resolvedCls = resolveStudentClass(r) || r.category || '—';
+        const resolvedCls = resolveStudentClass(r) || r.category || '';
         entries.push({
           id: r.id,
           name: r.student_name || m.name || (r.device_info as any)?.name || 'Student',
-          studentId,
-          category: resolvedCls,
+          studentId: studentId || undefined,
+          category: resolvedCls && resolvedCls !== '—' && resolvedCls !== '?' ? resolvedCls : '',
           status: normalized,
           time: format(new Date(r.timestamp), 'hh:mm a'),
           imageUrl: r.image_url || m.firebase_image_url || '',
@@ -853,16 +861,18 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="text-xs font-bold text-foreground truncate">{entry.name}</p>
-                            {entry.studentId && (
-                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border/50">
+                            {entry.studentId ? (
+                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                                 ID: {entry.studentId}
                               </span>
-                            )}
+                            ) : null}
+                            {entry.category && entry.category !== '?' && entry.category !== '—' ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                Class {entry.category}
+                              </span>
+                            ) : null}
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {entry.category && entry.category !== '?' && entry.category !== '—' && (
-                              <span className="font-semibold text-foreground/80">Class {entry.category} • </span>
-                            )}
                             Checked in at {entry.time}
                           </p>
                         </div>

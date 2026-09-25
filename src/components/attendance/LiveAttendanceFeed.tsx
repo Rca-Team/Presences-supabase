@@ -182,12 +182,20 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
   const [recordToDelete, setRecordToDelete] = useState<AttendanceRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [identitiesLoaded, setIdentitiesLoaded] = useState(false);
   const [, setRelativeTimeTick] = useState(0);
 
   // Update relative time every 10 seconds for live feel
   useEffect(() => {
     const interval = setInterval(() => setRelativeTimeTick(t => t + 1), 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    prefetchStudentIdentities().then(() => setIdentitiesLoaded(true)).catch(() => undefined);
+    const handleLoaded = () => setIdentitiesLoaded(true);
+    window.addEventListener('presence:student-identities-loaded', handleLoaded);
+    return () => window.removeEventListener('presence:student-identities-loaded', handleLoaded);
   }, []);
 
   const toggleSound = () => {
@@ -785,18 +793,18 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
                 </Badge>
               </div>
 
-              <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 mt-1">
-                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                  {getStudentAdmissionId(latestRecord)}
-                </span>
-                {getStudentClass(latestRecord) && (
-                  <>
-                    <span>•</span>
-                    <span className="font-semibold">{getStudentClass(latestRecord)}</span>
-                  </>
-                )}
-                <span>•</span>
-                <span className="text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 mt-1 flex-wrap">
+                {getStudentAdmissionId(latestRecord) ? (
+                  <span className="font-mono font-bold px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px]">
+                    ID: {getStudentAdmissionId(latestRecord)}
+                  </span>
+                ) : null}
+                {getStudentClass(latestRecord) ? (
+                  <span className="font-semibold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-[10px]">
+                    Class {getStudentClass(latestRecord)}
+                  </span>
+                ) : null}
+                <span className="text-[10px] text-muted-foreground ml-auto">
                   {format(new Date(latestRecord.timestamp), 'h:mm a')}
                 </span>
               </div>
@@ -863,18 +871,17 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
                         <Zap className="h-3 w-3 text-amber-500 shrink-0" title={`${Math.round(record.confidence * 100)}% biometric match`} />
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">
-                      <span className="font-mono text-slate-500 dark:text-slate-400">
-                        {admissionId}
-                      </span>
-                      {studentClass && (
-                        <>
-                          <span>•</span>
-                          <span className="px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-white/10 font-bold text-slate-700 dark:text-slate-300">
-                            {studentClass}
-                          </span>
-                        </>
-                      )}
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                      {admissionId ? (
+                        <span className="font-mono font-bold px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px]">
+                          ID: {admissionId}
+                        </span>
+                      ) : null}
+                      {studentClass ? (
+                        <span className="px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-white/10 font-bold text-slate-700 dark:text-slate-300 text-[10px]">
+                          Class {studentClass}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>

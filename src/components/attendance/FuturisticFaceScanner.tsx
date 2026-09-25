@@ -22,6 +22,7 @@ import { storeFaceSample } from '@/services/face-recognition/ProgressiveTraining
 import { supabase } from '@/integrations/supabase/client';
 
 import { getCutoffTime, isPastCutoffTime, getAttendanceCutoffTime, isSaveAttendanceFaceSamplesEnabledSync } from '@/services/attendance/AttendanceSettingsService';
+import { resolveStudentAdmissionId, resolveStudentClass } from '@/utils/studentIdentityResolver';
 import { playSuccessChime, playLateChime } from '@/utils/audioFeedback';
 import * as faceapi from 'face-api.js';
 import { loadNet } from '@/services/face-recognition/NetLoaderService';
@@ -762,6 +763,16 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
             });
           }
 
+          // Resolve real human student ID and class from local identity cache
+          const resolvedStudentId = resolveStudentAdmissionId({
+            user_id: face.userId,
+            student_name: face.name,
+          });
+          const resolvedStudentClass = resolveStudentClass({
+            user_id: face.userId,
+            student_name: face.name,
+          });
+
           // Direct persistent cloud write to Supabase
           let outcome: any = null;
           try {
@@ -770,8 +781,16 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
               status,
               face.confidence,
               {
+                student_id: resolvedStudentId || undefined,
+                class: resolvedStudentClass || undefined,
+                category: resolvedStudentClass || undefined,
                 metadata: {
                   name: face.name,
+                  student_id: resolvedStudentId || undefined,
+                  employee_id: resolvedStudentId || undefined,
+                  class: resolvedStudentClass || undefined,
+                  class_section: resolvedStudentClass || undefined,
+                  category: resolvedStudentClass || undefined,
                   source: liteMode ? 'lite-face-terminal' : 'live-face-id',
                   track_id: face.trackId,
                   distance: Number(face.distance.toFixed(4)),

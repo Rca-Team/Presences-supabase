@@ -12,6 +12,7 @@ interface LiveActivityFeedProps {
   activities: Array<{
     id: string;
     name: string;
+    studentId?: string;
     status: 'present' | 'late' | 'absent' | 'registered';
     timestamp: string;
     imageUrl?: string;
@@ -78,13 +79,18 @@ export const LiveActivityFeed: React.FC<LiveActivityFeedProps> = ({
                     </Avatar>
                     
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-medium text-sm truncate">{activity.name}</p>
-                        {activity.category && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            {activity.category}
+                        {activity.studentId ? (
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                            ID: {activity.studentId}
+                          </span>
+                        ) : null}
+                        {activity.category ? (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20">
+                            Class {activity.category}
                           </Badge>
-                        )}
+                        ) : null}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}

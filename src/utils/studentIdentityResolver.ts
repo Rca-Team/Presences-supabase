@@ -70,14 +70,17 @@ export async function prefetchStudentIdentities(): Promise<void> {
       // 1. Fetch from face_descriptors
       const { data: descriptors } = await supabase
         .from('face_descriptors')
-        .select('user_id, student_id, class, section, label')
+        .select('user_id, student_id, student_name, class, section, category, label')
         .not('student_id', 'is', null);
 
       (descriptors || []).forEach((row) => {
-        const classSec = row.class ? (row.section ? `${row.class}-${row.section}` : row.class) : '';
+        const classSec = row.class
+          ? (row.section ? `${row.class}-${row.section}` : row.class)
+          : (row.category || '');
+        const name = (row as any).student_name || row.label;
         registerStudentIdentity({
           userId: row.user_id,
-          name: row.label,
+          name,
           studentId: row.student_id,
           classSection: classSec,
         });
@@ -86,14 +89,16 @@ export async function prefetchStudentIdentities(): Promise<void> {
       // 2. Fetch from attendance_records (status = 'registered')
       const { data: regRecords } = await supabase
         .from('attendance_records')
-        .select('user_id, category, class, section, device_info')
+        .select('user_id, student_id, student_name, category, class, section, device_info')
         .eq('status', 'registered');
 
       (regRecords || []).forEach((r) => {
         const m = (r.device_info as any)?.metadata || {};
-        const devName = m.name || (r.device_info as any)?.name;
-        const devEmpId = m.employee_id || (r.device_info as any)?.employee_id || m.student_id;
-        const cls = r.class ? (r.section ? `${r.class}-${r.section}` : r.class) : (r.category || m.department || '');
+        const devName = r.student_name || m.name || (r.device_info as any)?.name;
+        const devEmpId = r.student_id || m.employee_id || (r.device_info as any)?.employee_id || m.student_id;
+        const cls = r.class
+          ? (r.section ? `${r.class}-${r.section}` : r.class)
+          : (r.category || m.class_section || m.department || '');
 
         registerStudentIdentity({
           userId: r.user_id,
@@ -119,6 +124,9 @@ export async function prefetchStudentIdentities(): Promise<void> {
       });
 
       isDirectoryLoaded = true;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('presence:student-identities-loaded'));
+      }
     } catch (err) {
       console.warn('[studentIdentityResolver] Failed to prefetch student identities:', err);
     } finally {
@@ -153,19 +161,24 @@ export function resolveStudentAdmissionId(record: any, fallback?: string): strin
   // 3. Cache lookup by user_id
   if (record?.user_id && identityCacheByUserId.has(record.user_id)) {
     const cached = identityCacheByUserId.get(record.user_id);
-    if (cached?.studentId) return cached.studentId;
+    if (cached?.studentId && !isUuid(cached.studentId)) return cached.studentId;
   }
 
   // 4. Cache lookup by student_name
   const name = record?.student_name || devMeta?.name || record?.device_info?.name;
   if (name) {
     const cached = identityCacheByName.get(norm(name));
-    if (cached?.studentId) return cached.studentId;
+    if (cached?.studentId && !isUuid(cached.studentId)) return cached.studentId;
+  }
+
+  // 5. If student_id was a UUID, lookup identityCacheByUserId with that UUID
+  if (record?.student_id && isUuid(record.student_id) && identityCacheByUserId.has(record.student_id)) {
+    const cached = identityCacheByUserId.get(record.student_id);
+    if (cached?.studentId && !isUuid(cached.studentId)) return cached.studentId;
   }
 
   if (fallback) return fallback;
-  if (record?.user_id) return record.user_id.slice(0, 8).toUpperCase();
-  return 'KV-ADM';
+  return '';
 }
 
 /**
@@ -181,7 +194,7 @@ export function resolveStudentClass(record: any, fallback?: string | null): stri
   }
 
   // 2. Direct category on record
-  if (record?.category && record.category !== '?' && record.category !== 'unknown') {
+  if (record?.category && record.category !== '?' && record.category !== 'unknown' && record.category !== '—') {
     return String(record.category);
   }
 
@@ -193,24 +206,33 @@ export function resolveStudentClass(record: any, fallback?: string | null): stri
   if (devMeta?.class) {
     return String(devMeta.class);
   }
-  if (devMeta?.category && devMeta.category !== '?') {
-    return String(devMeta.category);
+  if (devMeta?.class_section && devMeta.class_section !== '?') {
+    return String(devMeta.class_section);
   }
   if (devMeta?.department && devMeta.department !== '?') {
     return String(devMeta.department);
+  }
+  if (devMeta?.category && devMeta.category !== '?') {
+    return String(devMeta.category);
   }
 
   // 4. Cache lookup by user_id
   if (record?.user_id && identityCacheByUserId.has(record.user_id)) {
     const cached = identityCacheByUserId.get(record.user_id);
-    if (cached?.classSection) return cached.classSection;
+    if (cached?.classSection && cached.classSection !== '—') return cached.classSection;
   }
 
   // 5. Cache lookup by student_name
   const name = record?.student_name || devMeta?.name || record?.device_info?.name;
   if (name) {
     const cached = identityCacheByName.get(norm(name));
-    if (cached?.classSection) return cached.classSection;
+    if (cached?.classSection && cached.classSection !== '—') return cached.classSection;
+  }
+
+  // 6. If student_id was a UUID, lookup identityCacheByUserId with that UUID
+  if (record?.student_id && isUuid(record.student_id) && identityCacheByUserId.has(record.student_id)) {
+    const cached = identityCacheByUserId.get(record.student_id);
+    if (cached?.classSection && cached.classSection !== '—') return cached.classSection;
   }
 
   return fallback !== undefined ? fallback : null;

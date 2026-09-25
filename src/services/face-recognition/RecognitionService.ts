@@ -34,6 +34,7 @@ import { getAllTrainedDescriptors } from './ProgressiveTrainingService';
 import { buildVectorIndex, searchVectorIndex } from './VectorIndexService';
 import { dataUrlToBlob, uploadAttendanceTrainingImage } from './TrainingDataStorageService';
 import { ensureActiveClassSession, upsertClassAttendanceEvent } from '../attendance/ClassSessionService';
+import { resolveStudentAdmissionId, resolveStudentClass } from '@/utils/studentIdentityResolver';
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -723,12 +724,36 @@ export async function recordAttendance(
     humanStudentId = String(resolvedStudentId);
   }
 
-  // If humanStudentId or resolvedClass is still missing, lookup face_descriptors
+  // Check identity cache first (instant in-memory resolution)
+  if (!humanStudentId) {
+    const fromResolver = resolveStudentAdmissionId({
+      user_id: validUserId,
+      student_id: resolvedStudentId,
+      student_name: effectiveName,
+      device_info: deviceInfo,
+    });
+    if (fromResolver && !isUuid(fromResolver)) humanStudentId = fromResolver;
+  }
+
+  if (!resolvedClass) {
+    const fromResolverCls = resolveStudentClass({
+      user_id: validUserId,
+      student_name: effectiveName,
+      device_info: deviceInfo,
+    });
+    if (fromResolverCls) {
+      resolvedClass = fromResolverCls;
+      if (!resolvedCategory) resolvedCategory = fromResolverCls;
+    }
+  }
+
+  // If humanStudentId or resolvedClass is still missing, lookup face_descriptors (with not null student_id)
   if (!humanStudentId || !resolvedClass) {
     try {
       let fdQuery = supabase
         .from('face_descriptors')
         .select('student_id, class, section, category, label')
+        .not('student_id', 'is', null)
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -753,7 +778,43 @@ export async function recordAttendance(
     }
   }
 
-  const effectiveStudentId = humanStudentId || (resolvedStudentId && !isUuid(resolvedStudentId) ? String(resolvedStudentId) : (userProfile?.admission_number ? String(userProfile.admission_number) : (validUserId ? validUserId.slice(0, 8).toUpperCase() : 'STUDENT')));
+  // If still missing, query registered attendance records as final ground-truth fallback
+  if (!humanStudentId || !resolvedClass) {
+    try {
+      let regQuery = supabase
+        .from('attendance_records')
+        .select('student_id, student_name, class, section, category, device_info')
+        .eq('status', 'registered')
+        .limit(1);
+
+      if (validUserId) {
+        regQuery = regQuery.eq('user_id', validUserId);
+      } else if (effectiveName) {
+        regQuery = regQuery.ilike('student_name', effectiveName);
+      }
+
+      const { data: regRows } = await regQuery;
+      if (regRows && regRows.length > 0) {
+        const rRow = regRows[0];
+        const m = (rRow.device_info as any)?.metadata || {};
+        const empId = rRow.student_id || m.employee_id || m.student_id;
+        if (!humanStudentId && empId && !isUuid(empId)) humanStudentId = String(empId);
+        const cls = rRow.class || rRow.category || m.class_section || m.department;
+        if (!resolvedClass && cls) {
+          resolvedClass = String(cls);
+          if (!resolvedCategory) resolvedCategory = String(cls);
+        }
+      }
+    } catch (e) {
+      console.warn('[AttendanceService] registered records lookup skipped:', e);
+    }
+  }
+
+  const effectiveStudentId =
+    humanStudentId ||
+    (resolvedStudentId && !isUuid(resolvedStudentId) ? String(resolvedStudentId) : null) ||
+    (userProfile?.admission_number ? String(userProfile.admission_number) : null) ||
+    'STUDENT';
 
   const fullDeviceInfo = {
     type: 'webcam',
