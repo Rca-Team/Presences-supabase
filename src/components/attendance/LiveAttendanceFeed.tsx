@@ -49,6 +49,12 @@ import {
   getStudentCoverPhoto,
   prefetchStudentCoverPhotos,
 } from '@/utils/studentPhotoResolver';
+import {
+  prefetchStudentIdentities,
+  resolveStudentAdmissionId,
+  resolveStudentClass,
+  registerStudentIdentity,
+} from '@/utils/studentIdentityResolver';
 
 const STORAGE_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/face-images/`;
 
@@ -63,6 +69,7 @@ const iosSpring = {
 export interface AttendanceRecord {
   id: string;
   user_id: string | null;
+  student_id?: string | null;
   student_name?: string | null;
   timestamp: string;
   status: string | null;
@@ -202,17 +209,11 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
   }, []);
 
   const getStudentAdmissionId = useCallback((record: AttendanceRecord): string => {
-    if (record.device_info?.metadata?.employee_id) return record.device_info.metadata.employee_id;
-    if (record.device_info?.employee_id) return record.device_info.employee_id;
-    if (record.user_id) return record.user_id.slice(0, 8).toUpperCase();
-    return 'ADM-KV';
+    return resolveStudentAdmissionId(record);
   }, []);
 
   const getStudentClass = useCallback((record: AttendanceRecord): string | null => {
-    if (record.class && record.section) return `${record.class}-${record.section}`;
-    if (record.category) return record.category;
-    if (record.device_info?.metadata?.department) return record.device_info.metadata.department;
-    return null;
+    return resolveStudentClass(record);
   }, []);
 
   const getStudentImage = useCallback((record: AttendanceRecord): string | null => {
@@ -344,6 +345,8 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
 
   // Initial Fetch & Realtime Subscription
   useEffect(() => {
+    prefetchStudentIdentities().catch(() => undefined);
+
     const fetchRecords = async () => {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -373,6 +376,15 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
       const customEv = e as CustomEvent<AttendanceRecord>;
       const newRecord = customEv.detail;
       if (!newRecord) return;
+
+      if (newRecord.student_id || newRecord.class || newRecord.category) {
+        registerStudentIdentity({
+          userId: newRecord.user_id,
+          name: newRecord.student_name,
+          studentId: newRecord.student_id,
+          classSection: newRecord.class ? (newRecord.section ? `${newRecord.class}-${newRecord.section}` : newRecord.class) : newRecord.category,
+        });
+      }
 
       if (scopedCategory && newRecord.category && newRecord.category !== scopedCategory) {
         return;
@@ -406,6 +418,15 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
         payload => {
           const newRecord = payload.new as AttendanceRecord;
           if (newRecord.status && ['present', 'late', 'absent'].includes(newRecord.status)) {
+            if (newRecord.student_id || newRecord.class || newRecord.category) {
+              registerStudentIdentity({
+                userId: newRecord.user_id,
+                name: newRecord.student_name,
+                studentId: newRecord.student_id,
+                classSection: newRecord.class ? (newRecord.section ? `${newRecord.class}-${newRecord.section}` : newRecord.class) : newRecord.category,
+              });
+            }
+
             if (scopedCategory && newRecord.category && newRecord.category !== scopedCategory) {
               return;
             }

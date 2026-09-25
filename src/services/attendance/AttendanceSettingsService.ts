@@ -26,13 +26,13 @@ export const getCutoffTime = async (): Promise<string> => {
 
     if (error) {
       console.error('Error fetching cutoff time:', error);
-      return '07:30'; // Default cutoff time (school starts at 07:20)
+      return '08:00'; // Default cutoff time (8:00 AM)
     }
 
     if (data && data.value) {
       // Handle the value as a string (since it's stored as TEXT in the database)
       const value = data.value;
-      const resolved = typeof value === 'string' ? value : '07:30';
+      const resolved = typeof value === 'string' ? value : '08:00';
       cutoffTimeCache = {
         value: resolved,
         expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
@@ -41,15 +41,39 @@ export const getCutoffTime = async (): Promise<string> => {
     }
 
     cutoffTimeCache = {
-      value: '07:30',
+      value: '08:00',
       expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
     };
-    return '07:30'; // Default cutoff time if no data
+    return '08:00'; // Default cutoff time if no data
   } catch (error) {
     console.error('Error in getCutoffTime:', error);
-    return '07:30'; // Default cutoff time
+    return '08:00'; // Default cutoff time
   }
 };
+
+/**
+ * Invalidate cutoff cache so next read is immediate
+ */
+export const invalidateCutoffCache = () => {
+  cutoffTimeCache = null;
+};
+
+// Real-time synchronization listeners to invalidate cache on any change across whole school
+if (typeof window !== 'undefined') {
+  window.addEventListener('presence:settings-updated', (e: Event) => {
+    const custom = e as CustomEvent<{ key?: string }>;
+    if (!custom.detail?.key || custom.detail.key === 'cutoff_time') {
+      invalidateCutoffCache();
+    }
+  });
+
+  supabase
+    .channel('attendance_cutoff_service_sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_settings', filter: 'key=eq.cutoff_time' }, () => {
+      invalidateCutoffCache();
+    })
+    .subscribe();
+}
 
 /**
  * Update the cutoff time for attendance in the settings table
@@ -93,6 +117,12 @@ export const updateCutoffTime = async (time: string): Promise<boolean> => {
     value: time,
     expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
   };
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('presence:settings-updated', { detail: { key: 'cutoff_time', value: time } }));
+    window.dispatchEvent(new CustomEvent('presence:cutoff-time-changed', { detail: { time } }));
+  }
+
   return true;
 };
 
@@ -104,12 +134,12 @@ export const getAttendanceCutoffTime = async (): Promise<{ hour: number; minute:
     const timeString = await getCutoffTime();
     const [hourStr, minuteStr] = timeString.split(':');
     return {
-      hour: parseInt(hourStr) || 7,
-      minute: parseInt(minuteStr) || 30
+      hour: parseInt(hourStr) || 8,
+      minute: parseInt(minuteStr) || 0
     };
   } catch (error) {
     console.error('Error getting attendance cutoff time:', error);
-    return { hour: 7, minute: 30 }; // Default to 7:30 AM
+    return { hour: 8, minute: 0 }; // Default to 8:00 AM
   }
 };
 

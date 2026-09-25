@@ -107,7 +107,7 @@ const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
 
     return [
       { key: "home", label: "Home", to: "/", icon: Home, show: true },
-      { key: "register", label: "Register", to: "/register", icon: UserPlus, show: isSignedIn },
+      { key: "register", label: "Register", to: "/register", icon: UserPlus, show: true },
       { key: "attendance", label: "Attendance", to: "/attendance", icon: ScanLine, show: true },
       { key: "gate", label: "Gate", to: "/gate", icon: ShieldCheck, show: canUseGate },
       { key: "admin", label: "Admin", to: "/admin", icon: LayoutDashboard, show: canUseAdmin },

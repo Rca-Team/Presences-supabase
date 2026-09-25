@@ -436,8 +436,8 @@ const Attendance: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Right: Scoped Badge, Lite Mode Toggle & Kiosk Focus Toggle */}
-                  <div className="flex items-center gap-2 pr-1">
+                  {/* Right: Scoped Badge, Feedback Toggles, Lite Mode Toggle & Kiosk Focus Toggle */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 pr-1 flex-wrap justify-end">
                     {scopedCategory && (
                       <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25 text-xs font-bold">
                         <Users className="h-3.5 w-3.5" />
@@ -445,13 +445,53 @@ const Attendance: React.FC = () => {
                       </span>
                     )}
 
+                    {/* Standard Mode Audio/Vibe/Flash controls matching Lite mode */}
+                    <div className="hidden md:flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleFeedback('sound')}
+                        title={feedbackPrefs.sound ? 'Mute Arrival Sound' : 'Enable Arrival Sound'}
+                        className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
+                          feedbackPrefs.sound
+                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-white/10'
+                        }`}
+                      >
+                        {feedbackPrefs.sound ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleFeedback('vibrate')}
+                        title={feedbackPrefs.vibrate ? 'Disable Vibration' : 'Enable Vibration'}
+                        className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
+                          feedbackPrefs.vibrate
+                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-white/10'
+                        }`}
+                      >
+                        {feedbackPrefs.vibrate ? <Vibrate className="w-3.5 h-3.5" /> : <VibrateOff className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleFeedback('flash')}
+                        title={feedbackPrefs.flash ? 'Disable Visual Flash' : 'Enable Visual Flash'}
+                        className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
+                          feedbackPrefs.flash
+                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-white/10'
+                        }`}
+                      >
+                        {feedbackPrefs.flash ? <Sun className="w-3.5 h-3.5" /> : <SunDim className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
                     {/* Segmented Lite Mode Toggle */}
                     <LiteModeToggle variant="segmented" />
 
                     {/* Kiosk Fullscreen Focus Button */}
                     <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={() => setIsKioskFocus(!isKioskFocus)}
                       title={isKioskFocus ? 'Exit Full Screen' : 'Open Full Screen Camera'}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold transition-all border cursor-pointer ${
@@ -467,7 +507,7 @@ const Attendance: React.FC = () => {
                 </div>
               </motion.header>
 
-              {/* 2. iOS Control Center Modular KPI Grid (Smoothly collapses in Kiosk Focus) */}
+              {/* 2. iOS Control Center 4-Card Modular KPI Grid (Lag-free GPU accelerated) */}
               <AnimatePresence>
                 {!isKioskFocus && (
                   <motion.section
@@ -477,101 +517,94 @@ const Attendance: React.FC = () => {
                     transition={iosSpring}
                     className="overflow-hidden"
                   >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                      {/* Card 1: Attendance Rate Ring Module */}
-                      <motion.div
-                        whileHover={{ y: -3 }}
-                        transition={iosSnappySpring}
-                        className="nano-glass rounded-[26px] p-4 flex flex-col justify-between"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Attendance Rate
-                          </span>
-                          <div className="h-7 w-7 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/20">
-                            <TrendingUp className="h-3.5 w-3.5" />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 transform-gpu">
+                      {/* Card 1: Enrolled Students */}
+                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-slate-200/80 dark:border-white/10 shadow-xs hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          <span>ENROLLED</span>
+                          <div className="h-7 w-7 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-purple-500/20">
+                            <Users className="h-3.5 w-3.5" />
                           </div>
                         </div>
-                        <div className="mt-3 flex items-baseline gap-2">
-                          <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
-                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.attendanceRate} />}%
+                        <div className="mt-2.5 flex items-baseline gap-1.5">
+                          <span className="text-xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
+                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.totalRegistered} />}
                           </span>
-                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center">
-                            +1.4%
+                          <span className="text-[11px] text-muted-foreground font-medium hidden sm:inline">
+                            students
                           </span>
                         </div>
-                        {/* iOS Mini Progress Bar */}
-                        <div className="mt-3 w-full h-2 rounded-full bg-slate-200/70 dark:bg-slate-800/80 overflow-hidden">
-                          <motion.div
-                            className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${Math.min(100, Math.max(0, stats.attendanceRate))}%` }}
-                            transition={{ duration: 0.8, ease: 'easeOut' }}
-                          />
+                        <div className="mt-2 text-[10px] sm:text-[11px] text-muted-foreground font-medium truncate">
+                          Total database roster
                         </div>
-                      </motion.div>
+                      </div>
 
-                      {/* Card 2: Today's Checked-in */}
-                      <motion.div
-                        whileHover={{ y: -3 }}
-                        transition={iosSnappySpring}
-                        className="nano-glass rounded-[26px] p-4 flex flex-col justify-between"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Checked-In Today
-                          </span>
-                          <div className="h-7 w-7 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                      {/* Card 2: Present Today */}
+                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-emerald-500/30 bg-emerald-500/[0.03] shadow-xs hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          <span>PRESENT</span>
+                          <div className="h-7 w-7 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/30">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                           </div>
                         </div>
-                        <div className="mt-3 flex items-baseline gap-2">
-                          <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
-                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.presentToday + stats.lateToday} />}
+                        <div className="mt-2.5 flex items-baseline gap-1.5">
+                          <span className="text-xl sm:text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 font-mono">
+                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.presentToday} />}
                           </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            / {stats.totalRegistered} enrolled
+                          <span className="text-[11px] text-emerald-600/80 font-bold hidden sm:inline">
+                            on-time
                           </span>
                         </div>
-                        <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold">
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            {stats.presentToday} on-time
-                          </span>
-                          {stats.lateToday > 0 && (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              {stats.lateToday} late
-                            </span>
-                          )}
+                        <div className="mt-2 text-[10px] sm:text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 truncate">
+                          Before cutoff
                         </div>
-                      </motion.div>
+                      </div>
 
-                      {/* Card 3: Biometric Velocity & Accuracy */}
-                      <motion.div
-                        whileHover={{ y: -3 }}
-                        transition={iosSnappySpring}
-                        className="nano-glass rounded-[26px] p-4 flex flex-col justify-between"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Scan Speed
-                          </span>
-                          <div className="h-7 w-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20">
-                            <Zap className="h-3.5 w-3.5" />
+                      {/* Card 3: Late Arrivals */}
+                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-amber-500/30 bg-amber-500/[0.03] shadow-xs hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                          <span>LATE</span>
+                          <div className="h-7 w-7 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30">
+                            <Clock className="h-3.5 w-3.5" />
                           </div>
                         </div>
-                        <div className="mt-3 flex items-baseline gap-2">
-                          <span className="text-2xl sm:text-3xl font-black tracking-tight text-amber-500 font-mono">
-                            Instant
+                        <div className="mt-2.5 flex items-baseline gap-1.5">
+                          <span className="text-xl sm:text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400 font-mono">
+                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.lateToday} />}
                           </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            Fast & accurate
+                          <span className="text-[11px] text-amber-600/80 font-bold hidden sm:inline">
+                            after cutoff
                           </span>
                         </div>
-                        <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                          <Sparkles className="w-3 h-3 text-amber-500" />
-                          <span>Automated Check-in</span>
+                        <div className="mt-2 text-[10px] sm:text-[11px] font-semibold text-amber-600 dark:text-amber-400 truncate">
+                          {stats.lateToday > 0 ? 'Notified guardians' : 'No late arrivals'}
                         </div>
-                      </motion.div>
+                      </div>
+
+                      {/* Card 4: Attendance Rate */}
+                      <div className="nano-glass rounded-2xl sm:rounded-[24px] p-3 sm:p-4 flex flex-col justify-between border border-blue-500/30 bg-blue-500/[0.03] shadow-xs hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                          <span>RATE</span>
+                          <div className="h-7 w-7 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/30">
+                            <TrendingUp className="h-3.5 w-3.5" />
+                          </div>
+                        </div>
+                        <div className="mt-2.5 flex items-baseline gap-1.5">
+                          <span className="text-xl sm:text-3xl font-black tracking-tight text-blue-600 dark:text-blue-400 font-mono">
+                            {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.attendanceRate} />}%
+                          </span>
+                          <span className="text-[11px] text-blue-600/80 font-bold hidden sm:inline">
+                            turnout
+                          </span>
+                        </div>
+                        {/* Smooth Mini Progress Bar */}
+                        <div className="mt-2 w-full h-1.5 rounded-full bg-blue-500/20 overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all duration-700 ease-out"
+                            style={{ width: `${Math.min(100, Math.max(0, stats.attendanceRate))}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </motion.section>
                 )}

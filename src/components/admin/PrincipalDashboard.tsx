@@ -35,6 +35,12 @@ import {
   parseCategory,
   getCategoryLabel
 } from '@/constants/schoolConfig';
+import {
+  prefetchStudentIdentities,
+  resolveStudentAdmissionId,
+  resolveStudentClass,
+  registerStudentIdentity,
+} from '@/utils/studentIdentityResolver';
 
 interface StudentRecord {
   name: string;
@@ -49,6 +55,7 @@ interface StudentRecord {
 interface LiveEntry {
   id: string;
   name: string;
+  studentId?: string;
   category: string;
   status: string;
   time: string;
@@ -124,12 +131,23 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
     showNotifications: true,
     useSessionEventsOnly: false,
     onNewAttendance: (record) => {
-      const name = record.device_info?.metadata?.name || 'Unknown';
-      const imageUrl = record.device_info?.metadata?.firebase_image_url || '';
+      const name = record.student_name || record.device_info?.metadata?.name || 'Student';
+      const studentId = resolveStudentAdmissionId(record);
+      const category = resolveStudentClass(record) || record.category || '—';
+      const imageUrl = record.device_info?.metadata?.firebase_image_url || record.image_url || '';
+      if (studentId || category) {
+        registerStudentIdentity({
+          userId: record.user_id,
+          name,
+          studentId,
+          classSection: category,
+        });
+      }
       setLiveEntries(prev => [{
         id: record.id,
         name,
-        category: record.category || '?',
+        studentId,
+        category,
         status: record.status,
         time: format(new Date(record.timestamp), 'hh:mm a'),
         imageUrl,
@@ -140,6 +158,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
 
   const fetchAllData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    prefetchStudentIdentities().catch(() => undefined);
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -176,7 +195,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
       // 2. Fetch Today's Live Attendance Records
       const { data: todayData } = await supabase
         .from('attendance_records')
-        .select('id, status, timestamp, category, image_url, device_info')
+        .select('id, user_id, student_id, student_name, class, section, status, timestamp, category, image_url, device_info')
         .in('status', ['present', 'late', 'unauthorized'])
         .gte('timestamp', `${today}T00:00:00`)
         .lte('timestamp', `${today}T23:59:59`)
@@ -186,10 +205,13 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
       (todayData || []).forEach(r => {
         const m = (r.device_info as any)?.metadata || {};
         const normalized = (r.status || '').toLowerCase().includes('late') ? 'late' : 'present';
+        const studentId = resolveStudentAdmissionId(r);
+        const resolvedCls = resolveStudentClass(r) || r.category || '—';
         entries.push({
           id: r.id,
-          name: m.name || 'Unknown',
-          category: r.category || '?',
+          name: r.student_name || m.name || (r.device_info as any)?.name || 'Student',
+          studentId,
+          category: resolvedCls,
           status: normalized,
           time: format(new Date(r.timestamp), 'hh:mm a'),
           imageUrl: r.image_url || m.firebase_image_url || '',
@@ -745,8 +767,20 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-foreground truncate">{entry.name}</p>
-                          <p className="text-[11px] text-muted-foreground">Class {entry.category} • Checked in at {entry.time}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-xs font-bold text-foreground truncate">{entry.name}</p>
+                            {entry.studentId && (
+                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border/50">
+                                ID: {entry.studentId}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {entry.category && entry.category !== '?' && entry.category !== '—' && (
+                              <span className="font-semibold text-foreground/80">Class {entry.category} • </span>
+                            )}
+                            Checked in at {entry.time}
+                          </p>
                         </div>
                         <Badge 
                           variant="outline" 

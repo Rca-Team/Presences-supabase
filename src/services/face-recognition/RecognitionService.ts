@@ -216,7 +216,7 @@ async function getCachedProfile(userId: string) {
   if (cached && cached.expiresAt > Date.now()) return cached.profile;
   const { data } = await supabase
     .from('profiles')
-    .select('display_name, username, full_name, avatar_url')
+    .select('display_name, username, full_name, avatar_url, class, section, roll_number, employee_id, admission_number, category')
     .eq('user_id', userId)
     .maybeSingle();
   profileNameCache.set(userId, { expiresAt: Date.now() + PROFILE_CACHE_TTL_MS, profile: data ?? null });
@@ -558,10 +558,11 @@ export async function recordAttendance(
 
   // Resolve user profile and effective name early to avoid TDZ ReferenceError
   let userName: string | null = null;
+  let userProfile: any = null;
   if (userId && userId !== 'unknown') {
     try {
-      const p = await getCachedProfile(userId);
-      if (p) userName = p.display_name || p.full_name || p.username || null;
+      userProfile = await getCachedProfile(userId);
+      if (userProfile) userName = userProfile.display_name || userProfile.full_name || userProfile.username || null;
     } catch {
       // ignore profile fetch error
     }
@@ -708,6 +709,52 @@ export async function recordAttendance(
     captureMode === 'gate-mode' ? 'gate-mode' :
     captureMode === 'qr-scan'  ? 'qr-scan'  : 'ai-scan';
 
+  // Resolve human-readable student ID (admission number) and class/section
+  let humanStudentId: string | null = null;
+  let resolvedClass: string | null = deviceInfo?.metadata?.class || (deviceInfo as any)?.class || userProfile?.class || null;
+  let resolvedSection: string | null = deviceInfo?.metadata?.section || (deviceInfo as any)?.section || userProfile?.section || null;
+  let resolvedCategory: string | null = deviceInfo?.metadata?.category || (deviceInfo as any)?.category || userProfile?.category || (resolvedClass ? (resolvedSection ? `${resolvedClass}-${resolvedSection}` : resolvedClass) : null);
+
+  if (userProfile?.admission_number) {
+    humanStudentId = String(userProfile.admission_number);
+  } else if (userProfile?.employee_id && !isUuid(userProfile.employee_id)) {
+    humanStudentId = String(userProfile.employee_id);
+  } else if (resolvedStudentId && !isUuid(resolvedStudentId)) {
+    humanStudentId = String(resolvedStudentId);
+  }
+
+  // If humanStudentId or resolvedClass is still missing, lookup face_descriptors
+  if (!humanStudentId || !resolvedClass) {
+    try {
+      let fdQuery = supabase
+        .from('face_descriptors')
+        .select('student_id, class, section, category, label')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (validUserId) {
+        fdQuery = fdQuery.eq('user_id', validUserId);
+      } else if (effectiveName) {
+        fdQuery = fdQuery.ilike('label', effectiveName);
+      }
+
+      const { data: fdRows } = await fdQuery;
+      if (fdRows && fdRows.length > 0) {
+        const row = fdRows[0];
+        if (!humanStudentId && row.student_id && !isUuid(row.student_id)) humanStudentId = String(row.student_id);
+        if (!resolvedClass && row.class) resolvedClass = String(row.class);
+        if (!resolvedSection && row.section) resolvedSection = String(row.section);
+        if (!resolvedCategory && (row.category || resolvedClass)) {
+          resolvedCategory = row.category || (resolvedClass ? (resolvedSection ? `${resolvedClass}-${resolvedSection}` : resolvedClass) : null);
+        }
+      }
+    } catch (e) {
+      console.warn('[AttendanceService] face_descriptors metadata lookup skipped:', e);
+    }
+  }
+
+  const effectiveStudentId = humanStudentId || (resolvedStudentId && !isUuid(resolvedStudentId) ? String(resolvedStudentId) : (userProfile?.admission_number ? String(userProfile.admission_number) : (validUserId ? validUserId.slice(0, 8).toUpperCase() : 'STUDENT')));
+
   const fullDeviceInfo = {
     type: 'webcam',
     timestamp,
@@ -718,8 +765,11 @@ export async function recordAttendance(
       ...deviceInfo?.metadata,
       name:                     effectiveName || 'Unknown',
       student_name:             effectiveName || 'Unknown',
-      employee_id:              resolvedStudentId,
-      student_id:               resolvedStudentId,
+      employee_id:              effectiveStudentId,
+      student_id:               effectiveStudentId,
+      class:                    resolvedClass,
+      section:                  resolvedSection,
+      category:                 resolvedCategory,
       capture_mode:             sanitizeSegment(captureMode),
       source:                   resolvedSource,
       training_attendance_path: trainingAttendancePath,
@@ -733,12 +783,12 @@ export async function recordAttendance(
   // Schema-compliant primary payload for public.attendance_records
   const primaryPayload: any = {
     user_id:          validUserId,
-    student_id:       resolvedStudentId ? String(resolvedStudentId) : null,
+    student_id:       effectiveStudentId,
     student_name:     effectiveName || 'Student',
-    class:            fullDeviceInfo?.metadata?.class   ?? null,
-    section:          fullDeviceInfo?.metadata?.section ?? null,
-    category:         fullDeviceInfo?.metadata?.category ?? null,
-    roll_number:      fullDeviceInfo?.metadata?.roll_number ? String(fullDeviceInfo.metadata.roll_number) : null,
+    class:            resolvedClass,
+    section:          resolvedSection,
+    category:         resolvedCategory,
+    roll_number:      fullDeviceInfo?.metadata?.roll_number ? String(fullDeviceInfo.metadata.roll_number) : (userProfile?.roll_number ? String(userProfile.roll_number) : null),
     status:           adjustedStatus,
     timestamp,
     confidence:       confidence ?? 0.95,
@@ -772,8 +822,11 @@ export async function recordAttendance(
     // Tier 2 Fallback: standard core columns without extra metadata
     const tier2Payload: any = {
       user_id:          validUserId,
-      student_id:       resolvedStudentId ? String(resolvedStudentId) : null,
+      student_id:       effectiveStudentId,
       student_name:     effectiveName || 'Student',
+      class:            resolvedClass,
+      section:          resolvedSection,
+      category:         resolvedCategory,
       status:           adjustedStatus,
       timestamp,
       confidence:       confidence ?? 0.95,
@@ -810,12 +863,14 @@ export async function recordAttendance(
     data = {
       ...data,
       student_name: data.student_name || effectiveName || 'Student',
-      student_id: data.student_id || resolvedStudentId || null,
+      student_id: data.student_id || effectiveStudentId,
+      class: data.class || resolvedClass,
+      section: data.section || resolvedSection,
       user_id: data.user_id || validUserId || userId,
       status: adjustedStatus,
       timestamp: data.timestamp || timestamp,
       source: data.source || resolvedSource,
-      category: data.category || fullDeviceInfo?.metadata?.category || null,
+      category: data.category || resolvedCategory || fullDeviceInfo?.metadata?.category || null,
       image_url: data.image_url || uploadedImageUrl || null,
       device_info: fullDeviceInfo,
     };

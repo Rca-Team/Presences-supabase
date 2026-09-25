@@ -128,7 +128,7 @@ const Index = () => {
     { icon: Shield, label: 'Gate Passes', tone: 'bg-warning/20 text-warning-foreground', to: '/gate' },
     { icon: Bell, label: 'Alerts', tone: 'bg-success/20 text-success', to: '/admin?tab=emergency' },
     { icon: BarChart3, label: 'Reports', tone: 'bg-primary/20 text-primary', to: '/admin?tab=reports' },
-    { icon: Bus, label: 'Transport', tone: 'bg-accent/30 text-accent-foreground', to: '/features' },
+    { icon: UserPlus, label: 'Add Student', tone: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400', to: '/register' },
   ];
 
   const stats = [
@@ -357,7 +357,7 @@ const Index = () => {
 
                 {/* Action CTAs — Rebuilt to precisely match capsule button layout */}
                 <div className="mt-8 sm:mt-10 space-y-3.5">
-                  {/* Row 1: Launch Attendance & Parent Portal */}
+                  {/* Row 1: Launch Attendance, Add Student & Parent Portal */}
                   <div className="flex flex-wrap items-center gap-3">
                     <Link to="/attendance">
                       <Button
@@ -366,6 +366,15 @@ const Index = () => {
                         <Scan className="w-5 h-5 stroke-[2.2]" />
                         <span>Take Attendance</span>
                         <ArrowRight className="w-4 h-4 stroke-[2.2]" />
+                      </Button>
+                    </Link>
+                    <Link to="/register">
+                      <Button
+                        variant="outline"
+                        className="h-12 sm:h-13 rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 px-6 text-sm sm:text-base font-semibold backdrop-blur-md transition-all duration-200 btn-spring gap-2 active:scale-95 shadow-sm"
+                      >
+                        <UserPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        <span>Add Student</span>
                       </Button>
                     </Link>
                     <Link to="/parent">

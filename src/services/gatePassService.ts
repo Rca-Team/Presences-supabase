@@ -154,6 +154,7 @@ export function broadcastGatePassChange(meta?: { action?: string; passId?: strin
  * Safe database persistence for gate passes that avoids 400 Bad Request on upsert
  */
 async function persistGatePasses(updatedList: GatePass[]): Promise<void> {
+  const jsonValue = JSON.stringify(updatedList);
   const { data: existing } = await supabase
     .from('attendance_settings')
     .select('id')
@@ -164,7 +165,7 @@ async function persistGatePasses(updatedList: GatePass[]): Promise<void> {
     const { error } = await supabase
       .from('attendance_settings')
       .update({
-        value: updatedList as any,
+        value: jsonValue,
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id);
@@ -174,7 +175,7 @@ async function persistGatePasses(updatedList: GatePass[]): Promise<void> {
       .from('attendance_settings')
       .insert({
         key: STORAGE_KEY,
-        value: updatedList as any,
+        value: jsonValue,
       });
     if (error) throw error;
   }
@@ -230,11 +231,25 @@ export async function fetchAllGatePasses(): Promise<GatePass[]> {
       .eq('key', STORAGE_KEY)
       .maybeSingle();
 
-    if (error || !data || !Array.isArray(data.value)) {
+    if (error || !data || data.value === null || data.value === undefined) {
       return [];
     }
 
-    const rawList = (data.value as GatePass[]).sort(
+    let parsedList: any = data.value;
+    if (typeof parsedList === 'string') {
+      try {
+        parsedList = JSON.parse(parsedList);
+      } catch (e) {
+        console.error('[GatePassService] Failed to parse gate passes JSON string:', e);
+        return [];
+      }
+    }
+
+    if (!Array.isArray(parsedList)) {
+      return [];
+    }
+
+    const rawList = (parsedList as GatePass[]).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 

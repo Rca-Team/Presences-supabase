@@ -84,7 +84,7 @@ const Navbar = () => {
     { text: 'Parent Portal', path: '/parent', icon: GraduationCap, show: true },
     { text: 'Teacher Portal', path: '/teacher', icon: BookOpen, show: isAuthenticated && isTeacher && !isAdminOrPrincipal },
     { text: 'Guard Scanner', path: '/guard', icon: QrCode, show: isAuthenticated && isGuard && !isAdminOrPrincipal },
-    { text: 'Add Student', path: '/register', icon: UserPlus, show: isAuthenticated },
+    { text: 'Add Student', path: '/register', icon: UserPlus, show: true },
     { text: 'Gate & Campus', path: '/gate', icon: DoorOpen, show: isAdminOrPrincipal || isTeacher },
     { text: 'Admin', path: '/admin', icon: LayoutDashboard, show: isAdminOrPrincipal },
   ].filter((item) => item.show);
