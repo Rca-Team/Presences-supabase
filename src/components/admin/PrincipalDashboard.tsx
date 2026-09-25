@@ -11,12 +11,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
 import { 
-  Users, Clock, TrendingUp, Activity, 
-  WifiOff, CheckCircle2, UserX, RefreshCw,
-  Zap, Search, FolderKanban, CalendarDays,
-  QrCode, CreditCard, Image, Bell, Siren, BarChart3,
-  ArrowRight, ChevronRight, MessageSquareText, Mail,
-  Building2, Eye
+  Users, Clock, TrendingUp, CheckCircle2, UserX, RefreshCw,
+  Search, FolderKanban, CalendarDays,
+  QrCode, Bell, BarChart3,
+  ArrowRight, ChevronRight, Mail,
+  Building2, Eye, ShieldCheck, Sparkles, Send
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -95,8 +94,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
   const [weeklyTrend, setWeeklyTrend] = useState<{ date: string; day: string; fullDate: string; count: number }[]>([]);
   const [classBreakdowns, setClassBreakdowns] = useState<ClassBreakdownItem[]>([]);
   const [gatePassStats, setGatePassStats] = useState({ totalToday: 0, active: 0, pending: 0 });
-  const [notificationStats, setNotificationStats] = useState({ unreadInbox: 0, sentToday: 0 });
-  const [faceModelCoverage, setFaceModelCoverage] = useState({ registeredFaces: 0, totalCoverageRate: 100 });
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
 
   const handleNavigate = (tabId: string) => {
@@ -321,26 +318,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         console.warn('Gate pass fetch error:', err);
       }
 
-      // 5. Notifications Count
-      try {
-        const { count: unreadCount } = await supabase
-          .from('notifications')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_read', false);
-
-        setNotificationStats({
-          unreadInbox: unreadCount || 0,
-          sentToday: unified.presentToday + unified.lateToday,
-        });
-      } catch (err) {
-        console.warn('Notification stats fetch error:', err);
-      }
-
-      setFaceModelCoverage({
-        registeredFaces: processedUsers.length,
-        totalCoverageRate: 100,
-      });
-
       setLastRefreshed(new Date());
     } catch (err) {
       console.error('Dashboard fetch error:', err);
@@ -396,7 +373,6 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         dailyPresent[d].add(String(g.student_id));
       });
 
-      const todayStr = format(todayDate, 'yyyy-MM-dd');
       const trendData = workingDays.map(d => {
         const dateStr = format(d, 'yyyy-MM-dd');
         let count = dailyPresent[dateStr]?.size || 0;
@@ -477,219 +453,345 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
 
   if (isLoading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-20 rounded-2xl bg-muted/60" />
+      <div className="space-y-4 animate-pulse p-2">
+        <div className="h-16 rounded-2xl bg-muted/60" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 rounded-2xl" />)}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Skeleton className="h-64 rounded-xl" />
-          <Skeleton className="h-64 rounded-xl" />
-          <Skeleton className="h-64 rounded-xl" />
+        <div className="h-44 rounded-2xl bg-muted/50" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
         </div>
       </div>
     );
   }
 
   const statusFilterOptions: { key: StatusFilter; label: string; count: number }[] = [
-    { key: 'all', label: 'All', count: allStudents.length },
-    { key: 'present', label: 'Present', count: overallStats.presentToday },
-    { key: 'late', label: 'Late', count: overallStats.lateToday },
-    { key: 'absent', label: 'Absent', count: overallStats.absentToday },
+    { key: 'all', label: 'All Students & Staff', count: allStudents.length },
+    { key: 'present', label: 'Present Today', count: overallStats.presentToday },
+    { key: 'late', label: 'Late Arrivals', count: overallStats.lateToday },
+    { key: 'absent', label: 'Absent Today', count: overallStats.absentToday },
   ];
 
   return (
-    <div className="space-y-4 sm:space-y-5 max-w-[1600px] mx-auto pb-10">
+    <div className="space-y-5 max-w-[1400px] mx-auto pb-12">
       
-      {/* 1. School Status & Date Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+      {/* 1. Welcoming School Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+            <div className="w-8 h-8 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-black tracking-tight text-foreground">
               PM Shri KV NFC Vigyan Vihar
             </h2>
-            <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 border-primary/30 text-primary bg-primary/5">
+            <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/5">
               Delhi Region
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Campus Attendance & Daily Summary • {format(new Date(), 'EEEE, d MMMM yyyy')}
+          <p className="text-xs text-muted-foreground mt-1">
+            School Attendance Overview • {format(new Date(), 'EEEE, d MMMM yyyy')}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           {isConnected ? (
-            <Badge variant="outline" className="gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-xs px-3 py-1 font-semibold">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live Real-Time
-            </Badge>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Camera & Gate Active
+            </span>
           ) : (
-            <Badge variant="outline" className="gap-1.5 text-muted-foreground border-border text-xs px-3 py-1">
-              <WifiOff className="w-3.5 h-3.5" /> Standby
-            </Badge>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">
+              Offline / Standby
+            </span>
           )}
         </div>
       </div>
 
-      {/* 2. Core Attendance KPIs */}
+      {/* 2. Today's Attendance Overview Hero Banner */}
+      <Card className="overflow-hidden border border-border/80 bg-gradient-to-br from-card via-card to-blue-500/[0.03] shadow-sm">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+            
+            {/* Progress Turnout */}
+            <div className="flex items-center gap-4 sm:gap-5">
+              <ProgressRing
+                value={overallStats.attendanceRate}
+                size={isMobile ? 'md' : 'lg'}
+                color={overallStats.attendanceRate >= 80 ? 'success' : overallStats.attendanceRate >= 60 ? 'warning' : 'destructive'}
+                thickness={isMobile ? 6 : 8}
+              />
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Today's School Attendance
+                </p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-3xl sm:text-4xl font-black tabular-nums tracking-tight text-foreground font-mono">
+                    {overallStats.attendanceRate}%
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    Turnout
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <strong className="text-foreground">{overallStats.presentToday + overallStats.lateToday}</strong> present out of <strong className="text-foreground">{overallStats.totalRegistered}</strong> enrolled students & teachers.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Human Action Buttons */}
+            <div className="w-full lg:w-auto flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-border/60">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => handleNavigate('notifications')}
+                className="text-xs h-9 px-3 gap-1.5 rounded-xl border-border hover:bg-muted font-semibold"
+              >
+                <Send className="w-3.5 h-3.5 text-blue-600" /> Message Absent Parents
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => handleNavigate('reports')}
+                className="text-xs h-9 px-3 gap-1.5 rounded-xl border-border hover:bg-muted font-semibold"
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-emerald-600" /> Attendance Report
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => handleNavigate('timetable')}
+                className="text-xs h-9 px-3 gap-1.5 rounded-xl border-border hover:bg-muted font-semibold"
+              >
+                <CalendarDays className="w-3.5 h-3.5 text-indigo-600" /> Timetable
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => handleNavigate('gatepass')}
+                className="text-xs h-9 px-3 gap-1.5 rounded-xl border-border hover:bg-muted font-semibold"
+              >
+                <QrCode className="w-3.5 h-3.5 text-purple-600" /> Gate Passes ({gatePassStats.active})
+              </Button>
+            </div>
+
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. The 4 Big Friendly Attendance Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard 
-          label="Registered Students" 
+        <SimpleStatCard 
+          label="Total Enrolled" 
           value={overallStats.totalRegistered} 
           icon={Users} 
           color="text-blue-600 dark:text-blue-400" 
           bgColor="bg-blue-500/10" 
-          subtitle={`${overallStats.teacherTotal} Staff`}
-          onClick={() => handleNavigate('students')}
+          helper={`${overallStats.teacherTotal} Teachers registered`}
+          onClick={() => {
+            setStatusFilter('all');
+            const el = document.getElementById('student-directory-section');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
         />
-        <MetricCard 
-          label="Present Today" 
+        <SimpleStatCard 
+          label="In School Today" 
           value={overallStats.presentToday} 
           icon={CheckCircle2} 
           color="text-emerald-600 dark:text-emerald-400" 
           bgColor="bg-emerald-500/10" 
-          subtitle={`${overallStats.attendanceRate}% Turnout`}
-          onClick={() => handleNavigate('reports')}
+          helper="Arrived on time"
+          onClick={() => {
+            setStatusFilter('present');
+            const el = document.getElementById('student-directory-section');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
         />
-        <MetricCard 
-          label="Late Arrivals" 
+        <SimpleStatCard 
+          label="Came Late" 
           value={overallStats.lateToday} 
           icon={Clock} 
           color="text-amber-600 dark:text-amber-400" 
           bgColor="bg-amber-500/10" 
-          subtitle="After 08:15 AM"
-          onClick={() => setStatusFilter('late')}
+          helper="After 08:15 AM"
+          onClick={() => {
+            setStatusFilter('late');
+            const el = document.getElementById('student-directory-section');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
         />
-        <MetricCard 
+        <SimpleStatCard 
           label="Absent Today" 
           value={overallStats.absentToday} 
           icon={UserX} 
           color="text-rose-600 dark:text-rose-400" 
           bgColor="bg-rose-500/10" 
-          subtitle="Not Checked In"
-          onClick={() => setStatusFilter('absent')}
+          helper="Not checked in"
+          onClick={() => {
+            setStatusFilter('absent');
+            const el = document.getElementById('student-directory-section');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
         />
       </div>
 
-      {/* 3. Turnout & Campus Operations Hub */}
-      <Card className="overflow-hidden border border-border/80 bg-card shadow-xs">
-        <CardContent className="p-4 sm:p-5">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
-            {/* Left: Turnout Ring & Summary (5 cols) */}
-            <div className="md:col-span-5 flex items-center gap-4">
-              <ProgressRing
-                value={overallStats.attendanceRate}
-                size={isMobile ? 'md' : 'lg'}
-                color={overallStats.attendanceRate >= 80 ? 'success' : overallStats.attendanceRate >= 60 ? 'warning' : 'destructive'}
-                thickness={isMobile ? 5 : 7}
-              />
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campus Attendance Rate</p>
-                <p className="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-foreground font-mono">
-                  {overallStats.attendanceRate}%
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{overallStats.presentToday + overallStats.lateToday}</span> present out of <span className="font-bold">{overallStats.totalRegistered}</span> students & staff
-                </p>
-              </div>
+      {/* 4. Class Attendance Overview & Real-Time Check-in Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        
+        {/* Class Attendance Overview */}
+        <Card className="border border-border/80 shadow-xs">
+          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
+                <FolderKanban className="w-4 h-4 text-blue-600" />
+                Attendance by Class
+              </CardTitle>
+              <CardDescription className="text-xs">Turnout percentage for each grade today</CardDescription>
             </div>
-
-            {/* Middle: Operations Status (4 cols) */}
-            <div className="md:col-span-4 grid grid-cols-2 gap-2.5 border-y md:border-y-0 md:border-x border-border/60 py-3 md:py-0 md:px-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => handleNavigate('sections')}
+              className="text-xs text-primary h-7 px-2 hover:bg-muted font-semibold"
+            >
+              All Classes <ArrowRight className="w-3 h-3 ml-1" />
+            </Button>
+          </CardHeader>
+          <CardContent className="p-4 pt-2 space-y-2.5">
+            {classBreakdowns.slice(0, 8).map((item) => (
               <div 
-                onClick={() => handleNavigate('timetable')}
-                className="cursor-pointer p-3 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors"
+                key={item.key} 
+                onClick={() => handleNavigate('sections')}
+                className="cursor-pointer group flex items-center justify-between gap-3 text-xs p-2 rounded-xl hover:bg-muted/60 transition-colors border border-transparent hover:border-border/60"
               >
-                <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 text-xs font-bold">
-                  <CalendarDays className="w-3.5 h-3.5" /> Schedule
+                <div className="flex items-center gap-2 min-w-[90px]">
+                  <span className="font-bold text-foreground group-hover:text-primary transition-colors">
+                    {item.label}
+                  </span>
                 </div>
-                <p className="text-xs font-bold text-foreground mt-1 truncate">
-                  {currentPeriodInfo.label}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {overallStats.teacherPresent} / {overallStats.teacherTotal || 24} Teachers
-                </p>
-              </div>
-
-              <div 
-                onClick={() => handleNavigate('gatepass')}
-                className="cursor-pointer p-3 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors"
-              >
-                <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 text-xs font-bold">
-                  <QrCode className="w-3.5 h-3.5" /> Gate Passes
+                <div className="flex-1 max-w-[150px]">
+                  <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div 
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        item.rate >= 80 ? "bg-emerald-500" : item.rate >= 60 ? "bg-amber-500" : "bg-rose-500"
+                      )}
+                      style={{ width: `${item.rate}%` }}
+                    />
+                  </div>
                 </div>
-                <p className="text-xs font-bold text-foreground mt-1">
-                  {gatePassStats.active} Active
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {gatePassStats.pending} Pending approval
-                </p>
+                <div className="text-right tabular-nums min-w-[80px]">
+                  <span className="font-bold text-foreground">{item.present + item.late}</span>
+                  <span className="text-muted-foreground text-[11px]"> of {item.total}</span>
+                  <span className={cn(
+                    "ml-1.5 font-bold text-[11px]",
+                    item.rate >= 80 ? "text-emerald-600 dark:text-emerald-400" : item.rate >= 60 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"
+                  )}>
+                    ({item.rate}%)
+                  </span>
+                </div>
               </div>
-            </div>
+            ))}
+          </CardContent>
+        </Card>
 
-            {/* Right: Quick Action Shortcuts (3 cols) */}
-            <div className="md:col-span-3 flex flex-wrap md:flex-col gap-2 justify-center">
-              <div className="grid grid-cols-2 gap-2 w-full">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleNavigate('sections')}
-                  className="text-xs h-8 gap-1.5 rounded-xl justify-start"
-                >
-                  <FolderKanban className="w-3.5 h-3.5 text-blue-600" /> Classes
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleNavigate('reports')}
-                  className="text-xs h-8 gap-1.5 rounded-xl justify-start"
-                >
-                  <BarChart3 className="w-3.5 h-3.5 text-emerald-600" /> Reports
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleNavigate('timetable')}
-                  className="text-xs h-8 gap-1.5 rounded-xl justify-start"
-                >
-                  <CalendarDays className="w-3.5 h-3.5 text-indigo-600" /> Timetable
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => handleNavigate('emergency')}
-                  className="text-xs h-8 gap-1.5 rounded-xl justify-start text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-500/10"
-                >
-                  <Siren className="w-3.5 h-3.5" /> Alert
-                </Button>
-              </div>
+        {/* Real-time Live Gate & Camera Feed */}
+        <Card className="overflow-hidden border border-border/80 shadow-xs flex flex-col">
+          <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                </span>
+                Live Student Check-ins
+              </CardTitle>
+              <CardDescription className="text-xs">Students recognized at the gate & cameras</CardDescription>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => handleNavigate('students')}
+              className="text-xs text-primary h-7 px-2 font-semibold"
+            >
+              All Students <ArrowRight className="w-3 h-3 ml-1" />
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0 flex-1">
+            <ScrollArea className="h-[310px]">
+              <AnimatePresence initial={false}>
+                {liveEntries.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Clock className="w-8 h-8 mx-auto mb-2 opacity-40 text-muted-foreground" />
+                    <p className="text-xs font-semibold">No attendance scans recorded yet today</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Scans will show up here automatically when students arrive</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {liveEntries.map((entry, i) => (
+                      <motion.div
+                        key={entry.id}
+                        initial={i === 0 ? { opacity: 0, x: -8 } : false}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="flex items-center gap-3 px-4 py-2 hover:bg-muted/50 transition-colors"
+                      >
+                        <Avatar className="h-8 w-8 flex-shrink-0 border border-border">
+                          <AvatarImage src={entry.imageUrl?.startsWith('data:') ? entry.imageUrl : ''} />
+                          <AvatarFallback className="text-xs font-bold bg-muted">
+                            {entry.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{entry.name}</p>
+                          <p className="text-[11px] text-muted-foreground">Class {entry.category} • Checked in at {entry.time}</p>
+                        </div>
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "text-[10px] font-bold px-2 py-0.5",
+                            entry.status === 'late'
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                          )}
+                        >
+                          {entry.status === 'late' ? 'Late' : 'On Time'}
+                        </Badge>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </AnimatePresence>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* 4. Weekly Attendance Trend Chart */}
+      {/* 5. 7-Day Attendance Trend Chart */}
       <Card className="border border-border/80 shadow-xs">
         <CardHeader className="pb-1 sm:pb-2 px-4 sm:px-6 pt-4 sm:pt-5 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
               <TrendingUp className="w-4 h-4 text-primary" />
-              Weekly Attendance Trend
+              Attendance Trend (Last 7 Working Days)
             </CardTitle>
-            <CardDescription className="text-xs">Turnout over the last 7 official working days</CardDescription>
+            <CardDescription className="text-xs">How many students attended school each day</CardDescription>
           </div>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => handleNavigate('reports')}
-            className="text-xs h-8 gap-1.5"
+            className="text-xs h-8 gap-1.5 font-semibold"
           >
             <BarChart3 className="w-3.5 h-3.5" /> Full Reports
           </Button>
         </CardHeader>
         <CardContent className="px-1 sm:px-4 pb-3 sm:pb-4">
-          <div className="h-44 sm:h-52">
+          <div className="h-44 sm:h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyTrend} barSize={isMobile ? 22 : 36}>
+              <BarChart data={weeklyTrend} barSize={isMobile ? 24 : 38}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -703,29 +805,29 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 <YAxis
                   tick={{ fontSize: isMobile ? 10 : 11 }}
                   stroke="hsl(var(--muted-foreground))"
-                  width={isMobile ? 25 : 40}
+                  width={isMobile ? 25 : 35}
                   allowDecimals={false}
                 />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     fontSize: '12px',
                   }}
-                  formatter={(value: any) => [`${value} Students & Staff`, 'Present']}
+                  formatter={(value: any) => [`${value} Students & Teachers`, 'Present']}
                   labelFormatter={(label: string) => {
                     const item = weeklyTrend.find(w => w.date === label);
                     return item?.fullDate || label;
                   }}
                 />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]}>
                   {weeklyTrend.map((entry, index) => {
                     const isToday = entry.date === format(new Date(), 'yyyy-MM-dd');
                     return (
                       <Cell
                         key={`cell-${index}`}
-                        fill={isToday ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.6)'}
+                        fill={isToday ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.65)'}
                       />
                     );
                   })}
@@ -736,141 +838,22 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         </CardContent>
       </Card>
 
-      {/* 5. Live Operations: Class Breakdown & Live Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        
-        {/* Class Attendance Breakdown */}
-        <Card className="border border-border/80 shadow-xs">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                <FolderKanban className="w-4 h-4 text-blue-600" />
-                Class Attendance Glimpse
-              </CardTitle>
-              <CardDescription className="text-[11px]">Real-time strength & turnout per grade</CardDescription>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => handleNavigate('sections')}
-              className="text-xs text-primary h-7 px-2 hover:bg-muted"
-            >
-              View All <ArrowRight className="w-3 h-3 ml-1" />
-            </Button>
-          </CardHeader>
-          <CardContent className="p-4 pt-2 space-y-2.5">
-            {classBreakdowns.slice(0, 7).map((item) => (
-              <div 
-                key={item.key} 
-                onClick={() => handleNavigate('sections')}
-                className="cursor-pointer group flex items-center justify-between gap-3 text-xs p-1.5 rounded-lg hover:bg-muted/60 transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-20">
-                  <span className="font-bold text-foreground group-hover:text-primary transition-colors">
-                    {item.label}
-                  </span>
-                </div>
-                <div className="flex-1 max-w-[140px]">
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full rounded-full transition-all duration-500",
-                        item.rate >= 80 ? "bg-emerald-500" : item.rate >= 60 ? "bg-amber-500" : "bg-rose-500"
-                      )}
-                      style={{ width: `${item.rate}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="text-right tabular-nums min-w-[70px]">
-                  <span className="font-bold">{item.present + item.late}</span>
-                  <span className="text-muted-foreground text-[10px]">/{item.total}</span>
-                  <span className="ml-1.5 font-semibold text-[10px] text-muted-foreground">({item.rate}%)</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Real-time Live Activity Stream */}
-        <Card className="overflow-hidden border border-border/80 shadow-xs">
-          <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
-                Live Attendance Feed
-                {isConnected && (
-                  <span className="relative flex h-2 w-2 ml-1">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription className="text-[11px]">Real-time camera & gate terminal events</CardDescription>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => handleNavigate('students')}
-              className="text-xs text-primary h-7 px-2"
-            >
-              All Students <ArrowRight className="w-3 h-3 ml-1" />
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[300px]">
-              <AnimatePresence initial={false}>
-                {liveEntries.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <Activity className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-xs">No attendance scans recorded yet today</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {liveEntries.map((entry, i) => (
-                      <motion.div
-                        key={entry.id}
-                        initial={i === 0 ? { opacity: 0, x: -10 } : false}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex items-center gap-3 px-4 py-2 hover:bg-muted/50 transition-colors"
-                      >
-                        <Avatar className="h-8 w-8 flex-shrink-0 border border-border">
-                          <AvatarImage src={entry.imageUrl?.startsWith('data:') ? entry.imageUrl : ''} />
-                          <AvatarFallback className="text-xs font-semibold bg-muted">
-                            {entry.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{entry.name}</p>
-                          <p className="text-[10px] text-muted-foreground">Class {entry.category} • {entry.time}</p>
-                        </div>
-                        <StatusDot status={entry.status} showLabel />
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </AnimatePresence>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 6. Student Registry Directory */}
-      <Card className="overflow-hidden border border-border/80 shadow-xs">
-        <CardHeader className="pb-2 px-4 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      {/* 6. Student Directory (Search & Attendance List) */}
+      <Card id="student-directory-section" className="overflow-hidden border border-border/80 shadow-xs scroll-mt-20">
+        <CardHeader className="pb-3 px-4 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
-              Student Registry ({filteredStudents.length})
+              Student Attendance List ({filteredStudents.length})
             </CardTitle>
-            <CardDescription className="text-xs">Browse enrolled students and view attendance dossier</CardDescription>
+            <CardDescription className="text-xs">Search for any student and view today's check-in status</CardDescription>
           </div>
           
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search name, roll number, class..."
+              placeholder="Search by student name or roll number..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full text-xs bg-muted/40 rounded-xl pl-9 pr-3 py-2 outline-none focus:ring-1 focus:ring-primary/40 border border-border transition-all"
@@ -878,30 +861,30 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           </div>
         </CardHeader>
 
-        {/* Filter Pills */}
-        <div className="px-4 pb-2.5 flex gap-2 overflow-x-auto no-scrollbar">
+        {/* Filter Tabs */}
+        <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar border-b border-border/50">
           {statusFilterOptions.map(opt => (
             <button
               key={opt.key}
               onClick={() => setStatusFilter(opt.key)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors shrink-0",
                 statusFilter === opt.key
-                  ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              {opt.label} <span className="tabular-nums opacity-85">({opt.count})</span>
+              {opt.label} <span className="tabular-nums opacity-85 font-mono">({opt.count})</span>
             </button>
           ))}
         </div>
 
         <CardContent className="p-0">
-          <ScrollArea className="h-[340px]">
+          <ScrollArea className="h-[360px]">
             <div className="divide-y divide-border">
               {filteredStudents.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground text-xs">
-                  No students match your search or filter
+                  No students found matching your search or filter
                 </div>
               ) : (
                 displayedStudents.map((student, i) => (
@@ -918,14 +901,14 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-xs sm:text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                        <p className="text-xs sm:text-sm font-semibold truncate group-hover:text-primary transition-colors text-foreground">
                           {student.name}
                         </p>
                         <Badge variant="outline" className="text-[10px] font-semibold px-1.5 py-0 h-4">
                           {student.category}
                         </Badge>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">{student.employee_id || 'ID N/A'}</p>
+                      <p className="text-[11px] text-muted-foreground">Roll / ID: {student.employee_id || 'N/A'}</p>
                     </div>
                     <div className="flex flex-col items-end gap-0.5 shrink-0">
                       <StatusDot status={student.status} showLabel />
@@ -942,7 +925,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs text-primary hover:text-primary/80 h-8"
+                    className="text-xs text-primary hover:text-primary/80 h-8 font-semibold"
                     onClick={() => setStudentDisplayLimit(prev => prev + 40)}
                   >
                     Show more ({filteredStudents.length - studentDisplayLimit} remaining)
@@ -954,7 +937,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
         </CardContent>
       </Card>
 
-      {/* 7. Student Quick Deep Dossier Modal */}
+      {/* 7. Student Detail Modal */}
       <Dialog open={!!selectedStudentForDetail} onOpenChange={(open) => !open && setSelectedStudentForDetail(null)}>
         <DialogContent className="sm:max-w-md">
           {selectedStudentForDetail && (
@@ -970,7 +953,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                   <div>
                     <DialogTitle className="text-base font-bold">{selectedStudentForDetail.name}</DialogTitle>
                     <DialogDescription className="text-xs">
-                      {getCategoryLabel(selectedStudentForDetail.category)} • Roll/ID: {selectedStudentForDetail.employee_id}
+                      {getCategoryLabel(selectedStudentForDetail.category)} • Roll Number: {selectedStudentForDetail.employee_id}
                     </DialogDescription>
                   </div>
                 </div>
@@ -979,13 +962,13 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               <div className="space-y-3 py-2 text-xs">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="p-3 rounded-xl border bg-card">
-                    <span className="text-[10px] text-muted-foreground block">Today's Status</span>
+                    <span className="text-[10px] text-muted-foreground block font-medium">Today's Status</span>
                     <div className="mt-1 flex items-center gap-1.5">
                       <StatusDot status={selectedStudentForDetail.status} showLabel />
                     </div>
                   </div>
                   <div className="p-3 rounded-xl border bg-card">
-                    <span className="text-[10px] text-muted-foreground block">Check-in Time</span>
+                    <span className="text-[10px] text-muted-foreground block font-medium">Arrival Time</span>
                     <span className="font-bold text-foreground mt-1 block">
                       {selectedStudentForDetail.time || 'Not Punched Today'}
                     </span>
@@ -993,18 +976,20 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                 </div>
 
                 <div className="p-3 rounded-xl border bg-card space-y-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                    School Information
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    Student Details
                   </span>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">School:</span>
-                    <span className="font-semibold text-right">PM Shri KV NFC Vigyan Vihar</span>
+                    <span className="text-muted-foreground">Class & Section:</span>
+                    <span className="font-semibold text-right">{selectedStudentForDetail.category}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Face Photo:</span>
-                    <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/30">
-                      Photo Saved
-                    </Badge>
+                    <span className="text-muted-foreground">Roll / ID:</span>
+                    <span className="font-semibold text-right">{selectedStudentForDetail.employee_id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Face Verification:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">Photo Enrolled</span>
                   </div>
                 </div>
               </div>
@@ -1017,7 +1002,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     setSelectedStudentForDetail(null);
                     handleNavigate('students');
                   }}
-                  className="flex-1 text-xs gap-1.5"
+                  className="flex-1 text-xs gap-1.5 font-semibold"
                 >
                   <Eye className="w-3.5 h-3.5" /> Full Profile
                 </Button>
@@ -1027,7 +1012,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                     setSelectedStudentForDetail(null);
                     handleNavigate('notifications');
                   }}
-                  className="flex-1 text-xs gap-1.5"
+                  className="flex-1 text-xs gap-1.5 font-semibold"
                 >
                   <Bell className="w-3.5 h-3.5" /> Notify Parent
                 </Button>
@@ -1040,16 +1025,16 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
   );
 };
 
-// Clean Metric Card
-const MetricCard: React.FC<{
+// Friendly Stat Card for normal users
+const SimpleStatCard: React.FC<{
   label: string;
   value: number;
   icon: React.ElementType;
   color: string;
   bgColor: string;
-  subtitle?: string;
+  helper?: string;
   onClick?: () => void;
-}> = ({ label, value, icon: Icon, color, bgColor, subtitle, onClick }) => (
+}> = ({ label, value, icon: Icon, color, bgColor, helper, onClick }) => (
   <motion.div
     initial={{ opacity: 0, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
@@ -1061,14 +1046,14 @@ const MetricCard: React.FC<{
   >
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+        <p className="text-xs font-semibold text-muted-foreground truncate">{label}</p>
         <div className="flex items-baseline gap-2 mt-1.5 flex-wrap">
           <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-foreground font-mono">
             {value}
           </span>
-          {subtitle && (
+          {helper && (
             <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-md bg-muted/60 whitespace-nowrap", color)}>
-              {subtitle}
+              {helper}
             </span>
           )}
         </div>
@@ -1080,7 +1065,7 @@ const MetricCard: React.FC<{
   </motion.div>
 );
 
-// Status dot
+// Clear, Friendly Status dot with human label
 const StatusDot: React.FC<{ status: string; showLabel?: boolean }> = ({ status, showLabel }) => {
   const config = {
     present: { color: 'bg-emerald-500', label: 'Present', textColor: 'text-emerald-600 dark:text-emerald-400' },
@@ -1091,7 +1076,7 @@ const StatusDot: React.FC<{ status: string; showLabel?: boolean }> = ({ status, 
   return (
     <div className="flex items-center gap-1.5">
       <span className={cn("w-2 h-2 rounded-full", config.color)} />
-      {showLabel && <span className={cn("text-[10px] font-medium", config.textColor)}>{config.label}</span>}
+      {showLabel && <span className={cn("text-xs font-bold", config.textColor)}>{config.label}</span>}
     </div>
   );
 };
