@@ -17,6 +17,7 @@ const FaceModelUpgradeSettings = lazyWithRetry(() => import('@/components/admin/
 const AutoNotificationScheduler = lazyWithRetry(() => import('@/components/admin/AutoNotificationScheduler'), 'admin-notif-scheduler');
 const PilotModeSettings = lazyWithRetry(() => import('@/components/admin/PilotModeSettings'), 'admin-pilot');
 const NotificationSettings = lazyWithRetry(() => import('@/components/admin/NotificationSettings'), 'admin-notif-settings');
+const RealtimeSettingsHeader = lazyWithRetry(() => import('@/components/admin/RealtimeSettingsHeader'), 'admin-realtime-settings-header');
 const CategoryBasedView = lazyWithRetry(() => import('@/components/admin/CategoryBasedView'), 'admin-sections');
 const PrincipalDashboard = lazyWithRetry(() => import('@/components/admin/PrincipalDashboard'), 'admin-dashboard');
 const TeacherDashboard = lazyWithRetry(() => import('@/components/admin/TeacherDashboard'), 'admin-teacher-dashboard');
@@ -456,6 +457,7 @@ const Admin = () => {
       case 'settings':
         return (
           <TabPanel className="space-y-6">
+            <RealtimeSettingsHeader />
             <AttendanceCutoffSetting />
             <PilotModeSettings />
             <NotificationSettings />

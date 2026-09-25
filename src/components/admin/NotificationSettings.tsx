@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,42 +7,42 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { Bell, Mail, MessageSquare, Smartphone, Loader2, ShieldAlert, Save } from 'lucide-react';
-
+import { toast } from 'sonner';
+import { 
+  Bell, 
+  Mail, 
+  MessageSquare, 
+  Smartphone, 
+  Loader2, 
+  ShieldAlert, 
+  Save, 
+  CheckCircle2, 
+  RefreshCw,
+  Send,
+  Sparkles
+} from 'lucide-react';
 import DailyEmailFrequencySetting from '@/components/admin/DailyEmailFrequencySetting';
-
-const KEYS = [
-  'cutoff_time',
-  'notify_channels',
-  'twilio_account_sid',
-  'twilio_auth_token',
-  'twilio_from_number',
-  'msg_template_present',
-  'msg_template_late',
-  'msg_template_absent',
-] as const;
-
-type SettingKey = typeof KEYS[number];
-
-interface Channels { email: boolean; inapp: boolean; sms: boolean; }
+import { useRealtimeSettings } from '@/hooks/useRealtimeSettings';
 
 const NotificationSettings: React.FC = () => {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [cutoff, setCutoff] = useState('09:15');
-  const [channels, setChannels] = useState<Channels>({ email: true, inapp: true, sms: false });
-  const [twilio, setTwilio] = useState({ sid: '', token: '', from: '' });
-  const [tplPresent, setTplPresent] = useState('');
-  const [tplLate, setTplLate] = useState('');
-  const [tplAbsent, setTplAbsent] = useState('');
+  const {
+    settings,
+    isLoading,
+    isConnected,
+    isSaving,
+    setNotifyChannel,
+    setTwilioConfig,
+    setMessageTemplate,
+  } = useRealtimeSettings();
+
   const [testPhone, setTestPhone] = useState('');
   const [testing, setTesting] = useState(false);
 
   const runTest = async () => {
     if (!testPhone.trim()) {
-      toast({ title: 'Enter a phone number', description: 'Include country code, e.g. +919876543210', variant: 'destructive' });
+      toast.error('Enter a phone number', {
+        description: 'Include country code, e.g. +919876543210',
+      });
       return;
     }
     setTesting(true);
@@ -59,195 +59,263 @@ const NotificationSettings: React.FC = () => {
       });
       if (error) throw error;
       if (data?.success) {
-        toast({ title: 'WhatsApp sent ✅', description: `Message ID: ${data.messageId || 'ok'}` });
+        toast.success('WhatsApp test message sent successfully!', {
+          description: `Message ID: ${data.messageId || 'ok'}`,
+        });
       } else {
-        toast({ title: 'WhatsApp failed', description: data?.error || 'Unknown error', variant: 'destructive' });
+        toast.error('WhatsApp failed', {
+          description: data?.error || 'Unknown error occurred.',
+        });
       }
     } catch (e: any) {
-      toast({ title: 'Test failed', description: e.message, variant: 'destructive' });
+      toast.error('Test failed', { description: e.message });
     } finally {
       setTesting(false);
     }
   };
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from('attendance_settings')
-        .select('key,value')
-        .in('key', KEYS as unknown as string[]);
-      const map = new Map<string, string>((data || []).map((r: any) => [r.key, r.value ?? '']));
-      setCutoff(map.get('cutoff_time') || '09:15');
-      try {
-        const ch = JSON.parse(map.get('notify_channels') || '{}');
-        setChannels({ email: !!ch.email, inapp: !!ch.inapp, sms: !!ch.sms });
-      } catch { /* keep default */ }
-      setTwilio({
-        sid: map.get('twilio_account_sid') || '',
-        token: map.get('twilio_auth_token') || '',
-        from: map.get('twilio_from_number') || '',
-      });
-      setTplPresent(map.get('msg_template_present') || '');
-      setTplLate(map.get('msg_template_late') || '');
-      setTplAbsent(map.get('msg_template_absent') || '');
-      setLoading(false);
-    })();
-  }, []);
-
-  const upsert = async (key: SettingKey, value: string) => {
-    const { data: existing } = await supabase
-      .from('attendance_settings').select('id').eq('key', key).maybeSingle();
-    if (existing?.id) {
-      await supabase.from('attendance_settings').update({ value }).eq('id', existing.id);
-    } else {
-      await supabase.from('attendance_settings').insert({ key, value });
-    }
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      await Promise.all([
-        upsert('cutoff_time', cutoff),
-        upsert('notify_channels', JSON.stringify(channels)),
-        upsert('twilio_account_sid', twilio.sid.trim()),
-        upsert('twilio_auth_token', twilio.token.trim()),
-        upsert('twilio_from_number', twilio.from.trim()),
-        upsert('msg_template_present', tplPresent),
-        upsert('msg_template_late', tplLate),
-        upsert('msg_template_absent', tplAbsent),
-      ]);
-      toast({ title: 'Saved', description: 'Notification settings updated.' });
-    } catch (e: any) {
-      toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Special 1 Student 1 Mail per Day Realtime Control */}
+      {/* 1. Daily Email Rate Limiter Realtime Control */}
       <DailyEmailFrequencySetting />
 
-      {/* Cutoff & channels */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Attendance cutoff & channels</CardTitle>
-          <CardDescription>
-            After cutoff, late arrivals are flagged and the daily absence sweep runs.
-            All parents in pilot classes receive a notification on every status change.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="cutoff">Daily cutoff time</Label>
-              <Input id="cutoff" type="time" value={cutoff} onChange={(e) => setCutoff(e.target.value)} />
-              <p className="text-xs text-muted-foreground mt-1">Students arriving after this time are marked late.</p>
+      {/* 2. Parent Notification Channels (Realtime) */}
+      <Card className="border-border/80 shadow-md relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500" />
+
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl border bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                <Bell className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                  Parent Notification Channels
+                  <Badge variant="outline" className="text-[11px] font-semibold">
+                    Realtime Auto-Save
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Select which transmission channels notify parents when their child's attendance is verified.
+                </CardDescription>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <Badge
+                variant="outline"
+                className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full flex items-center gap-1.5 ${
+                  isConnected
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                {isConnected ? 'LIVE SYNC ACTIVE' : 'CONNECTING'}
+              </Badge>
+              {isSaving && (
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3 animate-spin text-primary" />
+                  Saving...
+                </span>
+              )}
             </div>
           </div>
+        </CardHeader>
 
-          <div className="space-y-3 pt-2">
-            <Label>Channels</Label>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div className="flex items-center gap-3"><Mail className="h-4 w-4" /><div><p className="font-medium text-sm">Email</p><p className="text-xs text-muted-foreground">Sent via the school's verified address.</p></div></div>
-              <Switch checked={channels.email} onCheckedChange={(v) => setChannels((c) => ({ ...c, email: v }))} />
+        <CardContent className="space-y-3 pt-1">
+          {/* Email Channel */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-muted/20">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                <Mail className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Email Alerts</p>
+                <p className="text-xs text-muted-foreground">Sent via Resend / official school email domain.</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div className="flex items-center gap-3"><Smartphone className="h-4 w-4" /><div><p className="font-medium text-sm">In-app (Parent Portal)</p><p className="text-xs text-muted-foreground">Realtime alerts inside parent dashboard.</p></div></div>
-              <Switch checked={channels.inapp} onCheckedChange={(v) => setChannels((c) => ({ ...c, inapp: v }))} />
+            <Switch
+              checked={settings.notifyChannels.email}
+              onCheckedChange={(v) => setNotifyChannel('email', v)}
+              disabled={isLoading}
+              className="data-[state=checked]:bg-emerald-500"
+            />
+          </div>
+
+          {/* In-app Portal Channel */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-muted/20">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
+                <Smartphone className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">In-App (Parent Portal & PWA)</p>
+                <p className="text-xs text-muted-foreground">Instant push and realtime alerts inside the Parent Dashboard.</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div className="flex items-center gap-3"><MessageSquare className="h-4 w-4" /><div><p className="font-medium text-sm">SMS (Twilio)</p><p className="text-xs text-muted-foreground">Requires Twilio credentials below.</p></div></div>
-              <Switch checked={channels.sms} onCheckedChange={(v) => setChannels((c) => ({ ...c, sms: v }))} />
+            <Switch
+              checked={settings.notifyChannels.inapp}
+              onCheckedChange={(v) => setNotifyChannel('inapp', v)}
+              disabled={isLoading}
+              className="data-[state=checked]:bg-blue-600"
+            />
+          </div>
+
+          {/* SMS Channel */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/70 bg-muted/20">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600">
+                <MessageSquare className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">SMS (Twilio)</p>
+                <p className="text-xs text-muted-foreground">Direct SMS to parent mobile number. Requires Twilio credentials below.</p>
+              </div>
             </div>
+            <Switch
+              checked={settings.notifyChannels.sms}
+              onCheckedChange={(v) => setNotifyChannel('sms', v)}
+              disabled={isLoading}
+              className="data-[state=checked]:bg-amber-600"
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Twilio */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Twilio (SMS)</CardTitle>
-          <CardDescription>
-            Add your Twilio Account SID, Auth Token and a verified sender number to send parent SMS.
+      {/* 3. Twilio SMS Integration */}
+      <Card className="border-border/80 shadow-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MessageSquare className="h-5 w-5 text-amber-600" />
+            Twilio (SMS Gateway Settings)
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Configure Twilio Account SID, Auth Token and registered Sender Number for parent SMS dispatch.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="rounded-md border bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 p-3 flex gap-2 text-xs text-amber-800 dark:text-amber-200">
-            <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5" />
-            <span>For production deployments we recommend storing the Auth Token as an encrypted secret instead of a settings row. Restrict admin access tightly.</span>
+          <div className="rounded-xl border bg-amber-500/10 border-amber-500/30 p-3 flex gap-2.5 text-xs text-amber-800 dark:text-amber-200">
+            <ShieldAlert className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600" />
+            <span>Settings auto-save as you type. Restrict school admin access tightly to keep API keys secure.</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-semibold">Account SID</Label>
+              <Input
+                value={settings.twilioSid}
+                onChange={(e) => setTwilioConfig({ sid: e.target.value })}
+                placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                autoComplete="off"
+                className="h-10 rounded-xl font-mono text-xs mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold">Auth Token</Label>
+              <Input
+                type="password"
+                value={settings.twilioToken}
+                onChange={(e) => setTwilioConfig({ token: e.target.value })}
+                placeholder="••••••••••••••••••••••••"
+                autoComplete="off"
+                className="h-10 rounded-xl font-mono text-xs mt-1"
+              />
+            </div>
           </div>
           <div>
-            <Label>Account SID</Label>
-            <Input value={twilio.sid} onChange={(e) => setTwilio({ ...twilio, sid: e.target.value })} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autoComplete="off" />
-          </div>
-          <div>
-            <Label>Auth Token</Label>
-            <Input type="password" value={twilio.token} onChange={(e) => setTwilio({ ...twilio, token: e.target.value })} placeholder="••••••••" autoComplete="off" />
-          </div>
-          <div>
-            <Label>From number</Label>
-            <Input value={twilio.from} onChange={(e) => setTwilio({ ...twilio, from: e.target.value })} placeholder="+1XXXXXXXXXX" />
+            <Label className="text-xs font-semibold">From Number / Sender ID</Label>
+            <Input
+              value={settings.twilioFrom}
+              onChange={(e) => setTwilioConfig({ from: e.target.value })}
+              placeholder="+1XXXXXXXXXX"
+              className="h-10 rounded-xl font-mono text-xs mt-1 max-w-sm"
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Templates */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Message templates</CardTitle>
-          <div className="text-sm text-muted-foreground">
-            Available variables: <Badge variant="outline">{'{parent}'}</Badge> <Badge variant="outline">{'{student}'}</Badge> <Badge variant="outline">{'{class}'}</Badge> <Badge variant="outline">{'{section}'}</Badge> <Badge variant="outline">{'{time}'}</Badge> <Badge variant="outline">{'{date}'}</Badge> <Badge variant="outline">{'{cutoff}'}</Badge>
+      {/* 4. Notification Message Templates */}
+      <Card className="border-border/80 shadow-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base sm:text-lg">Message Templates</CardTitle>
+          <div className="text-xs text-muted-foreground flex flex-wrap gap-1.5 items-center pt-1">
+            <span>Available variables:</span>
+            <Badge variant="outline" className="text-[10px] font-mono">{'{student_name}'}</Badge>
+            <Badge variant="outline" className="text-[10px] font-mono">{'{time}'}</Badge>
+            <Badge variant="outline" className="text-[10px] font-mono">{'{date}'}</Badge>
+            <Badge variant="outline" className="text-[10px] font-mono">{'{class}'}</Badge>
+            <Badge variant="outline" className="text-[10px] font-mono">{'{section}'}</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div><Label>Present</Label><Textarea rows={2} value={tplPresent} onChange={(e) => setTplPresent(e.target.value)} /></div>
-          <div><Label>Late</Label><Textarea rows={2} value={tplLate} onChange={(e) => setTplLate(e.target.value)} /></div>
-          <div><Label>Absent</Label><Textarea rows={2} value={tplAbsent} onChange={(e) => setTplAbsent(e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-emerald-600">On Time Arrival (Present)</Label>
+            <Textarea
+              rows={2}
+              value={settings.msgTemplatePresent}
+              onChange={(e) => setMessageTemplate('present', e.target.value)}
+              className="rounded-xl text-xs resize-none"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-amber-600">Late Arrival</Label>
+            <Textarea
+              rows={2}
+              value={settings.msgTemplateLate}
+              onChange={(e) => setMessageTemplate('late', e.target.value)}
+              className="rounded-xl text-xs resize-none"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-rose-600">Absence Notice (Post-Cutoff)</Label>
+            <Textarea
+              rows={2}
+              value={settings.msgTemplateAbsent}
+              onChange={(e) => setMessageTemplate('absent', e.target.value)}
+              className="rounded-xl text-xs resize-none"
+            />
+          </div>
         </CardContent>
       </Card>
 
-      {/* Test services */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Test services</CardTitle>
-          <CardDescription>
-            Send a live test WhatsApp message using the approved <code>attendance_notification</code> template.
+      {/* 5. Live WhatsApp Diagnostics / Test Service */}
+      <Card className="border-border/80 shadow-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Send className="h-5 w-5 text-emerald-600" />
+            Live WhatsApp Service Test
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Send an instant test WhatsApp message to verify Meta Business webhook connectivity.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
             <div>
-              <Label>Test phone (with country code)</Label>
-              <Input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+919876543210" />
+              <Label className="text-xs font-semibold">Test Mobile Number (with country code)</Label>
+              <Input
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value)}
+                placeholder="+919876543210"
+                className="h-10 rounded-xl font-mono text-xs mt-1"
+              />
             </div>
-            <Button variant="secondary" onClick={runTest} disabled={testing}>
-              {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
-              Send test WhatsApp
+            <Button
+              variant="outline"
+              onClick={runTest}
+              disabled={testing}
+              className="h-10 rounded-xl text-xs font-semibold border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+            >
+              {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              Send Test WhatsApp
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Uses your saved WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID. Template must be approved in Meta Business Manager.
+          <p className="text-[11px] text-muted-foreground">
+            Uses your school's WhatsApp Cloud API configuration.
           </p>
         </CardContent>
       </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Save settings
-        </Button>
-      </div>
     </div>
   );
 };
