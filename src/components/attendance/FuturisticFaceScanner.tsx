@@ -241,6 +241,51 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
     void enumerateCameras();
   }, [enumerateCameras]);
 
+  // Real-time Cutoff Time Sync for Kiosk (Instant 0ms reflection across whole school)
+  useEffect(() => {
+    const handleCutoffUpdate = (e: Event) => {
+      const customEv = e as CustomEvent<{ time?: string; key?: string; value?: string }>;
+      const timeStr = customEv.detail?.time || (customEv.detail?.key === 'cutoff_time' ? customEv.detail.value : null);
+      if (timeStr && typeof timeStr === 'string') {
+        const [h, m] = timeStr.split(':');
+        const hour = parseInt(h, 10) || 8;
+        const minute = parseInt(m, 10) || 0;
+        cutoffCacheRef.current = { value: { hour, minute }, at: Date.now() };
+      } else {
+        cutoffCacheRef.current = null;
+      }
+    };
+
+    window.addEventListener('presence:cutoff-time-changed', handleCutoffUpdate);
+    window.addEventListener('presence:settings-updated', handleCutoffUpdate);
+
+    const channel = supabase
+      .channel('kiosk-cutoff-realtime-listener')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'attendance_settings',
+        filter: 'key=eq.cutoff_time',
+      }, (payload: any) => {
+        const val = payload.new?.value;
+        if (val && typeof val === 'string') {
+          const [h, m] = val.split(':');
+          const hour = parseInt(h, 10) || 8;
+          const minute = parseInt(m, 10) || 0;
+          cutoffCacheRef.current = { value: { hour, minute }, at: Date.now() };
+        } else {
+          cutoffCacheRef.current = null;
+        }
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('presence:cutoff-time-changed', handleCutoffUpdate);
+      window.removeEventListener('presence:settings-updated', handleCutoffUpdate);
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const [isCameraListOpen, setIsCameraListOpen] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPressActiveRef = useRef(false);
@@ -650,9 +695,9 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
           const video = webcamRef.current?.video;
           const crop = video ? captureFaceArea(video, face.box) : null;
 
-          // Cutoff is cached for 5 minutes — no per-student network round-trip
+          // Cutoff is synced in real-time — instant update on any school-wide change
           let cutoffTime = cutoffCacheRef.current?.value;
-          if (!cutoffTime || Date.now() - (cutoffCacheRef.current?.at ?? 0) > 300_000) {
+          if (!cutoffTime || Date.now() - (cutoffCacheRef.current?.at ?? 0) > 60_000) {
             cutoffTime = await getAttendanceCutoffTime();
             cutoffCacheRef.current = { value: cutoffTime, at: Date.now() };
           }
@@ -1046,14 +1091,17 @@ const FuturisticFaceScanner: React.FC<FuturisticFaceScannerProps> = ({ onScanCom
       const reviewQueue: PendingManualReview[] = [];
       let recognizedCount = 0;
 
-      // Get cutoff time from settings - with timeout
-      let cutoffTimeObj = { hour: 9, minute: 0 };
+      // Get cutoff time from settings - with timeout and realtime cache fallback
+      let cutoffTimeObj = cutoffCacheRef.current?.value || { hour: 8, minute: 0 };
       let isPastCutoff = false;
       try {
-        cutoffTimeObj = await withTimeout(getAttendanceCutoffTime(), 3000, 'Cutoff time fetch failed');
+        if (!cutoffCacheRef.current?.value) {
+          cutoffTimeObj = await withTimeout(getAttendanceCutoffTime(), 2000, 'Cutoff time fetch failed');
+          cutoffCacheRef.current = { value: cutoffTimeObj, at: Date.now() };
+        }
         isPastCutoff = isPastCutoffTime(cutoffTimeObj);
       } catch (e) {
-        console.warn('Using default cutoff time:', e);
+        cutoffTimeObj = { hour: 8, minute: 0 };
         isPastCutoff = isPastCutoffTime(cutoffTimeObj);
       }
       

@@ -487,7 +487,7 @@ async function isPastCutoffTime(): Promise<boolean> {
     return now > target;
   } catch {
     const now = new Date();
-    const t   = new Date(); t.setHours(9, 0, 0, 0);
+    const t   = new Date(); t.setHours(8, 0, 0, 0);
     return now > t;
   }
 }

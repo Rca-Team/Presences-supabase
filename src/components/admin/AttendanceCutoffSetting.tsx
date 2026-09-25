@@ -19,8 +19,8 @@ import {
 import { useRealtimeSettings } from '@/hooks/useRealtimeSettings';
 
 const PRESET_TIMES = [
-  { label: '7:30 AM', value: '07:30' },
-  { label: '8:00 AM', value: '08:00' },
+  { label: '7:45 AM', value: '07:45' },
+  { label: '8:00 AM (Default)', value: '08:00' },
   { label: '8:15 AM', value: '08:15' },
   { label: '8:30 AM', value: '08:30' },
   { label: '9:00 AM', value: '09:00' },
@@ -36,9 +36,9 @@ const AttendanceCutoffSetting: React.FC = () => {
     setSaveFaceSamples,
   } = useRealtimeSettings();
 
-  // Helper to format 24h string "08:15" to 12h display
+  // Helper to format 24h string "08:00" to 12h display
   const formatTime12h = (time24: string) => {
-    if (!time24) return '8:15 AM';
+    if (!time24) return '8:00 AM';
     const [hStr, mStr] = time24.split(':');
     const h = parseInt(hStr, 10) || 0;
     const m = parseInt(mStr, 10) || 0;

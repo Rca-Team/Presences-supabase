@@ -36,7 +36,7 @@ export interface SchoolSettings {
 }
 
 export const DEFAULT_SETTINGS: SchoolSettings = {
-  cutoffTime: '08:15',
+  cutoffTime: '08:00',
   saveFaceSamples: true,
   requireScanConfirmation: true,
   pilotEnabled: false,
@@ -213,8 +213,11 @@ export function useRealtimeSettings() {
   // Convenience Setters
   const setCutoffTime = useCallback((time: string) => {
     updateSetting('cutoff_time', time, prev => ({ ...prev, cutoffTime: time }));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('presence:cutoff-time-changed', { detail: { time } }));
+    }
     toast.success('Cutoff Time Updated', {
-      description: `Arrivals after ${time} will be flagged as late. (Realtime Active)`,
+      description: `Arrivals after ${time} will be flagged as late. (Realtime updated across school)`,
     });
   }, [updateSetting]);
 
@@ -338,7 +341,12 @@ export function useRealtimeSettings() {
             const lower = val.toLowerCase().trim();
             const asBool = lower === 'true' || lower === '1' || lower === 'enabled';
 
-            if (key === 'cutoff_time') next.cutoffTime = val || '08:15';
+            if (key === 'cutoff_time') {
+              next.cutoffTime = val || '08:00';
+              if (typeof window !== 'undefined' && val) {
+                window.dispatchEvent(new CustomEvent('presence:cutoff-time-changed', { detail: { time: val } }));
+              }
+            }
             else if (key === 'save_attendance_face_samples') next.saveFaceSamples = asBool;
             else if (key === 'pilot_enabled') next.pilotEnabled = asBool;
             else if (key === 'pilot_class') next.pilotClass = val || '8';

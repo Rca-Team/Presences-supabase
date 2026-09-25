@@ -25,7 +25,7 @@ export const RealtimeSettingsHeader: React.FC = () => {
   } = useRealtimeSettings();
 
   const formatTime12h = (time24: string) => {
-    if (!time24) return '8:15 AM';
+    if (!time24) return '8:00 AM';
     const [hStr, mStr] = time24.split(':');
     const h = parseInt(hStr, 10) || 0;
     const m = parseInt(mStr, 10) || 0;

@@ -41,6 +41,7 @@ import {
   resolveStudentClass,
   registerStudentIdentity,
 } from '@/utils/studentIdentityResolver';
+import { getCutoffTime, updateCutoffTime } from '@/services/attendance/AttendanceSettingsService';
 
 interface StudentRecord {
   name: string;
@@ -102,6 +103,69 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
   const [classBreakdowns, setClassBreakdowns] = useState<ClassBreakdownItem[]>([]);
   const [gatePassStats, setGatePassStats] = useState({ totalToday: 0, active: 0, pending: 0 });
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
+  const [cutoffTime, setCutoffTime] = useState<string>('08:00');
+  const [isCutoffModalOpen, setIsCutoffModalOpen] = useState(false);
+  const [customCutoffInput, setCustomCutoffInput] = useState('08:00');
+  const [isUpdatingCutoff, setIsUpdatingCutoff] = useState(false);
+
+  const format12Hour = (time24: string) => {
+    if (!time24) return '8:00 AM';
+    const [hStr, mStr] = time24.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr || '0', 10);
+    if (isNaN(h)) return '8:00 AM';
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    const minuteStr = m < 10 ? `0${m}` : `${m}`;
+    return `${hour12}:${minuteStr} ${period}`;
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    getCutoffTime().then(time => {
+      if (isMounted && time) {
+        setCutoffTime(time);
+        setCustomCutoffInput(time);
+      }
+    });
+
+    const handleCutoffChange = (e: Event) => {
+      const custom = e as CustomEvent<{ time?: string }>;
+      if (custom.detail?.time) {
+        setCutoffTime(custom.detail.time);
+        setCustomCutoffInput(custom.detail.time);
+      }
+    };
+
+    window.addEventListener('presence:cutoff-time-changed', handleCutoffChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('presence:cutoff-time-changed', handleCutoffChange);
+    };
+  }, []);
+
+  const handleSetCutoff = async (newTime: string) => {
+    try {
+      setIsUpdatingCutoff(true);
+      await updateCutoffTime(newTime);
+      setCutoffTime(newTime);
+      setCustomCutoffInput(newTime);
+      toast({
+        title: 'Cutoff Time Updated',
+        description: `School attendance cutoff updated to ${format12Hour(newTime)}. All kiosks & dashboards synchronized.`,
+      });
+      setIsCutoffModalOpen(false);
+    } catch (error) {
+      console.error('Failed to update cutoff time:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not update cutoff time. Please try again.',
+      });
+    } finally {
+      setIsUpdatingCutoff(false);
+    }
+  };
 
   const handleNavigate = (tabId: string) => {
     if (onNavigateTab) {
@@ -518,7 +582,19 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsCutoffModalOpen(true)}
+            className="h-8 px-2.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 gap-1.5 transition-all shadow-xs cursor-pointer"
+            title="Click to adjust attendance cutoff time for whole school"
+          >
+            <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span>Cutoff: {format12Hour(cutoffTime)}</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 font-mono font-bold">Adjust</span>
+          </Button>
+
           {isConnected ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -565,6 +641,14 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
 
             {/* Quick Human Action Buttons */}
             <div className="w-full lg:w-auto flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-border/60">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setIsCutoffModalOpen(true)}
+                className="text-xs h-9 px-3 gap-1.5 rounded-xl border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Cutoff: {format12Hour(cutoffTime)}
+              </Button>
               <Button 
                 size="sm" 
                 variant="outline" 
@@ -637,7 +721,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
           icon={Clock} 
           color="text-amber-600 dark:text-amber-400" 
           bgColor="bg-amber-500/10" 
-          helper="After 08:15 AM"
+          helper={`After ${format12Hour(cutoffTime)}`}
           onClick={() => {
             setStatusFilter('late');
             const el = document.getElementById('student-directory-section');
@@ -1053,6 +1137,116 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cutoff Time Real-Time Adjustment Dialog */}
+      <Dialog open={isCutoffModalOpen} onOpenChange={setIsCutoffModalOpen}>
+        <DialogContent className="sm:max-w-[480px] p-6 rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-black tracking-tight">
+                  Attendance Cutoff Time
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Arrivals after this cutoff time are automatically marked as Late across the whole school.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Live Indicator Banner */}
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                </span>
+                <span className="text-xs font-semibold text-foreground">Active School Cutoff:</span>
+              </div>
+              <Badge variant="outline" className="text-sm font-mono font-bold px-3 py-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                {format12Hour(cutoffTime)}
+              </Badge>
+            </div>
+
+            {/* Quick 1-Click Presets */}
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+                1-Click Presets
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { time: '07:45', label: '7:45 AM' },
+                  { time: '08:00', label: '8:00 AM (Default)' },
+                  { time: '08:15', label: '8:15 AM' },
+                  { time: '08:30', label: '8:30 AM' },
+                  { time: '08:45', label: '8:45 AM' },
+                  { time: '09:00', label: '9:00 AM' },
+                ].map(preset => {
+                  const isCurrent = cutoffTime === preset.time;
+                  return (
+                    <button
+                      key={preset.time}
+                      type="button"
+                      disabled={isUpdatingCutoff}
+                      onClick={() => handleSetCutoff(preset.time)}
+                      className={cn(
+                        "flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                        isCurrent 
+                          ? "bg-amber-500 text-slate-950 font-bold border-amber-500 shadow-md shadow-amber-500/20" 
+                          : "bg-card border-border/80 text-foreground hover:bg-muted/80 hover:border-amber-500/30"
+                      )}
+                    >
+                      <span>{preset.label}</span>
+                      {preset.time === '08:00' && !isCurrent && (
+                        <span className="text-[9px] text-muted-foreground font-normal">Default</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Time Selector */}
+            <div className="pt-2 border-t border-border/60">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+                Or Custom Cutoff Time
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={customCutoffInput}
+                  onChange={(e) => setCustomCutoffInput(e.target.value)}
+                  className="flex-1 h-10 px-3 rounded-xl border border-input bg-background font-mono text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                />
+                <Button
+                  onClick={() => handleSetCutoff(customCutoffInput)}
+                  disabled={isUpdatingCutoff || customCutoffInput === cutoffTime}
+                  className="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
+                >
+                  {isUpdatingCutoff ? 'Updating...' : 'Set Cutoff'}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                ⚡ Changes apply <strong>instantly</strong> across all face scanners, tablets, QR kiosks, and dashboards in the school without refreshing.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCutoffModalOpen(false)}
+              className="rounded-xl text-xs h-9"
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

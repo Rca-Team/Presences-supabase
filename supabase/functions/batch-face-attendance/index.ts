@@ -113,8 +113,8 @@ async function processBatch(supabase: any, items: CapturedItem[]) {
 
   const results: any[] = [];
 
-  // Load configured cutoff (HH:MM) from attendance_settings; default 09:00
-  let cutoffTime = '09:00';
+  // Load configured cutoff (HH:MM) from attendance_settings; default 08:00
+  let cutoffTime = '08:00';
   try {
     const { data: cutoffRow } = await supabase
       .from('attendance_settings')

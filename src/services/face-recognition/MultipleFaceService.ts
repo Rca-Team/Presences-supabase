@@ -3,6 +3,7 @@ import { detectFacesOptimized, trackFace } from './OptimizedModelService';
 import { recognizeFace } from './RecognitionService';
 import { recordAttendance } from './RecognitionService';
 import { storeFaceSample } from './ProgressiveTrainingService';
+import { getAttendanceCutoffTime } from '../attendance/AttendanceSettingsService';
 
 export interface DetectedFace {
   id: string;
@@ -240,9 +241,9 @@ export async function processBatchAttendance(
       if (face.recognition.recognized && face.recognition.employee) {
         result.recognized++;
         
-        // Determine status based on cutoff time
-        const isPastCutoff = cutoffTime ? 
-          isPastCutoffTime(cutoffTime) : false;
+        // Determine status based on cutoff time (defaults to live school cutoff)
+        const effectiveCutoff = cutoffTime || await getAttendanceCutoffTime();
+        const isPastCutoff = isPastCutoffTime(effectiveCutoff);
         const status = isPastCutoff ? 'late' : 'present';
         
         await recordAttendance(

@@ -66,7 +66,7 @@ export const ParentHeroCard: React.FC<ParentHeroCardProps> = ({
     late: {
       title: 'Marked Late',
       subtitle: summary.todayCheckinTime
-        ? `Arrived at ${format(new Date(summary.todayCheckinTime), 'hh:mm a')} (after 07:30 AM cutoff)`
+        ? `Arrived at ${format(new Date(summary.todayCheckinTime), 'hh:mm a')} (after morning cutoff)`
         : 'Arrived after cutoff',
       badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
       dotClass: 'bg-amber-500',

@@ -43,6 +43,7 @@ import LiteModeToggle from '@/components/LiteModeToggle';
 import { useToast } from '@/hooks/use-toast';
 import { fetchUnifiedAttendanceStats, type UnifiedAttendanceStats } from '@/utils/attendanceStatsHelper';
 import { supabase } from '@/integrations/supabase/client';
+import { getCutoffTime } from '@/services/attendance/AttendanceSettingsService';
 
 // Apple iOS Fluid Spring Configurations
 const iosSpring = {
@@ -134,6 +135,39 @@ const Attendance: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kiosk' | 'qr' | 'analytics' | 'help'>('kiosk');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isKioskFocus, setIsKioskFocus] = useState(false);
+  const [activeCutoffTime, setActiveCutoffTime] = useState<string>('08:00');
+
+  const format12Hour = (time24: string) => {
+    if (!time24) return '8:00 AM';
+    const [hStr, mStr] = time24.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr || '0', 10);
+    if (isNaN(h)) return '8:00 AM';
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    const minuteStr = m < 10 ? `0${m}` : `${m}`;
+    return `${hour12}:${minuteStr} ${period}`;
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    getCutoffTime().then(time => {
+      if (isMounted && time) setActiveCutoffTime(time);
+    });
+
+    const handleCutoffChange = (e: Event) => {
+      const custom = e as CustomEvent<{ time?: string }>;
+      if (custom.detail?.time) {
+        setActiveCutoffTime(custom.detail.time);
+      }
+    };
+
+    window.addEventListener('presence:cutoff-time-changed', handleCutoffChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('presence:cutoff-time-changed', handleCutoffChange);
+    };
+  }, []);
 
   // Live Synchronized Attendance Stats
   const [stats, setStats] = useState<UnifiedAttendanceStats>({
@@ -256,13 +290,17 @@ const Attendance: React.FC = () => {
                     <Zap className="w-5 h-5 fill-current" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">
                         Lite Mode Terminal Active
                       </span>
                       <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         LIVE SYNC
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        Cutoff: {format12Hour(activeCutoffTime)}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -351,6 +389,9 @@ const Attendance: React.FC = () => {
                   <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
                     {stats.lateToday}
                   </div>
+                  <div className="text-[10px] text-amber-600/80 font-medium truncate mt-0.5">
+                    After {format12Hour(activeCutoffTime)}
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 sm:p-3.5 shadow-xs">
@@ -409,15 +450,24 @@ const Attendance: React.FC = () => {
                       <Scan className="h-5 w-5" />
                     </div>
                     <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-extrabold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white">
                           Presences<span className="text-blue-500">.</span>AI
                         </span>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                           School Attendance
                         </span>
+                        <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20" title={`Arrivals after ${format12Hour(activeCutoffTime)} are marked Late`}>
+                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>Cutoff: {format12Hour(activeCutoffTime)}</span>
+                        </span>
                       </div>
-                      <AppleLiveClock />
+                      <div className="flex items-center gap-2">
+                        <AppleLiveClock />
+                        <span className="sm:hidden inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                          Cutoff {format12Hour(activeCutoffTime)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -556,7 +606,7 @@ const Attendance: React.FC = () => {
                           </span>
                         </div>
                         <div className="mt-2 text-[10px] sm:text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 truncate">
-                          Before cutoff
+                          Before {format12Hour(activeCutoffTime)}
                         </div>
                       </div>
 
@@ -573,11 +623,11 @@ const Attendance: React.FC = () => {
                             {isInitialLoading ? <span className="opacity-40">...</span> : <AnimatedNumber value={stats.lateToday} />}
                           </span>
                           <span className="text-[11px] text-amber-600/80 font-bold hidden sm:inline">
-                            after cutoff
+                            after {format12Hour(activeCutoffTime)}
                           </span>
                         </div>
                         <div className="mt-2 text-[10px] sm:text-[11px] font-semibold text-amber-600 dark:text-amber-400 truncate">
-                          {stats.lateToday > 0 ? 'Notified guardians' : 'No late arrivals'}
+                          {stats.lateToday > 0 ? 'Notified guardians' : `No late arrivals (> ${format12Hour(activeCutoffTime)})`}
                         </div>
                       </div>
 

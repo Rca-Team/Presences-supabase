@@ -8,7 +8,7 @@ const corsHeaders = {
 }
 
 // Default cutoff time settings
-const DEFAULT_CUTOFF_HOUR = 9;  // 9 AM
+const DEFAULT_CUTOFF_HOUR = 8;  // 8 AM
 const DEFAULT_CUTOFF_MINUTE = 0;
 
 interface FaceBox {

@@ -61,24 +61,63 @@ export const invalidateCutoffCache = () => {
 // Real-time synchronization listeners to invalidate cache on any change across whole school
 if (typeof window !== 'undefined') {
   window.addEventListener('presence:settings-updated', (e: Event) => {
-    const custom = e as CustomEvent<{ key?: string }>;
+    const custom = e as CustomEvent<{ key?: string; value?: string }>;
     if (!custom.detail?.key || custom.detail.key === 'cutoff_time') {
+      if (custom.detail?.value) {
+        cutoffTimeCache = {
+          value: custom.detail.value,
+          expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
+        };
+      } else {
+        invalidateCutoffCache();
+      }
+    }
+  });
+
+  window.addEventListener('presence:cutoff-time-changed', (e: Event) => {
+    const custom = e as CustomEvent<{ time?: string }>;
+    if (custom.detail?.time) {
+      cutoffTimeCache = {
+        value: custom.detail.time,
+        expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
+      };
+    } else {
       invalidateCutoffCache();
     }
   });
 
   supabase
     .channel('attendance_cutoff_service_sync')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_settings', filter: 'key=eq.cutoff_time' }, () => {
-      invalidateCutoffCache();
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_settings', filter: 'key=eq.cutoff_time' }, (payload: any) => {
+      const val = payload.new?.value;
+      if (val && typeof val === 'string') {
+        cutoffTimeCache = {
+          value: val,
+          expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
+        };
+        window.dispatchEvent(new CustomEvent('presence:cutoff-time-changed', { detail: { time: val } }));
+      } else {
+        invalidateCutoffCache();
+      }
     })
     .subscribe();
 }
 
 /**
- * Update the cutoff time for attendance in the settings table
+ * Update the cutoff time for attendance in the settings table and broadcast to whole school in real time
  */
 export const updateCutoffTime = async (time: string): Promise<boolean> => {
+  // Update local cache immediately
+  cutoffTimeCache = {
+    value: time,
+    expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
+  };
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('presence:settings-updated', { detail: { key: 'cutoff_time', value: time } }));
+    window.dispatchEvent(new CustomEvent('presence:cutoff-time-changed', { detail: { time } }));
+  }
+
   // First check if setting exists
   const { data, error } = await supabase
     .from('attendance_settings')
@@ -112,17 +151,7 @@ export const updateCutoffTime = async (time: string): Promise<boolean> => {
     }
   }
 
-  console.log('Cutoff time saved successfully:', time);
-  cutoffTimeCache = {
-    value: time,
-    expiresAt: Date.now() + CUTOFF_CACHE_TTL_MS,
-  };
-
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('presence:settings-updated', { detail: { key: 'cutoff_time', value: time } }));
-    window.dispatchEvent(new CustomEvent('presence:cutoff-time-changed', { detail: { time } }));
-  }
-
+  console.log('Cutoff time saved and broadcasted to whole school:', time);
   return true;
 };
 
