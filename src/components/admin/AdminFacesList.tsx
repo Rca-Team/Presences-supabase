@@ -108,13 +108,15 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
 
   const extractSection = (department: string): string => {
     if (!department) return '';
-    const match = department.match(/Section\s*([A-D])/i);
+    // Match "Section A" or "6-A" or "10-B" format
+    const match = department.match(/Section\s*([A-D])/i) || department.match(/^\d+\s*-\s*([A-Da-d])$/);
     return match ? match[1].toUpperCase() : '';
   };
 
   const extractClass = (department: string): string => {
     if (!department) return '';
-    const match = department.match(/(?:Class|Grade)\s*(\d+)/i);
+    // Match "Class 6" or "Grade 6" or "6-A" format
+    const match = department.match(/(?:Class|Grade)\s*(\d+)/i) || department.match(/^(\d+)\s*-[A-Da-d]$/);
     return match ? match[1] : '';
   };
 

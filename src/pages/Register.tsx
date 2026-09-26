@@ -114,6 +114,7 @@ const Register = () => {
     department: departmentParam || '',
   }));
   const [faceImage, setFaceImage] = useState<string | null>(null);
+  const [extractedIdCardPhoto, setExtractedIdCardPhoto] = useState<string | null>(null);
   const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
   const [allDescriptors, setAllDescriptors] = useState<Float32Array[]>([]);
   const [allFaceImages, setAllFaceImages] = useState<string[]>([]);
@@ -320,9 +321,10 @@ const Register = () => {
       const userId = uuidv4();
 
       let idCardPhotoUrl: string | null = null;
-      if (faceImage?.startsWith('data:image/')) {
+      const photoToUpload = extractedIdCardPhoto || (faceImage?.startsWith('data:image/') ? faceImage : null);
+      if (photoToUpload?.startsWith('data:image/')) {
         try {
-          const idPhotoRes = await fetch(faceImage);
+          const idPhotoRes = await fetch(photoToUpload);
           const idPhotoBlob = await idPhotoRes.blob();
           const idPhotoFile = new File(
             [idPhotoBlob],
@@ -408,6 +410,7 @@ const Register = () => {
          clearDraftById(completedDraftId);
          setFormData(EMPTY_FORM_DATA);
          setFaceImage(null);
+         setExtractedIdCardPhoto(null);
          setFaceDescriptor(null);
          setAllDescriptors([]);
          setAllFaceImages([]);
@@ -630,8 +633,7 @@ const Register = () => {
                           }));
 
                           if (f.student_photo_data_url) {
-                            setFaceImage(f.student_photo_data_url);
-                            setFaceCaptured(false);
+                            setExtractedIdCardPhoto(f.student_photo_data_url);
                             toast({
                               title: 'ID photo extracted',
                               description: 'Student photo captured from ID card. Continue to 3D face scan for full training.',
@@ -704,13 +706,19 @@ const Register = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="email" className="flex items-center gap-2"><Mail className="w-4 h-4 text-blue-500" />Email (optional)</Label>
-                        <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} placeholder="student@school.edu" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="email" className="flex items-center gap-2"><Mail className="w-4 h-4 text-blue-500" />Email (optional)</Label>
+                          <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} placeholder="student@school.edu" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="phone" className="flex items-center gap-2"><Phone className="w-4 h-4 text-blue-500" />Student Phone (optional)</Label>
+                          <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} placeholder="+91 98765 43210" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" />
+                        </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="address" className="flex items-center gap-2"><MapPin className="w-4 h-4 text-blue-500" />Address</Label>
+                        <Label htmlFor="address" className="flex items-center gap-2"><MapPin className="w-4 h-4 text-blue-500" />Address (optional)</Label>
                         <textarea
                           id="address"
                           name="address"
@@ -720,6 +728,11 @@ const Register = () => {
                           rows={2}
                           className="w-full rounded-md border border-blue-100 dark:border-blue-900 bg-white/50 dark:bg-slate-800/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="medicalInfo" className="flex items-center gap-2"><Heart className="w-4 h-4 text-rose-500" />Medical Info / Allergies (optional)</Label>
+                        <Input id="medicalInfo" name="medicalInfo" value={formData.medicalInfo} onChange={handleInputChange} placeholder="e.g. Asthma, Peanut allergy, None" className="h-11 bg-white/50 dark:bg-slate-800/50 border-blue-100 dark:border-blue-900" />
                       </div>
 
                       {/* Parent/Guardian */}

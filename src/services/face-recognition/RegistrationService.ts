@@ -150,20 +150,28 @@ export const registerFace = async (
     const stableStudentUserId = existingRegistrationUserId || userId || user?.id || null;
     console.log('Using stable student user ID:', stableStudentUserId);
 
+    // Parse class & section from "6-A" style department string
+    const rawDept = String(parentContactInfo?.class_section || department || '').trim();
+    const deptMatch = rawDept.match(/^(\d+)\s*-\s*([A-Da-d])$/);
+    const parsedClass = deptMatch ? deptMatch[1] : (rawDept || null);
+    const parsedSection = deptMatch ? deptMatch[2].toUpperCase() : null;
+
     // Insert/update registration record
     const insertData: Record<string, any> = {
       timestamp: new Date().toISOString(),
       status: 'registered',
       source: 'registration',
       capture_mode: faceModel?.capture_mode ?? 'scan-3d',
-      class: (parentContactInfo?.class_section || department || null),
-      section: null,
+      class: parsedClass,
+      section: parsedSection,
       student_name: name,
       student_id: employee_id || null,
       device_info: deviceInfo,
       image_url: imageUrl,
       face_descriptor: faceDescriptorString,
-      category: category || 'A'
+      category: category || rawDept || 'A',
+      roll_number: parentContactInfo?.roll_number || position || null,
+      confidence_score: 1.0,
     };
     
     // Only include user_id if we have one
@@ -269,6 +277,61 @@ export const registerFace = async (
         console.warn('face_descriptors write failed (non-fatal):', fdErr.message);
       } else {
         console.log('face_descriptors written for', name, '(userId:', studentDescriptorUserId, ')');
+      }
+    }
+
+    // ── Write to profiles table so all profile-based components have this student's data ──
+    const targetUserId = descriptorUserIdUsed || stableStudentUserId;
+    if (targetUserId) {
+      try {
+        const profilePayload: Record<string, any> = {
+          user_id: targetUserId,
+          display_name: name,
+          full_name: name,
+          admission_number: employee_id || null,
+          employee_id: employee_id || null,
+          class: parsedClass,
+          section: parsedSection,
+          category: category || rawDept || null,
+          roll_number: parentContactInfo?.roll_number || position || null,
+          phone: parentContactInfo?.phone || null,
+          email: parentContactInfo?.student_email || null,
+          parent_name: parentContactInfo?.parent_name || null,
+          parent_phone: parentContactInfo?.parent_phone || null,
+          parent_email: parentContactInfo?.parent_email || null,
+          blood_group: parentContactInfo?.blood_group || null,
+          address: parentContactInfo?.address || null,
+          avatar_url: imageUrl,
+          photo_url: imageUrl,
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...metadata,
+            ...parentContactInfo,
+            registration_source: 'student_registration_page',
+          },
+        };
+
+        // Check if profile exists for this user_id or admission_number
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .or(`user_id.eq.${targetUserId}${employee_id ? `,admission_number.eq.${employee_id}` : ''}`)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingProfile?.id) {
+          await supabase
+            .from('profiles')
+            .update(profilePayload)
+            .eq('id', existingProfile.id);
+        } else {
+          await supabase
+            .from('profiles')
+            .insert(profilePayload);
+        }
+        console.log('Profile synced successfully for', name);
+      } catch (profileErr) {
+        console.warn('Profile sync failed (non-fatal):', profileErr);
       }
     }
 
