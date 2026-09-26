@@ -260,6 +260,52 @@ export const SmartBoardMode: React.FC = () => {
     loadClassData();
   }, [loadClassData]);
 
+  // Quick mark attendance directly on smart board touchscreen
+  const handleQuickMarkAttendance = async (student: ClassStudent, status: 'present' | 'late' | 'absent') => {
+    if (!activeClass) return;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+    // Optimistic UI update
+    setStudents((prev) =>
+      prev.map((s) => (s.id === student.id ? { ...s, today_status: status, today_time: timeStr } : s))
+    );
+
+    try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      let del = supabase
+        .from('attendance_records')
+        .delete()
+        .gte('timestamp', startOfToday.toISOString())
+        .lte('timestamp', endOfToday.toISOString());
+
+      if (student.user_id) del = del.eq('user_id', student.user_id);
+      else del = del.eq('student_name', student.name);
+
+      await del;
+
+      await supabase.from('attendance_records').insert({
+        user_id: student.user_id || null,
+        student_id: student.admission_number || student.roll_number || null,
+        student_name: student.name,
+        class: activeClass.class,
+        section: activeClass.section,
+        category: activeClass.category,
+        roll_number: student.roll_number || null,
+        status: status,
+        source: 'smart-board-mode',
+        capture_mode: 'manual',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('Smart board attendance marking error:', err);
+    }
+  };
+
   // Attendance metrics
   const totalStudents = students.length;
   const presentCount = students.filter((s) => s.today_status === 'present').length;
@@ -575,19 +621,46 @@ export const SmartBoardMode: React.FC = () => {
                     </div>
                   </div>
 
-                  <span
-                    className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold uppercase shrink-0 border ${
-                      isPresent
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                        : isLate
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                        : isAbsent
-                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}
-                  >
-                    {student.today_status || 'Unmarked'}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickMarkAttendance(student, 'present')}
+                      className={`h-8 px-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center border active:scale-95 ${
+                        isPresent
+                          ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-emerald-950/40 hover:text-emerald-300'
+                      }`}
+                      title="Mark Present"
+                    >
+                      P
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleQuickMarkAttendance(student, 'late')}
+                      className={`h-8 px-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center border active:scale-95 ${
+                        isLate
+                          ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-600/30'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-amber-950/40 hover:text-amber-300'
+                      }`}
+                      title="Mark Late"
+                    >
+                      L
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleQuickMarkAttendance(student, 'absent')}
+                      className={`h-8 px-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center border active:scale-95 ${
+                        isAbsent
+                          ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-rose-950/40 hover:text-rose-300'
+                      }`}
+                      title="Mark Absent"
+                    >
+                      A
+                    </button>
+                  </div>
                 </div>
               );
             })}
