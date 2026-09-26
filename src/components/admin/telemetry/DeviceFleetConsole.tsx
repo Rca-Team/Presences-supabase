@@ -41,6 +41,7 @@ import {
   Bug,
   Flame,
   Building,
+  Camera,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,6 +52,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { shareOrDownloadFile } from '@/utils/nativeShare';
 import { TelemetrySessionData, ClientErrorRecord } from '@/services/DeviceTelemetryService';
+import RemoteCameraRelayController from '@/components/admin/telemetry/RemoteCameraRelayController';
+import SatelliteCameraNodeModal from '@/components/attendance/SatelliteCameraNodeModal';
 
 interface DeviceFleetConsoleProps {
   onLock: () => void;
@@ -69,6 +72,8 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
   const [activeTab, setActiveTab] = useState<'fleet' | 'map' | 'security' | 'activity'>('fleet');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [showCameraRelayModal, setShowCameraRelayModal] = useState(false);
+  const [showSatelliteNodeModal, setShowSatelliteNodeModal] = useState(false);
   const [isSendingCommand, setIsSendingCommand] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -344,6 +349,26 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCameraRelayModal(true)}
+              className="h-8.5 rounded-xl border-emerald-500/40 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold btn-spring"
+            >
+              <Camera className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
+              Remote Camera Relay
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowSatelliteNodeModal(true)}
+              className="h-8.5 rounded-xl border-indigo-500/40 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-bold btn-spring"
+            >
+              <Smartphone className="w-3.5 h-3.5 mr-1.5 text-indigo-400" />
+              Start Camera Station
+            </Button>
+
             <Button
               size="sm"
               variant="outline"
@@ -1147,6 +1172,21 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
             </div>
           </motion.div>
         </div>
+      )}
+      {/* Remote Cross-Device Camera Relay Controller Modal */}
+      {showCameraRelayModal && (
+        <RemoteCameraRelayController
+          isOpen={showCameraRelayModal}
+          onClose={() => setShowCameraRelayModal(false)}
+        />
+      )}
+
+      {/* Satellite Camera Station Node Modal */}
+      {showSatelliteNodeModal && (
+        <SatelliteCameraNodeModal
+          isOpen={showSatelliteNodeModal}
+          onClose={() => setShowSatelliteNodeModal(false)}
+        />
       )}
     </div>
   );
