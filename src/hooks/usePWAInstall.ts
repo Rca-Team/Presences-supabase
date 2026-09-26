@@ -10,42 +10,53 @@ export const usePWAInstall = () => {
   const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [deviceLabel, setDeviceLabel] = useState('Mobile Device');
 
   useEffect(() => {
-    // Check if already installed
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
-      || (window.navigator as any).standalone === true;
+    if (typeof window === 'undefined') return;
+
+    const ua = navigator.userAgent || '';
+    const android = /Android/i.test(ua);
+    const ios = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+    const mobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua) || window.innerWidth <= 840;
+
+    setIsAndroid(android);
+    setIsIOS(ios);
+    setIsMobile(mobile);
+    setDeviceLabel(android ? 'Android Phone' : ios ? 'iPhone / iOS' : 'Mobile Phone');
+
+    // Check if running inside installed native app / standalone PWA
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true ||
+      Boolean((window as any).Capacitor?.isNativePlatform());
+
     setIsInstalled(isStandalone);
 
-    // Skip interception if already in standalone app or on the dedicated Jarvis or Admin console
-    if (isStandalone || window.location.pathname.startsWith('/jarvis') || window.location.pathname.startsWith('/admin')) {
+    // If already installed or on desktop or admin secret radar, don't show install banner
+    if (isStandalone || !mobile) {
+      setShowPrompt(false);
       return;
     }
 
-    // Check if iOS
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    setIsIOS(ios);
+    // Check session dismissal (allows showing on EVERY new visit / session)
+    const sessionDismissed = sessionStorage.getItem('presences_mobile_install_dismissed') === 'true';
 
-    // Listen for the beforeinstallprompt event
+    // BeforeInstallPrompt listener for Android / Chromium browsers
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
-      
-      // Check if we should show the prompt (not dismissed recently)
-      const lastDismissed = localStorage.getItem('pwa-install-dismissed');
-      const dismissedTime = lastDismissed ? parseInt(lastDismissed, 10) : 0;
-      const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-      
-      // Show prompt if never dismissed or dismissed more than 7 days ago
-      if (!lastDismissed || daysSinceDismissed > 7) {
-        // Delay showing the prompt for better UX
-        setTimeout(() => setShowPrompt(true), 3000);
+
+      if (!sessionDismissed && !isStandalone) {
+        setTimeout(() => setShowPrompt(true), 1200);
       }
     };
 
-    // Listen for successful installation
+    // App installed listener
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setIsInstallable(false);
@@ -56,15 +67,16 @@ export const usePWAInstall = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // For iOS, show custom prompt if not installed
-    if (ios && !isStandalone) {
-      const lastDismissed = localStorage.getItem('pwa-install-dismissed');
-      const dismissedTime = lastDismissed ? parseInt(lastDismissed, 10) : 0;
-      const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-      
-      if (!lastDismissed || daysSinceDismissed > 7) {
-        setTimeout(() => setShowPrompt(true), 3000);
-      }
+    // For iOS or Android devices where beforeinstallprompt doesn't fire immediately
+    if (!sessionDismissed && !isStandalone) {
+      const timer = setTimeout(() => {
+        setShowPrompt(true);
+      }, 1500);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+      };
     }
 
     return () => {
@@ -74,17 +86,20 @@ export const usePWAInstall = () => {
   }, []);
 
   const install = useCallback(async () => {
-    if (!deferredPrompt) return false;
+    if (!deferredPrompt) {
+      // Fallback for browsers without direct prompt API
+      return false;
+    }
 
     try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      
+
       if (outcome === 'accepted') {
         setIsInstalled(true);
         setShowPrompt(false);
       }
-      
+
       setDeferredPrompt(null);
       return outcome === 'accepted';
     } catch (error) {
@@ -95,18 +110,22 @@ export const usePWAInstall = () => {
 
   const dismissPrompt = useCallback(() => {
     setShowPrompt(false);
-    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    try {
+      sessionStorage.setItem('presences_mobile_install_dismissed', 'true');
+    } catch {}
   }, []);
 
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
   return {
-    isInstallable: isInstallable || (isIOS && !isInstalled),
+    isInstallable: isInstallable || (isIOS && !isInstalled) || (isAndroid && !isInstalled),
     isInstalled,
     isIOS,
+    isAndroid,
     isMobile,
+    deviceLabel,
+    hasNativePrompt: Boolean(deferredPrompt),
     showPrompt: showPrompt && !isInstalled && isMobile,
     install,
     dismissPrompt,
   };
 };
+

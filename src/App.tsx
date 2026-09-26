@@ -436,11 +436,9 @@ function App() {
                           <AppErrorBoundary><AnimatedRoutes /></AppErrorBoundary>
                         </MobileAppShell>
                         {mountNonCritical && (
-                          <>
-                            <AppExperienceLayer />
-                            <PWAInstallPrompt />
-                          </>
+                          <AppExperienceLayer />
                         )}
+                        <PWAInstallPrompt />
                         <EmergencyAlertListener />
                         <RealtimeNotificationListener />
                       </NotificationPermissionGate>
