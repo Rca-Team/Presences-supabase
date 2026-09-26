@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Smartphone, LayoutGrid, Plus, Share, CheckCircle2, ArrowRight, X, Sparkles, Layers, ShieldCheck } from 'lucide-react';
+import { Smartphone, LayoutGrid, Plus, Share, CheckCircle2, ArrowRight, X, Sparkles, Layers, ShieldCheck, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
+import { downloadLatestApk, LATEST_APK_CONFIG } from '@/utils/apkDownload';
 
 interface AddWidgetToHomeScreenModalProps {
   isOpen: boolean;
@@ -162,11 +163,19 @@ export const AddWidgetToHomeScreenModal: React.FC<AddWidgetToHomeScreenModalProp
               <div className="space-y-2.5">
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-600 text-xs font-black text-white">1</span>
-                  <div>
-                    <p className="font-bold text-white">Install the Presences .APK package</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Install the compiled Android APK on your device.
+                  <div className="flex-1">
+                    <p className="font-bold text-white">Download & Install Presences .APK</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 mb-2">
+                      Get the latest compiled Android APK ({LATEST_APK_CONFIG.version} • {LATEST_APK_CONFIG.fileSize}) for full widget support.
                     </p>
+                    <Button
+                      size="sm"
+                      onClick={() => downloadLatestApk()}
+                      className="gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs h-8 rounded-lg shadow-md"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download Latest APK ({LATEST_APK_CONFIG.version})</span>
+                    </Button>
                   </div>
                 </div>
 

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { X, Download, Share, Plus, Smartphone, Feather, Sparkles, LayoutGrid, Zap, ShieldCheck } from 'lucide-react';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
+import { downloadLatestApk, LATEST_APK_CONFIG } from '@/utils/apkDownload';
 
 const PWAInstallPrompt: React.FC = () => {
   const { showPrompt, isIOS, isAndroid, deviceLabel, install, dismissPrompt } = usePWAInstall();
@@ -111,25 +112,40 @@ const PWAInstallPrompt: React.FC = () => {
               </div>
             </div>
           ) : (
-            // Android / Standard Mobile Install Card
-            <div className="space-y-2">
+            // Android / Standard Mobile Install Card with Prominent Latest APK Download
+            <div className="space-y-2.5">
+              <Button
+                size="sm"
+                onClick={() => downloadLatestApk()}
+                className="w-full gap-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white font-bold text-xs h-11 rounded-xl shadow-lg shadow-emerald-500/25 border border-white/20 transition-all hover:scale-[1.01]"
+              >
+                <Download className="h-4 w-4 text-emerald-200" />
+                <span className="flex items-center gap-1.5">
+                  <span>Download Latest Android App (.APK)</span>
+                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-mono">
+                    {LATEST_APK_CONFIG.version} • {LATEST_APK_CONFIG.fileSize}
+                  </span>
+                </span>
+              </Button>
+
               <div className="flex gap-2">
                 <Button
                   size="sm"
+                  variant="outline"
                   onClick={handleInstallFull}
-                  className="flex-1 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs h-10 rounded-xl shadow-md shadow-blue-500/25"
+                  className="flex-1 gap-1.5 text-xs font-semibold h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white border-white/15"
                 >
-                  <Download className="h-4 w-4" />
-                  <span>Install App (.APK / PWA)</span>
+                  <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+                  <span>Instant Web App</span>
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={handleInstallLite}
-                  className="gap-1.5 text-xs font-semibold h-10 rounded-xl bg-white/10 hover:bg-white/20 text-white border-white/15"
+                  className="gap-1.5 text-xs font-semibold h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white border-white/15"
                   title="Super lightweight for low-RAM phones"
                 >
-                  <Feather className="h-3.5 w-3.5 text-emerald-400" />
+                  <Feather className="h-3.5 w-3.5 text-amber-400" />
                   <span>Lite Mode</span>
                 </Button>
               </div>

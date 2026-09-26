@@ -3,6 +3,7 @@ import { Download, Feather, Share, Plus, Check, Smartphone, Apple, Monitor, More
 import { Button } from '@/components/ui/button';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
+import { downloadLatestApk, LATEST_APK_CONFIG } from '@/utils/apkDownload';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -111,10 +112,20 @@ const HomeInstallCard: React.FC = () => {
         </div>
 
         {/* Install actions */}
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <Button onClick={() => void handle('full')} className="gap-2">
+        <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+          {platform === 'android' && (
+            <Button
+              onClick={() => downloadLatestApk()}
+              className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download Android .APK ({LATEST_APK_CONFIG.version})</span>
+            </Button>
+          )}
+
+          <Button onClick={() => void handle('full')} variant={platform === 'android' ? 'outline' : 'default'} className="gap-2">
             {done === 'full' ? <Check className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-            {done === 'full' ? 'Installed' : 'Install full app'}
+            {done === 'full' ? 'Installed' : platform === 'android' ? 'Install Instant Web App' : 'Install full app'}
           </Button>
           <Button variant="outline" onClick={() => void handle('lite')} className="gap-2">
             {done === 'lite' ? <Check className="h-4 w-4" /> : <Feather className="h-4 w-4" />}
