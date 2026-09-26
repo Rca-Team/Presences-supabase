@@ -163,7 +163,17 @@ export const ClassPDFIDCardImporter: React.FC<ClassPDFIDCardImporterProps> = ({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        let detailedMsg = error.message;
+        if ((error as any).context && typeof (error as any).context.json === 'function') {
+          try {
+            const errBody = await (error as any).context.json();
+            if (errBody?.error) detailedMsg = errBody.error;
+            else if (errBody?.message) detailedMsg = errBody.message;
+          } catch {}
+        }
+        throw new Error(detailedMsg);
+      }
 
       const users: ExtractedStudentCard[] = data?.users || [];
       setExtractionProgress(90);
@@ -189,9 +199,17 @@ export const ClassPDFIDCardImporter: React.FC<ClassPDFIDCardImporterProps> = ({
       });
     } catch (err: any) {
       console.error('PDF extraction failed:', err);
+      let errMsg = err.message || 'Error processing the PDF. Please verify your connection.';
+      if (err?.context && typeof err.context.json === 'function') {
+        try {
+          const body = await err.context.json();
+          if (body?.error) errMsg = body.error;
+          else if (body?.message) errMsg = body.message;
+        } catch {}
+      }
       toast({
         title: 'Extraction Failed',
-        description: err.message || 'Error processing the PDF. Please verify your connection.',
+        description: errMsg,
         variant: 'destructive',
       });
     } finally {

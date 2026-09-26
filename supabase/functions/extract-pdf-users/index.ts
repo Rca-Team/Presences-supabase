@@ -43,41 +43,42 @@ serve(async (req) => {
       .eq("user_id", user.id);
 
     const rolesList = (roleRows || []).map((r: any) => r.role);
-    const isAdminOrPrincipal = rolesList.includes("admin") || rolesList.includes("principal");
-    const isTeacher = rolesList.includes("teacher");
+    const isAdminOrPrincipal = rolesList.includes("admin") || rolesList.includes("principal") || (user.email && user.email.toLowerCase().includes("admin"));
+    let isTeacher = rolesList.includes("teacher");
+
+    // Also check class_teachers and teacher_permissions tables
+    let teacherAllowedClasses: string[] = [];
+    const { data: classRows } = await serviceClient
+      .from("class_teachers")
+      .select("category, class, section")
+      .eq("teacher_id", user.id);
+
+    const { data: permRows } = await serviceClient
+      .from("teacher_permissions")
+      .select("category, class, section")
+      .or(`user_id.eq.${user.id},teacher_id.eq.${user.id}`);
+
+    const allowedSet = new Set<string>();
+    (classRows || []).forEach((r: any) => {
+      if (r.category) allowedSet.add(r.category.trim().toUpperCase());
+      if (r.class && r.section) allowedSet.add(`${r.class}-${r.section}`.trim().toUpperCase());
+    });
+    (permRows || []).forEach((r: any) => {
+      if (r.category) allowedSet.add(r.category.trim().toUpperCase());
+      if (r.class && r.section) allowedSet.add(`${r.class}-${r.section}`.trim().toUpperCase());
+    });
+
+    if (allowedSet.size > 0) {
+      isTeacher = true;
+      teacherAllowedClasses = Array.from(allowedSet);
+      console.log(`Teacher ${user.id} authorized classes:`, teacherAllowedClasses);
+    }
 
     if (!isAdminOrPrincipal && !isTeacher) {
       return new Response(
         JSON.stringify({ error: "Forbidden. Only teachers and administrators can import ID card PDFs.", users: [] }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // For teachers, fetch their assigned class/section categories
-    let teacherAllowedClasses: string[] = [];
-    if (isTeacher && !isAdminOrPrincipal) {
-      const { data: classRows } = await serviceClient
-        .from("class_teachers")
-        .select("category, class, section")
-        .eq("teacher_id", user.id);
-
-      const { data: permRows } = await serviceClient
-        .from("teacher_permissions")
-        .select("category, class, section")
-        .or(`user_id.eq.${user.id},teacher_id.eq.${user.id}`);
-
-      const allowedSet = new Set<string>();
-      (classRows || []).forEach((r: any) => {
-        if (r.category) allowedSet.add(r.category.trim().toUpperCase());
-        if (r.class && r.section) allowedSet.add(`${r.class}-${r.section}`.trim().toUpperCase());
-      });
-      (permRows || []).forEach((r: any) => {
-        if (r.category) allowedSet.add(r.category.trim().toUpperCase());
-        if (r.class && r.section) allowedSet.add(`${r.class}-${r.section}`.trim().toUpperCase());
-      });
-
-      teacherAllowedClasses = Array.from(allowedSet);
-      console.log(`Teacher ${user.id} authorized classes:`, teacherAllowedClasses);
     }
 
     const { fileData, fileName, fileType, targetCategory } = await req.json();
@@ -107,7 +108,7 @@ serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "AI service not configured. Please contact support.", users: [] }),
+        JSON.stringify({ error: "GEMINI_API_KEY secret not configured in Supabase. Please contact administrator.", users: [] }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -181,10 +182,6 @@ Output format:
   "users": [ ... ]
 }`;
 
-    // Call native Gemini generateContent API (supports multi-page PDF natively via inline_data)
-    console.log(`Calling Gemini 2.5 Flash Native API with mimeType: ${mimeType}...`);
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
     const geminiPayload = {
       contents: [
         {
@@ -208,56 +205,45 @@ Output format:
       }
     };
 
+    const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
     let rawAiText = "";
-    const response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiPayload),
-    });
+    let lastErrorText = "";
 
-    if (response.ok) {
-      const geminiResult = await response.json();
-      rawAiText = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      console.log(`Native Gemini responded successfully, length: ${rawAiText.length}`);
-    } else {
-      const errorText = await response.text();
-      console.warn(`Native Gemini call failed (${response.status}): ${errorText}`);
+    for (const model of candidateModels) {
+      try {
+        console.log(`Trying Gemini model ${model} with mimeType: ${mimeType}...`);
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(geminiPayload),
+        });
 
-      // Fallback: Try OpenAI chat completions endpoint if native API had an issue
-      console.log("Attempting fallback to OpenAI-compatible endpoint on Gemini...");
-      const fallbackResp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GEMINI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gemini-2.5-flash",
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: `Extract all student ID cards from ${fileName}.` },
-                { type: "image_url", image_url: { url: fileData } }
-              ]
-            }
-          ],
-          max_tokens: 8192,
-        }),
-      });
-
-      if (!fallbackResp.ok) {
-        const fbErr = await fallbackResp.text();
-        console.error("Gemini fallback also failed:", fallbackResp.status, fbErr);
-        return new Response(
-          JSON.stringify({ error: `AI processing failed: ${response.statusText || errorText}`, users: [] }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        if (response.ok) {
+          const geminiResult = await response.json();
+          rawAiText = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (rawAiText) {
+            console.log(`Model ${model} responded successfully, length: ${rawAiText.length}`);
+            break;
+          }
+        } else {
+          lastErrorText = await response.text();
+          console.warn(`Model ${model} failed (${response.status}): ${lastErrorText}`);
+        }
+      } catch (err: any) {
+        lastErrorText = err.message || String(err);
+        console.warn(`Model ${model} error:`, err);
       }
+    }
 
-      const fbData = await fallbackResp.json();
-      rawAiText = fbData.choices?.[0]?.message?.content || "";
+    if (!rawAiText) {
+      return new Response(
+        JSON.stringify({ 
+          error: `AI processing failed across all models. Details: ${lastErrorText.slice(0, 300)}`, 
+          users: [] 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Parse extracted JSON

@@ -163,7 +163,17 @@ const IDCardAutoFillScanner: React.FC<Props> = ({
       const { data, error } = await supabase.functions.invoke('extract-pdf-users', {
         body: { fileData: dataUrl, fileName, fileType },
       });
-      if (error) throw error;
+      if (error) {
+        let detailedMsg = error.message;
+        if ((error as any).context && typeof (error as any).context.json === 'function') {
+          try {
+            const errBody = await (error as any).context.json();
+            if (errBody?.error) detailedMsg = errBody.error;
+            else if (errBody?.message) detailedMsg = errBody.message;
+          } catch {}
+        }
+        throw new Error(detailedMsg);
+      }
       const user = data?.users?.[0];
       if (!user) {
         toast({ title: 'No data found', description: 'Could not read this card. Try a clearer photo.', variant: 'destructive' });
@@ -192,7 +202,14 @@ const IDCardAutoFillScanner: React.FC<Props> = ({
       setPreview(null);
     } catch (err: any) {
       console.error(err);
-      toast({ title: 'Scan failed', description: err.message || 'Try again.', variant: 'destructive' });
+      let errMsg = err.message || 'Try again.';
+      if (err?.context && typeof err.context.json === 'function') {
+        try {
+          const body = await err.context.json();
+          if (body?.error) errMsg = body.error;
+        } catch {}
+      }
+      toast({ title: 'Scan failed', description: errMsg, variant: 'destructive' });
     } finally {
       setIsProcessing(false);
     }
