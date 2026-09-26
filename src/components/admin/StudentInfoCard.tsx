@@ -8,6 +8,7 @@ import { User, CheckCircle2, Clock, TrendingUp, XCircle, Award } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { useStudentCoverPhoto } from '@/utils/studentPhotoResolver';
 import { format, isSameMonth } from 'date-fns';
+import { normalizeClassSection } from '@/utils/studentIdentityResolver';
 
 interface StudentInfoCardProps {
   selectedFace: FaceInfo | null;
@@ -67,12 +68,15 @@ const StudentInfoCard: React.FC<StudentInfoCardProps> = ({
   // All-time total sessions
   const totalAllTime = attendanceDays.length + lateAttendanceDays.length;
 
-  // Derive readable Class & Section
-  const classSectionLabel = selectedFace?.class && selectedFace?.section
-    ? `Class ${selectedFace.class}-${selectedFace.section}`
-    : selectedFace?.department && selectedFace.department !== 'N/A'
-      ? `Class ${selectedFace.department}`
-      : 'Student';
+  // Derive readable Class & Section cleanly
+  const normalizedClass = normalizeClassSection(
+    selectedFace?.class,
+    selectedFace?.section,
+    selectedFace?.department !== 'N/A' ? selectedFace?.department : undefined
+  );
+  const classSectionLabel = normalizedClass
+    ? (normalizedClass.toLowerCase() === 'teacher' ? 'Teacher' : `Class ${normalizedClass}`)
+    : 'Student';
 
   // Today's status check
   const isTodayPresent = attendanceDays.some(d => {

@@ -33,8 +33,8 @@ import { getAttendanceCutoffTime, isSaveAttendanceFaceSamplesEnabledSync } from 
 import { getAllTrainedDescriptors } from './ProgressiveTrainingService';
 import { buildVectorIndex, searchVectorIndex } from './VectorIndexService';
 import { dataUrlToBlob, uploadAttendanceTrainingImage } from './TrainingDataStorageService';
-import { ensureActiveClassSession, upsertClassAttendanceEvent } from '../attendance/ClassSessionService';
-import { resolveStudentAdmissionId, resolveStudentClass } from '@/utils/studentIdentityResolver';
+import { resolveStudentAdmissionId, resolveStudentClass, normalizeClassSection } from '@/utils/studentIdentityResolver';
+import { parseClassSection } from '@/utils/teacherAccess';
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -807,6 +807,20 @@ export async function recordAttendance(
       }
     } catch (e) {
       console.warn('[AttendanceService] registered records lookup skipped:', e);
+    }
+  }
+
+  // ── Normalize & decompose Class, Section & Category (guarantees NO "11-A-A") ───
+  const normalizedCategoryString = normalizeClassSection(resolvedClass, resolvedSection, resolvedCategory);
+  if (normalizedCategoryString) {
+    const parsed = parseClassSection(normalizedCategoryString);
+    if (parsed) {
+      resolvedClass = parsed.className;
+      resolvedSection = parsed.section;
+      resolvedCategory = normalizedCategoryString;
+    } else {
+      resolvedCategory = normalizedCategoryString;
+      if (!resolvedClass) resolvedClass = normalizedCategoryString;
     }
   }
 

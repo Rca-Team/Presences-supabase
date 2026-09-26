@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeCategory } from '@/utils/teacherAccess';
 
 export interface StudentIdentityMeta {
   studentId: string;
@@ -17,6 +18,67 @@ let directoryLoadingPromise: Promise<void> | null = null;
 const norm = (s?: string | null) => (s || '').trim().toLowerCase();
 
 /**
+ * Sanitizes and normalizes any combination of class, section, and category
+ * so it NEVER produces double section concatenations like "11-A-A".
+ */
+export function normalizeClassSection(
+  rawClass?: string | number | null,
+  rawSection?: string | null,
+  rawCategory?: string | null
+): string {
+  const clsStr = rawClass !== null && rawClass !== undefined ? String(rawClass).trim() : '';
+  const secStr = rawSection !== null && rawSection !== undefined ? String(rawSection).trim().toUpperCase() : '';
+  const catStr = rawCategory !== null && rawCategory !== undefined ? String(rawCategory).trim() : '';
+
+  const clean = (s: string) =>
+    s
+      .replace(/^class\s+/i, '')
+      .replace(/^(\d+|[IVXLCDM]+)[-_ ]*([A-Za-z])(?:[-_ ]+[A-Za-z])+$/i, '$1-$2')
+      .trim();
+
+  // 1. If category provided, normalize it first
+  if (catStr && catStr !== '?' && catStr !== '—' && catStr !== 'unknown') {
+    const cleanedCat = clean(catStr);
+    const normCat = normalizeCategory(cleanedCat);
+    if (normCat) return normCat;
+    if (cleanedCat.toLowerCase() === 'teacher') return 'Teacher';
+    if (cleanedCat.toLowerCase() === 'staff') return 'Staff';
+    if (!cleanedCat.startsWith('?')) return cleanedCat;
+  }
+
+  // 2. If class provided
+  if (clsStr && clsStr !== '?' && clsStr !== '—' && clsStr !== 'unknown') {
+    const cleanedCls = clean(clsStr);
+
+    // If cleanedCls already contains both class and section (e.g. "11-A")
+    const normDirect = normalizeCategory(cleanedCls);
+    if (normDirect) {
+      return normDirect;
+    }
+
+    if (cleanedCls.toLowerCase() === 'teacher') return 'Teacher';
+    if (cleanedCls.toLowerCase() === 'staff') return 'Staff';
+
+    // If section provided and cleanedCls is pure class (e.g. "11" + "A")
+    if (secStr && secStr !== '?' && secStr !== '—') {
+      const combined = `${cleanedCls}-${secStr}`;
+      const normCombined = normalizeCategory(combined);
+      if (normCombined) return normCombined;
+      return combined;
+    }
+
+    return cleanedCls;
+  }
+
+  // 3. Fallback to section if that's all that exists
+  if (secStr && secStr !== '?' && secStr !== '—') {
+    return secStr;
+  }
+
+  return '';
+}
+
+/**
  * Register or update an identity entry in the fast local cache
  */
 export function registerStudentIdentity(meta: {
@@ -26,7 +88,7 @@ export function registerStudentIdentity(meta: {
   classSection?: string | null;
 }) {
   const validStudentId = meta.studentId && !isUuid(meta.studentId) ? String(meta.studentId).trim() : '';
-  const validClassSection = meta.classSection && meta.classSection !== '?' ? String(meta.classSection).trim() : '';
+  const validClassSection = meta.classSection && meta.classSection !== '?' ? normalizeClassSection(meta.classSection) : '';
   const name = meta.name?.trim() || '';
 
   if (!validStudentId && !validClassSection) return;
@@ -74,9 +136,7 @@ export async function prefetchStudentIdentities(): Promise<void> {
         .not('student_id', 'is', null);
 
       (descriptors || []).forEach((row) => {
-        const classSec = row.class
-          ? (row.section ? `${row.class}-${row.section}` : row.class)
-          : (row.category || '');
+        const classSec = normalizeClassSection(row.class, row.section, row.category);
         const name = (row as any).student_name || row.label;
         registerStudentIdentity({
           userId: row.user_id,
@@ -96,9 +156,7 @@ export async function prefetchStudentIdentities(): Promise<void> {
         const m = (r.device_info as any)?.metadata || {};
         const devName = r.student_name || m.name || (r.device_info as any)?.name;
         const devEmpId = r.student_id || m.employee_id || (r.device_info as any)?.employee_id || m.student_id;
-        const cls = r.class
-          ? (r.section ? `${r.class}-${r.section}` : r.class)
-          : (r.category || m.class_section || m.department || '');
+        const cls = normalizeClassSection(r.class, r.section, r.category || m.class_section || m.department);
 
         registerStudentIdentity({
           userId: r.user_id,
@@ -114,7 +172,7 @@ export async function prefetchStudentIdentities(): Promise<void> {
         .select('user_id, admission_number, employee_id, class, section, display_name');
 
       (profs || []).forEach((p) => {
-        const cls = p.class ? (p.section ? `${p.class}-${p.section}` : p.class) : '';
+        const cls = normalizeClassSection(p.class, p.section);
         registerStudentIdentity({
           userId: p.user_id,
           name: p.display_name,
@@ -182,57 +240,52 @@ export function resolveStudentAdmissionId(record: any, fallback?: string): strin
 }
 
 /**
- * Resolves student class and section
+ * Resolves student class and section cleanly without duplicate suffixes
  */
 export function resolveStudentClass(record: any, fallback?: string | null): string | null {
-  // 1. Direct class and section on record
-  if (record?.class && record?.section) {
-    return `${record.class}-${record.section}`;
-  }
-  if (record?.class) {
-    return String(record.class);
-  }
+  if (!record) return fallback !== undefined ? fallback : null;
 
-  // 2. Direct category on record
-  if (record?.category && record.category !== '?' && record.category !== 'unknown' && record.category !== '—') {
-    return String(record.category);
-  }
+  // 1. Direct class, section, and category on record
+  const fromRecord = normalizeClassSection(record.class, record.section, record.category);
+  if (fromRecord) return fromRecord;
 
-  // 3. device_info metadata
+  // 2. device_info metadata
   const devMeta = record?.device_info?.metadata;
-  if (devMeta?.class && devMeta?.section) {
-    return `${devMeta.class}-${devMeta.section}`;
-  }
-  if (devMeta?.class) {
-    return String(devMeta.class);
-  }
-  if (devMeta?.class_section && devMeta.class_section !== '?') {
-    return String(devMeta.class_section);
-  }
-  if (devMeta?.department && devMeta.department !== '?') {
-    return String(devMeta.department);
-  }
-  if (devMeta?.category && devMeta.category !== '?') {
-    return String(devMeta.category);
+  if (devMeta) {
+    const fromMeta = normalizeClassSection(
+      devMeta.class,
+      devMeta.section,
+      devMeta.category || devMeta.class_section || devMeta.department
+    );
+    if (fromMeta) return fromMeta;
   }
 
-  // 4. Cache lookup by user_id
+  // 3. Cache lookup by user_id
   if (record?.user_id && identityCacheByUserId.has(record.user_id)) {
     const cached = identityCacheByUserId.get(record.user_id);
-    if (cached?.classSection && cached.classSection !== '—') return cached.classSection;
+    if (cached?.classSection && cached.classSection !== '—') {
+      const normalized = normalizeClassSection(cached.classSection);
+      if (normalized) return normalized;
+    }
   }
 
-  // 5. Cache lookup by student_name
+  // 4. Cache lookup by student_name
   const name = record?.student_name || devMeta?.name || record?.device_info?.name;
   if (name) {
     const cached = identityCacheByName.get(norm(name));
-    if (cached?.classSection && cached.classSection !== '—') return cached.classSection;
+    if (cached?.classSection && cached.classSection !== '—') {
+      const normalized = normalizeClassSection(cached.classSection);
+      if (normalized) return normalized;
+    }
   }
 
-  // 6. If student_id was a UUID, lookup identityCacheByUserId with that UUID
+  // 5. If student_id was a UUID, lookup identityCacheByUserId with that UUID
   if (record?.student_id && isUuid(record.student_id) && identityCacheByUserId.has(record.student_id)) {
     const cached = identityCacheByUserId.get(record.student_id);
-    if (cached?.classSection && cached.classSection !== '—') return cached.classSection;
+    if (cached?.classSection && cached.classSection !== '—') {
+      const normalized = normalizeClassSection(cached.classSection);
+      if (normalized) return normalized;
+    }
   }
 
   return fallback !== undefined ? fallback : null;

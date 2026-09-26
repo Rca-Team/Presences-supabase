@@ -54,6 +54,7 @@ import {
   resolveStudentAdmissionId,
   resolveStudentClass,
   registerStudentIdentity,
+  normalizeClassSection,
 } from '@/utils/studentIdentityResolver';
 
 const STORAGE_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/face-images/`;
@@ -390,7 +391,7 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
           userId: newRecord.user_id,
           name: newRecord.student_name,
           studentId: newRecord.student_id,
-          classSection: newRecord.class ? (newRecord.section ? `${newRecord.class}-${newRecord.section}` : newRecord.class) : newRecord.category,
+          classSection: normalizeClassSection(newRecord.class, newRecord.section, newRecord.category),
         });
       }
 
@@ -431,7 +432,7 @@ const LiveAttendanceFeed: React.FC<LiveAttendanceFeedProps> = ({
                 userId: newRecord.user_id,
                 name: newRecord.student_name,
                 studentId: newRecord.student_id,
-                classSection: newRecord.class ? (newRecord.section ? `${newRecord.class}-${newRecord.section}` : newRecord.class) : newRecord.category,
+                classSection: normalizeClassSection(newRecord.class, newRecord.section, newRecord.category),
               });
             }
 

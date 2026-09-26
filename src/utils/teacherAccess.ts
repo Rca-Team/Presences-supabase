@@ -54,8 +54,14 @@ export const getWingForClass = (cls: string | number): 'Primary' | 'Middle' | 'S
 };
 
 export const normalizeCategory = (value: string): string | null => {
-  const raw = (value || '').trim();
+  let raw = (value || '').trim();
   if (!raw) return null;
+
+  // Strip duplicate section suffix (e.g., "11-A-A", "11-A:A", "Class 11-A-A", "11-A - A")
+  raw = raw
+    .replace(/^class\s+/i, '')
+    .replace(/^(\d+|[IVXLCDM]+)[-_ ]*([A-Za-z])(?:[-_ ]+[A-Za-z])+$/i, '$1-$2')
+    .trim();
 
   // Handle standard "6-A", "10-B"
   const directMatch = raw.match(/^(\d+)-([A-Z])$/i);

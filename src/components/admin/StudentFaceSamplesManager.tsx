@@ -58,6 +58,7 @@ import {
   stringToDescriptor,
 } from '@/services/face-recognition/ModelService';
 import FaceSampleDeduplicationModal from './FaceSampleDeduplicationModal';
+import { normalizeClassSection } from '@/utils/studentIdentityResolver';
 import CaptureFaceDialog from './CaptureFaceDialog';
 import { resolveStudentPhotoUrl } from '@/utils/studentPhotoResolver';
 import {
@@ -385,7 +386,7 @@ const StudentFaceSamplesManager: React.FC = () => {
         const meta = (di.metadata as Record<string, any>) || {};
         const empId = meta.employee_id || meta.roll_number || meta.admission_number || di.employee_id || row.student_id || '';
         const name = meta.name || di.name || row.student_name || '';
-        const classSec = meta.class ? `${meta.class}${meta.section ? `-${meta.section}` : ''}` : di.class_section || undefined;
+        const classSec = normalizeClassSection(meta.class, meta.section, di.class_section) || undefined;
         const norm = normalizeNameKey(name);
         if (norm && (!regMetaByName.has(norm) || row.status === 'registered' || row.image_url)) {
           regMetaByName.set(norm, {
@@ -424,7 +425,7 @@ const StudentFaceSamplesManager: React.FC = () => {
           ? existing.name
           : (profile?.full_name || profile?.display_name || (fallbackName && fallbackName !== 'Student' && fallbackName !== 'Unknown' ? fallbackName : regMeta?.name || 'Student'));
         const name = rawName || 'Student';
-        const classSec = existing?.classSection || (profile?.class ? `${profile.class}${profile?.section ? `-${profile.section}` : ''}` : regMeta?.classSection || undefined);
+        const classSec = existing?.classSection || (profile ? normalizeClassSection(profile.class, profile.section) : undefined) || regMeta?.classSection || undefined;
         const avatar = existing?.avatarUrl || profile?.avatar_url || regMeta?.imageUrl || null;
 
         if (existing) {

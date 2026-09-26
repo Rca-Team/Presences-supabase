@@ -35,6 +35,7 @@ import {
   parseCategory,
   getCategoryLabel
 } from '@/constants/schoolConfig';
+import { normalizeCategory } from '@/utils/teacherAccess';
 import {
   prefetchStudentIdentities,
   resolveStudentAdmissionId,
@@ -42,6 +43,21 @@ import {
   registerStudentIdentity,
 } from '@/utils/studentIdentityResolver';
 import { getCutoffTime, updateCutoffTime } from '@/services/attendance/AttendanceSettingsService';
+
+const formatClassBadge = (rawCategory?: string | null): string | null => {
+  if (!rawCategory || rawCategory === '?' || rawCategory === '—' || rawCategory === 'unknown') return null;
+  const trimmed = rawCategory.trim();
+  if (trimmed.toLowerCase() === 'teacher') return 'Teacher';
+  if (trimmed.toLowerCase() === 'staff') return 'Staff';
+
+  const normalized = normalizeCategory(trimmed);
+  if (normalized) return `Class ${normalized}`;
+
+  if (/^class\s+/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `Class ${trimmed}`;
+};
 
 interface StudentRecord {
   name: string;
@@ -866,11 +882,14 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                                 ID: {entry.studentId}
                               </span>
                             ) : null}
-                            {entry.category && entry.category !== '?' && entry.category !== '—' ? (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                                Class {entry.category}
-                              </span>
-                            ) : null}
+                            {(() => {
+                              const badgeLabel = formatClassBadge(entry.category);
+                              return badgeLabel ? (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                  {badgeLabel}
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
                             Checked in at {entry.time}
@@ -1109,7 +1128,7 @@ const PrincipalDashboard: React.FC<PrincipalDashboardProps> = ({ onNavigateTab }
                   </span>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Class & Section:</span>
-                    <span className="font-semibold text-right">{selectedStudentForDetail.category}</span>
+                    <span className="font-semibold text-right">{normalizeCategory(selectedStudentForDetail.category) || selectedStudentForDetail.category}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Roll / ID:</span>
