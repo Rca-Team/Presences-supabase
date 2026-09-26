@@ -51,7 +51,19 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { shareOrDownloadFile } from '@/utils/nativeShare';
-import { TelemetrySessionData, ClientErrorRecord, getRouteDisplayName } from '@/services/DeviceTelemetryService';
+import {
+  TelemetrySessionData,
+  ClientErrorRecord,
+  getRouteDisplayName,
+  getDeviceFingerprintId,
+  getSessionId,
+  collectHardwareSpecs,
+  resolveGeoLocationAndIP,
+  calculateCampusDistance,
+  getLocalActivityBuffer,
+  getClientErrorsBuffer,
+  measureCurrentFPS,
+} from '@/services/DeviceTelemetryService';
 import RemoteCameraRelayController from '@/components/admin/telemetry/RemoteCameraRelayController';
 import SatelliteCameraNodeModal from '@/components/attendance/SatelliteCameraNodeModal';
 
@@ -83,9 +95,97 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
     return () => clearInterval(timer);
   }, []);
 
-  // Listen to Supabase Realtime Fleet Presence
+  // 1. Seed immediate local device session (guarantees device is visible instantly)
   useEffect(() => {
-    const channel = supabase.channel('presence:fleet-radar');
+    let isMounted = true;
+    (async () => {
+      try {
+        const [hw, geo] = await Promise.all([
+          collectHardwareSpecs(),
+          resolveGeoLocationAndIP(),
+        ]);
+        const deviceId = getDeviceFingerprintId();
+        const sessionId = getSessionId();
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        const u = authSession?.user;
+        const meta = u?.user_metadata || {};
+
+        const initialLocalSession: TelemetrySessionData = {
+          deviceId,
+          sessionId,
+          userId: u?.id || null,
+          userName: meta.full_name || meta.name || u?.email?.split('@')[0] || 'Administrator',
+          userEmail: u?.email || null,
+          userRole: meta.role || 'Admin',
+          userAvatar: meta.avatar_url || meta.picture || undefined,
+          isAnonymous: !u?.id,
+          currentRoute: window.location.pathname,
+          pageTitle: 'Admin Center • Fleet Intelligence',
+          routeEnteredAt: Date.now(),
+          sessionStartedAt: Date.now(),
+          lastHeartbeat: Date.now(),
+          status: 'online',
+          hardware: hw,
+          geo: geo,
+          geofence: calculateCampusDistance(geo.latitude, geo.longitude),
+          security: {
+            isIncognito: false,
+            isMultiAccount: false,
+            accountsSeenCount: 1,
+            isVPNorProxy: false,
+            connectionQualityScore: 98,
+          },
+          diagnostics: {
+            fps: measureCurrentFPS(),
+            networkJitterMs: 4,
+            clientErrorsCount: getClientErrorsBuffer().length,
+            memoryPressure: 'nominal',
+          },
+          recentEvents: getLocalActivityBuffer(),
+          recentErrors: getClientErrorsBuffer(),
+        };
+
+        if (isMounted) {
+          setActiveSessions((prev) => ({
+            ...prev,
+            [deviceId]: prev[deviceId] || initialLocalSession,
+          }));
+        }
+      } catch (err) {
+        console.warn('Initial session seeding error:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 2. Listen to local and Supabase Realtime Fleet Presence
+  useEffect(() => {
+    // A. Listen for local device telemetry event for immediate zero-latency population
+    const handleLocalTelemetry = (e: any) => {
+      if (e.detail && e.detail.deviceId) {
+        setActiveSessions((prev) => ({
+          ...prev,
+          [e.detail.deviceId]: e.detail,
+        }));
+      }
+    };
+    window.addEventListener('presences:local-device-telemetry', handleLocalTelemetry);
+
+    // Request immediate telemetry sync from GlobalTelemetryTracker
+    window.dispatchEvent(new CustomEvent('presences:request-presence-sync'));
+
+    // B. Connect to Supabase Realtime Fleet Presence
+    const deviceId = getDeviceFingerprintId();
+    const channel = supabase.channel('presence:fleet-radar', {
+      config: {
+        presence: {
+          key: deviceId,
+        },
+      },
+    });
 
     channel
       .on('presence', { event: 'sync' }, () => {
@@ -100,7 +200,10 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
           }
         });
 
-        setActiveSessions(flattened);
+        setActiveSessions((prev) => ({
+          ...prev,
+          ...flattened,
+        }));
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         if (newPresences && newPresences.length > 0) {
@@ -112,15 +215,42 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
         }
       })
       .on('presence', { event: 'leave' }, ({ key }) => {
+        const localDeviceId = getDeviceFingerprintId();
         setActiveSessions((prev) => {
+          if (key === localDeviceId) return prev; // Do not remove local active session
           const copy = { ...prev };
           delete copy[key];
           return copy;
         });
-      })
-      .subscribe();
+      });
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        const state = channel.presenceState<TelemetrySessionData>();
+        const flattened: Record<string, TelemetrySessionData> = {};
+        Object.keys(state).forEach((key) => {
+          const presences = state[key];
+          if (presences && presences.length > 0) {
+            const latest = presences[presences.length - 1];
+            flattened[latest.deviceId || key] = latest;
+          }
+        });
+        if (Object.keys(flattened).length > 0) {
+          setActiveSessions((prev) => ({ ...prev, ...flattened }));
+        }
+
+        // Broadcast to all other devices to announce their presence
+        const cmdChannel = supabase.channel('broadcast:fleet-commands');
+        cmdChannel.send({
+          type: 'broadcast',
+          event: 'request_telemetry_sync',
+          payload: { timestamp: Date.now() },
+        }).catch(() => {});
+      }
+    });
 
     return () => {
+      window.removeEventListener('presences:local-device-telemetry', handleLocalTelemetry);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -180,6 +310,22 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
       return true;
     });
   }, [sessionList, statusFilter, locationFilter, deviceFilter, roleFilter, searchQuery]);
+
+  // Manual radar sync trigger
+  const handleManualSync = () => {
+    haptic('medium');
+    window.dispatchEvent(new CustomEvent('presences:request-presence-sync'));
+    const cmdChannel = supabase.channel('broadcast:fleet-commands');
+    cmdChannel.send({
+      type: 'broadcast',
+      event: 'request_telemetry_sync',
+      payload: { timestamp: Date.now() },
+    }).catch(() => {});
+    toast({
+      title: '📡 Radar Resynced',
+      description: 'Requesting live telemetry heartbeats from all connected devices...',
+    });
+  };
 
   // Send Remote Fleet Commands
   const handleSendCommand = async (
@@ -377,6 +523,16 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
             >
               <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
               Broadcast Alert
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleManualSync}
+              className="h-8.5 rounded-xl border-blue-500/40 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs font-bold btn-spring"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
+              Sync Radar
             </Button>
 
             <Button
@@ -605,6 +761,33 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                   ? 'Listening for incoming device telemetry heartbeats on Supabase Realtime channel...'
                   : 'Try clearing your search query or adjusting status/geofence filters.'}
               </p>
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleManualSync}
+                  className="gap-1.5 text-xs font-bold rounded-xl"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-primary" />
+                  <span>Sync Fleet Radar</span>
+                </Button>
+                {(searchQuery || statusFilter !== 'all' || locationFilter !== 'all' || deviceFilter !== 'all' || roleFilter !== 'all') && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setStatusFilter('all');
+                      setLocationFilter('all');
+                      setDeviceFilter('all');
+                      setRoleFilter('all');
+                    }}
+                    className="text-xs text-muted-foreground"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
             </Card>
           ) : (
             filteredSessions.map((session) => {

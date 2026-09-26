@@ -46,7 +46,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
   const [kioskLockReason, setKioskLockReason] = useState<string>('Device under maintenance by School Administrator');
 
   // Build complete advanced payload
-  const buildTelemetryPayload = useCallback((): TelemetrySessionData => {
+  const buildTelemetryPayload = (): TelemetrySessionData => {
     const deviceId = getDeviceFingerprintId();
     const sessionId = getSessionId();
     const user = currentUserRef.current;
@@ -141,24 +141,28 @@ export const GlobalTelemetryTracker: React.FC = () => {
       recentEvents: getLocalActivityBuffer(),
       recentErrors: getClientErrorsBuffer(),
     };
-  }, [location.pathname, isKioskLocked]);
+  };
 
-  // Sync state into Supabase presence
+  const buildTelemetryPayloadRef = useRef(buildTelemetryPayload);
+  buildTelemetryPayloadRef.current = buildTelemetryPayload;
+
+  // Sync state into Supabase presence (stable ref function)
   const triggerPresenceSync = useCallback(async (reason?: string) => {
-    if (!presenceChannelRef.current) return;
     try {
-      const payload = buildTelemetryPayload();
-      await presenceChannelRef.current.track(payload);
+      const payload = buildTelemetryPayloadRef.current();
+
+      // Dispatch local event for instant zero-latency admin UI reflection
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('presences:local-device-telemetry', { detail: payload }));
+      }
+
+      if (presenceChannelRef.current && isSubscribedRef.current) {
+        await presenceChannelRef.current.track(payload);
+      }
     } catch (e) {
-      // Retry after 1s if transient network hiccup
-      setTimeout(() => {
-        if (presenceChannelRef.current && isSubscribedRef.current) {
-          const retryPayload = buildTelemetryPayload();
-          presenceChannelRef.current.track(retryPayload).catch(() => {});
-        }
-      }, 1000);
+      // Ignore transient errors
     }
-  }, [buildTelemetryPayload]);
+  }, []);
 
   // 1. Capture Client Runtime Errors & Unhandled Rejections
   useEffect(() => {
@@ -333,6 +337,10 @@ export const GlobalTelemetryTracker: React.FC = () => {
       triggerPresenceSync('network_online');
     };
 
+    const handleSyncRequest = () => {
+      triggerPresenceSync('admin_sync_request');
+    };
+
     window.addEventListener('pointerdown', handleUserAction, { passive: true });
     window.addEventListener('keydown', handleUserAction, { passive: true });
     window.addEventListener('scroll', handleUserAction, { passive: true });
@@ -340,6 +348,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('pageshow', handlePageShow);
     window.addEventListener('popstate', handleUserAction);
+    window.addEventListener('presences:request-presence-sync', handleSyncRequest);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const idleCheckInterval = setInterval(() => {
@@ -358,12 +367,13 @@ export const GlobalTelemetryTracker: React.FC = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('popstate', handleUserAction);
+      window.removeEventListener('presences:request-presence-sync', handleSyncRequest);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(idleCheckInterval);
     };
   }, [triggerPresenceSync]);
 
-  // 6. Initialize Realtime presence & command channels
+  // 6. Initialize Realtime presence & command channels (Runs ONCE on mount)
   useEffect(() => {
     const deviceId = getDeviceFingerprintId();
 
@@ -389,6 +399,9 @@ export const GlobalTelemetryTracker: React.FC = () => {
     const commandChannel = supabase.channel('broadcast:fleet-commands');
 
     commandChannel
+      .on('broadcast', { event: 'request_telemetry_sync' }, () => {
+        triggerPresenceSync('fleet_broadcast_sync');
+      })
       .on('broadcast', { event: 'ping' }, (payload) => {
         const targetDeviceId = payload.payload?.targetDeviceId;
         if (!targetDeviceId || targetDeviceId === deviceId) {
@@ -452,7 +465,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
         supabase.removeChannel(commandChannelRef.current);
       }
     };
-  }, [triggerPresenceSync]);
+  }, []); // Stable lifelong channel mount
 
   // Render Kiosk Maintenance Lock Overlay if remotely locked
   if (isKioskLocked) {
