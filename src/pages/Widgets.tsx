@@ -15,6 +15,7 @@ import {
   LayoutGrid
 } from 'lucide-react';
 import { AndroidWidgetBoard } from '@/components/widgets/android/AndroidWidgetBoard';
+import { AddWidgetToHomeScreenModal } from '@/components/widgets/android/AddWidgetToHomeScreenModal';
 import { ClassStudent, ClassAssignment, getPreviousWorkingDay } from '@/components/teacher/TeacherAdminWorkspace';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -45,6 +46,7 @@ const WidgetsPage: React.FC = () => {
   const [students, setStudents] = useState<ClassStudent[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showAddWidgetModal, setShowAddWidgetModal] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -551,7 +553,16 @@ const WidgetsPage: React.FC = () => {
                 <span className="text-primary font-black ml-1">({stats.rate}%)</span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowAddWidgetModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-all active:scale-95 shadow-sm"
+                >
+                  <Smartphone className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Add to Home Screen</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={loadClassData}
@@ -582,6 +593,12 @@ const WidgetsPage: React.FC = () => {
           activeClass={activeClass}
           onRefresh={loadClassData}
           isRefreshing={isRefreshing}
+        />
+
+        {/* Home screen guide modal */}
+        <AddWidgetToHomeScreenModal
+          isOpen={showAddWidgetModal}
+          onClose={() => setShowAddWidgetModal(false)}
         />
       </main>
 
