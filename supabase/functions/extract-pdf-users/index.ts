@@ -182,14 +182,19 @@ Output format:
   "users": [ ... ]
 }`;
 
-    const geminiPayload = {
+    const buildPayload = (useCamelCase = false) => ({
       contents: [
         {
           parts: [
             {
               text: `${systemPrompt}\n\nPlease analyze this entire document ("${fileName}") and extract all Kendriya Vidyalaya student ID cards across all pages into structured JSON.`
             },
-            {
+            useCamelCase ? {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Content
+              }
+            } : {
               inline_data: {
                 mime_type: mimeType,
                 data: base64Content
@@ -198,48 +203,100 @@ Output format:
           ]
         }
       ],
-      generationConfig: {
+      generationConfig: useCamelCase ? {
+        responseMimeType: "application/json",
+        temperature: 0.1,
+        maxOutputTokens: 8192
+      } : {
         response_mime_type: "application/json",
         temperature: 0.1,
         max_output_tokens: 8192
       }
-    };
+    });
 
-    const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-    let rawAiText = "";
-    let lastErrorText = "";
+    // 1. Dynamic ListModels discovery to find all supported models for this exact API key
+    let candidateModels: { version: string; name: string }[] = [];
+    try {
+      console.log("Querying Gemini ListModels for supported models...");
+      const listResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`);
+      if (listResp.ok) {
+        const listData = await listResp.json();
+        const discovered = (listData.models || [])
+          .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
+          .map((m: any) => m.name.replace(/^models\//, ""));
 
-    for (const model of candidateModels) {
-      try {
-        console.log(`Trying Gemini model ${model} with mimeType: ${mimeType}...`);
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-        const response = await fetch(geminiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(geminiPayload),
+        console.log(`Discovered ${discovered.length} supported models:`, discovered);
+
+        // Sort: flash models first, then pro models, filter out embedding/vision-only
+        const usable = discovered.filter((m: string) => !m.includes("embedding") && !m.includes("aqa"));
+        usable.sort((a: string, b: string) => {
+          if (a.includes("2.0-flash") && !b.includes("2.0-flash")) return -1;
+          if (!a.includes("2.0-flash") && b.includes("2.0-flash")) return 1;
+          if (a.includes("flash") && !b.includes("flash")) return -1;
+          if (!a.includes("flash") && b.includes("flash")) return 1;
+          return 0;
         });
 
-        if (response.ok) {
-          const geminiResult = await response.json();
-          rawAiText = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          if (rawAiText) {
-            console.log(`Model ${model} responded successfully, length: ${rawAiText.length}`);
-            break;
-          }
-        } else {
-          lastErrorText = await response.text();
-          console.warn(`Model ${model} failed (${response.status}): ${lastErrorText}`);
-        }
-      } catch (err: any) {
-        lastErrorText = err.message || String(err);
-        console.warn(`Model ${model} error:`, err);
+        usable.forEach((m: string) => candidateModels.push({ version: "v1beta", name: m }));
+      } else {
+        const errText = await listResp.text();
+        console.warn("ListModels returned error:", listResp.status, errText);
       }
+    } catch (e: any) {
+      console.warn("ListModels query error:", e.message);
+    }
+
+    // Static fallback models if ListModels didn't return any
+    if (candidateModels.length === 0) {
+      candidateModels = [
+        { version: "v1beta", name: "gemini-2.0-flash" },
+        { version: "v1beta", name: "gemini-2.0-flash-exp" },
+        { version: "v1beta", name: "gemini-1.5-flash-latest" },
+        { version: "v1", name: "gemini-1.5-flash" },
+        { version: "v1beta", name: "gemini-1.5-pro-latest" },
+        { version: "v1", name: "gemini-1.5-pro" },
+      ];
+    }
+
+    let rawAiText = "";
+    const attemptErrors: string[] = [];
+
+    // Try candidate models in order of capability and speed
+    for (const item of candidateModels) {
+      for (const useCamel of [false, true]) {
+        try {
+          console.log(`Trying Gemini model ${item.name} (${item.version}, camelCase=${useCamel}) for ${fileName}...`);
+          const geminiUrl = `https://generativelanguage.googleapis.com/${item.version}/models/${item.name}:generateContent?key=${GEMINI_API_KEY}`;
+          const response = await fetch(geminiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(buildPayload(useCamel)),
+          });
+
+          if (response.ok) {
+            const geminiResult = await response.json();
+            rawAiText = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (rawAiText) {
+              console.log(`Successfully extracted with ${item.name} (${item.version})! Text length: ${rawAiText.length}`);
+              break;
+            }
+          } else {
+            const errText = await response.text();
+            attemptErrors.push(`${item.name} (${item.version}) [HTTP ${response.status}]: ${errText.slice(0, 200)}`);
+            console.warn(`Model ${item.name} failed (${response.status}): ${errText.slice(0, 200)}`);
+          }
+        } catch (err: any) {
+          attemptErrors.push(`${item.name} error: ${err.message}`);
+          console.warn(`Model ${item.name} error:`, err);
+        }
+      }
+      if (rawAiText) break;
     }
 
     if (!rawAiText) {
       return new Response(
         JSON.stringify({ 
-          error: `AI processing failed across all models. Details: ${lastErrorText.slice(0, 300)}`, 
+          error: `AI processing failed across available models (${candidateModels.map(m => m.name).slice(0, 4).join(', ')}). Errors: ${attemptErrors.slice(0, 3).join(' | ')}`, 
           users: [] 
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
