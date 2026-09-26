@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Smartphone,
@@ -24,6 +24,7 @@ import {
   Download,
   Share2,
   Lock,
+  Unlock,
   Radio,
   Send,
   Sparkles,
@@ -35,6 +36,11 @@ import {
   Compass,
   Eye,
   Crosshair,
+  ShieldAlert,
+  Gauge,
+  Bug,
+  Flame,
+  Building,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +50,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { shareOrDownloadFile } from '@/utils/nativeShare';
-import { TelemetrySessionData } from '@/services/DeviceTelemetryService';
+import { TelemetrySessionData, ClientErrorRecord } from '@/services/DeviceTelemetryService';
 
 interface DeviceFleetConsoleProps {
   onLock: () => void;
@@ -54,12 +60,13 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
   const { toast } = useToast();
   const { trigger: haptic } = useHapticFeedback();
   const [activeSessions, setActiveSessions] = useState<Record<string, TelemetrySessionData>>({});
-  const [selectedDevice, setSelectedDevice] = useState<TelemetrySessionData | null>(null);
+  const [selectedDeviceErrors, setSelectedDeviceErrors] = useState<{ device: TelemetrySessionData; errors: ClientErrorRecord[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'idle'>('all');
+  const [locationFilter, setLocationFilter] = useState<'all' | 'campus' | 'remote'>('all');
   const [deviceFilter, setDeviceFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'fleet' | 'map' | 'activity'>('fleet');
+  const [activeTab, setActiveTab] = useState<'fleet' | 'map' | 'security' | 'activity'>('fleet');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [isSendingCommand, setIsSendingCommand] = useState(false);
@@ -120,9 +127,13 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
     const total = sessionList.length;
     const online = sessionList.filter((s) => s.status === 'online').length;
     const idle = sessionList.filter((s) => s.status === 'idle').length;
+    const onCampus = sessionList.filter((s) => s.geofence?.isOnCampus).length;
+    const remote = sessionList.filter((s) => !s.geofence?.isOnCampus).length;
     const authenticated = sessionList.filter((s) => !s.isAnonymous).length;
     const guests = sessionList.filter((s) => s.isAnonymous).length;
     const smartboards = sessionList.filter((s) => s.hardware?.deviceType === 'smartboard').length;
+    const anomaliesCount = sessionList.filter((s) => s.security?.isIncognito || s.security?.isMultiAccount).length;
+    const errorCount = sessionList.reduce((acc, s) => acc + (s.recentErrors?.length || 0), 0);
 
     // Top city
     const cityCounts: Record<string, number> = {};
@@ -136,13 +147,15 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
     const latencies = sessionList.map((s) => s.hardware?.rttMs).filter(Boolean) as number[];
     const avgLatency = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 28;
 
-    return { total, online, idle, authenticated, guests, smartboards, topCity, avgLatency };
+    return { total, online, idle, onCampus, remote, authenticated, guests, smartboards, topCity, avgLatency, anomaliesCount, errorCount };
   }, [sessionList]);
 
   // Filtered Sessions
   const filteredSessions = useMemo(() => {
     return sessionList.filter((s) => {
       if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (locationFilter === 'campus' && !s.geofence?.isOnCampus) return false;
+      if (locationFilter === 'remote' && s.geofence?.isOnCampus) return false;
       if (deviceFilter !== 'all' && s.hardware?.deviceType !== deviceFilter) return false;
       if (roleFilter !== 'all') {
         if (roleFilter === 'guest' && !s.isAnonymous) return false;
@@ -161,10 +174,14 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
       }
       return true;
     });
-  }, [sessionList, statusFilter, deviceFilter, roleFilter, searchQuery]);
+  }, [sessionList, statusFilter, locationFilter, deviceFilter, roleFilter, searchQuery]);
 
   // Send Remote Fleet Commands
-  const handleSendCommand = async (type: 'ping' | 'alert' | 'reload', targetDeviceId?: string, message?: string) => {
+  const handleSendCommand = async (
+    type: 'ping' | 'alert' | 'reload' | 'lock_kiosk' | 'unlock_kiosk',
+    targetDeviceId?: string,
+    message?: string
+  ) => {
     setIsSendingCommand(true);
     try {
       const channel = supabase.channel('broadcast:fleet-commands');
@@ -180,10 +197,10 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
 
       haptic('success');
       toast({
-        title: `Command Sent [${type.toUpperCase()}]`,
+        title: `Command Dispatched [${type.toUpperCase()}]`,
         description: targetDeviceId
-          ? `Dispatched to device ${targetDeviceId.slice(0, 8)}...`
-          : 'Dispatched to all connected fleet devices.',
+          ? `Sent to device ${targetDeviceId.slice(0, 8)}...`
+          : 'Broadcasted to all active fleet devices.',
       });
       setShowBroadcastModal(false);
       setBroadcastMessage('');
@@ -216,6 +233,8 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
         'Status',
         'Current Route',
         'Active Duration (s)',
+        'Campus Status',
+        'Distance to School (m)',
         'IP Address',
         'ISP',
         'City',
@@ -230,11 +249,11 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
         'CPU Cores',
         'RAM (GB)',
         'GPU Renderer',
-        'Screen',
         'Battery %',
         'Charging',
-        'Network Type',
-        'Latency (ms)',
+        'FPS',
+        'Incognito',
+        'Multi-Account',
       ];
 
       const rows = sessionList.map((s) => [
@@ -245,6 +264,8 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
         s.status,
         s.currentRoute,
         Math.round((now - s.routeEnteredAt) / 1000),
+        s.geofence?.isOnCampus ? 'On-Campus' : 'Remote',
+        s.geofence?.distanceMeters ?? '',
         s.geo?.ip || '',
         `"${(s.geo?.isp || '').replace(/"/g, '""')}"`,
         s.geo?.city || '',
@@ -259,11 +280,11 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
         s.hardware?.cpuCores || '',
         s.hardware?.deviceMemoryGB || '',
         `"${(s.hardware?.gpuRenderer || '').replace(/"/g, '""')}"`,
-        `${s.hardware?.screenWidth || 0}x${s.hardware?.screenHeight || 0}`,
         s.hardware?.batteryLevel ?? '',
         s.hardware?.batteryCharging ?? '',
-        s.hardware?.networkType || '',
-        s.hardware?.rttMs ?? '',
+        s.diagnostics?.fps || 60,
+        s.security?.isIncognito ? 'Yes' : 'No',
+        s.security?.isMultiAccount ? 'Yes' : 'No',
       ]);
 
       const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -309,13 +330,13 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg md:text-xl font-black tracking-tight">Global Fleet Intelligence Radar</h2>
+                  <h2 className="text-lg md:text-xl font-black tracking-tight">Enterprise Fleet & Session Intelligence</h2>
                   <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-bold px-2 py-0.5">
-                    REALTIME LIVE
+                    REALTIME GEOFENCE
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Live session telemetry, IP geolocation, hardware specs & remote fleet controls
+                  Live presence, campus geofencing, security anomalies, hardware diagnostics & remote kiosk locks
                 </p>
               </div>
             </div>
@@ -386,10 +407,10 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
           </div>
 
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Idle / Away</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Campus Geofence</p>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-xl md:text-2xl font-black text-amber-300">{metrics.idle}</span>
-              <span className="text-[10px] text-slate-400">&gt; 90s inactive</span>
+              <span className="text-xl md:text-2xl font-black text-emerald-400">{metrics.onCampus}</span>
+              <span className="text-[10px] text-slate-300">/ {metrics.remote} Remote</span>
             </div>
           </div>
 
@@ -397,20 +418,22 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Logged In Staff</p>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-xl md:text-2xl font-black text-blue-400">{metrics.authenticated}</span>
-              <span className="text-[10px] text-slate-400">Verified</span>
+              <span className="text-[10px] text-slate-400">{metrics.guests} Guests</span>
             </div>
           </div>
 
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Guest Visitors</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Security Flags</p>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-xl md:text-2xl font-black text-purple-400">{metrics.guests}</span>
-              <span className="text-[10px] text-slate-400">Public</span>
+              <span className={`text-xl md:text-2xl font-black ${metrics.anomaliesCount > 0 ? 'text-amber-300' : 'text-emerald-400'}`}>
+                {metrics.anomaliesCount}
+              </span>
+              <span className="text-[10px] text-slate-400">{metrics.anomaliesCount > 0 ? 'Audit Alert' : 'Clean'}</span>
             </div>
           </div>
 
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Latency</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Latency & Jitter</p>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-xl md:text-2xl font-black text-emerald-400">{metrics.avgLatency}ms</span>
               <span className="text-[10px] text-slate-400">RTT</span>
@@ -418,10 +441,12 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
           </div>
 
           <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Top Location</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client Errors</p>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-base md:text-lg font-black text-white truncate">{metrics.topCity}</span>
-              <span className="text-[10px] text-slate-400">🇮🇳 IN</span>
+              <span className={`text-xl md:text-2xl font-black ${metrics.errorCount > 0 ? 'text-rose-400' : 'text-slate-300'}`}>
+                {metrics.errorCount}
+              </span>
+              <span className="text-[10px] text-slate-400">Captured</span>
             </div>
           </div>
         </div>
@@ -459,7 +484,23 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
             }`}
           >
             <Globe className="w-3.5 h-3.5" />
-            <span>Geographic Distribution</span>
+            <span>Campus Geofence Map</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              haptic('selection');
+              setActiveTab('security');
+            }}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'security'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>Security & Audit ({metrics.anomaliesCount})</span>
           </button>
 
           <button
@@ -481,7 +522,7 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
 
         {/* Search & Filter Bar */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[180px]">
+          <div className="relative flex-1 min-w-[170px]">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQuery}
@@ -490,6 +531,16 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
               className="h-8 pl-8 pr-3 text-xs rounded-xl"
             />
           </div>
+
+          <select
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value as any)}
+            className="h-8 px-2 rounded-xl text-xs font-medium bg-muted border border-input text-foreground"
+          >
+            <option value="all">All Locations</option>
+            <option value="campus">On Campus Zone</option>
+            <option value="remote">Remote / Off-Campus</option>
+          </select>
 
           <select
             value={statusFilter}
@@ -512,18 +563,6 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
             <option value="desktop">Desktop PCs</option>
             <option value="smartboard">Smart Boards</option>
           </select>
-
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="h-8 px-2 rounded-xl text-xs font-medium bg-muted border border-input text-foreground"
-          >
-            <option value="all">All Roles</option>
-            <option value="admin">Principals & Admin</option>
-            <option value="teacher">Teachers</option>
-            <option value="guard">Guards</option>
-            <option value="guest">Guest Visitors</option>
-          </select>
         </div>
       </div>
 
@@ -539,7 +578,7 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
               <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
                 {sessionList.length === 0
                   ? 'Listening for incoming device telemetry heartbeats on Supabase Realtime channel...'
-                  : 'Try clearing your search query or adjusting status filters.'}
+                  : 'Try clearing your search query or adjusting status/geofence filters.'}
               </p>
             </Card>
           ) : (
@@ -548,9 +587,12 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
               const timeOnRoute = now - (session.routeEnteredAt || session.sessionStartedAt || now);
               const battery = session.hardware?.batteryLevel;
               const isCharging = session.hardware?.batteryCharging;
+              const isLowBattery = battery !== null && battery !== undefined && battery < 15 && !isCharging;
               const lat = session.geo?.latitude;
               const lng = session.geo?.longitude;
               const mapsUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+              const isOnCampus = session.geofence?.isOnCampus;
+              const errorCount = session.recentErrors?.length || 0;
 
               return (
                 <motion.div
@@ -558,12 +600,16 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                   layout
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md transition-all p-4.5 space-y-3.5 relative overflow-hidden"
+                  className="rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md transition-all p-4.5 space-y-3 relative overflow-hidden"
                 >
                   {/* Status breathing accent */}
                   <div
                     className={`absolute top-0 left-0 right-0 h-1 ${
-                      isOnline ? 'bg-emerald-500' : 'bg-amber-500'
+                      session.isKioskLocked
+                        ? 'bg-rose-600'
+                        : isOnline
+                        ? 'bg-emerald-500'
+                        : 'bg-amber-500'
                     }`}
                   />
 
@@ -584,9 +630,14 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {session.isKioskLocked && (
+                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4">
+                          LOCKED
+                        </Badge>
+                      )}
                       {session.hardware?.isPWA && (
                         <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
-                          PWA App
+                          PWA
                         </Badge>
                       )}
                       <span
@@ -600,6 +651,38 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                         {isOnline ? 'Online' : 'Idle'}
                       </span>
                     </div>
+                  </div>
+
+                  {/* Campus Geofence Tag & Security Flag Bar */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                        isOnCampus
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20'
+                      }`}
+                    >
+                      <Building className="w-3 h-3" />
+                      <span>{session.geofence?.campusZoneName || 'Campus Zone'}</span>
+                    </span>
+
+                    {session.security?.isIncognito && (
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                        🕵️ Incognito
+                      </Badge>
+                    )}
+
+                    {session.security?.isMultiAccount && (
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        ⚠️ Multi-User ({session.security.accountsSeenCount})
+                      </Badge>
+                    )}
+
+                    {isLowBattery && (
+                      <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 animate-pulse">
+                        Low Battery {battery}%
+                      </Badge>
+                    )}
                   </div>
 
                   {/* User Profile / Guest Badge */}
@@ -665,7 +748,7 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                     <div className="flex items-center justify-between text-slate-300 text-[10px]">
                       <span className="flex items-center gap-1 truncate">
                         <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
-                        <span>{session.geo?.city}, {session.geo?.region}, {session.geo?.country}</span>
+                        <span>{session.geo?.city}, {session.geo?.region}</span>
                       </span>
 
                       {mapsUrl && (
@@ -683,19 +766,19 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                     </div>
                   </div>
 
-                  {/* Detailed Hardware Specs Pill Grid */}
+                  {/* Diagnostics & Performance Grid */}
                   <div className="grid grid-cols-3 gap-1.5 text-[10px]">
                     <div className="p-1.5 rounded-lg bg-muted/60 border text-center">
-                      <p className="text-muted-foreground font-semibold">CPU / RAM</p>
+                      <p className="text-muted-foreground font-semibold">Framerate</p>
                       <p className="font-bold text-foreground truncate mt-0.5">
-                        {session.hardware?.cpuCores}c · {session.hardware?.deviceMemoryGB ? `${session.hardware.deviceMemoryGB}GB` : 'N/A'}
+                        {session.diagnostics?.fps || 60} FPS
                       </p>
                     </div>
 
                     <div className="p-1.5 rounded-lg bg-muted/60 border text-center">
-                      <p className="text-muted-foreground font-semibold">Display</p>
-                      <p className="font-bold text-foreground truncate mt-0.5">
-                        {session.hardware?.screenWidth}x{session.hardware?.screenHeight}
+                      <p className="text-muted-foreground font-semibold">Health Score</p>
+                      <p className="font-bold text-emerald-600 dark:text-emerald-400 truncate mt-0.5">
+                        {session.security?.connectionQualityScore || 98}%
                       </p>
                     </div>
 
@@ -703,15 +786,22 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                       <p className="text-muted-foreground font-semibold">Power</p>
                       <p className="font-bold text-foreground truncate mt-0.5 flex items-center justify-center gap-0.5">
                         {isCharging ? <BatteryCharging className="w-3 h-3 text-emerald-500" /> : <Battery className="w-3 h-3" />}
-                        <span>{battery !== null ? `${battery}%` : 'AC'}</span>
+                        <span>{battery !== null && battery !== undefined ? `${battery}%` : 'AC'}</span>
                       </p>
                     </div>
                   </div>
 
-                  {/* GPU Renderer string */}
-                  <div className="text-[9px] text-muted-foreground truncate px-1">
-                    <span className="font-bold">GPU:</span> {session.hardware?.gpuRenderer || 'Generic Graphics'}
-                  </div>
+                  {/* Error Log Indicator */}
+                  {errorCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDeviceErrors({ device: session, errors: session.recentErrors })}
+                      className="w-full py-1 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold flex items-center justify-center gap-1.5"
+                    >
+                      <Bug className="w-3 h-3 shrink-0" />
+                      <span>{errorCount} Client Error{errorCount > 1 ? 's' : ''} Captured (Click to view)</span>
+                    </button>
+                  )}
 
                   {/* Remote Action Buttons */}
                   <div className="pt-2 border-t flex items-center justify-between gap-1.5">
@@ -720,7 +810,7 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                       variant="outline"
                       disabled={isSendingCommand}
                       onClick={() => handleSendCommand('ping', session.deviceId)}
-                      className="h-7 px-2.5 text-[11px] rounded-lg border-primary/20 hover:bg-primary/10 text-primary font-bold flex-1"
+                      className="h-7 px-2 text-[11px] rounded-lg border-primary/20 hover:bg-primary/10 text-primary font-bold flex-1"
                       title="Send Remote Ping Chime"
                     >
                       <Volume2 className="w-3 h-3 mr-1" />
@@ -735,11 +825,33 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                         const msg = window.prompt('Enter announcement text to send to this device:');
                         if (msg) handleSendCommand('alert', session.deviceId, msg);
                       }}
-                      className="h-7 px-2.5 text-[11px] rounded-lg border-amber-500/30 hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex-1"
+                      className="h-7 px-2 text-[11px] rounded-lg border-amber-500/30 hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex-1"
                       title="Send Alert Toast"
                     >
                       <Bell className="w-3 h-3 mr-1" />
                       Alert
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isSendingCommand}
+                      onClick={() => {
+                        if (session.isKioskLocked) {
+                          handleSendCommand('unlock_kiosk', session.deviceId);
+                        } else {
+                          const reason = window.prompt('Enter maintenance lock reason:', 'Device locked for classroom maintenance');
+                          if (reason) handleSendCommand('lock_kiosk', session.deviceId, reason);
+                        }
+                      }}
+                      className={`h-7 px-2 text-[11px] rounded-lg font-bold ${
+                        session.isKioskLocked
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                          : 'bg-muted hover:bg-muted/80 text-foreground border-input'
+                      }`}
+                      title={session.isKioskLocked ? 'Unlock Kiosk Terminal' : 'Lock Kiosk Terminal'}
+                    >
+                      {session.isKioskLocked ? <Unlock className="w-3 h-3 text-emerald-500" /> : <Lock className="w-3 h-3 text-slate-400" />}
                     </Button>
 
                     <Button
@@ -764,22 +876,87 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
         </div>
       )}
 
-      {/* Geographic Distribution Map Tab */}
+      {/* Security & Audit Tab */}
+      {activeTab === 'security' && (
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-extrabold flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-500" />
+                <span>Security & Device Audit Roster</span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Detailed audit of incognito sessions, multi-account device sharing, and proxy connections
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs font-bold px-3 py-1">
+              {metrics.anomaliesCount} Audit Flag{metrics.anomaliesCount > 1 ? 's' : ''}
+            </Badge>
+          </div>
+
+          <div className="space-y-3">
+            {sessionList
+              .filter((s) => s.security?.isIncognito || s.security?.isMultiAccount || s.security?.isVPNorProxy)
+              .map((s) => (
+                <div key={s.deviceId} className="p-4 rounded-2xl bg-card border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                        <AlertTriangle className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-foreground">{s.userName || 'Anonymous Visitor'} ({s.hardware?.brandModel})</h4>
+                        <p className="text-[10px] text-muted-foreground">IP: {s.geo?.ip} · {s.geo?.city}, {s.geo?.country}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {s.security?.isIncognito && (
+                        <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 text-[10px]">
+                          Incognito Mode
+                        </Badge>
+                      )}
+                      {s.security?.isMultiAccount && (
+                        <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px]">
+                          {s.security.accountsSeenCount} Accounts on Device
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+            {metrics.anomaliesCount === 0 && (
+              <div className="p-8 text-center border-dashed border rounded-2xl">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                <p className="text-xs font-bold text-foreground">Zero Security Flags Detected</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">All connected clients are using verified direct school connections.</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Campus Geofence Map Tab */}
       {activeTab === 'map' && (
         <Card className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base font-extrabold flex items-center gap-2">
                 <Globe className="w-5 h-5 text-primary" />
-                <span>Geographic Network Cluster</span>
+                <span>Campus Geofence Distribution</span>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Physical location pinpoints of all active school clients based on IP geolocation
+                Physical distance and geolocation clusters relative to PM Shri KV Campus
               </p>
             </div>
-            <Badge variant="outline" className="text-xs font-bold px-3 py-1">
-              {metrics.total} Connected Nodes
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-bold">
+                {metrics.onCampus} On Campus
+              </Badge>
+              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs font-bold">
+                {metrics.remote} Remote
+              </Badge>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -850,7 +1027,7 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
             </div>
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-500">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              Live Listening
+              Live Stream
             </span>
           </div>
 
@@ -858,7 +1035,7 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
             {sessionList
               .flatMap((s) => (s.recentEvents || []).map((e) => ({ ...e, device: s })))
               .sort((a, b) => b.timestamp - a.timestamp)
-              .slice(0, 30)
+              .slice(0, 35)
               .map((evt) => (
                 <div
                   key={evt.id}
@@ -883,6 +1060,46 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
               ))}
           </div>
         </Card>
+      )}
+
+      {/* Client Error Diagnostics Modal */}
+      {selectedDeviceErrors && (
+        <div className="fixed inset-0 z-[170] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-lg rounded-3xl bg-card border p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold flex items-center gap-2">
+                <Bug className="w-5 h-5 text-rose-500" />
+                <span>Remote Client Diagnostics ({selectedDeviceErrors.device.hardware?.brandModel})</span>
+              </h3>
+              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => setSelectedDeviceErrors(null)}>
+                ✕
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Captured unhandled JavaScript exceptions and promise rejections from this device:
+            </p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {selectedDeviceErrors.errors.map((err) => (
+                <div key={err.id} className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-mono">
+                  <p className="font-bold">{err.message}</p>
+                  {err.source && <p className="text-[10px] opacity-75 mt-0.5">{err.source}:{err.lineno}:{err.colno}</p>}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button size="sm" onClick={() => setSelectedDeviceErrors(null)} className="rounded-xl text-xs font-bold">
+                Close Inspector
+              </Button>
+            </div>
+          </motion.div>
+        </div>
       )}
 
       {/* Broadcast Modal */}

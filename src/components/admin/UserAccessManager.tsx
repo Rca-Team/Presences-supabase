@@ -48,6 +48,7 @@ import {
   fetchTeacherCategories,
   saveTeacherCategories,
   fetchTeacherPermissions,
+  fetchAllTeacherDataBatch,
   fetchClassTeacherMatrix,
   assignClassTeacher,
   unassignClassTeacher,
@@ -89,11 +90,15 @@ const getRoleConfig = (role?: string | null) => {
   return ROLE_CONFIG[normalized] || ROLE_CONFIG.user;
 };
 
+// Module-level memory cache so returning to Staff Permissions tab opens in 0ms
+let cachedMatrix: ClassMatrixSlot[] | null = null;
+let cachedUsers: RegisteredUser[] | null = null;
+
 const UserAccessManager: React.FC = () => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<RegisteredUser[]>([]);
-  const [matrix, setMatrix] = useState<ClassMatrixSlot[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState<RegisteredUser[]>(() => cachedUsers || []);
+  const [matrix, setMatrix] = useState<ClassMatrixSlot[]>(() => cachedMatrix || []);
+  const [isLoading, setIsLoading] = useState(() => !cachedMatrix || !cachedUsers);
   const [activeTab, setActiveTab] = useState<'matrix' | 'teachers' | 'users' | 'create'>('matrix');
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,44 +134,49 @@ const UserAccessManager: React.FC = () => {
   const [tCreating, setTCreating] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string; pass: string; class: string } | null>(null);
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
+  const loadData = useCallback(async (showLoading = false) => {
+    if (showLoading || (!cachedMatrix && !cachedUsers)) {
+      setIsLoading(true);
+    }
     try {
-      const matrixData = await fetchClassTeacherMatrix();
-      setMatrix(matrixData);
-
-      let authUsers: any[] = [];
-      try {
-        const { data: rpcData, error: authError } = await supabase.rpc('get_all_auth_users');
-        if (!authError && Array.isArray(rpcData)) {
-          authUsers = rpcData;
-        }
-      } catch (e) {
-        console.warn('[UserAccessManager] get_all_auth_users RPC not found, falling back to profiles/roles:', e);
-      }
-
-      const [profilesRes, rolesRes] = await Promise.all([
+      // 1. Fetch EVERYTHING in parallel in ONE round-trip (no sequential N+1 loops)
+      const [batchTeacherData, authUsersRes, profilesRes, rolesRes] = await Promise.all([
+        fetchAllTeacherDataBatch(),
+        supabase.rpc('get_all_auth_users').catch((e) => {
+          console.warn('[UserAccessManager] get_all_auth_users RPC not found, falling back to profiles/roles:', e);
+          return { data: [] };
+        }),
         supabase.from('profiles').select('id, user_id, display_name, avatar_url, parent_email, username, created_at, updated_at'),
         supabase.from('user_roles').select('user_id, role'),
       ]);
 
+      // 2. Build class teacher matrix using already-fetched class_teachers rows
+      const matrixData = await fetchClassTeacherMatrix(batchTeacherData.classTeachersRows);
+      setMatrix(matrixData);
+      cachedMatrix = matrixData;
+
+      const authUsers = (authUsersRes && !authUsersRes.error && Array.isArray(authUsersRes.data))
+        ? authUsersRes.data
+        : [];
+
       const profileMap = new Map((profilesRes.data || []).map((p) => [p.user_id, p]));
       const roleMap = new Map((rolesRes.data || []).map((r) => [r.user_id, r.role]));
-      const authUserMap = new Map(authUsers.map((au) => [au.user_id, au]));
+      const authUserMap = new Map(authUsers.map((au: any) => [au.user_id, au]));
 
       const allUserIds = new Set<string>();
-      authUsers.forEach((au) => au.user_id && allUserIds.add(au.user_id));
+      authUsers.forEach((au: any) => au.user_id && allUserIds.add(au.user_id));
       (profilesRes.data || []).forEach((p) => p.user_id && allUserIds.add(p.user_id));
       (rolesRes.data || []).forEach((r) => r.user_id && allUserIds.add(r.user_id));
 
+      // 3. Process users completely synchronously in-memory (0ms)
       const processedUsers: RegisteredUser[] = [];
       for (const userId of Array.from(allUserIds)) {
         if (!userId) continue;
         const au: any = authUserMap.get(userId) || {};
         const profile: any = profileMap.get(userId) || {};
         const assignedRole = roleMap.get(userId) as Role | undefined;
-        const categories = await fetchTeacherCategories(userId);
-        const perms = await fetchTeacherPermissions(userId);
+        const categories = batchTeacherData.categoriesByUser.get(userId) || [];
+        const perms = batchTeacherData.permissionsByUser.get(userId) || DEFAULT_TEACHER_PERMISSIONS;
         const hasTeacherPerms = categories.length > 0;
         const computedRole = assignedRole || (hasTeacherPerms ? 'teacher' : 'user');
 
@@ -185,6 +195,7 @@ const UserAccessManager: React.FC = () => {
         });
       }
       setUsers(processedUsers);
+      cachedUsers = processedUsers;
     } catch (error: any) {
       console.error(error);
       toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
@@ -421,7 +432,7 @@ const UserAccessManager: React.FC = () => {
           <Button
             size="sm"
             variant="ghost"
-            onClick={loadData}
+            onClick={() => loadData(true)}
             className="h-9 w-9 p-0 rounded-xl"
             title="Refresh access records"
           >

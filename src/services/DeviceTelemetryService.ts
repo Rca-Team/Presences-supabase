@@ -1,7 +1,7 @@
 /**
  * DeviceTelemetryService
- * Production-grade hardware, network, GPU, and IP Geolocation telemetry collector.
- * Gathers complete device intelligence for real-time fleet monitoring.
+ * Production-grade hardware, network, GPU, IP Geolocation, Campus Geofencing,
+ * Security Anomaly, and Client Diagnostic telemetry collector.
  */
 
 export interface HardwareSpecs {
@@ -50,6 +50,36 @@ export interface GeoLocationInfo {
   localTime: string;
 }
 
+export interface CampusGeofenceInfo {
+  distanceMeters: number | null;
+  isOnCampus: boolean;
+  campusZoneName: string;
+}
+
+export interface SecurityAnomalies {
+  isIncognito: boolean;
+  isMultiAccount: boolean;
+  accountsSeenCount: number;
+  isVPNorProxy: boolean;
+  connectionQualityScore: number; // 0 to 100%
+}
+
+export interface PerformanceDiagnostics {
+  fps: number;
+  networkJitterMs: number;
+  clientErrorsCount: number;
+  memoryPressure: 'nominal' | 'moderate' | 'critical';
+}
+
+export interface ClientErrorRecord {
+  id: string;
+  message: string;
+  source?: string;
+  lineno?: number;
+  colno?: number;
+  timestamp: number;
+}
+
 export interface TelemetrySessionData {
   deviceId: string;
   sessionId: string;
@@ -65,8 +95,12 @@ export interface TelemetrySessionData {
   sessionStartedAt: number;
   lastHeartbeat: number;
   status: 'online' | 'idle' | 'offline';
+  isKioskLocked?: boolean;
   hardware: HardwareSpecs;
   geo: GeoLocationInfo;
+  geofence: CampusGeofenceInfo;
+  security: SecurityAnomalies;
+  diagnostics: PerformanceDiagnostics;
   recentEvents: Array<{
     id: string;
     type: string;
@@ -74,10 +108,51 @@ export interface TelemetrySessionData {
     timestamp: number;
     metadata?: Record<string, any>;
   }>;
+  recentErrors: ClientErrorRecord[];
 }
 
 const DEVICE_ID_KEY = 'presences_device_telemetry_id';
 const GEO_CACHE_KEY = 'presences_geo_telemetry_cache';
+const SEEN_ACCOUNTS_KEY = 'presences_seen_accounts_on_device';
+
+// School Campus Coordinates (Default: PM Shri KV NFC Campus)
+export const SCHOOL_CAMPUS_COORDS = {
+  latitude: 28.6139,
+  longitude: 77.209,
+  radiusMeters: 800, // 800 meters geofence radius
+  name: 'PM Shri KV Campus Zone',
+};
+
+// Calculate Haversine GPS distance in meters
+export function calculateCampusDistance(
+  lat: number | null,
+  lng: number | null,
+  targetLat = SCHOOL_CAMPUS_COORDS.latitude,
+  targetLng = SCHOOL_CAMPUS_COORDS.longitude
+): { distanceMeters: number | null; isOnCampus: boolean; campusZoneName: string } {
+  if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
+    return { distanceMeters: null, isOnCampus: true, campusZoneName: 'Local Campus (Assumed)' };
+  }
+
+  const R = 6371e3; // Earth radius in meters
+  const phi1 = (lat * Math.PI) / 180;
+  const phi2 = (targetLat * Math.PI) / 180;
+  const deltaPhi = ((targetLat - lat) * Math.PI) / 180;
+  const deltaLambda = ((targetLng - lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = Math.round(R * c);
+
+  const isOnCampus = distance <= SCHOOL_CAMPUS_COORDS.radiusMeters;
+  const campusZoneName = isOnCampus
+    ? 'On Campus (Inside School Zone)'
+    : `Off-Campus (${(distance / 1000).toFixed(1)} km away)`;
+
+  return { distanceMeters: distance, isOnCampus, campusZoneName };
+}
 
 // Generate or retrieve persistent unique device fingerprint
 export function getDeviceFingerprintId(): string {
@@ -93,6 +168,39 @@ export function getDeviceFingerprintId(): string {
   } catch {
     return 'dev_' + Math.random().toString(36).substring(2, 15);
   }
+}
+
+// Track seen user accounts on this physical device
+export function registerAccountOnDevice(emailOrUserId: string): { isMultiAccount: boolean; count: number } {
+  try {
+    const raw = localStorage.getItem(SEEN_ACCOUNTS_KEY);
+    let accounts: string[] = raw ? JSON.parse(raw) : [];
+    if (!accounts.includes(emailOrUserId)) {
+      accounts.push(emailOrUserId);
+      localStorage.setItem(SEEN_ACCOUNTS_KEY, JSON.stringify(accounts.slice(-10)));
+    }
+    return { isMultiAccount: accounts.length > 1, count: accounts.length };
+  } catch {
+    return { isMultiAccount: false, count: 1 };
+  }
+}
+
+// Detect Incognito / Private browsing mode
+export async function detectIncognitoMode(): Promise<boolean> {
+  try {
+    const nav = navigator as any;
+    if (nav.storage && nav.storage.estimate) {
+      const { quota } = await nav.storage.estimate();
+      // In Chrome/Chromium incognito, storage quota is often heavily restricted (< 1.5 GB on large disks)
+      if (quota && quota < 1500000000 && window.screen.width > 1200) {
+        return true;
+      }
+    }
+    if ('SafariRemoteNotification' in window) {
+      // Safari private mode check via indexedDB or storage
+    }
+  } catch {}
+  return false;
 }
 
 // Generate ephemeral session ID (per tab/session)
@@ -207,7 +315,7 @@ function parseDeviceInfo(): {
   let deviceType: 'mobile' | 'tablet' | 'desktop' | 'smartboard' = 'desktop';
   let brandModel = `${os} Device`;
 
-  // Smart Board detection (Large 4K touch display or smartboard route)
+  // Smart Board detection
   if (isTouch && (Math.max(width, height) >= 1920 && Math.min(width, height) >= 1080) && !/iPhone|iPad/i.test(ua)) {
     if (window.location.pathname.includes('/smartboard') || Math.max(width, height) >= 2560) {
       deviceType = 'smartboard';
@@ -351,7 +459,7 @@ export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
     localTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
   };
 
-  // Provider 1: ipwho.is (Fast, HTTPS, CORS friendly, free)
+  // Provider 1: ipwho.is
   try {
     const res = await fetch('https://ipwho.is/', { cache: 'force-cache' });
     if (res.ok) {
@@ -379,9 +487,7 @@ export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
         return geo;
       }
     }
-  } catch {
-    // Try Provider 2
-  }
+  } catch {}
 
   // Provider 2: ipapi.co
   try {
@@ -411,11 +517,9 @@ export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
         return geo;
       }
     }
-  } catch {
-    // Try Provider 3
-  }
+  } catch {}
 
-  // Provider 3: api.ipify.org (fallback IP only)
+  // Provider 3: api.ipify.org
   try {
     const res = await fetch('https://api.ipify.org?format=json');
     if (res.ok) {
@@ -424,9 +528,7 @@ export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
         defaultGeo.ip = data.ip;
       }
     }
-  } catch {
-    // Fallback defaultGeo
-  }
+  } catch {}
 
   inMemoryGeo = defaultGeo;
   return defaultGeo;
@@ -458,4 +560,43 @@ export function recordLocalActivity(type: string, description: string, metadata?
 
 export function getLocalActivityBuffer() {
   return [...recentActivityBuffer];
+}
+
+// Client error buffer
+const clientErrorsBuffer: ClientErrorRecord[] = [];
+
+export function recordClientError(message: string, source?: string, lineno?: number, colno?: number) {
+  const errRecord: ClientErrorRecord = {
+    id: 'err_' + Math.random().toString(36).substring(2, 9),
+    message: String(message),
+    source,
+    lineno,
+    colno,
+    timestamp: Date.now(),
+  };
+  clientErrorsBuffer.unshift(errRecord);
+  if (clientErrorsBuffer.length > 15) {
+    clientErrorsBuffer.pop();
+  }
+  recordLocalActivity('client_error', `Client Error: ${message.slice(0, 50)}`, { source, lineno });
+}
+
+export function getClientErrorsBuffer() {
+  return [...clientErrorsBuffer];
+}
+
+// Measure client FPS
+let currentFps = 60;
+let lastFpsTime = performance.now();
+let framesCount = 0;
+
+export function measureCurrentFPS(): number {
+  const now = performance.now();
+  framesCount++;
+  if (now - lastFpsTime >= 1000) {
+    currentFps = Math.round((framesCount * 1000) / (now - lastFpsTime));
+    framesCount = 0;
+    lastFpsTime = now;
+  }
+  return currentFps;
 }

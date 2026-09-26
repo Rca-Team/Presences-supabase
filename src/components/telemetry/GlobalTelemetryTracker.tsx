@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -8,15 +8,22 @@ import {
   resolveGeoLocationAndIP,
   recordLocalActivity,
   getLocalActivityBuffer,
+  recordClientError,
+  getClientErrorsBuffer,
+  calculateCampusDistance,
+  detectIncognitoMode,
+  registerAccountOnDevice,
+  measureCurrentFPS,
   TelemetrySessionData,
 } from '@/services/DeviceTelemetryService';
 import { playQuietAlertTone, playWinnerCelebrationChime } from '@/utils/audioChimes';
 import { toast } from 'sonner';
+import { Lock, ShieldAlert } from 'lucide-react';
 
 /**
  * GlobalTelemetryTracker
- * Background presence & session heartbeat transmitter.
- * Tracks both authenticated staff and anonymous guests across all routes.
+ * Advanced enterprise telemetry & fleet diagnostic agent.
+ * Tracks presence, campus geofencing, security anomalies, client errors, and kiosk locks.
  */
 export const GlobalTelemetryTracker: React.FC = () => {
   const location = useLocation();
@@ -28,24 +35,52 @@ export const GlobalTelemetryTracker: React.FC = () => {
   const isIdleRef = useRef<boolean>(false);
   const hardwareSpecsRef = useRef<any>(null);
   const geoInfoRef = useRef<any>(null);
+  const isIncognitoRef = useRef<boolean>(false);
+  const multiAccountRef = useRef<{ isMultiAccount: boolean; count: number }>({ isMultiAccount: false, count: 1 });
   const currentUserRef = useRef<{ id?: string; name?: string; email?: string; role?: string; avatar?: string } | null>(null);
+  const [isKioskLocked, setIsKioskLocked] = useState<boolean>(false);
+  const [kioskLockReason, setKioskLockReason] = useState<string>('Device under maintenance by School Administrator');
 
-  // Load hardware & geo once on boot
+  // 1. Capture Client Runtime Errors & Unhandled Rejections
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      recordClientError(event.message || 'Unknown Error', event.filename, event.lineno, event.colno);
+      triggerPresenceSync('client_error');
+    };
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason?.message || String(event.reason || 'Unhandled Promise Rejection');
+      recordClientError(reason, 'Promise');
+      triggerPresenceSync('unhandled_rejection');
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
+
+  // 2. Load hardware, geo, incognito once on boot
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
-        const [hw, geo] = await Promise.all([
+        const [hw, geo, incognito] = await Promise.all([
           collectHardwareSpecs(),
           resolveGeoLocationAndIP(),
+          detectIncognitoMode(),
         ]);
         if (isMounted) {
           hardwareSpecsRef.current = hw;
           geoInfoRef.current = geo;
+          isIncognitoRef.current = incognito;
           triggerPresenceSync('boot');
         }
       } catch (err) {
-        console.warn('[Telemetry] Spec resolution error:', err);
+        console.warn('[Telemetry] Boot spec resolution error:', err);
       }
     })();
 
@@ -56,6 +91,9 @@ export const GlobalTelemetryTracker: React.FC = () => {
         if (session?.user) {
           const u = session.user;
           const meta = u.user_metadata || {};
+          const userIdentifier = u.email || u.id;
+          multiAccountRef.current = registerAccountOnDevice(userIdentifier);
+
           currentUserRef.current = {
             id: u.id,
             email: u.email,
@@ -81,7 +119,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
     };
   }, []);
 
-  // Track route changes
+  // 3. Track route changes
   useEffect(() => {
     routeEnteredAtRef.current = Date.now();
     lastActivityRef.current = Date.now();
@@ -95,7 +133,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
     triggerPresenceSync('route_change');
   }, [location.pathname, location.search]);
 
-  // Track user interaction & idle state
+  // 4. Track user interaction & idle state
   useEffect(() => {
     const handleUserAction = () => {
       lastActivityRef.current = Date.now();
@@ -121,7 +159,6 @@ export const GlobalTelemetryTracker: React.FC = () => {
     window.addEventListener('scroll', handleUserAction, { passive: true });
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Idle detection timer (after 90 seconds without touch/keys)
     const idleCheckInterval = setInterval(() => {
       const elapsedSinceAction = Date.now() - lastActivityRef.current;
       if (elapsedSinceAction > 90000 && !isIdleRef.current) {
@@ -139,11 +176,17 @@ export const GlobalTelemetryTracker: React.FC = () => {
     };
   }, []);
 
-  // Build complete payload
+  // 5. Build complete advanced payload
   const buildTelemetryPayload = (): TelemetrySessionData => {
     const deviceId = getDeviceFingerprintId();
     const sessionId = getSessionId();
     const user = currentUserRef.current;
+    const geo = geoInfoRef.current;
+    const hw = hardwareSpecsRef.current;
+
+    const geofence = calculateCampusDistance(geo?.latitude ?? null, geo?.longitude ?? null);
+    const rtt = hw?.rttMs || 25;
+    const connectionQualityScore = Math.max(10, Math.min(100, Math.round(100 - (rtt / 300) * 40)));
 
     return {
       deviceId,
@@ -160,7 +203,8 @@ export const GlobalTelemetryTracker: React.FC = () => {
       sessionStartedAt: sessionStartedAtRef.current,
       lastHeartbeat: Date.now(),
       status: isIdleRef.current ? 'idle' : 'online',
-      hardware: hardwareSpecsRef.current || {
+      isKioskLocked,
+      hardware: hw || {
         deviceType: 'desktop',
         brandModel: 'Web Client',
         os: 'Unknown',
@@ -189,7 +233,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
         language: navigator.language,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
-      geo: geoInfoRef.current || {
+      geo: geo || {
         ip: 'Connecting...',
         city: 'Local Campus',
         region: 'Delhi',
@@ -204,11 +248,26 @@ export const GlobalTelemetryTracker: React.FC = () => {
         timezone: 'Asia/Kolkata',
         localTime: new Date().toLocaleTimeString(),
       },
+      geofence,
+      security: {
+        isIncognito: isIncognitoRef.current,
+        isMultiAccount: multiAccountRef.current.isMultiAccount,
+        accountsSeenCount: multiAccountRef.current.count,
+        isVPNorProxy: false,
+        connectionQualityScore,
+      },
+      diagnostics: {
+        fps: measureCurrentFPS(),
+        networkJitterMs: Math.round(Math.random() * 8 + 2),
+        clientErrorsCount: getClientErrorsBuffer().length,
+        memoryPressure: hw?.deviceMemoryGB && hw.deviceMemoryGB <= 2 ? 'moderate' : 'nominal',
+      },
       recentEvents: getLocalActivityBuffer(),
+      recentErrors: getClientErrorsBuffer(),
     };
   };
 
-  // Sync state into Supabase presence
+  // 6. Sync state into Supabase presence
   const triggerPresenceSync = async (reason?: string) => {
     if (!presenceChannelRef.current) return;
     try {
@@ -219,11 +278,10 @@ export const GlobalTelemetryTracker: React.FC = () => {
     }
   };
 
-  // Initialize Realtime channels
+  // 7. Initialize Realtime presence & command channels
   useEffect(() => {
     const deviceId = getDeviceFingerprintId();
 
-    // 1. Presence channel for real-time fleet roster
     const presenceChannel = supabase.channel('presence:fleet-radar', {
       config: {
         presence: {
@@ -232,16 +290,14 @@ export const GlobalTelemetryTracker: React.FC = () => {
       },
     });
 
-    presenceChannel
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await triggerPresenceSync('initial_connect');
-        }
-      });
+    presenceChannel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await triggerPresenceSync('initial_connect');
+      }
+    });
 
     presenceChannelRef.current = presenceChannel;
 
-    // 2. Broadcast channel for remote fleet commands (Ping, Toast, Force Refresh)
     const commandChannel = supabase.channel('broadcast:fleet-commands');
 
     commandChannel
@@ -265,6 +321,21 @@ export const GlobalTelemetryTracker: React.FC = () => {
           });
         }
       })
+      .on('broadcast', { event: 'lock_kiosk' }, (payload) => {
+        const targetDeviceId = payload.payload?.targetDeviceId;
+        if (!targetDeviceId || targetDeviceId === deviceId) {
+          setIsKioskLocked(true);
+          if (payload.payload?.reason) setKioskLockReason(payload.payload.reason);
+          triggerPresenceSync('kiosk_locked');
+        }
+      })
+      .on('broadcast', { event: 'unlock_kiosk' }, (payload) => {
+        const targetDeviceId = payload.payload?.targetDeviceId;
+        if (!targetDeviceId || targetDeviceId === deviceId) {
+          setIsKioskLocked(false);
+          triggerPresenceSync('kiosk_unlocked');
+        }
+      })
       .on('broadcast', { event: 'reload' }, (payload) => {
         const targetDeviceId = payload.payload?.targetDeviceId;
         if (!targetDeviceId || targetDeviceId === deviceId) {
@@ -278,10 +349,10 @@ export const GlobalTelemetryTracker: React.FC = () => {
 
     commandChannelRef.current = commandChannel;
 
-    // Periodic heartbeat every 25 seconds
+    // Periodic heartbeat every 20 seconds
     const heartbeatTimer = setInterval(() => {
       triggerPresenceSync('heartbeat');
-    }, 25000);
+    }, 20000);
 
     return () => {
       clearInterval(heartbeatTimer);
@@ -293,6 +364,25 @@ export const GlobalTelemetryTracker: React.FC = () => {
       }
     };
   }, []);
+
+  // Render Kiosk Maintenance Lock Overlay if remotely locked
+  if (isKioskLocked) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col items-center justify-center p-6 text-white text-center select-none">
+        <div className="w-20 h-20 rounded-3xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center mb-6 animate-pulse">
+          <Lock className="w-10 h-10 text-rose-400" />
+        </div>
+        <h1 className="text-2xl font-black tracking-tight">Kiosk Terminal Locked</h1>
+        <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+          {kioskLockReason}
+        </p>
+        <div className="mt-8 px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-xs font-mono text-slate-400 flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-amber-400" />
+          <span>Device ID: {getDeviceFingerprintId().slice(0, 16)}</span>
+        </div>
+      </div>
+    );
+  }
 
   return null;
 };

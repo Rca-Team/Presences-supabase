@@ -241,12 +241,99 @@ export async function fetchTeacherPermissions(userId: string): Promise<TeacherPe
   }
 }
 
+export interface BatchTeacherData {
+  categoriesByUser: Map<string, string[]>;
+  permissionsByUser: Map<string, TeacherPermissions>;
+  classTeachersRows: any[];
+}
+
 /**
- * Fetch full class-section assignment matrix for the school
+ * High-performance batch fetch for all teacher assignments and permissions in a single round-trip.
+ * Completely eliminates N+1 query loops.
  */
-export async function fetchClassTeacherMatrix(): Promise<ClassMatrixSlot[]> {
+export async function fetchAllTeacherDataBatch(): Promise<BatchTeacherData> {
   const db = supabase as any;
-  const { data: ctRows } = await db.from('class_teachers').select('*');
+  const categoriesByUser = new Map<string, Set<string>>();
+  const permissionsByUser = new Map<string, TeacherPermissions>();
+
+  const [permRes, classTeachersRes] = await Promise.all([
+    db.from('teacher_permissions').select('*'),
+    db.from('class_teachers').select('*'),
+  ]);
+
+  const addCategory = (userId: string, row: any) => {
+    if (!userId) return;
+    let set = categoriesByUser.get(userId);
+    if (!set) {
+      set = new Set<string>();
+      categoriesByUser.set(userId, set);
+    }
+    const direct = normalizeCategory(String(row?.category || ''));
+    if (direct) {
+      set.add(direct);
+      return;
+    }
+    const cls = String(row?.class || '').trim();
+    const sec = String(row?.section || '').trim();
+    const combined = normalizeCategory(`${cls}-${sec}`);
+    if (combined) set.add(combined);
+  };
+
+  const permRows = (!permRes.error && Array.isArray(permRes.data)) ? permRes.data : [];
+  permRows.forEach((row: any) => {
+    const uId = row.user_id || row.teacher_id;
+    if (uId) {
+      addCategory(uId, row);
+      if (row.teacher_id && row.teacher_id !== row.user_id) {
+        addCategory(row.teacher_id, row);
+      }
+
+      if (!permissionsByUser.has(uId)) {
+        const meta = (row.metadata || {}) as any;
+        permissionsByUser.set(uId, {
+          can_take_attendance: row.can_take_attendance ?? meta.can_take_attendance ?? DEFAULT_TEACHER_PERMISSIONS.can_take_attendance,
+          can_edit_timetable: row.can_edit_timetable ?? meta.can_edit_timetable ?? DEFAULT_TEACHER_PERMISSIONS.can_edit_timetable,
+          can_export_reports: row.can_export_reports ?? meta.can_export_reports ?? DEFAULT_TEACHER_PERMISSIONS.can_export_reports,
+          can_manage_students: meta.can_manage_students ?? DEFAULT_TEACHER_PERMISSIONS.can_manage_students,
+          can_send_notifications: meta.can_send_notifications ?? DEFAULT_TEACHER_PERMISSIONS.can_send_notifications,
+          can_verify_leaves: meta.can_verify_leaves ?? DEFAULT_TEACHER_PERMISSIONS.can_verify_leaves,
+          can_view_analytics: meta.can_view_analytics ?? DEFAULT_TEACHER_PERMISSIONS.can_view_analytics,
+        });
+      }
+    }
+  });
+
+  const ctRows = (!classTeachersRes.error && Array.isArray(classTeachersRes.data)) ? classTeachersRes.data : [];
+  ctRows.forEach((row: any) => {
+    const uId = row.teacher_id;
+    if (uId) {
+      addCategory(uId, row);
+    }
+  });
+
+  const finalizedCategories = new Map<string, string[]>();
+  categoriesByUser.forEach((set, uId) => {
+    finalizedCategories.set(uId, [...set]);
+  });
+
+  return {
+    categoriesByUser: finalizedCategories,
+    permissionsByUser,
+    classTeachersRows: ctRows,
+  };
+}
+
+/**
+ * Fetch full class-section assignment matrix for the school.
+ * Optionally reuses pre-fetched class_teachers rows to avoid duplicate network queries.
+ */
+export async function fetchClassTeacherMatrix(existingRows?: any[]): Promise<ClassMatrixSlot[]> {
+  const db = supabase as any;
+  let ctRows = existingRows;
+  if (!ctRows) {
+    const res = await db.from('class_teachers').select('*');
+    ctRows = res.data || [];
+  }
 
   const assignmentsByCategory = new Map<string, ClassTeacherAssignment[]>();
 
