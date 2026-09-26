@@ -328,6 +328,34 @@ body {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary) / 0.45) transparent;
   }
+
+  /* Desktop Universal Slidable & Drag Interactions */
+  .overflow-x-auto,
+  [data-slidable="true"],
+  .desktop-slidable {
+    cursor: grab;
+  }
+
+  .overflow-x-auto button,
+  .overflow-x-auto a,
+  [data-slidable="true"] button,
+  [data-slidable="true"] a {
+    cursor: pointer;
+  }
+
+  .overflow-x-auto:active,
+  [data-slidable="true"]:active,
+  .desktop-slidable:active,
+  .is-sliding {
+    cursor: grabbing !important;
+  }
+
+  /* Enforce grabbing cursor and prevent text selection while actively dragging */
+  body.is-sliding-active,
+  body.is-sliding-active * {
+    cursor: grabbing !important;
+    user-select: none !important;
+  }
 }
 
 @keyframes shimmer-slide {

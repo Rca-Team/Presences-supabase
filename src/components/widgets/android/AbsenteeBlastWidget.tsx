@@ -70,7 +70,7 @@ export const AbsenteeBlastWidget: React.FC<AbsenteeBlastWidgetProps> = ({
           <p className="text-[10px] text-muted-foreground">All students present today in {activeClassName}.</p>
         </div>
       ) : (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar desktop-slidable select-none" data-slidable="true">
           {absentees.map((s) => {
             const photoUrl = s.photo_url
               ? sanitizeStudentPhotoUrl(s.photo_url)

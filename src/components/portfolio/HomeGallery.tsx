@@ -468,8 +468,24 @@ export function HomeGallery({
         <div className="space-y-4">
           {filteredItems[carouselIndex] && (
             <div className="relative overflow-hidden rounded-3xl border border-white/15 bg-card/70 shadow-2xl backdrop-blur-2xl">
-              <div
-                className="relative aspect-video sm:aspect-[21/9] w-full overflow-hidden cursor-pointer bg-black/40"
+              <motion.div
+                key={carouselIndex}
+                initial={{ opacity: 0.85, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0.85, x: -20 }}
+                transition={{ duration: 0.25 }}
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.25}
+                onDragEnd={(_e, { offset, velocity }) => {
+                  const swipeThreshold = 40;
+                  if (offset.x < -swipeThreshold || velocity.x < -300) {
+                    setCarouselIndex((prev) => (prev + 1) % filteredItems.length);
+                  } else if (offset.x > swipeThreshold || velocity.x > 300) {
+                    setCarouselIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length);
+                  }
+                }}
+                className="relative aspect-video sm:aspect-[21/9] w-full overflow-hidden cursor-grab active:cursor-grabbing bg-black/40 touch-pan-y select-none"
                 onClick={() => {
                   setZoomLevel(1);
                   setLightboxIndex(carouselIndex);
@@ -478,13 +494,14 @@ export function HomeGallery({
                 <img
                   src={filteredItems[carouselIndex].url}
                   alt={filteredItems[carouselIndex].title || 'Slide'}
-                  className="h-full w-full object-cover transition-all duration-700"
+                  className="h-full w-full object-cover transition-all duration-700 pointer-events-none select-none"
+                  draggable={false}
                 />
 
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
                 {/* Slide Caption Overlay */}
-                <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 flex items-end justify-between gap-4">
+                <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 flex items-end justify-between gap-4 pointer-events-none">
                   <div className="max-w-2xl">
                     {filteredItems[carouselIndex].category && (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-black/60 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-300 backdrop-blur-md">
@@ -508,7 +525,7 @@ export function HomeGallery({
                     {carouselIndex + 1} / {filteredItems.length}
                   </span>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Slide Navigation Buttons */}
               <button
@@ -517,7 +534,7 @@ export function HomeGallery({
                   e.stopPropagation();
                   setCarouselIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length);
                 }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 rounded-2xl bg-black/60 p-3 text-white hover:bg-black/80 hover:text-primary transition backdrop-blur-md shadow-lg"
+                className="absolute left-4 top-1/2 -translate-y-1/2 rounded-2xl bg-black/60 p-3 text-white hover:bg-black/80 hover:text-primary transition backdrop-blur-md shadow-lg z-10"
                 aria-label="Previous Slide"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -529,7 +546,7 @@ export function HomeGallery({
                   e.stopPropagation();
                   setCarouselIndex((prev) => (prev + 1) % filteredItems.length);
                 }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-2xl bg-black/60 p-3 text-white hover:bg-black/80 hover:text-primary transition backdrop-blur-md shadow-lg"
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-2xl bg-black/60 p-3 text-white hover:bg-black/80 hover:text-primary transition backdrop-blur-md shadow-lg z-10"
                 aria-label="Next Slide"
               >
                 <ChevronRight className="h-5 w-5" />
@@ -539,7 +556,7 @@ export function HomeGallery({
               <button
                 type="button"
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="absolute top-4 right-4 rounded-xl bg-black/60 p-2 text-white/90 hover:text-white transition backdrop-blur-md"
+                className="absolute top-4 right-4 rounded-xl bg-black/60 p-2 text-white/90 hover:text-white transition backdrop-blur-md z-10"
                 title={isPlaying ? 'Pause slideshow' : 'Play slideshow'}
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -548,7 +565,7 @@ export function HomeGallery({
           )}
 
           {/* Thumbnail Carousel Strip */}
-          <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none desktop-slidable select-none" data-slidable="true">
             {filteredItems.map((item, idx) => (
               <button
                 key={item.id}
@@ -561,7 +578,7 @@ export function HomeGallery({
                     : 'border-transparent opacity-60 hover:opacity-100',
                 )}
               >
-                <img src={item.url} alt="thumbnail" className="h-full w-full object-cover" />
+                <img src={item.url} alt="thumbnail" className="h-full w-full object-cover pointer-events-none" draggable={false} />
               </button>
             ))}
           </div>
@@ -691,13 +708,23 @@ export function HomeGallery({
                   key={activeLightboxItem.id}
                   src={activeLightboxItem.url}
                   alt={activeLightboxItem.title || 'Lightbox photo'}
-                  className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-2xl transition-all duration-300 select-none"
+                  className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-2xl transition-all duration-300 select-none cursor-grab active:cursor-grabbing"
                   style={{
                     transform: `scale(${zoomLevel})`,
                     filter: filterCss[lightboxFilter],
                   }}
-                  drag={zoomLevel > 1}
-                  dragConstraints={{ left: -300, right: 300, top: -300, bottom: 300 }}
+                  drag={zoomLevel > 1 ? true : "x"}
+                  dragConstraints={zoomLevel > 1 ? { left: -300, right: 300, top: -300, bottom: 300 } : { left: 0, right: 0 }}
+                  dragElastic={0.25}
+                  onDragEnd={(_e, { offset, velocity }) => {
+                    if (zoomLevel <= 1 && filteredItems.length > 1) {
+                      if (offset.x < -45 || velocity.x < -300) {
+                        nextLightbox();
+                      } else if (offset.x > 45 || velocity.x > 300) {
+                        prevLightbox();
+                      }
+                    }
+                  }}
                 />
 
                 {/* Left & Right Nav arrows */}

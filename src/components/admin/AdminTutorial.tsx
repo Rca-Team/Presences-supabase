@@ -591,7 +591,17 @@ export const AdminTutorial: React.FC<AdminTutorialProps> = ({
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.22 }}
-                      className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/40 p-4 sm:p-5 space-y-4 relative overflow-hidden shadow-xs"
+                      drag="x"
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={0.2}
+                      onDragEnd={(_e, { offset, velocity }) => {
+                        if (offset.x < -50 || velocity.x < -300) {
+                          handleNext();
+                        } else if (offset.x > 50 || velocity.x > 300) {
+                          handlePrev();
+                        }
+                      }}
+                      className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/40 p-4 sm:p-5 space-y-4 relative overflow-hidden shadow-xs cursor-grab active:cursor-grabbing select-none"
                     >
                       {/* Ambient Glow */}
                       <div

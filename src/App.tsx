@@ -55,6 +55,7 @@ import SplashAnimation from './components/SplashAnimation';
 import NotificationPermissionGate from './components/NotificationPermissionGate';
 import LuminaScope from './components/LuminaScope';
 import RoyalScrollProvider from './components/RoyalScrollProvider';
+import DesktopSlideProvider from './components/DesktopSlideProvider';
 import GlobalTelemetryTracker from './components/telemetry/GlobalTelemetryTracker';
 
 
@@ -427,21 +428,23 @@ function App() {
                     <SplashAnimation onComplete={handleSplashComplete} duration={1800} />
                   )}
                   <RoyalScrollProvider>
-                    <NotificationPermissionGate>
-                      <MobileAppShell>
-                        <SeoHead />
-                        <LuminaScope />
-                        <AppErrorBoundary><AnimatedRoutes /></AppErrorBoundary>
-                      </MobileAppShell>
-                      {mountNonCritical && (
-                        <>
-                          <AppExperienceLayer />
-                          <PWAInstallPrompt />
-                        </>
-                      )}
-                      <EmergencyAlertListener />
-                      <RealtimeNotificationListener />
-                    </NotificationPermissionGate>
+                    <DesktopSlideProvider>
+                      <NotificationPermissionGate>
+                        <MobileAppShell>
+                          <SeoHead />
+                          <LuminaScope />
+                          <AppErrorBoundary><AnimatedRoutes /></AppErrorBoundary>
+                        </MobileAppShell>
+                        {mountNonCritical && (
+                          <>
+                            <AppExperienceLayer />
+                            <PWAInstallPrompt />
+                          </>
+                        )}
+                        <EmergencyAlertListener />
+                        <RealtimeNotificationListener />
+                      </NotificationPermissionGate>
+                    </DesktopSlideProvider>
                   </RoyalScrollProvider>
                 </BrowserRouter>
               </div>

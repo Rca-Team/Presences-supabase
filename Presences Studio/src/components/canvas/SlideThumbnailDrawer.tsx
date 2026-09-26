@@ -23,6 +23,44 @@ export const SlideThumbnailDrawer: React.FC<SlideThumbnailDrawerProps> = ({
   onDuplicateSlide,
   onDeleteSlide,
 }) => {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const dragRef = React.useRef<{ isDown: boolean; startX: number; scrollLeft: number; hasMoved: boolean }>({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+    hasMoved: false,
+  });
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!scrollRef.current) return;
+    dragRef.current = {
+      isDown: true,
+      startX: e.pageX - scrollRef.current.offsetLeft,
+      scrollLeft: scrollRef.current.scrollLeft,
+      hasMoved: false,
+    };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragRef.current.isDown || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = x - dragRef.current.startX;
+    if (Math.abs(walk) > 4) dragRef.current.hasMoved = true;
+    scrollRef.current.scrollLeft = dragRef.current.scrollLeft - walk;
+  };
+
+  const handleMouseUp = () => {
+    dragRef.current.isDown = false;
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!scrollRef.current || e.shiftKey) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      scrollRef.current.scrollLeft += e.deltaY * 0.85;
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -33,7 +71,7 @@ export const SlideThumbnailDrawer: React.FC<SlideThumbnailDrawerProps> = ({
             Lecture Slides ({slides.length})
           </span>
           <span className="text-[11px] text-slate-400">
-            • Tap to jump, duplicate or organize
+            • Tap or drag to slide & organize
           </span>
         </div>
 
@@ -55,11 +93,21 @@ export const SlideThumbnailDrawer: React.FC<SlideThumbnailDrawerProps> = ({
       </div>
 
       {/* Horizontal Thumbnails Carousel */}
-      <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-thin">
+      <div
+        ref={scrollRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+        className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-thin cursor-grab active:cursor-grabbing select-none"
+      >
         {slides.map((slide, idx) => (
           <div
             key={slide.id}
-            onClick={() => onSelectSlide(idx)}
+            onClick={() => {
+              if (!dragRef.current.hasMoved) onSelectSlide(idx);
+            }}
             className={`relative flex-shrink-0 w-40 h-28 rounded-xl border-2 transition cursor-pointer p-2 flex flex-col justify-between group overflow-hidden ${
               idx === currentSlideIndex
                 ? 'border-emerald-500 bg-slate-800/90 shadow-lg shadow-emerald-500/10'
