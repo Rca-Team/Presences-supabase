@@ -57,7 +57,14 @@ export async function storeFaceSample(
   faceDescriptor: Float32Array,
   imageBlob:      Blob | null,
   userName:       string,
-  confidence:     number
+  confidence:     number,
+  studentContext?: {
+    student_id?: string;
+    student_name?: string;
+    class?: string;
+    section?: string;
+    category?: string;
+  }
 ): Promise<boolean> {
   try {
     // 0. Setting check: if saving attendance images to face samples is turned off, skip automatic samples
@@ -175,16 +182,22 @@ export async function storeFaceSample(
       }
     }
 
+    const resolvedStudentName = studentContext?.student_name || (existingScopeRow as any)?.student_name || userName;
+    const resolvedStudentId = studentContext?.student_id ?? (existingScopeRow as any)?.student_id ?? null;
+    const resolvedClass = studentContext?.class ?? (existingScopeRow as any)?.class ?? null;
+    const resolvedSection = studentContext?.section ?? (existingScopeRow as any)?.section ?? null;
+    const resolvedCategory = studentContext?.category ?? (existingScopeRow as any)?.category ?? null;
+
     const { error: insertErr } = await supabase.from('face_descriptors').insert({
       user_id:   userId,
       descriptor: descriptorToString(faceDescriptor),
       image_url:  imageUrl,
       label:      userName,
-      student_name: (existingScopeRow as any)?.student_name || userName,
-      student_id: (existingScopeRow as any)?.student_id ?? null,
-      class:      (existingScopeRow as any)?.class ?? null,
-      section:    (existingScopeRow as any)?.section ?? null,
-      category:   (existingScopeRow as any)?.category ?? null,
+      student_name: resolvedStudentName,
+      student_id: resolvedStudentId,
+      class:      resolvedClass,
+      section:    resolvedSection,
+      category:   resolvedCategory,
       metadata:   confidence === 1.0 ? { registration: 'true' } : {},
     });
 

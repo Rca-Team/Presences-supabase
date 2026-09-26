@@ -49,8 +49,12 @@ const parseClassSection = (category?: string) => {
 };
 
 const getUploaderId = async () => {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id || null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id || 'open-enrollment';
+  } catch {
+    return 'open-enrollment';
+  }
 };
 
 export const dataUrlToBlob = async (dataUrl: string): Promise<Blob | null> => {
@@ -73,26 +77,31 @@ export const dataUrlToBlob = async (dataUrl: string): Promise<Blob | null> => {
 export const uploadRegistrationTrainingImage = async (
   input: RegistrationTrainingUploadInput,
 ): Promise<string | null> => {
-  const uploaderId = await getUploaderId();
-  if (!uploaderId) return null;
+  try {
+    const uploaderId = await getUploaderId();
+    if (!uploaderId) return null;
 
-  const { className, sectionName } = parseClassSection(input.category);
-  const studentKey = sanitizeSegment(input.employeeId || input.studentId);
-  const label = sanitizeSegment(input.label || 'register');
-  const timestamp = Date.now();
+    const { className, sectionName } = parseClassSection(input.category);
+    const studentKey = sanitizeSegment(input.employeeId || input.studentId);
+    const label = sanitizeSegment(input.label || 'register');
+    const timestamp = Date.now();
 
-  const path = `${uploaderId}/class-${className}/section-${sectionName}/student-${studentKey}/${timestamp}-${label}.jpg`;
+    const path = `${uploaderId}/class-${className}/section-${sectionName}/student-${studentKey}/${timestamp}-${label}.jpg`;
 
-  const { error } = await supabase.storage
-    .from('student-registration-faces')
-    .upload(path, input.imageBlob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
+    const { error } = await supabase.storage
+      .from('student-registration-faces')
+      .upload(path, input.imageBlob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
 
-  if (error) {
-    console.warn('Registration training upload failed:', error.message);
+    if (error) {
+      console.warn('Registration training upload failed:', error.message);
+      return null;
+    }
+
+    return path;
+  } catch (err) {
+    console.warn('Registration training upload exception:', err);
     return null;
   }
-
-  return path;
 };
 
 export const uploadAttendanceTrainingImage = async (
@@ -130,47 +139,52 @@ export const uploadAttendanceTrainingImage = async (
 export const uploadRegistrationFaceModel = async (
   input: FaceModelUploadInput,
 ): Promise<string | null> => {
-  const uploaderId = await getUploaderId();
-  if (!uploaderId) return null;
+  try {
+    const uploaderId = await getUploaderId();
+    if (!uploaderId) return null;
 
-  const { className, sectionName } = parseClassSection(input.category);
-  const studentKey = sanitizeSegment(input.employeeId || input.studentId);
-  const timestamp = Date.now();
-  const path = `${uploaderId}/class-${className}/section-${sectionName}/student-${studentKey}/models/${timestamp}-face-model.json`;
+    const { className, sectionName } = parseClassSection(input.category);
+    const studentKey = sanitizeSegment(input.employeeId || input.studentId);
+    const timestamp = Date.now();
+    const path = `${uploaderId}/class-${className}/section-${sectionName}/student-${studentKey}/models/${timestamp}-face-model.json`;
 
-  const descriptorCloud = input.descriptors.map((d) => Array.from(d));
-  const pointCloud3D = input.descriptors.map((d, idx) => ({
-    id: idx + 1,
-    x: Number(d[0]?.toFixed(6) || 0),
-    y: Number(d[1]?.toFixed(6) || 0),
-    z: Number(d[2]?.toFixed(6) || 0),
-  }));
+    const descriptorCloud = input.descriptors.map((d) => Array.from(d));
+    const pointCloud3D = input.descriptors.map((d, idx) => ({
+      id: idx + 1,
+      x: Number(d[0]?.toFixed(6) || 0),
+      y: Number(d[1]?.toFixed(6) || 0),
+      z: Number(d[2]?.toFixed(6) || 0),
+    }));
 
-  const payload = {
-    version: 'face-model-v1',
-    created_at: new Date().toISOString(),
-    student_id: input.studentId,
-    employee_id: input.employeeId || null,
-    category: input.category || null,
-    capture_mode: input.captureMode,
-    sample_count: input.descriptors.length,
-    descriptor_dimensions: input.averagedDescriptor.length,
-    averaged_descriptor: Array.from(input.averagedDescriptor),
-    descriptor_cloud: descriptorCloud,
-    point_cloud_3d_equivalent: pointCloud3D,
-    sample_images: input.sampleImages || [],
-  };
+    const payload = {
+      version: 'face-model-v1',
+      created_at: new Date().toISOString(),
+      student_id: input.studentId,
+      employee_id: input.employeeId || null,
+      category: input.category || null,
+      capture_mode: input.captureMode,
+      sample_count: input.descriptors.length,
+      descriptor_dimensions: input.averagedDescriptor.length,
+      averaged_descriptor: Array.from(input.averagedDescriptor),
+      descriptor_cloud: descriptorCloud,
+      point_cloud_3d_equivalent: pointCloud3D,
+      sample_images: input.sampleImages || [],
+    };
 
-  const jsonBlob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const jsonBlob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
 
-  const { error } = await supabase.storage
-    .from('student-registration-faces')
-    .upload(path, jsonBlob, { contentType: 'application/json', upsert: false, cacheControl: '3600' });
+    const { error } = await supabase.storage
+      .from('student-registration-faces')
+      .upload(path, jsonBlob, { contentType: 'application/json', upsert: false, cacheControl: '3600' });
 
-  if (error) {
-    console.warn('Registration face model upload failed:', error.message);
+    if (error) {
+      console.warn('Registration face model upload failed:', error.message);
+      return null;
+    }
+
+    return path;
+  } catch (err) {
+    console.warn('Registration face model upload exception:', err);
     return null;
   }
-
-  return path;
 };

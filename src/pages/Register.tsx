@@ -382,20 +382,31 @@ const Register = () => {
 
         // Store ALL 3D scan samples in face_descriptors for multi-angle matching
         if (allDescriptors.length > 0) {
+          const rawDept = String(validData.department || '').trim();
+          const deptMatch = rawDept.match(/^(\d+)\s*-\s*([A-Da-d])$/);
+          const parsedClass = deptMatch ? deptMatch[1] : (rawDept || null);
+          const parsedSection = deptMatch ? deptMatch[2].toUpperCase() : null;
+
           console.log(`Storing ${allDescriptors.length} 3D scan samples for user ${descriptorOwnerUserId}`);
-           for (let i = 0; i < allDescriptors.length; i++) {
-             const descriptor = allDescriptors[i];
-             const shotImage = allFaceImages[i];
-             let shotBlob: Blob | null = null;
-             if (shotImage) {
-               try {
-                 const shotRes = await fetch(shotImage);
-                 shotBlob = await shotRes.blob();
-               } catch (shotErr) {
-                 console.warn(`Could not convert captured shot #${i + 1} to blob`, shotErr);
-               }
-             }
-              await storeFaceSample(descriptorOwnerUserId, descriptor, shotBlob, validData.name, 1.0);
+          for (let i = 0; i < allDescriptors.length; i++) {
+            const descriptor = allDescriptors[i];
+            const shotImage = allFaceImages[i];
+            let shotBlob: Blob | null = null;
+            if (shotImage) {
+              try {
+                const shotRes = await fetch(shotImage);
+                shotBlob = await shotRes.blob();
+              } catch (shotErr) {
+                console.warn(`Could not convert captured shot #${i + 1} to blob`, shotErr);
+              }
+            }
+            await storeFaceSample(descriptorOwnerUserId, descriptor, shotBlob, validData.name, 1.0, {
+              student_id: validData.employeeId,
+              student_name: validData.name,
+              class: parsedClass || undefined,
+              section: parsedSection || undefined,
+              category: validData.department,
+            });
           }
           console.log('All 3D scan samples stored successfully');
         }
