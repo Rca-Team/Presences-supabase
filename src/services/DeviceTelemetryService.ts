@@ -44,6 +44,11 @@ export interface GeoLocationInfo {
   postalCode: string;
   latitude: number | null;
   longitude: number | null;
+  accuracyMeters: number | null;
+  locationSource: 'gps' | 'wifi_triangulation' | 'ip_network';
+  streetName?: string;
+  neighborhood?: string;
+  altitudeMeters?: number | null;
   isp: string;
   org: string;
   timezone: string;
@@ -422,10 +427,69 @@ export async function collectHardwareSpecs(): Promise<HardwareSpecs> {
   };
 }
 
+// High-precision GPS & Wi-Fi hardware locator with client-side reverse geocoding
+export async function getHighPrecisionHardwareLocation(): Promise<Partial<GeoLocationInfo> | null> {
+  if (typeof window === 'undefined' || !navigator.geolocation) return null;
+
+  try {
+    const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 9000,
+        maximumAge: 0,
+      });
+    });
+
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const accuracy = Math.round(pos.coords.accuracy);
+    const altitude = pos.coords.altitude ? Math.round(pos.coords.altitude) : null;
+
+    let streetName = '';
+    let neighborhood = '';
+    let city = '';
+    let region = '';
+    let postalCode = '';
+    let country = '';
+
+    // Fast, CORS-friendly client-side reverse geocoding
+    try {
+      const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        city = data.locality || data.city || '';
+        region = data.principalSubdivision || '';
+        postalCode = data.postcode || '';
+        country = data.countryName || '';
+        neighborhood = data.localityInfo?.administrative?.[3]?.name || data.locality || '';
+        streetName = data.localityInfo?.informative?.[0]?.name || '';
+      }
+    } catch {}
+
+    return {
+      latitude: lat,
+      longitude: lng,
+      accuracyMeters: accuracy,
+      locationSource: accuracy <= 35 ? 'gps' : 'wifi_triangulation',
+      streetName,
+      neighborhood,
+      city: city || undefined,
+      region: region || undefined,
+      postalCode: postalCode || undefined,
+      country: country || undefined,
+      altitudeMeters: altitude,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // In-memory geo cache
 let inMemoryGeo: GeoLocationInfo | null = null;
 
-// Multi-provider resilient IP & Geolocation Resolver
+// Multi-provider resilient IP & Geolocation Resolver (with hardware GPS precision layer)
 export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
   if (inMemoryGeo) return inMemoryGeo;
 
@@ -453,6 +517,8 @@ export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
     postalCode: '110001',
     latitude: 28.6139,
     longitude: 77.209,
+    accuracyMeters: null,
+    locationSource: 'ip_network',
     isp: 'School Local Network',
     org: 'PM Shri KV Network',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
@@ -460,12 +526,13 @@ export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
   };
 
   // Provider 1: ipwho.is
+  let resolvedGeo: GeoLocationInfo = { ...defaultGeo };
   try {
     const res = await fetch('https://ipwho.is/', { cache: 'force-cache' });
     if (res.ok) {
       const data = await res.json();
       if (data && data.success !== false && data.ip) {
-        const geo: GeoLocationInfo = {
+        resolvedGeo = {
           ip: data.ip,
           city: data.city || 'Delhi',
           region: data.region || 'Delhi',
@@ -475,63 +542,42 @@ export async function resolveGeoLocationAndIP(): Promise<GeoLocationInfo> {
           postalCode: data.postal || '',
           latitude: data.latitude ? Number(data.latitude) : null,
           longitude: data.longitude ? Number(data.longitude) : null,
+          accuracyMeters: null,
+          locationSource: 'ip_network',
           isp: data.connection?.isp || data.connection?.org || 'Internet Provider',
           org: data.connection?.org || data.connection?.isp || 'Broadband',
           timezone: data.timezone?.id || 'Asia/Kolkata',
           localTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         };
-        inMemoryGeo = geo;
-        try {
-          sessionStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geo));
-        } catch {}
-        return geo;
       }
     }
   } catch {}
 
-  // Provider 2: ipapi.co
+  // Layer 2: High-accuracy hardware GPS enhancement
   try {
-    const res = await fetch('https://ipapi.co/json/');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.ip) {
-        const geo: GeoLocationInfo = {
-          ip: data.ip,
-          city: data.city || 'Delhi',
-          region: data.region || 'Delhi',
-          country: data.country_name || 'India',
-          countryCode: data.country_code || 'IN',
-          countryFlag: getCountryFlagEmoji(data.country_code || 'IN'),
-          postalCode: data.postal || '',
-          latitude: data.latitude ? Number(data.latitude) : null,
-          longitude: data.longitude ? Number(data.longitude) : null,
-          isp: data.org || 'Internet Provider',
-          org: data.org || 'Broadband',
-          timezone: data.timezone || 'Asia/Kolkata',
-          localTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        };
-        inMemoryGeo = geo;
-        try {
-          sessionStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geo));
-        } catch {}
-        return geo;
-      }
+    const gpsData = await getHighPrecisionHardwareLocation();
+    if (gpsData && gpsData.latitude !== undefined && gpsData.longitude !== undefined) {
+      resolvedGeo = {
+        ...resolvedGeo,
+        latitude: gpsData.latitude,
+        longitude: gpsData.longitude,
+        accuracyMeters: gpsData.accuracyMeters ?? null,
+        locationSource: gpsData.locationSource ?? 'gps',
+        streetName: gpsData.streetName || resolvedGeo.streetName,
+        neighborhood: gpsData.neighborhood || resolvedGeo.neighborhood,
+        city: gpsData.city || resolvedGeo.city,
+        region: gpsData.region || resolvedGeo.region,
+        postalCode: gpsData.postalCode || resolvedGeo.postalCode,
+        altitudeMeters: gpsData.altitudeMeters ?? null,
+      };
     }
   } catch {}
 
-  // Provider 3: api.ipify.org
+  inMemoryGeo = resolvedGeo;
   try {
-    const res = await fetch('https://api.ipify.org?format=json');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.ip) {
-        defaultGeo.ip = data.ip;
-      }
-    }
+    sessionStorage.setItem(GEO_CACHE_KEY, JSON.stringify(resolvedGeo));
   } catch {}
-
-  inMemoryGeo = defaultGeo;
-  return defaultGeo;
+  return resolvedGeo;
 }
 
 // Event bus for recent device activities

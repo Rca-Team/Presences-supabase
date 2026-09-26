@@ -765,15 +765,32 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                         <span>{session.geo?.countryFlag || '🌐'}</span>
                         <span>{session.geo?.ip || '127.0.0.1'}</span>
                       </span>
-                      <span className="text-[10px] text-slate-400 truncate max-w-[110px]">
-                        {session.geo?.isp}
-                      </span>
+
+                      <div className="flex items-center gap-1">
+                        {session.geo?.locationSource === 'gps' ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            🎯 GPS (±{session.geo.accuracyMeters}m)
+                          </span>
+                        ) : session.geo?.locationSource === 'wifi_triangulation' ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                            📡 Wi-Fi Loc (±{session.geo.accuracyMeters}m)
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-700/60 text-slate-300">
+                            🌐 ISP Gateway
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-slate-300 text-[10px]">
-                      <span className="flex items-center gap-1 truncate">
+                      <span className="flex items-center gap-1 truncate max-w-[210px]" title={`${session.geo?.streetName || ''} ${session.geo?.neighborhood || ''} ${session.geo?.city || ''}, ${session.geo?.region || ''}`}>
                         <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
-                        <span>{session.geo?.city}, {session.geo?.region}</span>
+                        <span className="truncate font-medium">
+                          {session.geo?.streetName ? `${session.geo.streetName}, ` : ''}
+                          {session.geo?.neighborhood ? `${session.geo.neighborhood}, ` : ''}
+                          {session.geo?.city}, {session.geo?.region}
+                        </span>
                       </span>
 
                       {mapsUrl && (
@@ -782,7 +799,7 @@ export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-400 hover:text-blue-300 flex items-center gap-0.5 shrink-0 font-bold underline"
-                          title="Open coordinates in Google Maps"
+                          title="Open exact coordinates in Google Maps"
                         >
                           <span>Maps</span>
                           <ExternalLink className="w-2.5 h-2.5" />
