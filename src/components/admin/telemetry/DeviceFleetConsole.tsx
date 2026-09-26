@@ -1,0 +1,938 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Smartphone,
+  Tablet,
+  Monitor,
+  Tv,
+  Globe,
+  Wifi,
+  Battery,
+  BatteryCharging,
+  Cpu,
+  Layers,
+  MapPin,
+  Clock,
+  Activity,
+  Shield,
+  Search,
+  Filter,
+  RefreshCw,
+  Bell,
+  Volume2,
+  ExternalLink,
+  Download,
+  Share2,
+  Lock,
+  Radio,
+  Send,
+  Sparkles,
+  Zap,
+  CheckCircle2,
+  AlertTriangle,
+  User,
+  Users,
+  Compass,
+  Eye,
+  Crosshair,
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
+import { shareOrDownloadFile } from '@/utils/nativeShare';
+import { TelemetrySessionData } from '@/services/DeviceTelemetryService';
+
+interface DeviceFleetConsoleProps {
+  onLock: () => void;
+}
+
+export const DeviceFleetConsole: React.FC<DeviceFleetConsoleProps> = ({ onLock }) => {
+  const { toast } = useToast();
+  const { trigger: haptic } = useHapticFeedback();
+  const [activeSessions, setActiveSessions] = useState<Record<string, TelemetrySessionData>>({});
+  const [selectedDevice, setSelectedDevice] = useState<TelemetrySessionData | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'idle'>('all');
+  const [deviceFilter, setDeviceFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'fleet' | 'map' | 'activity'>('fleet');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [isSendingCommand, setIsSendingCommand] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  // Update relative time clock
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 2000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Listen to Supabase Realtime Fleet Presence
+  useEffect(() => {
+    const channel = supabase.channel('presence:fleet-radar');
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<TelemetrySessionData>();
+        const flattened: Record<string, TelemetrySessionData> = {};
+
+        Object.keys(state).forEach((key) => {
+          const presences = state[key];
+          if (presences && presences.length > 0) {
+            const latest = presences[presences.length - 1];
+            flattened[latest.deviceId || key] = latest;
+          }
+        });
+
+        setActiveSessions(flattened);
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        if (newPresences && newPresences.length > 0) {
+          const joined = newPresences[0] as TelemetrySessionData;
+          setActiveSessions((prev) => ({
+            ...prev,
+            [joined.deviceId || key]: joined,
+          }));
+        }
+      })
+      .on('presence', { event: 'leave' }, ({ key }) => {
+        setActiveSessions((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const sessionList = useMemo(() => Object.values(activeSessions), [activeSessions]);
+
+  // Aggregate Metrics
+  const metrics = useMemo(() => {
+    const total = sessionList.length;
+    const online = sessionList.filter((s) => s.status === 'online').length;
+    const idle = sessionList.filter((s) => s.status === 'idle').length;
+    const authenticated = sessionList.filter((s) => !s.isAnonymous).length;
+    const guests = sessionList.filter((s) => s.isAnonymous).length;
+    const smartboards = sessionList.filter((s) => s.hardware?.deviceType === 'smartboard').length;
+
+    // Top city
+    const cityCounts: Record<string, number> = {};
+    sessionList.forEach((s) => {
+      const city = s.geo?.city || 'Local';
+      cityCounts[city] = (cityCounts[city] || 0) + 1;
+    });
+    const topCity = Object.entries(cityCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Delhi';
+
+    // Average latency
+    const latencies = sessionList.map((s) => s.hardware?.rttMs).filter(Boolean) as number[];
+    const avgLatency = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 28;
+
+    return { total, online, idle, authenticated, guests, smartboards, topCity, avgLatency };
+  }, [sessionList]);
+
+  // Filtered Sessions
+  const filteredSessions = useMemo(() => {
+    return sessionList.filter((s) => {
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (deviceFilter !== 'all' && s.hardware?.deviceType !== deviceFilter) return false;
+      if (roleFilter !== 'all') {
+        if (roleFilter === 'guest' && !s.isAnonymous) return false;
+        if (roleFilter !== 'guest' && s.userRole?.toLowerCase() !== roleFilter.toLowerCase()) return false;
+      }
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchIp = s.geo?.ip?.toLowerCase().includes(query);
+        const matchCity = s.geo?.city?.toLowerCase().includes(query);
+        const matchName = s.userName?.toLowerCase().includes(query);
+        const matchEmail = s.userEmail?.toLowerCase().includes(query);
+        const matchRoute = s.currentRoute?.toLowerCase().includes(query);
+        const matchModel = s.hardware?.brandModel?.toLowerCase().includes(query);
+        const matchDevice = s.deviceId?.toLowerCase().includes(query);
+        return matchIp || matchCity || matchName || matchEmail || matchRoute || matchModel || matchDevice;
+      }
+      return true;
+    });
+  }, [sessionList, statusFilter, deviceFilter, roleFilter, searchQuery]);
+
+  // Send Remote Fleet Commands
+  const handleSendCommand = async (type: 'ping' | 'alert' | 'reload', targetDeviceId?: string, message?: string) => {
+    setIsSendingCommand(true);
+    try {
+      const channel = supabase.channel('broadcast:fleet-commands');
+      await channel.send({
+        type: 'broadcast',
+        event: type,
+        payload: {
+          targetDeviceId: targetDeviceId || null,
+          message: message || (type === 'ping' ? 'Ping verification from School Admin' : undefined),
+          sentAt: Date.now(),
+        },
+      });
+
+      haptic('success');
+      toast({
+        title: `Command Sent [${type.toUpperCase()}]`,
+        description: targetDeviceId
+          ? `Dispatched to device ${targetDeviceId.slice(0, 8)}...`
+          : 'Dispatched to all connected fleet devices.',
+      });
+      setShowBroadcastModal(false);
+      setBroadcastMessage('');
+    } catch (err) {
+      toast({
+        title: 'Command Failed',
+        description: 'Failed to broadcast fleet message.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingCommand(false);
+    }
+  };
+
+  // Export session data
+  const handleExportSessions = async (format: 'csv' | 'json') => {
+    haptic('selection');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+    if (format === 'json') {
+      const jsonStr = JSON.stringify(sessionList, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      await shareOrDownloadFile(blob, `presences-fleet-telemetry-${timestamp}.json`, 'Presences Live Fleet Telemetry (JSON)');
+    } else {
+      const headers = [
+        'Device ID',
+        'User Name',
+        'Role',
+        'Email',
+        'Status',
+        'Current Route',
+        'Active Duration (s)',
+        'IP Address',
+        'ISP',
+        'City',
+        'State/Region',
+        'Country',
+        'Latitude',
+        'Longitude',
+        'Device Type',
+        'Brand & Model',
+        'OS',
+        'Browser',
+        'CPU Cores',
+        'RAM (GB)',
+        'GPU Renderer',
+        'Screen',
+        'Battery %',
+        'Charging',
+        'Network Type',
+        'Latency (ms)',
+      ];
+
+      const rows = sessionList.map((s) => [
+        s.deviceId,
+        s.userName || 'Anonymous Guest',
+        s.userRole || 'Guest',
+        s.userEmail || '',
+        s.status,
+        s.currentRoute,
+        Math.round((now - s.routeEnteredAt) / 1000),
+        s.geo?.ip || '',
+        `"${(s.geo?.isp || '').replace(/"/g, '""')}"`,
+        s.geo?.city || '',
+        s.geo?.region || '',
+        s.geo?.country || '',
+        s.geo?.latitude || '',
+        s.geo?.longitude || '',
+        s.hardware?.deviceType || '',
+        `"${(s.hardware?.brandModel || '').replace(/"/g, '""')}"`,
+        `${s.hardware?.os || ''} ${s.hardware?.osVersion || ''}`,
+        `${s.hardware?.browser || ''} ${s.hardware?.browserVersion || ''}`,
+        s.hardware?.cpuCores || '',
+        s.hardware?.deviceMemoryGB || '',
+        `"${(s.hardware?.gpuRenderer || '').replace(/"/g, '""')}"`,
+        `${s.hardware?.screenWidth || 0}x${s.hardware?.screenHeight || 0}`,
+        s.hardware?.batteryLevel ?? '',
+        s.hardware?.batteryCharging ?? '',
+        s.hardware?.networkType || '',
+        s.hardware?.rttMs ?? '',
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      await shareOrDownloadFile(blob, `presences-fleet-telemetry-${timestamp}.csv`, 'Presences Live Fleet Telemetry (CSV)');
+    }
+
+    toast({ title: 'Export Complete', description: 'Fleet telemetry session log saved.' });
+  };
+
+  const getDeviceIcon = (type: string) => {
+    switch (type) {
+      case 'mobile':
+        return <Smartphone className="w-4 h-4" />;
+      case 'tablet':
+        return <Tablet className="w-4 h-4" />;
+      case 'smartboard':
+        return <Tv className="w-4 h-4 text-purple-400" />;
+      default:
+        return <Monitor className="w-4 h-4" />;
+    }
+  };
+
+  const formatDuration = (ms: number) => {
+    const secs = Math.floor(ms / 1000);
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ${secs % 60}s`;
+    const hrs = Math.floor(mins / 60);
+    return `${hrs}h ${mins % 60}m`;
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-in pb-12">
+      {/* Top Banner & Control Bar */}
+      <div className="rounded-3xl p-5 md:p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/20 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 border border-white/20">
+                <Radio className="w-5 h-5 text-white animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg md:text-xl font-black tracking-tight">Global Fleet Intelligence Radar</h2>
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] font-bold px-2 py-0.5">
+                    REALTIME LIVE
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Live session telemetry, IP geolocation, hardware specs & remote fleet controls
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowBroadcastModal(true)}
+              className="h-8.5 rounded-xl border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs font-bold btn-spring"
+            >
+              <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
+              Broadcast Alert
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleExportSessions('csv')}
+              className="h-8.5 rounded-xl border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs font-bold btn-spring"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
+              Export CSV
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleExportSessions('json')}
+              className="h-8.5 rounded-xl border-white/20 bg-white/10 hover:bg-white/20 text-white text-xs font-bold btn-spring"
+            >
+              <Share2 className="w-3.5 h-3.5 mr-1.5 text-indigo-400" />
+              Export JSON
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                haptic('selection');
+                try {
+                  sessionStorage.removeItem('presences_telemetry_unlocked');
+                } catch {}
+                onLock();
+              }}
+              className="h-8.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/30"
+              title="Lock Console"
+            >
+              <Lock className="w-3.5 h-3.5 mr-1" />
+              Lock
+            </Button>
+          </div>
+        </div>
+
+        {/* Live Metrics Ribbon */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 mt-5 pt-5 border-t border-white/10">
+          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Devices</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-xl md:text-2xl font-black text-white">{metrics.total}</span>
+              <span className="text-[11px] font-bold text-emerald-400 flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block mr-1 animate-pulse" />
+                {metrics.online} Online
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Idle / Away</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-xl md:text-2xl font-black text-amber-300">{metrics.idle}</span>
+              <span className="text-[10px] text-slate-400">&gt; 90s inactive</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Logged In Staff</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-xl md:text-2xl font-black text-blue-400">{metrics.authenticated}</span>
+              <span className="text-[10px] text-slate-400">Verified</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Guest Visitors</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-xl md:text-2xl font-black text-purple-400">{metrics.guests}</span>
+              <span className="text-[10px] text-slate-400">Public</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Latency</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-xl md:text-2xl font-black text-emerald-400">{metrics.avgLatency}ms</span>
+              <span className="text-[10px] text-slate-400">RTT</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Top Location</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-base md:text-lg font-black text-white truncate">{metrics.topCity}</span>
+              <span className="text-[10px] text-slate-400">🇮🇳 IN</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs, Search & Filters */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-3.5 rounded-2xl border shadow-sm">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            onClick={() => {
+              haptic('selection');
+              setActiveTab('fleet');
+            }}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'fleet'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>Active Fleet ({filteredSessions.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              haptic('selection');
+              setActiveTab('map');
+            }}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'map'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Geographic Distribution</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              haptic('selection');
+              setActiveTab('activity');
+            }}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'activity'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Live Activity Stream</span>
+          </button>
+        </div>
+
+        {/* Search & Filter Bar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search IP, Name, Route, City..."
+              className="h-8 pl-8 pr-3 text-xs rounded-xl"
+            />
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="h-8 px-2 rounded-xl text-xs font-medium bg-muted border border-input text-foreground"
+          >
+            <option value="all">All Statuses</option>
+            <option value="online">Online Only</option>
+            <option value="idle">Idle Only</option>
+          </select>
+
+          <select
+            value={deviceFilter}
+            onChange={(e) => setDeviceFilter(e.target.value)}
+            className="h-8 px-2 rounded-xl text-xs font-medium bg-muted border border-input text-foreground"
+          >
+            <option value="all">All Devices</option>
+            <option value="mobile">Mobile Phones</option>
+            <option value="tablet">Tablets</option>
+            <option value="desktop">Desktop PCs</option>
+            <option value="smartboard">Smart Boards</option>
+          </select>
+
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="h-8 px-2 rounded-xl text-xs font-medium bg-muted border border-input text-foreground"
+          >
+            <option value="all">All Roles</option>
+            <option value="admin">Principals & Admin</option>
+            <option value="teacher">Teachers</option>
+            <option value="guard">Guards</option>
+            <option value="guest">Guest Visitors</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Main Tab Views */}
+      {activeTab === 'fleet' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSessions.length === 0 ? (
+            <Card className="col-span-full p-12 text-center border-dashed">
+              <div className="w-12 h-12 rounded-2xl bg-muted text-muted-foreground flex items-center justify-center mx-auto mb-3">
+                <Smartphone className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold">No Active Devices Matching Criteria</h4>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                {sessionList.length === 0
+                  ? 'Listening for incoming device telemetry heartbeats on Supabase Realtime channel...'
+                  : 'Try clearing your search query or adjusting status filters.'}
+              </p>
+            </Card>
+          ) : (
+            filteredSessions.map((session) => {
+              const isOnline = session.status === 'online';
+              const timeOnRoute = now - (session.routeEnteredAt || session.sessionStartedAt || now);
+              const battery = session.hardware?.batteryLevel;
+              const isCharging = session.hardware?.batteryCharging;
+              const lat = session.geo?.latitude;
+              const lng = session.geo?.longitude;
+              const mapsUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+
+              return (
+                <motion.div
+                  key={session.deviceId}
+                  layout
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md transition-all p-4.5 space-y-3.5 relative overflow-hidden"
+                >
+                  {/* Status breathing accent */}
+                  <div
+                    className={`absolute top-0 left-0 right-0 h-1 ${
+                      isOnline ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
+
+                  {/* Top Bar: Device Type, OS Badge & Online Status */}
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-xl bg-muted flex items-center justify-center text-primary shrink-0">
+                        {getDeviceIcon(session.hardware?.deviceType || 'desktop')}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">
+                          {session.hardware?.brandModel || 'Web Client'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {session.hardware?.os} {session.hardware?.osVersion} · {session.hardware?.browser}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {session.hardware?.isPWA && (
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+                          PWA App
+                        </Badge>
+                      )}
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                          isOnline
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                        {isOnline ? 'Online' : 'Idle'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* User Profile / Guest Badge */}
+                  <div className="p-2.5 rounded-xl bg-muted/50 border flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
+                        {session.userName ? session.userName.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">
+                          {session.userName || 'Anonymous Visitor'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {session.userEmail || `ID: ${session.deviceId.slice(0, 12)}...`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Badge
+                      className={`text-[9px] font-bold px-2 py-0.5 shrink-0 ${
+                        session.isAnonymous
+                          ? 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'
+                          : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                      }`}
+                    >
+                      {session.userRole || 'Guest'}
+                    </Badge>
+                  </div>
+
+                  {/* Active Route & Duration */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground font-medium flex items-center gap-1">
+                        <Compass className="w-3 h-3 text-primary" />
+                        Active Page:
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {formatDuration(timeOnRoute)} on page
+                      </span>
+                    </div>
+                    <div className="px-2.5 py-1.5 rounded-xl bg-primary/5 border border-primary/15 flex items-center justify-between">
+                      <span className="text-xs font-mono font-extrabold text-primary truncate">
+                        {session.currentRoute}
+                      </span>
+                      <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
+                        {session.pageTitle}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* IP Address & Physical Location */}
+                  <div className="p-2.5 rounded-xl bg-slate-900 text-white space-y-1.5 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-emerald-400 flex items-center gap-1">
+                        <span>{session.geo?.countryFlag || '🌐'}</span>
+                        <span>{session.geo?.ip || '127.0.0.1'}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 truncate max-w-[110px]">
+                        {session.geo?.isp}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-300 text-[10px]">
+                      <span className="flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                        <span>{session.geo?.city}, {session.geo?.region}, {session.geo?.country}</span>
+                      </span>
+
+                      {mapsUrl && (
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300 flex items-center gap-0.5 shrink-0 font-bold underline"
+                          title="Open coordinates in Google Maps"
+                        >
+                          <span>Maps</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Detailed Hardware Specs Pill Grid */}
+                  <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                    <div className="p-1.5 rounded-lg bg-muted/60 border text-center">
+                      <p className="text-muted-foreground font-semibold">CPU / RAM</p>
+                      <p className="font-bold text-foreground truncate mt-0.5">
+                        {session.hardware?.cpuCores}c · {session.hardware?.deviceMemoryGB ? `${session.hardware.deviceMemoryGB}GB` : 'N/A'}
+                      </p>
+                    </div>
+
+                    <div className="p-1.5 rounded-lg bg-muted/60 border text-center">
+                      <p className="text-muted-foreground font-semibold">Display</p>
+                      <p className="font-bold text-foreground truncate mt-0.5">
+                        {session.hardware?.screenWidth}x{session.hardware?.screenHeight}
+                      </p>
+                    </div>
+
+                    <div className="p-1.5 rounded-lg bg-muted/60 border text-center">
+                      <p className="text-muted-foreground font-semibold">Power</p>
+                      <p className="font-bold text-foreground truncate mt-0.5 flex items-center justify-center gap-0.5">
+                        {isCharging ? <BatteryCharging className="w-3 h-3 text-emerald-500" /> : <Battery className="w-3 h-3" />}
+                        <span>{battery !== null ? `${battery}%` : 'AC'}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* GPU Renderer string */}
+                  <div className="text-[9px] text-muted-foreground truncate px-1">
+                    <span className="font-bold">GPU:</span> {session.hardware?.gpuRenderer || 'Generic Graphics'}
+                  </div>
+
+                  {/* Remote Action Buttons */}
+                  <div className="pt-2 border-t flex items-center justify-between gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isSendingCommand}
+                      onClick={() => handleSendCommand('ping', session.deviceId)}
+                      className="h-7 px-2.5 text-[11px] rounded-lg border-primary/20 hover:bg-primary/10 text-primary font-bold flex-1"
+                      title="Send Remote Ping Chime"
+                    >
+                      <Volume2 className="w-3 h-3 mr-1" />
+                      Ping
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isSendingCommand}
+                      onClick={() => {
+                        const msg = window.prompt('Enter announcement text to send to this device:');
+                        if (msg) handleSendCommand('alert', session.deviceId, msg);
+                      }}
+                      className="h-7 px-2.5 text-[11px] rounded-lg border-amber-500/30 hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold flex-1"
+                      title="Send Alert Toast"
+                    >
+                      <Bell className="w-3 h-3 mr-1" />
+                      Alert
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={isSendingCommand}
+                      onClick={() => {
+                        if (window.confirm('Force reload this client browser remotely?')) {
+                          handleSendCommand('reload', session.deviceId);
+                        }
+                      }}
+                      className="h-7 px-2 text-[11px] rounded-lg hover:bg-rose-500/10 text-rose-500 font-bold"
+                      title="Remote Force Refresh"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Geographic Distribution Map Tab */}
+      {activeTab === 'map' && (
+        <Card className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-extrabold flex items-center gap-2">
+                <Globe className="w-5 h-5 text-primary" />
+                <span>Geographic Network Cluster</span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Physical location pinpoints of all active school clients based on IP geolocation
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs font-bold px-3 py-1">
+              {metrics.total} Connected Nodes
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {Object.entries(
+              sessionList.reduce((acc, s) => {
+                const city = s.geo?.city || 'Unknown';
+                if (!acc[city]) acc[city] = [];
+                acc[city].push(s);
+                return acc;
+              }, {} as Record<string, TelemetrySessionData[]>)
+            ).map(([city, list]) => {
+              const first = list[0];
+              const lat = first.geo?.latitude;
+              const lng = first.geo?.longitude;
+              const mapsUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+
+              return (
+                <div key={city} className="p-4 rounded-2xl bg-card border shadow-sm space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{first.geo?.countryFlag || '🌐'}</span>
+                      <div>
+                        <h4 className="text-sm font-bold text-foreground">{city}</h4>
+                        <p className="text-[10px] text-muted-foreground">{first.geo?.region}, {first.geo?.country}</p>
+                      </div>
+                    </div>
+                    <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-bold">
+                      {list.length} Device{list.length > 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+
+                  <div className="text-[11px] font-mono text-muted-foreground space-y-0.5">
+                    <p>Coordinates: {lat?.toFixed(4)}, {lng?.toFixed(4)}</p>
+                    <p>ISP: {first.geo?.isp || 'Broadband'}</p>
+                    <p>Timezone: {first.geo?.timezone}</p>
+                  </div>
+
+                  {mapsUrl && (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 hover:text-blue-600 pt-1"
+                    >
+                      <span>View on Google Maps</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* Live Activity Stream Tab */}
+      {activeTab === 'activity' && (
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-extrabold flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                <span>Live Fleet Activity Feed</span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Chronological real-time stream of page transitions and student/staff actions
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-500">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              Live Listening
+            </span>
+          </div>
+
+          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+            {sessionList
+              .flatMap((s) => (s.recentEvents || []).map((e) => ({ ...e, device: s })))
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, 30)
+              .map((evt) => (
+                <div
+                  key={evt.id}
+                  className="p-3 rounded-xl bg-muted/40 border flex items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground truncate">
+                        {evt.description}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {evt.device.userName || 'Guest'} · {evt.device.hardware?.brandModel} · {evt.device.geo?.city}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                    {new Date(evt.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Broadcast Modal */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md rounded-3xl bg-card border p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold flex items-center gap-2">
+                <Bell className="w-5 h-5 text-amber-500" />
+                <span>Broadcast Fleet Announcement</span>
+              </h3>
+              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-full" onClick={() => setShowBroadcastModal(false)}>
+                ✕
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              This message will appear instantly as an alert notification on all {metrics.total} connected school devices.
+            </p>
+
+            <Input
+              value={broadcastMessage}
+              onChange={(e) => setBroadcastMessage(e.target.value)}
+              placeholder="e.g. Please proceed to the assembly hall for announcement..."
+              className="rounded-xl text-xs"
+            />
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setShowBroadcastModal(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!broadcastMessage.trim() || isSendingCommand}
+                onClick={() => handleSendCommand('alert', undefined, broadcastMessage)}
+                className="rounded-xl text-xs font-bold"
+              >
+                <Send className="w-3.5 h-3.5 mr-1.5" />
+                Send Broadcast
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DeviceFleetConsole;

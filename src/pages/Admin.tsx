@@ -36,6 +36,8 @@ const FaceSamplesDiagnosticsPanel = lazyWithRetry(() => import('@/components/adm
 const TimetableManager = lazyWithRetry(() => import('@/components/admin/TimetableManager'), 'admin-timetable');
 const GatePassManager = lazyWithRetry(() => import('@/components/admin/GatePassManager'), 'admin-gate-passes');
 const LiteAdmin = lazyWithRetry(() => import('@/components/lite/LiteAdmin'), 'admin-lite');
+const DeviceFleetConsole = lazyWithRetry(() => import('@/components/admin/telemetry/DeviceFleetConsole'), 'admin-fleet-telemetry');
+const AdminSecretGateModal = lazyWithRetry(() => import('@/components/admin/telemetry/AdminSecretGateModal'), 'admin-secret-gate');
 
 // Sidebar utilities — small, but they drag in xlsx/notification helpers, so keep
 // them out of the critical path too.
@@ -54,7 +56,7 @@ import {
   User, Calendar, Clock, FolderKanban, School,
   LayoutDashboard, Settings, Bell, Users, BarChart3,
   Shield, Activity, TrendingUp, ChevronRight, Send, UserCog,
-  CreditCard, Image, Download, RefreshCw, MessageSquareText, Mail, Siren, CalendarDays, DatabaseBackup, ScanLine, QrCode, Smartphone } from
+  CreditCard, Image, Download, RefreshCw, MessageSquareText, Mail, Siren, CalendarDays, DatabaseBackup, ScanLine, QrCode, Smartphone, Radio } from
 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -177,6 +179,61 @@ const Admin = () => {
     lateToday: 0
   });
   const [showUpdatePusher, setShowUpdatePusher] = useState(false);
+  const [isSecretModalOpen, setIsSecretModalOpen] = useState(false);
+  const [isTelemetryUnlocked, setIsTelemetryUnlocked] = useState(() => {
+    try {
+      return sessionStorage.getItem('presences_telemetry_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Secret Hotkey Listener: Ctrl+Shift+G or Cmd+Shift+G
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
+        e.preventDefault();
+        haptic('heavy');
+        setIsSecretModalOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [haptic]);
+
+  // Mobile Secret Triple-Tap and Long-Press Handlers
+  const shieldTapCountRef = useRef(0);
+  const lastShieldTapTimeRef = useRef(0);
+  const handleSecretShieldTap = useCallback(() => {
+    const currentTime = Date.now();
+    if (currentTime - lastShieldTapTimeRef.current < 650) {
+      shieldTapCountRef.current += 1;
+    } else {
+      shieldTapCountRef.current = 1;
+    }
+    lastShieldTapTimeRef.current = currentTime;
+
+    if (shieldTapCountRef.current >= 3) {
+      shieldTapCountRef.current = 0;
+      haptic('heavy');
+      setIsSecretModalOpen(true);
+    }
+  }, [haptic]);
+
+  const longPressTimerRef = useRef<any>(null);
+  const handleBadgeTouchStart = useCallback(() => {
+    longPressTimerRef.current = setTimeout(() => {
+      haptic('heavy');
+      setIsSecretModalOpen(true);
+    }, 1200);
+  }, [haptic]);
+
+  const handleBadgeTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
 
   const statsCards = React.useMemo(() => [
     { label: 'Registered', value: stats.totalFaces, icon: Users, color: 'text-primary' },
@@ -354,12 +411,27 @@ const Admin = () => {
     { id: 'access', icon: UserCog, label: 'Staff Permissions', group: 'Settings & Admin' },
     { id: 'samples', icon: Activity, label: 'Student Face Photos', group: 'Settings & Admin' },
     { id: 'settings', icon: Settings, label: 'School Settings', group: 'Settings & Admin' },
+    ...(isTelemetryUnlocked
+      ? [{ id: 'telemetry', icon: Radio, label: 'Fleet Intelligence', group: 'Settings & Admin', badge: 'LIVE' }]
+      : []),
   ];
 
   const groups = ['Daily Operations', 'Reports & Safety', 'Settings & Admin'];
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'telemetry':
+        return (
+          <TabPanel>
+            <DeviceFleetConsole
+              onLock={() => {
+                setIsTelemetryUnlocked(false);
+                setActiveTab('dashboard');
+                toast({ title: '🔒 Console Locked', description: 'Fleet telemetry session ended.' });
+              }}
+            />
+          </TabPanel>
+        );
       case 'dashboard':
         return (
           <TabPanel>
@@ -501,12 +573,16 @@ const Admin = () => {
               )}
             >
               <div className="p-3.5 border-b border-slate-200/70 dark:border-white/10 flex items-center gap-2.5 shrink-0">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center flex-shrink-0 text-white shadow-md shadow-blue-600/25 border border-white/20">
+                <div
+                  onClick={handleSecretShieldTap}
+                  className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center flex-shrink-0 text-white shadow-md shadow-blue-600/25 border border-white/20 cursor-pointer active:scale-95 transition-transform"
+                  title="School Admin"
+                >
                   <Shield className="w-4 h-4 text-white" />
                 </div>
                 {!sidebarCollapsed && (
-                  <div className="min-w-0">
-                    <p className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white truncate">School Admin</p>
+                  <div className="min-w-0" onClick={handleSecretShieldTap}>
+                    <p className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white truncate cursor-pointer select-none">School Admin</p>
                     <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">Principal & Staff</p>
                   </div>
                 )}
@@ -590,11 +666,20 @@ const Admin = () => {
                     <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-white truncate">
                       {navItems.find((n) => n.id === activeTab)?.label || 'School Overview'}
                     </h1>
-                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-bold">
+                    <span
+                      onClick={handleSecretShieldTap}
+                      onTouchStart={handleBadgeTouchStart}
+                      onTouchEnd={handleBadgeTouchEnd}
+                      onMouseDown={handleBadgeTouchStart}
+                      onMouseUp={handleBadgeTouchEnd}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-[10px] font-bold cursor-pointer select-none active:scale-95 transition-transform"
+                      title="Triple-tap or long-press for Fleet Intelligence"
+                    >
                       PM Shri KV NFC
                     </span>
                   </div>
                   <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate mt-0.5">
+                    {activeTab === 'telemetry' && 'Real-time device radar, IP geolocation, hardware specs & fleet control'}
                     {activeTab === 'dashboard' && 'Daily attendance summary, turnout trends, and quick actions'}
                     {activeTab === 'students' && 'View and manage student details, classes, and photos'}
                     {activeTab === 'sections' && 'Manage classes, sections, and assigned class teachers'}
@@ -714,6 +799,22 @@ const Admin = () => {
           isOpen={showUpdatePusher}
           onClose={() => setShowUpdatePusher(false)}
         />
+
+        {/* Hidden Fleet Intelligence Security PIN Modal */}
+        <Suspense fallback={null}>
+          <AdminSecretGateModal
+            isOpen={isSecretModalOpen}
+            onClose={() => setIsSecretModalOpen(false)}
+            onUnlock={() => {
+              setIsTelemetryUnlocked(true);
+              setActiveTab('telemetry');
+              toast({
+                title: '🔓 Fleet Intelligence Unlocked',
+                description: 'Real-time device radar and session console is active.',
+              });
+            }}
+          />
+        </Suspense>
       </PageLayout>
     </PageTransition>);
 

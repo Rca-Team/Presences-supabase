@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Wifi, WifiOff } from 'lucide-react';
+import GlobalTelemetryTracker from '@/components/telemetry/GlobalTelemetryTracker';
 
 const AppExperienceLayer = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -26,6 +27,8 @@ const AppExperienceLayer = () => {
 
   return (
     <>
+      <GlobalTelemetryTracker />
+
       <AnimatePresence>
         {!isOnline && (
           <motion.div
