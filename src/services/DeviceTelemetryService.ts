@@ -646,3 +646,32 @@ export function measureCurrentFPS(): number {
   }
   return currentFps;
 }
+
+export function getRouteDisplayName(pathname: string): string {
+  if (!pathname || pathname === '/') return 'Home Dashboard';
+  if (pathname.startsWith('/login')) return 'Sign In';
+  if (pathname.startsWith('/signup')) return 'Sign Up';
+  if (pathname.startsWith('/register')) return 'Register Student';
+  if (pathname.startsWith('/attendance')) return 'Face Attendance Terminal';
+  if (pathname.startsWith('/user')) return 'User Portal';
+  if (pathname.startsWith('/gate/vision')) return 'Gate Vision AI';
+  if (pathname.startsWith('/gate/scanner') || pathname.startsWith('/guard')) return 'Guard Gate Pass Scanner';
+  if (pathname.startsWith('/gate')) return 'Gate & Campus Security';
+  if (pathname.startsWith('/parent')) return 'Parent Portal';
+  if (pathname.startsWith('/teacher') || pathname.startsWith('/class')) return 'Teacher Portal';
+  if (pathname.startsWith('/admin')) return 'Admin Center';
+  if (pathname.startsWith('/smartboard')) return 'Interactive Smart Board';
+  if (pathname.startsWith('/widgets')) return 'Classroom Widgets';
+  if (pathname.startsWith('/jarvis')) return 'Jarvis Voice AI';
+  if (pathname.startsWith('/profile')) return 'User Profile';
+  if (pathname.startsWith('/features')) return 'Platform Features';
+  if (pathname.startsWith('/contact')) return 'Contact Support';
+  if (pathname.startsWith('/backup') || pathname.startsWith('/data')) return 'Database Backup';
+  if (pathname.startsWith('/portfolio')) return 'Creator Portfolio';
+  if (pathname.startsWith('/notifications')) return 'Notification Center';
+  if (pathname.startsWith('/__admin/face-model-validator')) return 'Face Model Validator';
+  
+  const cleaned = pathname.replace(/^\//, '').replace(/-/g, ' ');
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+

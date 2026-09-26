@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -14,6 +14,7 @@ import {
   detectIncognitoMode,
   registerAccountOnDevice,
   measureCurrentFPS,
+  getRouteDisplayName,
   TelemetrySessionData,
 } from '@/services/DeviceTelemetryService';
 import { playQuietAlertTone, playWinnerCelebrationChime } from '@/utils/audioChimes';
@@ -22,13 +23,16 @@ import { Lock, ShieldAlert } from 'lucide-react';
 
 /**
  * GlobalTelemetryTracker
- * Advanced enterprise telemetry & fleet diagnostic agent.
- * Tracks presence, campus geofencing, security anomalies, client errors, and kiosk locks.
+ * Enterprise telemetry & real-time fleet diagnostic agent.
+ * Tracks presence across 100% of application routes, detects device transitions live,
+ * provides meter-accurate GPS hardware coordinates, client error streams, and remote locks.
  */
 export const GlobalTelemetryTracker: React.FC = () => {
   const location = useLocation();
   const presenceChannelRef = useRef<any>(null);
   const commandChannelRef = useRef<any>(null);
+  const isSubscribedRef = useRef<boolean>(false);
+  const previousRouteRef = useRef<string>(location.pathname);
   const routeEnteredAtRef = useRef<number>(Date.now());
   const sessionStartedAtRef = useRef<number>(Date.now());
   const lastActivityRef = useRef<number>(Date.now());
@@ -40,6 +44,121 @@ export const GlobalTelemetryTracker: React.FC = () => {
   const currentUserRef = useRef<{ id?: string; name?: string; email?: string; role?: string; avatar?: string } | null>(null);
   const [isKioskLocked, setIsKioskLocked] = useState<boolean>(false);
   const [kioskLockReason, setKioskLockReason] = useState<string>('Device under maintenance by School Administrator');
+
+  // Build complete advanced payload
+  const buildTelemetryPayload = useCallback((): TelemetrySessionData => {
+    const deviceId = getDeviceFingerprintId();
+    const sessionId = getSessionId();
+    const user = currentUserRef.current;
+    const geo = geoInfoRef.current;
+    const hw = hardwareSpecsRef.current;
+
+    const geofence = calculateCampusDistance(geo?.latitude ?? null, geo?.longitude ?? null);
+    const rtt = hw?.rttMs || 25;
+    const connectionQualityScore = Math.max(10, Math.min(100, Math.round(100 - (rtt / 300) * 40)));
+
+    const friendlyRouteName = getRouteDisplayName(location.pathname);
+    const resolvedDocTitle = typeof document !== 'undefined' && document.title && document.title !== 'Presences'
+      ? document.title.replace(' | Presences', '').replace(' | Presences Smart School', '')
+      : friendlyRouteName;
+
+    return {
+      deviceId,
+      sessionId,
+      userId: user?.id || null,
+      userName: user?.name || null,
+      userEmail: user?.email || null,
+      userRole: user?.role || 'Guest Visitor',
+      userAvatar: user?.avatar || null,
+      isAnonymous: !user?.id,
+      currentRoute: location.pathname,
+      pageTitle: resolvedDocTitle,
+      routeEnteredAt: routeEnteredAtRef.current,
+      sessionStartedAt: sessionStartedAtRef.current,
+      lastHeartbeat: Date.now(),
+      status: isIdleRef.current ? 'idle' : 'online',
+      isKioskLocked,
+      hardware: hw || {
+        deviceType: 'desktop',
+        brandModel: 'Web Client',
+        os: 'Unknown',
+        osVersion: '',
+        browser: 'Browser',
+        browserVersion: '',
+        cpuCores: 4,
+        deviceMemoryGB: null,
+        gpuRenderer: 'Standard GPU',
+        gpuVendor: 'System',
+        screenWidth: typeof window !== 'undefined' ? window.screen.width : 1920,
+        screenHeight: typeof window !== 'undefined' ? window.screen.height : 1080,
+        viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1920,
+        viewportHeight: typeof window !== 'undefined' ? window.innerHeight : 1080,
+        pixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
+        colorDepth: 24,
+        touchPoints: 0,
+        isTouchScreen: false,
+        isPWA: false,
+        batteryLevel: null,
+        batteryCharging: null,
+        networkType: 'Online',
+        effectiveConnectionType: '4g',
+        downlinkSpeedMbps: null,
+        rttMs: null,
+        language: typeof navigator !== 'undefined' ? navigator.language : 'en-US',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      geo: geo || {
+        ip: 'Connecting...',
+        city: 'Local Campus',
+        region: 'Delhi',
+        country: 'India',
+        countryCode: 'IN',
+        countryFlag: '🇮🇳',
+        postalCode: '',
+        latitude: 28.6139,
+        longitude: 77.209,
+        accuracyMeters: null,
+        locationSource: 'ip_network',
+        isp: 'Local Network',
+        org: 'Presences School Network',
+        timezone: 'Asia/Kolkata',
+        localTime: new Date().toLocaleTimeString(),
+      },
+      geofence,
+      security: {
+        isIncognito: isIncognitoRef.current,
+        isMultiAccount: multiAccountRef.current.isMultiAccount,
+        accountsSeenCount: multiAccountRef.current.count,
+        isVPNorProxy: false,
+        connectionQualityScore,
+      },
+      diagnostics: {
+        fps: measureCurrentFPS(),
+        networkJitterMs: Math.round(Math.random() * 8 + 2),
+        clientErrorsCount: getClientErrorsBuffer().length,
+        memoryPressure: hw?.deviceMemoryGB && hw.deviceMemoryGB <= 2 ? 'moderate' : 'nominal',
+      },
+      recentEvents: getLocalActivityBuffer(),
+      recentErrors: getClientErrorsBuffer(),
+    };
+  }, [location.pathname, isKioskLocked]);
+
+  // Sync state into Supabase presence
+  const triggerPresenceSync = useCallback(async (reason?: string) => {
+    if (!presenceChannelRef.current) return;
+    try {
+      const payload = buildTelemetryPayload();
+      await presenceChannelRef.current.track(payload);
+    } catch (e) {
+      // Retry after 1s if transient network hiccup
+      setTimeout(() => {
+        if (presenceChannelRef.current && isSubscribedRef.current) {
+          const retryPayload = buildTelemetryPayload();
+          presenceChannelRef.current.track(retryPayload).catch(() => {});
+        }
+      }, 1000);
+    }
+  }, [buildTelemetryPayload]);
 
   // 1. Capture Client Runtime Errors & Unhandled Rejections
   useEffect(() => {
@@ -61,7 +180,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
     };
-  }, []);
+  }, [triggerPresenceSync]);
 
   // 2. Load hardware, geo, incognito once on boot
   useEffect(() => {
@@ -145,23 +264,45 @@ export const GlobalTelemetryTracker: React.FC = () => {
       }
       authSub.subscription.unsubscribe();
     };
-  }, []);
+  }, [triggerPresenceSync]);
 
-  // 3. Track route changes
+  // 4. Track route changes & transitions across all pages
   useEffect(() => {
+    const prevRoute = previousRouteRef.current;
+    const currentRoute = location.pathname;
+    const pageName = getRouteDisplayName(currentRoute);
+
     routeEnteredAtRef.current = Date.now();
     lastActivityRef.current = Date.now();
     isIdleRef.current = false;
 
-    recordLocalActivity('navigation', `Navigated to ${location.pathname}`, {
-      path: location.pathname,
-      search: location.search,
-    });
+    if (prevRoute !== currentRoute) {
+      recordLocalActivity('navigation', `Switched page: ${getRouteDisplayName(prevRoute)} ➔ ${pageName}`, {
+        from: prevRoute,
+        to: currentRoute,
+        pageName,
+        search: location.search,
+      });
+      previousRouteRef.current = currentRoute;
+    } else {
+      recordLocalActivity('navigation', `Viewing ${pageName}`, {
+        path: currentRoute,
+        search: location.search,
+      });
+    }
 
+    // Instant presence sync on route transition
     triggerPresenceSync('route_change');
-  }, [location.pathname, location.search]);
 
-  // 4. Track user interaction & idle state
+    // Settled sync (120ms) after document title & route layout finishes mounting
+    const settledTimer = setTimeout(() => {
+      triggerPresenceSync('route_settled');
+    }, 120);
+
+    return () => clearTimeout(settledTimer);
+  }, [location.pathname, location.search, triggerPresenceSync]);
+
+  // 5. Track user interaction, mobile tab switching, & online status
   useEffect(() => {
     const handleUserAction = () => {
       lastActivityRef.current = Date.now();
@@ -174,17 +315,31 @@ export const GlobalTelemetryTracker: React.FC = () => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         isIdleRef.current = true;
-        triggerPresenceSync('hidden');
+        triggerPresenceSync('tab_hidden');
       } else {
         lastActivityRef.current = Date.now();
         isIdleRef.current = false;
-        triggerPresenceSync('visible');
+        triggerPresenceSync('tab_visible');
       }
+    };
+
+    const handlePageShow = () => {
+      lastActivityRef.current = Date.now();
+      isIdleRef.current = false;
+      triggerPresenceSync('page_restored');
+    };
+
+    const handleOnline = () => {
+      triggerPresenceSync('network_online');
     };
 
     window.addEventListener('pointerdown', handleUserAction, { passive: true });
     window.addEventListener('keydown', handleUserAction, { passive: true });
     window.addEventListener('scroll', handleUserAction, { passive: true });
+    window.addEventListener('focus', handleUserAction, { passive: true });
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('popstate', handleUserAction);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const idleCheckInterval = setInterval(() => {
@@ -199,114 +354,16 @@ export const GlobalTelemetryTracker: React.FC = () => {
       window.removeEventListener('pointerdown', handleUserAction);
       window.removeEventListener('keydown', handleUserAction);
       window.removeEventListener('scroll', handleUserAction);
+      window.removeEventListener('focus', handleUserAction);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('popstate', handleUserAction);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(idleCheckInterval);
     };
-  }, []);
+  }, [triggerPresenceSync]);
 
-  // 5. Build complete advanced payload
-  const buildTelemetryPayload = (): TelemetrySessionData => {
-    const deviceId = getDeviceFingerprintId();
-    const sessionId = getSessionId();
-    const user = currentUserRef.current;
-    const geo = geoInfoRef.current;
-    const hw = hardwareSpecsRef.current;
-
-    const geofence = calculateCampusDistance(geo?.latitude ?? null, geo?.longitude ?? null);
-    const rtt = hw?.rttMs || 25;
-    const connectionQualityScore = Math.max(10, Math.min(100, Math.round(100 - (rtt / 300) * 40)));
-
-    return {
-      deviceId,
-      sessionId,
-      userId: user?.id || null,
-      userName: user?.name || null,
-      userEmail: user?.email || null,
-      userRole: user?.role || 'Guest Visitor',
-      userAvatar: user?.avatar || null,
-      isAnonymous: !user?.id,
-      currentRoute: location.pathname,
-      pageTitle: document.title || 'Presences',
-      routeEnteredAt: routeEnteredAtRef.current,
-      sessionStartedAt: sessionStartedAtRef.current,
-      lastHeartbeat: Date.now(),
-      status: isIdleRef.current ? 'idle' : 'online',
-      isKioskLocked,
-      hardware: hw || {
-        deviceType: 'desktop',
-        brandModel: 'Web Client',
-        os: 'Unknown',
-        osVersion: '',
-        browser: 'Browser',
-        browserVersion: '',
-        cpuCores: 4,
-        deviceMemoryGB: null,
-        gpuRenderer: 'Standard GPU',
-        gpuVendor: 'System',
-        screenWidth: window.screen.width,
-        screenHeight: window.screen.height,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        pixelRatio: window.devicePixelRatio || 1,
-        colorDepth: 24,
-        touchPoints: 0,
-        isTouchScreen: false,
-        isPWA: false,
-        batteryLevel: null,
-        batteryCharging: null,
-        networkType: 'Online',
-        effectiveConnectionType: '4g',
-        downlinkSpeedMbps: null,
-        rttMs: null,
-        language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      geo: geo || {
-        ip: 'Connecting...',
-        city: 'Local Campus',
-        region: 'Delhi',
-        country: 'India',
-        countryCode: 'IN',
-        countryFlag: '🇮🇳',
-        postalCode: '',
-        latitude: 28.6139,
-        longitude: 77.209,
-        isp: 'Local Network',
-        org: 'Presences School Network',
-        timezone: 'Asia/Kolkata',
-        localTime: new Date().toLocaleTimeString(),
-      },
-      geofence,
-      security: {
-        isIncognito: isIncognitoRef.current,
-        isMultiAccount: multiAccountRef.current.isMultiAccount,
-        accountsSeenCount: multiAccountRef.current.count,
-        isVPNorProxy: false,
-        connectionQualityScore,
-      },
-      diagnostics: {
-        fps: measureCurrentFPS(),
-        networkJitterMs: Math.round(Math.random() * 8 + 2),
-        clientErrorsCount: getClientErrorsBuffer().length,
-        memoryPressure: hw?.deviceMemoryGB && hw.deviceMemoryGB <= 2 ? 'moderate' : 'nominal',
-      },
-      recentEvents: getLocalActivityBuffer(),
-      recentErrors: getClientErrorsBuffer(),
-    };
-  };
-
-  // 6. Sync state into Supabase presence
-  const triggerPresenceSync = async (reason?: string) => {
-    if (!presenceChannelRef.current) return;
-    try {
-      const payload = buildTelemetryPayload();
-      await presenceChannelRef.current.track(payload);
-    } catch (e) {
-      // Ignore transient network errors
-    }
-  };
-
-  // 7. Initialize Realtime presence & command channels
+  // 6. Initialize Realtime presence & command channels
   useEffect(() => {
     const deviceId = getDeviceFingerprintId();
 
@@ -320,7 +377,10 @@ export const GlobalTelemetryTracker: React.FC = () => {
 
     presenceChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
+        isSubscribedRef.current = true;
         await triggerPresenceSync('initial_connect');
+      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        isSubscribedRef.current = false;
       }
     });
 
@@ -377,13 +437,14 @@ export const GlobalTelemetryTracker: React.FC = () => {
 
     commandChannelRef.current = commandChannel;
 
-    // Periodic heartbeat every 20 seconds
+    // Periodic heartbeat every 15 seconds
     const heartbeatTimer = setInterval(() => {
       triggerPresenceSync('heartbeat');
-    }, 20000);
+    }, 15000);
 
     return () => {
       clearInterval(heartbeatTimer);
+      isSubscribedRef.current = false;
       if (presenceChannelRef.current) {
         supabase.removeChannel(presenceChannelRef.current);
       }
@@ -391,7 +452,7 @@ export const GlobalTelemetryTracker: React.FC = () => {
         supabase.removeChannel(commandChannelRef.current);
       }
     };
-  }, []);
+  }, [triggerPresenceSync]);
 
   // Render Kiosk Maintenance Lock Overlay if remotely locked
   if (isKioskLocked) {
@@ -416,3 +477,4 @@ export const GlobalTelemetryTracker: React.FC = () => {
 };
 
 export default GlobalTelemetryTracker;
+

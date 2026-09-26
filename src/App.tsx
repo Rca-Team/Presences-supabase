@@ -55,6 +55,7 @@ import SplashAnimation from './components/SplashAnimation';
 import NotificationPermissionGate from './components/NotificationPermissionGate';
 import LuminaScope from './components/LuminaScope';
 import RoyalScrollProvider from './components/RoyalScrollProvider';
+import GlobalTelemetryTracker from './components/telemetry/GlobalTelemetryTracker';
 
 
 const queryClient = new QueryClient();
@@ -421,6 +422,7 @@ function App() {
             <HelmetProvider>
               <div className="premium-glass-app">
                 <BrowserRouter>
+                  <GlobalTelemetryTracker />
                   {showSplash && (
                     <SplashAnimation onComplete={handleSplashComplete} duration={1800} />
                   )}
