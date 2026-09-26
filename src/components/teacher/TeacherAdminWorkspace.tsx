@@ -21,6 +21,7 @@ import {
   AlertCircle,
   FileSpreadsheet,
   FileDown,
+  FileText,
   Sparkles,
   Zap,
   Phone,
@@ -2171,7 +2172,7 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                         <Download className="h-3.5 w-3.5" /> Export Roster
                       </Button>
                       {permissions.can_manage_students && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Button
                             size="sm"
                             onClick={() => {
@@ -2181,6 +2182,17 @@ export const TeacherAdminWorkspace: React.FC<TeacherAdminWorkspaceProps> = ({ in
                             title="Register new student with 3D Face Biometrics & ID Card Scanner"
                           >
                             <Plus className="h-3.5 w-3.5" /> + Register New Student
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigate(`/register?department=${encodeURIComponent(activeClass.category)}&returnUrl=${encodeURIComponent(`/teacher/${activeClass.category}`)}&openPdfImporter=true`);
+                            }}
+                            className="text-xs h-8 rounded-xl font-bold gap-1.5 border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 shadow-xs"
+                            title="Upload whole class ID cards PDF to extract all students and queue face scans"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Upload Class PDF
                           </Button>
                           <Button
                             size="sm"

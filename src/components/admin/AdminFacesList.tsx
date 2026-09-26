@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, User, Users, UserCheck, UserX, Calendar, MoreVertical, Phone, Filter, ArrowUpDown, Clock, CheckCircle2, XCircle, SortAsc, SortDesc, Trash2, BellRing, X, BrainCircuit, ScanFace } from 'lucide-react';
+import { Search, User, Users, UserCheck, UserX, Calendar, MoreVertical, Phone, Filter, ArrowUpDown, Clock, CheckCircle2, XCircle, SortAsc, SortDesc, Trash2, BellRing, X, BrainCircuit, ScanFace, FileText } from 'lucide-react';
 import NotificationService from './NotificationService';
 import ExistingUserContactPopup from './ExistingUserContactPopup';
 import AttendanceCalendar from './AttendanceCalendar';
@@ -75,6 +76,7 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
   setSelectedFaceId
 }) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [subTab, setSubTab] = useState<'roster' | 'calendar'>('roster');
   const [isLoading, setIsLoading] = useState(true);
   const [faces, setFaces] = useState<RegisteredFace[]>([]);
@@ -642,28 +644,41 @@ const AdminFacesList: React.FC<AdminFacesListProps> = ({
               </button>
             </div>
 
-            {selectedFaceId && (
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const selected = faces.find(f => f.id === selectedFaceId);
-                  if (selected) {
-                    setRecaptureStudent({
-                      id: selected.id,
-                      user_id: selected.user_id || selected.id,
-                      name: selected.name,
-                      employee_id: selected.employee_id,
-                      category: selected.department,
-                    });
-                  }
-                }}
-                className="h-8 text-xs font-semibold rounded-xl border-primary/40 text-primary hover:bg-primary/10 gap-1.5 shadow-sm justify-center"
+                onClick={() => navigate('/register?openPdfImporter=true')}
+                className="h-8 text-xs font-semibold rounded-xl border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 gap-1.5 shadow-sm justify-center"
+                title="Upload whole class ID cards PDF to extract all students and queue face scans"
               >
-                <ScanFace className="w-3.5 h-3.5" />
-                <span>Recapture 3D Face</span>
+                <FileText className="w-3.5 h-3.5" />
+                <span>Upload Class PDF</span>
               </Button>
-            )}
+
+              {selectedFaceId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const selected = faces.find(f => f.id === selectedFaceId);
+                    if (selected) {
+                      setRecaptureStudent({
+                        id: selected.id,
+                        user_id: selected.user_id || selected.id,
+                        name: selected.name,
+                        employee_id: selected.employee_id,
+                        category: selected.department,
+                      });
+                    }
+                  }}
+                  className="h-8 text-xs font-semibold rounded-xl border-primary/40 text-primary hover:bg-primary/10 gap-1.5 shadow-sm justify-center"
+                >
+                  <ScanFace className="w-3.5 h-3.5" />
+                  <span>Recapture 3D Face</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           {subTab === 'calendar' ? (

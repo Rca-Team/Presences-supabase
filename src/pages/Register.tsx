@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,9 +19,14 @@ import PageTransition from '@/components/PageTransition';
 import Scan3DCapture from '@/components/register/Scan3DCapture';
 import AutoCapture10 from '@/components/register/AutoCapture10';
 import IDCardAutoFillScanner, { IDCardExtractedFields } from '@/components/register/IDCardAutoFillScanner';
+import ClassPDFIDCardImporter, { ExtractedStudentCard } from '@/components/register/ClassPDFIDCardImporter';
+import { useUserRole } from '@/hooks/useUserRole';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   User, Mail, Phone, Building2, GraduationCap, Camera, CheckCircle2,
-  ArrowRight, ArrowLeft, Sparkles, Shield, Users, Scan, Heart, Bus, Zap, MapPin, History, Play, Trash2
+  ArrowRight, ArrowLeft, Sparkles, Shield, Users, Scan, Heart, Bus, Zap, MapPin, History, Play, Trash2,
+  FileText, Upload, ChevronDown, ChevronUp, Search, X
 } from 'lucide-react';
 import { 
   CLASSES, SECTIONS, ALL_CLASS_SECTIONS, TRANSPORT_MODES, BLOOD_GROUPS 
@@ -96,7 +101,7 @@ const dedupeDrafts = (input: RegistrationDraft[]) => {
     }
   }
 
-  return Array.from(map.values()).slice(0, 20);
+  return Array.from(map.values()).slice(0, 500);
 };
 
 const Register = () => {
@@ -225,6 +230,29 @@ const Register = () => {
     } catch {}
   };
 
+  const { role, isAdmin, isPrincipal, isTeacher } = useUserRole();
+  const canBulkImport = isAdmin || isPrincipal || isTeacher;
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [draftSearchQuery, setDraftSearchQuery] = useState('');
+  const [isDraftsExpanded, setIsDraftsExpanded] = useState(false);
+
+  const filteredDrafts = useMemo(() => {
+    if (!draftSearchQuery.trim()) return drafts;
+    const q = draftSearchQuery.toLowerCase();
+    return drafts.filter((d) => 
+      (d.formData.name || '').toLowerCase().includes(q) ||
+      (d.formData.employeeId || '').toLowerCase().includes(q) ||
+      (d.formData.department || '').toLowerCase().includes(q) ||
+      (d.formData.rollNumber || '').toLowerCase().includes(q)
+    );
+  }, [drafts, draftSearchQuery]);
+
+  useEffect(() => {
+    if (searchParams.get('openPdfImporter') === 'true' && canBulkImport) {
+      setIsPdfModalOpen(true);
+    }
+  }, [searchParams, canBulkImport]);
+
   const clearDraftById = (id: string) => {
     try {
       const currentRaw = localStorage.getItem(REGISTER_DRAFTS_KEY);
@@ -235,20 +263,78 @@ const Register = () => {
     } catch {}
   };
 
+  const clearAllDrafts = () => {
+    if (!window.confirm(`Are you sure you want to clear all ${drafts.length} drafts in the enrollment queue?`)) return;
+    try {
+      localStorage.removeItem(REGISTER_DRAFTS_KEY);
+      setDrafts([]);
+      toast({ title: 'Enrollment Queue Cleared' });
+    } catch {}
+  };
+
+  const handleImportDrafts = (cards: ExtractedStudentCard[], batchName: string) => {
+    const now = new Date().toISOString();
+    const newDrafts: RegistrationDraft[] = cards.map((c) => {
+      const rawDept = (c.department || (c.class && c.section ? `${c.class}-${c.section}` : '')).trim();
+      const studentFormData: RegisterFormData = {
+        name: c.name || '',
+        email: c.student_email || '',
+        phone: c.phone || '',
+        parentName: c.parent_name || c.father_name || c.mother_name || '',
+        parentEmail: c.parent_email || '',
+        parentPhone: c.parent_phone || '',
+        employeeId: c.employee_id || c.student_id_kv || '',
+        department: rawDept || departmentParam || '',
+        position: 'student',
+        rollNumber: c.roll_number || '',
+        bloodGroup: c.blood_group || '',
+        medicalInfo: c.pen_number ? `PEN: ${c.pen_number}${c.date_of_birth ? ` | DOB: ${c.date_of_birth}` : ''}` : (c.date_of_birth ? `DOB: ${c.date_of_birth}` : ''),
+        transportMode: '',
+        address: c.address || '',
+      };
+      const employeeId = studentFormData.employeeId.trim().toLowerCase();
+      const draftId = employeeId ? `emp-${employeeId}` : `tmp-${uuidv4()}`;
+
+      return {
+        id: draftId,
+        formData: studentFormData,
+        registrationStep: 2,
+        captureMode: 'auto',
+        status: 'pending_face_scan',
+        updatedAt: now,
+      };
+    });
+
+    try {
+      const currentRaw = localStorage.getItem(REGISTER_DRAFTS_KEY);
+      const current = currentRaw ? (JSON.parse(currentRaw) as RegistrationDraft[]) : [];
+      const merged = dedupeDrafts([...newDrafts, ...(Array.isArray(current) ? current : [])]);
+      localStorage.setItem(REGISTER_DRAFTS_KEY, JSON.stringify(merged));
+      setDrafts(merged);
+      setIsDraftsExpanded(true);
+      toast({
+        title: 'Drafts Ready! 📋',
+        description: `${newDrafts.length} students queued for face scan. Click "Scan Face" on any student to begin.`,
+      });
+    } catch (err) {
+      console.error('Failed to save imported drafts:', err);
+    }
+  };
+
   const resumeDraft = (draft: RegistrationDraft) => {
     activeDraftIdRef.current = draft.id;
     lastPersistedFingerprintRef.current = '';
     setFormData({ ...EMPTY_FORM_DATA, ...draft.formData });
     setCaptureMode(draft.captureMode || 'auto');
-    setRegistrationStep(draft.registrationStep || 1);
+    setRegistrationStep(draft.registrationStep || 2);
     setFaceCaptured(false);
     setFaceImage(null);
     setFaceDescriptor(null);
     setAllDescriptors([]);
     setAllFaceImages([]);
     toast({
-      title: 'Draft resumed',
-      description: draft.registrationStep === 2 ? 'Continue from 3D Face Scan.' : 'Continue filling student info.',
+      title: `Selected: ${draft.formData.name || 'Student'}`,
+      description: draft.registrationStep === 2 ? 'Ready for Face Scan. Position camera and start.' : 'Student info loaded.',
     });
   };
 
@@ -417,18 +503,37 @@ const Register = () => {
             ? `3D face model enrolled for ${validData.name}. Returning to Class Portal...`
             : `3D face model saved with ${allDescriptors.length} training samples for best accuracy.`,
         });
-         const completedDraftId = draftIdFromData();
-         clearDraftById(completedDraftId);
-         setFormData(EMPTY_FORM_DATA);
-         setFaceImage(null);
-         setExtractedIdCardPhoto(null);
-         setFaceDescriptor(null);
-         setAllDescriptors([]);
-         setAllFaceImages([]);
-         setFaceCaptured(false);
-         setRegistrationStep(1);
+        const completedDraftId = draftIdFromData();
+        clearDraftById(completedDraftId);
+        setFormData(EMPTY_FORM_DATA);
+        setFaceImage(null);
+        setExtractedIdCardPhoto(null);
+        setFaceDescriptor(null);
+        setAllDescriptors([]);
+        setAllFaceImages([]);
+        setFaceCaptured(false);
+        setRegistrationStep(1);
         activeDraftIdRef.current = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
         lastPersistedFingerprintRef.current = '';
+
+        const remainingDrafts = drafts.filter((d) => d.id !== completedDraftId);
+        if (remainingDrafts.length > 0 && !returnUrl) {
+          const nextStudent = remainingDrafts[0];
+          toast({
+            title: `${validData.name} Registered! 🎉`,
+            description: `Next in queue: ${nextStudent.formData.name || 'Student'} (${remainingDrafts.length} remaining). Click to scan next face!`,
+            action: (
+              <Button
+                type="button"
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-7 px-2.5 rounded-lg"
+                onClick={() => resumeDraft(nextStudent)}
+              >
+                Scan Next
+              </Button>
+            ) as any,
+          });
+        }
 
         if (returnUrl) {
           setTimeout(() => {
@@ -559,39 +664,200 @@ const Register = () => {
                 <p className="mt-1.5 text-sm text-muted-foreground">Anyone (students, parents, teachers, and staff) can enroll students directly with name, admission number, and a photo scan.</p>
               </motion.div>
 
+              {/* Bulk Class PDF ID Card Import (Teachers & Admins Only) */}
+              {canBulkImport && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-purple-600/10 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-foreground">Bulk Class ID Cards (PDF)</span>
+                        <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30 font-semibold">
+                          {isAdmin ? 'Admin' : 'Class Teacher'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Upload whole class ID cards PDF to extract all students and queue face scans</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => setIsPdfModalOpen(true)}
+                    className="text-xs h-9 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl gap-2 shadow-md shadow-blue-600/20 shrink-0"
+                  >
+                    <Upload className="h-3.5 w-3.5" /> Upload Class PDF
+                  </Button>
+                </motion.div>
+              )}
+
               {drafts.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                  className="mb-6 rounded-2xl border border-primary/25 nano-glass p-3.5 hardware-layer shadow-xs"
+                  className="mb-6 rounded-2xl border border-primary/25 bg-card/90 backdrop-blur-md p-4 hardware-layer shadow-sm"
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <History className="h-4 w-4 text-primary" /> Pending registrations
-                    </div>
-                    <span className="text-xs text-muted-foreground">Auto-saved in real-time</span>
-                  </div>
-                  <div className="space-y-2">
-                    {drafts.slice(0, 3).map((draft) => (
-                      <div key={draft.id} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border/70 bg-card/80 p-2.5 sm:px-3 sm:py-2 gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{draft.formData.name || 'Unnamed student'}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {draft.formData.employeeId || 'No ID yet'} · {draft.status === 'pending_face_scan' ? 'Ready for 3D Face Scan' : 'Student Info in progress'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 self-end sm:self-auto shrink-0">
-                          <Button type="button" size="sm" variant="outline" className="rounded-xl btn-spring text-xs h-7 sm:h-8" onClick={() => resumeDraft(draft)}>
-                            <Play className="mr-1 h-3 w-3" /> Resume
-                          </Button>
-                          <Button type="button" size="icon" variant="ghost" className="rounded-xl btn-spring h-7 w-7 sm:h-8 sm:w-8" onClick={() => clearDraftById(draft.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                  <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                        <Users className="h-4 w-4" />
                       </div>
-                    ))}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-foreground">Class Enrollment Queue</span>
+                          <Badge variant="secondary" className="text-[10px] font-bold px-2 py-0 h-4 bg-primary/15 text-primary">
+                            {drafts.length}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Select any student below to scan their face and complete enrollment</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {drafts.length > 3 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setIsDraftsExpanded(!isDraftsExpanded)}
+                          className="text-xs h-7 px-2 font-semibold text-muted-foreground hover:text-foreground"
+                        >
+                          {isDraftsExpanded ? (
+                            <><ChevronUp className="h-3 w-3 mr-1" /> Collapse</>
+                          ) : (
+                            <><ChevronDown className="h-3 w-3 mr-1" /> View All ({drafts.length})</>
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={clearAllDrafts}
+                        className="text-xs h-7 px-2 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                        title="Clear all drafts"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" /> Clear Queue
+                      </Button>
+                    </div>
                   </div>
+
+                  {(isDraftsExpanded || drafts.length > 3) && (
+                    <div className="mb-3 relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-muted-foreground" />
+                      <Input
+                        value={draftSearchQuery}
+                        onChange={(e) => setDraftSearchQuery(e.target.value)}
+                        placeholder="Search queue by name, admission no., class..."
+                        className="h-8 pl-8 text-xs bg-background/60"
+                      />
+                      {draftSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setDraftSearchQuery('')}
+                          className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <ScrollArea className={isDraftsExpanded || draftSearchQuery ? "max-h-72" : "max-h-56"}>
+                    <div className="space-y-2 pr-1">
+                      {(isDraftsExpanded || draftSearchQuery ? filteredDrafts : filteredDrafts.slice(0, 3)).map((draft) => {
+                        const isCurrentActive = activeDraftIdRef.current === draft.id;
+                        return (
+                          <div
+                            key={draft.id}
+                            className={`flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border p-2.5 sm:px-3 sm:py-2.5 gap-2 transition-all ${
+                              isCurrentActive
+                                ? 'border-primary/50 bg-primary/5 shadow-xs'
+                                : 'border-border/70 bg-background/50 hover:bg-background/80'
+                            }`}
+                          >
+                            <div className="min-w-0 flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                                {(draft.formData.name || 'S').slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="truncate text-xs sm:text-sm font-bold text-foreground">
+                                    {draft.formData.name || 'Unnamed student'}
+                                  </p>
+                                  {draft.formData.department && (
+                                    <Badge variant="outline" className="text-[10px] font-mono px-1 py-0 h-4">
+                                      {draft.formData.department}
+                                    </Badge>
+                                  )}
+                                  {draft.formData.bloodGroup && (
+                                    <span className="text-[10px] px-1 py-0 rounded bg-muted text-muted-foreground font-mono">
+                                      {draft.formData.bloodGroup}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  Admn No: <strong className="text-foreground">{draft.formData.employeeId || 'N/A'}</strong>
+                                  {draft.formData.parentPhone ? ` · Ph: ${draft.formData.parentPhone}` : ''}
+                                  {draft.formData.rollNumber ? ` · Roll: ${draft.formData.rollNumber}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => resumeDraft(draft)}
+                                className={`rounded-xl text-xs h-7 sm:h-8 font-bold px-3 gap-1 shadow-xs ${
+                                  isCurrentActive
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
+                                }`}
+                              >
+                                <Camera className="h-3 w-3" />
+                                {isCurrentActive ? 'Scanning Now' : 'Scan Face'}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="rounded-xl h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-rose-500"
+                                onClick={() => clearDraftById(draft.id)}
+                                title="Remove from queue"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {filteredDrafts.length === 0 && draftSearchQuery && (
+                        <div className="p-4 text-center text-xs text-muted-foreground">
+                          No students found matching "{draftSearchQuery}"
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+
+                  {!isDraftsExpanded && !draftSearchQuery && drafts.length > 3 && (
+                    <div className="mt-2 text-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsDraftsExpanded(true)}
+                        className="text-xs text-primary font-bold hover:underline h-6"
+                      >
+                        + {drafts.length - 3} more students ready in scan queue. Click to expand full roster →
+                      </Button>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -869,6 +1135,16 @@ const Register = () => {
           </div>
         </div>
       </div>
+
+      {/* Bulk PDF ID Card Importer Modal (Role Authorized) */}
+      {canBulkImport && (
+        <ClassPDFIDCardImporter
+          isOpen={isPdfModalOpen}
+          onClose={() => setIsPdfModalOpen(false)}
+          onImportDrafts={handleImportDrafts}
+          initialClass={departmentParam || formData.department || undefined}
+        />
+      )}
     </PageTransition>
   );
 };
