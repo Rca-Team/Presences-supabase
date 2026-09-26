@@ -24,16 +24,21 @@ interface RoyalScrollProviderProps {
  */
 export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ children }) => {
   const progressBarRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Synchronize top luminescence progress bar on all devices
     const onNativeScroll = () => {
-      if (!progressBarRef.current) return;
-      const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-      const maxScroll = (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight;
-      const pct = maxScroll > 0 ? Math.max(0, Math.min(1, scrollY / maxScroll)) : 0;
-      progressBarRef.current.style.transform = `scaleX(${pct})`;
-      progressBarRef.current.style.opacity = pct > 0.005 ? '1' : '0';
+      if (frameRef.current !== null) return;
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null;
+        if (!progressBarRef.current) return;
+        const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = maxScroll > 0 ? Math.max(0, Math.min(1, scrollY / maxScroll)) : 0;
+        progressBarRef.current.style.transform = `scaleX(${pct})`;
+        progressBarRef.current.style.opacity = pct > 0.005 ? '1' : '0';
+      });
     };
 
     window.addEventListener('scroll', onNativeScroll, { passive: true });
@@ -41,6 +46,7 @@ export const RoyalScrollProvider: React.FC<RoyalScrollProviderProps> = ({ childr
 
     return () => {
       window.removeEventListener('scroll', onNativeScroll);
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     };
   }, []);
 

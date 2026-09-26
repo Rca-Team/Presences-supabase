@@ -379,11 +379,20 @@ function App() {
 
 
   useEffect(() => {
-    const schedule = window.setTimeout(() => setMountNonCritical(true), 800);
-    // Pre-warm primary route chunks in the background to eliminate chunk load pauses & blinking
-    warmCommonRoutes(['/', '/attendance', '/admin', '/gate', '/register', '/profile', '/features', '/contact', '/parent', '/teacher']);
+    const browser = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const mount = () => setMountNonCritical(true);
+    const idleId = browser.requestIdleCallback?.(mount, { timeout: 1800 });
+    const timeoutId = idleId === undefined ? window.setTimeout(mount, 1200) : undefined;
+
+    // Warm only lightweight, common destinations. Feature-heavy routes still
+    // preload on intent (hover/focus), avoiding a large post-load CPU spike.
+    warmCommonRoutes(['/login', '/attendance', '/features']);
     return () => {
-      window.clearTimeout(schedule);
+      if (idleId !== undefined) browser.cancelIdleCallback?.(idleId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
   }, []);
 

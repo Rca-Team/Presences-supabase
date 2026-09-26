@@ -92,9 +92,9 @@ const Navbar = () => {
   return (
     <header 
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 md:px-8 py-3 transition-all duration-300",
+        "fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 md:px-8 py-3 transition-colors duration-200",
         isScrolled 
-          ? "backdrop-blur-xl bg-background/70 dark:bg-slate-950/70 shadow-sm border-b border-border/40 dark:border-white/10" 
+          ? "backdrop-blur-md bg-background/88 dark:bg-slate-950/88 shadow-sm border-b border-border/50 dark:border-white/10"
           : "bg-transparent"
       )}
     >
@@ -111,7 +111,7 @@ const Navbar = () => {
         <LayoutGroup id="navbar-dock-tabs">
           <nav
             onMouseLeave={() => setHoveredPath(null)}
-            className="hidden md:flex items-center gap-1 rounded-full p-1.5 backdrop-blur-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.45)] relative"
+            className="nano-glass-dock hidden md:flex items-center gap-1 rounded-full p-1.5 relative"
           >
             {/* Soft inner top specular highlight */}
             <span className="pointer-events-none absolute inset-x-6 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/70 dark:via-white/20 to-transparent" />
@@ -151,7 +151,7 @@ const Navbar = () => {
                     {hovered && !active && (
                       <motion.div
                         layoutId="navbar-hover-pill"
-                        className="absolute inset-0 rounded-full bg-slate-900/[0.05] dark:bg-white/[0.08] backdrop-blur-md border border-slate-900/[0.04] dark:border-white/[0.06]"
+                        className="absolute inset-0 rounded-full bg-slate-900/[0.05] dark:bg-white/[0.08] border border-slate-900/[0.04] dark:border-white/[0.06]"
                         transition={{ type: "spring", stiffness: 500, damping: 35, mass: 0.5 }}
                       />
                     )}

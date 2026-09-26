@@ -2,49 +2,6 @@ import { createRoot } from 'react-dom/client'
 import { StrictMode } from 'react'
 import App from './App.tsx'
 import './index.css'
-import { toast } from 'sonner'
-
-// Clean up only stale app-shell SWs from legacy builds.
-// Keep /sw-push.js intact because it's required for emergency/background push.
-const unregisterStaleServiceWorkers = async () => {
-  if (!('serviceWorker' in navigator)) return;
-
-  try {
-    const regs = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(
-      regs.map(async (r) => {
-        const script = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || '';
-        const isLegacyAppSw = script.includes('/sw.js') || script.includes('/service-worker.js');
-        const isPushSw = script.includes('/sw-push.js');
-        if (isLegacyAppSw && !isPushSw) {
-          await r.unregister();
-        }
-      }),
-    );
-
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      const staleKeys = keys.filter(
-        (k) =>
-          k.includes('workbox') ||
-          k.includes('precache') ||
-          k.includes('runtime') ||
-          k.includes('googleAnalytics') ||
-          k.includes('supabase'),
-      );
-      await Promise.all(staleKeys.map((k) => caches.delete(k)));
-    }
-  } catch (e) {
-    // Best-effort only; do not block app startup.
-    console.warn('Service worker cleanup skipped:', e);
-  }
-};
-
-void unregisterStaleServiceWorkers();
-
-// One-time local hard reset for remixed/forked projects:
-// clears old session/auth/cache/face data so the app starts fresh.
-const LOCAL_RESET_MARKER = 'presence_local_reset_v1_done';
 
 const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
   try {
@@ -73,7 +30,10 @@ const sanitizeSupabaseAuthStorage = () => {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
 
-      let parsed: any;
+      let parsed: {
+        access_token?: unknown;
+        currentSession?: { access_token?: unknown };
+      };
       try {
         parsed = JSON.parse(raw);
       } catch {
@@ -99,39 +59,6 @@ const sanitizeSupabaseAuthStorage = () => {
   }
 };
 
-const resetLocalProjectDataOnce = () => {
-  try {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem(LOCAL_RESET_MARKER) === '1') {
-      return;
-    }
-
-    if (typeof localStorage !== 'undefined') {
-      localStorage.clear();
-      localStorage.setItem(LOCAL_RESET_MARKER, '1');
-    }
-
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.clear();
-    }
-
-    if (typeof indexedDB !== 'undefined' && 'deleteDatabase' in indexedDB) {
-      indexedDB.deleteDatabase('FaceDescriptorCache');
-    }
-
-    // Remove any other legacy IndexedDB databases used by the app
-    if (typeof indexedDB !== 'undefined' && (indexedDB as any).databases) {
-      (indexedDB as any).databases().then((dbs: Array<{ name?: string }>) => {
-        dbs.forEach((db) => {
-          if (db.name) indexedDB.deleteDatabase(db.name);
-        });
-      }).catch(() => {});
-    }
-  } catch (e) {
-    console.warn('Local project reset skipped:', e);
-  }
-};
-
-resetLocalProjectDataOnce();
 sanitizeSupabaseAuthStorage();
 
 

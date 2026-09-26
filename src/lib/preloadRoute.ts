@@ -3,6 +3,18 @@
 
 type Importer = () => Promise<unknown>;
 
+interface NavigatorWithConnection extends Navigator {
+  connection?: {
+    saveData?: boolean;
+    effectiveType?: string;
+  };
+  deviceMemory?: number;
+}
+
+interface IdleWindow extends Window {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+}
+
 const importers: Record<string, Importer> = {
   '/': () => import('@/pages/Index'),
   '/login': () => import('@/pages/Login'),
@@ -27,12 +39,27 @@ const importers: Record<string, Importer> = {
 
 const inflight: Record<string, Promise<unknown> | undefined> = {};
 
-function shouldSkip(): boolean {
+function shouldSkipIntent(): boolean {
   try {
-    const nav: any = navigator;
+    const nav = navigator as NavigatorWithConnection;
     if (nav?.connection?.saveData) return true;
-    if (nav?.connection?.effectiveType === 'slow-2g' || nav?.connection?.effectiveType === '2g') return true;
     if (!navigator.onLine) return true;
+    if (document.visibilityState !== 'visible') return true;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+function shouldSkipBackgroundWarm(): boolean {
+  if (shouldSkipIntent()) return true;
+  try {
+    const nav = navigator as NavigatorWithConnection;
+    if (['slow-2g', '2g', '3g'].includes(nav?.connection?.effectiveType ?? '')) return true;
+    // Preloading a face-recognition route can allocate hundreds of MB. Keep
+    // interaction responsive on modest phones and shared classroom hardware.
+    if (typeof nav?.deviceMemory === 'number' && nav.deviceMemory <= 4) return true;
+    if (typeof nav?.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 4) return true;
   } catch {
     // ignore
   }
@@ -41,7 +68,7 @@ function shouldSkip(): boolean {
 
 /** Preload a route's JS chunk. Safe to call many times — dedup'd. */
 export function preloadRoute(path: string): void {
-  if (shouldSkip()) return;
+  if (shouldSkipIntent()) return;
   const key = path.split('?')[0].split('#')[0];
   const importer = importers[key];
   if (!importer) return;
@@ -58,12 +85,24 @@ export function preloadRoute(path: string): void {
 
 /** Warm the most common routes when the browser is idle. */
 export function warmCommonRoutes(paths: string[]): void {
-  if (shouldSkip()) return;
-  const run = () => paths.forEach((p) => preloadRoute(p));
-  const w: any = window;
-  if (typeof w.requestIdleCallback === 'function') {
-    w.requestIdleCallback(run, { timeout: 2000 });
-  } else {
-    window.setTimeout(run, 800);
-  }
+  if (shouldSkipBackgroundWarm()) return;
+  const queue = Array.from(new Set(paths)).slice(0, 3);
+  const w = window as IdleWindow;
+
+  const scheduleNext = () => {
+    if (shouldSkipBackgroundWarm() || queue.length === 0) return;
+    const run = () => {
+      const next = queue.shift();
+      if (next) preloadRoute(next);
+      if (queue.length > 0) scheduleNext();
+    };
+
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(run, { timeout: 3500 });
+    } else {
+      window.setTimeout(run, 1400);
+    }
+  };
+
+  scheduleNext();
 }

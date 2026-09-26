@@ -377,7 +377,7 @@ body {
   }
 
   .premium-glass-main {
-    @apply relative rounded-3xl border backdrop-blur-2xl;
+    @apply relative rounded-3xl border backdrop-blur-md;
     background:
       linear-gradient(135deg, hsl(var(--card) / 0.94), hsl(var(--card) / 0.84)),
       linear-gradient(120deg, hsl(var(--neon-orange) / 0.16), transparent 58%),
