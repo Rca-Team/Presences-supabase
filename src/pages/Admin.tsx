@@ -188,10 +188,10 @@ const Admin = () => {
     }
   });
 
-  // Secret Hotkey Listener: Ctrl+Shift+R or Cmd+Shift+R (Fleet Radar)
+  // Secret Hotkey Listener: Ctrl+Shift+D or Cmd+Shift+D (Fleet Radar)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd' || e.code === 'KeyD')) {
         e.preventDefault();
         haptic('heavy');
         setIsSecretModalOpen(true);
