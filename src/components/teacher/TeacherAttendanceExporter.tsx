@@ -33,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isWorkingDayForSchool } from '@/utils/workingDays';
 import { matchesClassAndSection } from '@/utils/teacherAccess';
 import * as XLSX from 'xlsx';
+import { shareOrDownloadFile } from '@/utils/nativeShare';
 import { format, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth, parseISO, isAfter } from 'date-fns';
 
 export interface ExportStudent {
@@ -386,11 +387,21 @@ export const TeacherAttendanceExporter: React.FC<TeacherAttendanceExporterProps>
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, `PA_Register_${activeClass.category}`);
-        XLSX.writeFile(wb, `Attendance_PA_Matrix_Class_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_to_${format(dateRange.end, 'yyyyMMdd')}.xlsx`);
+        const fileName = `Attendance_PA_Matrix_Class_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_to_${format(dateRange.end, 'yyyyMMdd')}.xlsx`;
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+        const shared = await shareOrDownloadFile({
+          file: blob,
+          fileName,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          title: `Attendance PA Register (${activeClass.category})`,
+          text: `Official PA attendance register for Class ${activeClass.category} from Presences Smart School.`,
+        });
 
         toast({
-          title: '✅ PA Matrix Excel Exported',
-          description: `Downloaded attendance register for Class ${activeClass.category} (${rows.length} students).`,
+          title: shared ? '📤 Shared Successfully' : '✅ PA Matrix Excel Exported',
+          description: `Attendance register for Class ${activeClass.category} (${rows.length} students).`,
         });
       } else {
         // Standard Audit Log Excel
@@ -451,11 +462,21 @@ export const TeacherAttendanceExporter: React.FC<TeacherAttendanceExporterProps>
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, `Audit_Logs_${activeClass.category}`);
-        XLSX.writeFile(wb, `Attendance_Standard_Log_Class_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_to_${format(dateRange.end, 'yyyyMMdd')}.xlsx`);
+        const fileName = `Attendance_Standard_Log_Class_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_to_${format(dateRange.end, 'yyyyMMdd')}.xlsx`;
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+        const shared = await shareOrDownloadFile({
+          file: blob,
+          fileName,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          title: `Attendance Audit Logs (${activeClass.category})`,
+          text: `Detailed attendance audit records for Class ${activeClass.category}.`,
+        });
 
         toast({
-          title: '✅ Standard Log Excel Exported',
-          description: `Downloaded detailed attendance records for Class ${activeClass.category} (${records.length} logs).`,
+          title: shared ? '📤 Shared Successfully' : '✅ Standard Log Excel Exported',
+          description: `Attendance records for Class ${activeClass.category} (${records.length} logs).`,
         });
       }
     } catch (err: any) {
@@ -507,10 +528,19 @@ export const TeacherAttendanceExporter: React.FC<TeacherAttendanceExporterProps>
         ];
 
         const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `Attendance_PA_Matrix_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_${format(dateRange.end, 'yyyyMMdd')}.csv`;
-        link.click();
+        const fileName = `Attendance_PA_Matrix_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_${format(dateRange.end, 'yyyyMMdd')}.csv`;
+        const shared = await shareOrDownloadFile({
+          file: blob,
+          fileName,
+          mimeType: 'text/csv',
+          title: `Attendance PA CSV (${activeClass.category})`,
+          text: `Class ${activeClass.category} PA attendance register CSV.`,
+        });
+
+        toast({
+          title: shared ? '📤 Shared Successfully' : '✅ CSV Exported',
+          description: `Exported attendance in CSV format for Class ${activeClass.category}.`,
+        });
       } else {
         const records = await buildStandardLogData();
 
@@ -548,16 +578,20 @@ export const TeacherAttendanceExporter: React.FC<TeacherAttendanceExporterProps>
         ];
 
         const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `Attendance_Standard_Logs_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_${format(dateRange.end, 'yyyyMMdd')}.csv`;
-        link.click();
-      }
+        const fileName = `Attendance_Standard_Logs_${activeClass.category}_${format(dateRange.start, 'yyyyMMdd')}_${format(dateRange.end, 'yyyyMMdd')}.csv`;
+        const shared = await shareOrDownloadFile({
+          file: blob,
+          fileName,
+          mimeType: 'text/csv',
+          title: `Attendance Log CSV (${activeClass.category})`,
+          text: `Class ${activeClass.category} detailed attendance audit log CSV.`,
+        });
 
-      toast({
-        title: '✅ CSV Downloaded',
-        description: `Exported attendance in CSV format for Class ${activeClass.category}.`,
-      });
+        toast({
+          title: shared ? '📤 Shared Successfully' : '✅ CSV Exported',
+          description: `Exported attendance in CSV format for Class ${activeClass.category}.`,
+        });
+      }
     } catch (err: any) {
       console.error('CSV Error:', err);
       toast({ title: 'CSV Export Failed', description: err.message, variant: 'destructive' });

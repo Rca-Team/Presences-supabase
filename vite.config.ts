@@ -1,24 +1,25 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import fs from "fs";
 import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  // Canonical root resolution to handle Windows junctions/symlinks
+  const projectRoot = fs.existsSync(process.cwd())
+    ? fs.realpathSync(process.cwd())
+    : process.cwd();
+
   // Ensure Vite env vars are always loaded and inlined into the production bundle.
-  // This prevents runtime crashes like "supabaseUrl is required" when a remix/build
-  // didn't pick up the .env values.
-  const env = loadEnv(mode, process.cwd(), "VITE_");
+  const env = loadEnv(mode, projectRoot, "VITE_");
 
   return {
+    root: projectRoot,
     server: {
       host: "0.0.0.0",
       port: 5000,
     },
-    // NOTE: We intentionally avoid overriding `import.meta.env.*` via `define` here.
-    // Some Vite builds can behave unexpectedly when sub-properties are manually defined.
-    // Standard Vite `VITE_` env injection is used instead.
-
     plugins: [
       react(),
       VitePWA({
@@ -71,6 +72,36 @@ export default defineConfig(({ mode }) => {
             },
           ],
           categories: ["education", "productivity"],
+          shortcuts: [
+            {
+              name: "Smart Board Mode",
+              short_name: "Smart Board",
+              description: "Launch classroom interactive touch smart board display",
+              url: "/smartboard",
+              icons: [{ src: "/app-icon-192.png", sizes: "192x192" }],
+            },
+            {
+              name: "Android Widgets",
+              short_name: "Widgets",
+              description: "Classroom glanceable widgets & quick tools",
+              url: "/widgets",
+              icons: [{ src: "/app-icon-192.png", sizes: "192x192" }],
+            },
+            {
+              name: "Face Attendance",
+              short_name: "Attendance",
+              description: "AI-Powered live face recognition attendance",
+              url: "/attendance",
+              icons: [{ src: "/app-icon-192.png", sizes: "192x192" }],
+            },
+            {
+              name: "Gate Scanner",
+              short_name: "Gate Pass",
+              description: "Scan student security QR gate passes",
+              url: "/guard",
+              icons: [{ src: "/app-icon-192.png", sizes: "192x192" }],
+            },
+          ],
         },
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
@@ -87,25 +118,20 @@ export default defineConfig(({ mode }) => {
       alias: [
         {
           find: "@/integrations/supabase/client",
-          replacement: path.resolve(__dirname, "./src/integrations/supabase/safeClient.ts"),
+          replacement: path.resolve(projectRoot, "./src/integrations/supabase/safeClient.ts"),
         },
         {
           find: "@",
-          replacement: path.resolve(__dirname, "./src"),
+          replacement: path.resolve(projectRoot, "./src"),
         },
       ],
     },
     build: {
-      outDir: "dist",
+      outDir: path.resolve(projectRoot, "dist"),
       sourcemap: false,
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
         output: {
-          // Only bucket the libraries that are genuinely shared across many
-          // routes. Everything else is left to Rollup so that heavy, lazily
-          // imported deps (onnx, jspdf, xlsx, mediapipe, charts) stay inside
-          // the route chunk that actually needs them instead of being pulled
-          // into the entry graph through a catch-all "deps" bucket.
           manualChunks(id) {
             if (!id.includes("node_modules")) return undefined;
             if (/[\\/]react[\\/]|react-dom|react-router|scheduler/.test(id)) return "vendor";
@@ -114,7 +140,6 @@ export default defineConfig(({ mode }) => {
             if (id.includes("@radix-ui")) return "ui";
             return undefined;
           },
-
         },
       },
     },
@@ -126,4 +151,3 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
-

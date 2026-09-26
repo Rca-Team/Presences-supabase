@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   SlidersHorizontal,
@@ -8,6 +9,7 @@ import {
   LayoutGrid,
   Check,
   Smartphone,
+  Tv,
   Eye,
   ChevronDown,
 } from 'lucide-react';
@@ -28,6 +30,7 @@ import { StudentPickerWidget } from './StudentPickerWidget';
 import { DecibelMeterWidget } from './DecibelMeterWidget';
 import { StopwatchWidget } from './StopwatchWidget';
 import { EmergencyAlertWidget } from './EmergencyAlertWidget';
+import { SmartBoardFloatingDock } from '../smartboard/SmartBoardFloatingDock';
 import { ClassStudent, ClassAssignment } from '@/components/teacher/TeacherAdminWorkspace';
 
 interface AndroidWidgetBoardProps {
@@ -51,6 +54,7 @@ export const AndroidWidgetBoard: React.FC<AndroidWidgetBoardProps> = ({
   onOpenIssuePass,
   onOpenScanPass,
 }) => {
+  const navigate = useNavigate();
   const [widgets, setWidgets] = useState<AndroidWidgetItem[]>(() => {
     if (typeof window === 'undefined') return DEFAULT_ANDROID_WIDGETS;
     try {
@@ -115,20 +119,20 @@ export const AndroidWidgetBoard: React.FC<AndroidWidgetBoardProps> = ({
   });
 
   return (
-    <div className="space-y-4">
-      {/* Top Android Widget Control Bar */}
-      <div className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-3xl bg-card/80 border border-border/80 backdrop-blur-xl shadow-sm flex-wrap">
+    <div className="space-y-4 relative">
+      {/* Top Android & Smart Board Widget Control Bar */}
+      <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-3xl bg-card/80 border border-border/80 backdrop-blur-xl shadow-sm flex-wrap">
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-md shadow-amber-500/20">
-            <Smartphone className="h-4 w-4" />
+          <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+            <Smartphone className="h-5 w-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm sm:text-base font-black text-foreground tracking-tight">
-                Android Widgets Board
+                Device Widgets & Classroom Board
               </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                Material You
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                Material You M3
               </span>
             </div>
             <p className="text-[11px] text-muted-foreground font-medium">
@@ -138,7 +142,17 @@ export const AndroidWidgetBoard: React.FC<AndroidWidgetBoardProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => navigate('/smartboard')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-bold border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 transition-all active:scale-95 shadow-xs"
+            title="Launch Fullscreen Smart Board Display"
+          >
+            <Tv className="h-3.5 w-3.5" />
+            <span>Smart Board Display</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsEditMode(!isEditMode)}
@@ -149,7 +163,7 @@ export const AndroidWidgetBoard: React.FC<AndroidWidgetBoardProps> = ({
             }`}
           >
             {isEditMode ? <Check className="h-3.5 w-3.5" /> : <SlidersHorizontal className="h-3.5 w-3.5" />}
-            {isEditMode ? 'Done Customizing' : 'Customize Widgets'}
+            {isEditMode ? 'Done Customizing' : 'Customize'}
           </button>
 
           <button
@@ -243,6 +257,12 @@ export const AndroidWidgetBoard: React.FC<AndroidWidgetBoardProps> = ({
         onAddWidget={handleAddWidget}
         onResetDefaults={handleResetDefaults}
         existingWidgets={widgets}
+      />
+
+      {/* Floating Smart Board Touch Assistive Dock */}
+      <SmartBoardFloatingDock
+        students={students}
+        activeClassName={activeClass?.category}
       />
     </div>
   );

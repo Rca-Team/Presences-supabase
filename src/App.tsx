@@ -34,6 +34,7 @@ const TeacherPortal = lazyWithRetry(() => import('./pages/TeacherPortal'), 'teac
 const Portfolio = lazyWithRetry(() => import('./pages/Portfolio'), 'portfolio');
 const Jarvis = lazyWithRetry(() => import("./pages/Jarvis"), "jarvis");
 const Widgets = lazyWithRetry(() => import("./pages/Widgets"), "widgets");
+const SmartBoardMode = lazyWithRetry(() => import("./pages/SmartBoardMode"), "smartboard");
 const GuardScanner = lazyWithRetry(() => import("./pages/GuardScanner"), "guard-scanner");
 
 import { AttendanceProvider } from './contexts/AttendanceContext';
@@ -109,6 +110,11 @@ const ROUTE_SEO: Record<string, { title: string; description: string }> = {
     title: "School Widgets | Presences",
     description:
       "Handy tools including attendance stats, class period countdowns, noise meter, and stopwatch.",
+  },
+  "/smartboard": {
+    title: "Smart Board Mode | Presences",
+    description:
+      "Interactive classroom display with whiteboard, lucky wheel, noise meter, and period gong.",
   },
   "/register": {
     title: "Student Registration | Presences",
@@ -323,6 +329,7 @@ function AnimatedRoutes() {
           </ProtectedRoute>
         } />
         <Route path="/widgets" element={bound(<Widgets />, "Quick Tools")} />
+        <Route path="/smartboard" element={bound(<SmartBoardMode />, "Smart Board")} />
         <Route path="*" element={bound(<NotFound />, "Page Not Found")} />
       </Routes>
     </Suspense>

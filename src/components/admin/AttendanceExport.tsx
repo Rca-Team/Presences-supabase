@@ -1,11 +1,12 @@
 import React, { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Loader2, Share2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { shareOrDownloadFile } from '@/utils/nativeShare';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -155,16 +156,20 @@ const AttendanceExport: React.FC = () => {
       ].join('\n');
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.href = url;
-      link.download = `attendance_today_by_class_${today}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const fileName = `attendance_today_by_class_${today}.csv`;
+      
+      const shared = await shareOrDownloadFile({
+        file: blob,
+        fileName,
+        mimeType: 'text/csv',
+        title: `Today Attendance Report (${today})`,
+        text: `Today's school-wide class attendance summary.`,
+      });
 
-      toast({ title: 'CSV exported', description: 'Today\'s class-wise attendance downloaded.' });
+      toast({
+        title: shared ? '📤 Shared Successfully' : '✅ CSV Exported',
+        description: `Today's class-wise attendance summary (${fileName}).`,
+      });
     } catch (error) {
       console.error('CSV export failed:', error);
       toast({ title: 'Export failed', description: 'Unable to export CSV.', variant: 'destructive' });
@@ -207,8 +212,21 @@ const AttendanceExport: React.FC = () => {
         headStyles: { fillColor: [41, 128, 185] },
       });
 
-      pdf.save(`attendance_today_by_class_${today}.pdf`);
-      toast({ title: 'PDF exported', description: 'Today\'s class-wise attendance downloaded.' });
+      const pdfBlob = pdf.output('blob');
+      const fileName = `attendance_today_by_class_${today}.pdf`;
+
+      const shared = await shareOrDownloadFile({
+        file: pdfBlob,
+        fileName,
+        mimeType: 'application/pdf',
+        title: `School Attendance PDF (${today})`,
+        text: `Today's official PDF attendance summary.`,
+      });
+
+      toast({
+        title: shared ? '📤 Shared Successfully' : '✅ PDF Exported',
+        description: `Today's class-wise attendance PDF (${fileName}).`,
+      });
     } catch (error) {
       console.error('PDF export failed:', error);
       toast({ title: 'Export failed', description: 'Unable to export PDF.', variant: 'destructive' });
@@ -222,17 +240,17 @@ const AttendanceExport: React.FC = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="gap-2" disabled={isExporting !== null}>
           {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Today Export
+          Export / Share
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem onClick={downloadTodayCSV} className="gap-2">
-          <FileSpreadsheet className="h-4 w-4" />
-          Export Today CSV (By Class)
+          <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+          Share / Export CSV (By Class)
         </DropdownMenuItem>
         <DropdownMenuItem onClick={downloadTodayPDF} className="gap-2">
-          <FileText className="h-4 w-4" />
-          Export Today PDF (By Class)
+          <FileText className="h-4 w-4 text-indigo-500" />
+          Share / Export PDF (By Class)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
