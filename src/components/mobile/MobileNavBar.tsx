@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, LayoutGroup } from 'framer-motion';
-import { Home, UserPlus, Clock, User, GraduationCap, LayoutGrid } from 'lucide-react';
+import { Home, UserPlus, Clock, User, GraduationCap, LayoutGrid, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
@@ -19,35 +19,37 @@ const MobileNavBar: React.FC = () => {
       return [
         { path: '/teacher', icon: GraduationCap, label: 'Teacher', color: 'ios-blue' },
         { path: '/attendance', icon: Clock, label: 'Attend', color: 'ios-purple' },
+        { path: '/widgets', icon: LayoutGrid, label: 'Widgets', color: 'ios-orange' },
         { path: '/register', icon: UserPlus, label: 'Register', color: 'ios-green' },
         { path: '/profile', icon: User, label: 'Profile', color: 'ios-pink' },
       ];
     }
     return [
       { path: '/', icon: Home, label: 'Home', color: 'ios-blue' },
-      { path: '/register', icon: UserPlus, label: 'Register', color: 'ios-green' },
       { path: '/attendance', icon: Clock, label: 'Attend', color: 'ios-purple' },
+      { path: '/parent', icon: GraduationCap, label: 'Parent', color: 'ios-blue' },
+      { path: '/widgets', icon: LayoutGrid, label: 'Widgets', color: 'ios-orange' },
       { path: '/profile', icon: User, label: 'Profile', color: 'ios-pink' },
     ];
   }, [isTeacher, isAdminOrPrincipal]);
 
   if (!isMobile) return null;
-  if (location.pathname.startsWith('/teacher') || location.pathname.startsWith('/guard')) return null;
+  if (location.pathname.startsWith('/guard') || location.pathname === '/smartboard') return null;
 
-  const isActive = (path: string) => location.pathname === path || (path === '/teacher' && location.pathname.startsWith('/teacher'));
-  const activeItem = navItems.find((i) => isActive(i.path)) ?? navItems[0];
+  const isActive = (path: string) =>
+    location.pathname === path || (path === '/teacher' && location.pathname.startsWith('/teacher'));
 
   return (
     <motion.nav
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 260, damping: 28, delay: 0.15 }}
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-area-bottom"
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-area-bottom pointer-events-auto"
     >
       {/* Outer nano-glass shell */}
       <div
         className={cn(
-          "mx-3 mb-2 rounded-[28px] overflow-hidden relative nano-glass-dock",
+          "mx-2.5 mb-2 rounded-[28px] overflow-hidden relative nano-glass-dock",
           "shadow-[0_8px_32px_-8px_rgba(0,0,0,0.14),inset_0_0.5px_0_rgba(255,255,255,0.4)]",
           "dark:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5),inset_0_0.5px_0_rgba(255,255,255,0.12)]"
         )}
@@ -56,7 +58,7 @@ const MobileNavBar: React.FC = () => {
         <div className="absolute inset-x-0 top-0 h-[0.5px] bg-gradient-to-r from-transparent via-white/60 dark:via-white/15 to-transparent pointer-events-none" />
 
         <LayoutGroup>
-          <div className="flex items-stretch justify-around px-1 py-1.5">
+          <div className="flex items-stretch justify-around px-0.5 py-1">
             {navItems.map((item) => {
               const active = isActive(item.path);
               return (
@@ -66,13 +68,13 @@ const MobileNavBar: React.FC = () => {
                   onClick={() => trigger('light')}
                   onTouchStart={() => preloadRoute(item.path)}
                   onMouseEnter={() => preloadRoute(item.path)}
-                  className="relative flex flex-col items-center justify-center flex-1 min-h-[56px]"
+                  className="relative flex flex-col items-center justify-center flex-1 min-h-[52px]"
                 >
-                  {/* Shared sliding pill — one instance rides between active tabs */}
+                  {/* Shared sliding pill */}
                   {active && (
                     <motion.div
                       layoutId="mobile-nav-pill"
-                      className="absolute inset-x-2 inset-y-1 rounded-[20px]"
+                      className="absolute inset-x-1.5 inset-y-1 rounded-[18px]"
                       style={{
                         background: `linear-gradient(160deg, hsl(var(--${item.color}) / 0.22), hsl(var(--${item.color}) / 0.08))`,
                         boxShadow: `0 0 20px hsl(var(--${item.color}) / 0.2), inset 0 0.5px 0 rgba(255,255,255,0.3)`,
@@ -90,7 +92,7 @@ const MobileNavBar: React.FC = () => {
                   >
                     <item.icon
                       className={cn(
-                        "w-[22px] h-[22px]",
+                        "w-[20px] h-[20px]",
                         !active && "text-muted-foreground"
                       )}
                       strokeWidth={active ? 2.4 : 1.8}
@@ -102,11 +104,11 @@ const MobileNavBar: React.FC = () => {
 
                     <span
                       className={cn(
-                        "text-[10px] font-semibold tracking-tight",
+                        "text-[9.5px] font-semibold tracking-tight",
                         !active && "text-muted-foreground/70"
                       )}
                       style={{
-                        color: active ? `hsl(var(--${activeItem.color}))` : undefined,
+                        color: active ? `hsl(var(--${item.color}))` : undefined,
                         transition: 'color 260ms cubic-bezier(0.4,0,0.2,1)',
                       }}
                     >

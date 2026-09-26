@@ -100,14 +100,14 @@ export const SmartBoardFloatingDock: React.FC<SmartBoardFloatingDockProps> = ({
       {/* ── 1. Floating Assistive Touch Bubble ── */}
       <div
         className={cn(
-          "fixed top-24 z-[9990] transition-all select-none",
+          "fixed top-28 sm:top-24 z-[9990] transition-all select-none",
           dockSide === 'right' ? "right-3 sm:right-5" : "left-3 sm:left-5"
         )}
       >
         <motion.div
           drag
           dragMomentum={false}
-          dragConstraints={{ left: -300, right: 300, top: -100, bottom: 600 }}
+          dragElastic={0.15}
           onDragEnd={(_e, info) => {
             if (info.point.x < window.innerWidth / 2) {
               setDockSide('left');
@@ -120,12 +120,12 @@ export const SmartBoardFloatingDock: React.FC<SmartBoardFloatingDockProps> = ({
           {/* Main Floating Trigger Pill */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-2 p-2 sm:p-2.5 rounded-full bg-slate-950/90 text-white border-2 border-blue-500/50 shadow-2xl backdrop-blur-2xl hover:scale-105 transition-all hover:border-blue-400 active:scale-95"
+            className="flex items-center gap-2 p-1.5 sm:p-2.5 rounded-full bg-slate-950/92 text-white border-2 border-blue-500/50 shadow-2xl backdrop-blur-2xl hover:scale-105 transition-all hover:border-blue-400 active:scale-95"
             title="Classroom Smart Board Tools"
           >
             {/* Live Pulse Glow */}
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-md shadow-blue-500/30">
-              <Sparkles className="h-4 w-4 text-white" />
+            <div className="relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-md shadow-blue-500/30">
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
               <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
@@ -133,10 +133,10 @@ export const SmartBoardFloatingDock: React.FC<SmartBoardFloatingDockProps> = ({
             </div>
 
             <div className="flex flex-col items-start pr-2">
-              <span className="text-[11px] font-black tracking-tight text-white flex items-center gap-1">
+              <span className="text-[10px] sm:text-[11px] font-black tracking-tight text-white flex items-center gap-1">
                 {activeClass ? `Class ${activeClass.class}-${activeClass.section}` : 'Smart Tools'}
               </span>
-              <span className="text-[9px] font-mono font-bold text-emerald-400">
+              <span className="text-[8.5px] sm:text-[9px] font-mono font-bold text-emerald-400">
                 {stats.rate}% Present
               </span>
             </div>
@@ -153,7 +153,7 @@ export const SmartBoardFloatingDock: React.FC<SmartBoardFloatingDockProps> = ({
             exit={{ opacity: 0, scale: 0.92, y: 10 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
             className={cn(
-              "fixed top-40 z-[9995] w-[92vw] sm:w-96 rounded-3xl border border-white/20 bg-slate-950/95 text-white p-4 shadow-2xl backdrop-blur-3xl",
+              "fixed top-44 z-[9995] w-[calc(100vw-24px)] sm:w-96 max-w-sm rounded-3xl border border-white/20 bg-slate-950/95 text-white p-4 shadow-2xl backdrop-blur-3xl",
               dockSide === 'right' ? "right-3 sm:right-6" : "left-3 sm:left-6"
             )}
           >

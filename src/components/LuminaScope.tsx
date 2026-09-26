@@ -26,6 +26,9 @@ const LUMINA_PATHS = new Set<string>([
   '/signup',
   '/backup',
   '/data',
+  '/widgets',
+  '/smartboard',
+  '/guard',
 ]);
 
 export function isLuminaPath(pathname: string) {
